@@ -1,0 +1,328 @@
+/* Dashboard shell — FX-style light workspace (Inter, soft blue accents) */
+
+.sx-dash-root {
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Ubuntu,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  --dash-canvas: #f5f6fa;
+  --dash-panel: #ffffff;
+  --dash-border: #e8eaed;
+  --dash-border-strong: #dadce0;
+  --dash-text: #1a1d26;
+  --dash-muted: #5f6368;
+  --dash-blue: #1a73e8;
+  --dash-blue-soft: #e8f0fe;
+  --dash-green: #1e8e3e;
+  --dash-red: #d93025;
+}
+
+.sx-dash-nav-item svg {
+  opacity: 0.85;
+}
+
+.sx-dash-nav-item--active svg {
+  opacity: 1;
+}
+
+.sx-dash-canvas {
+  background-color: var(--dash-canvas);
+}
+
+.sx-dash-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 800;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  color: var(--dash-text);
+}
+
+.sx-dash-logo__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 0.25rem;
+  background: linear-gradient(145deg, #1a73e8, #1557b0);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.sx-dash-logo__mark svg {
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-left: 1px;
+}
+
+.sx-dash-main {
+  background: #fff;
+}
+
+@media (min-width: 768px) {
+  .sx-dash-main {
+    background: var(--dash-canvas);
+  }
+}
+
+.sx-dash-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  border-bottom: 1px solid var(--dash-border);
+}
+
+.sx-dash-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.65rem 0.15rem;
+  margin-bottom: -1px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--dash-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: default;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.sx-dash-tabs button[aria-selected='true'] {
+  color: var(--dash-text);
+  border-bottom-color: var(--dash-blue);
+}
+
+.sx-dash-tabs button:disabled {
+  opacity: 0.5;
+}
+
+.sx-dash-promo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: 0.5rem;
+  background: var(--dash-blue-soft);
+  border: 1px solid rgba(26, 115, 232, 0.18);
+}
+
+@media (min-width: 640px) {
+  .sx-dash-promo {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+}
+
+.sx-dash-promo__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  padding: 0.45rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--dash-blue);
+  background: #fff;
+  border: 1px solid rgba(26, 115, 232, 0.35);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.sx-dash-promo__btn:hover {
+  background: #fafbff;
+  box-shadow: 0 2px 6px rgba(26, 115, 232, 0.12);
+}
+
+.sx-dash-action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 1.25rem 1.35rem;
+  min-height: 8.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--dash-border);
+  background: #fff;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.sx-dash-action-card:hover {
+  border-color: var(--dash-border-strong);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.sx-dash-action-card--primary {
+  background: var(--dash-blue-soft);
+  border-color: rgba(26, 115, 232, 0.22);
+}
+
+.sx-dash-action-card--primary:hover {
+  border-color: rgba(26, 115, 232, 0.4);
+  box-shadow: 0 4px 16px rgba(26, 115, 232, 0.12);
+}
+
+.sx-dash-action-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.45rem;
+  margin-bottom: 0.85rem;
+  background: #fff;
+  border: 1px solid var(--dash-border);
+  color: var(--dash-blue);
+}
+
+.sx-dash-action-card--primary .sx-dash-action-card__icon {
+  background: #fff;
+  border-color: rgba(26, 115, 232, 0.25);
+}
+
+.sx-dash-action-card__title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--dash-text);
+  margin: 0 0 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sx-dash-action-card__hint {
+  font-size: 0.8125rem;
+  color: var(--dash-muted);
+  margin: 0;
+}
+
+.sx-dash-stat-card {
+  border-radius: 0.5rem;
+  border: 1px solid var(--dash-border);
+  background: #fff;
+  padding: 1rem 1.1rem;
+}
+
+.sx-dash-stat-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.sx-dash-stat-card__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--dash-muted);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sx-dash-stat-card__value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--dash-text);
+  margin: 0;
+}
+
+.sx-dash-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--dash-text);
+  background: #fff;
+  border: 1px solid var(--dash-border);
+  cursor: pointer;
+}
+
+.sx-dash-filter-btn:hover {
+  background: #f8f9fa;
+}
+
+.sx-dash-perf-chart {
+  position: relative;
+  border-radius: 0.5rem;
+  border: 1px solid var(--dash-border);
+  background: #fff;
+  min-height: 11rem;
+  padding: 0.75rem 0.75rem 0.75rem 2.25rem;
+}
+
+.sx-dash-perf-chart__head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.25rem;
+}
+
+.sx-dash-perf-chart__plot {
+  position: relative;
+  height: 8.5rem;
+  margin-top: 0.25rem;
+}
+
+.sx-dash-perf-chart__y {
+  position: absolute;
+  left: -1.85rem;
+  top: 0;
+  bottom: 0;
+  width: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.625rem;
+  font-weight: 500;
+  color: var(--dash-muted);
+  text-align: right;
+}
+
+.sx-dash-perf-chart__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sx-dash-pro-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1557b0;
+  background: #e8f0fe;
+  border: 1px solid rgba(26, 115, 232, 0.25);
+}
+
+.sx-dash-pro-pill:hover {
+  background: #d9e8fd;
+}

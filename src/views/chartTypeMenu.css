@@ -1,0 +1,104 @@
+/* TradingView-style chart type dropdown */
+
+.rw-ctmenu {
+  position: fixed;
+  z-index: 480000;
+  min-width: 220px;
+  max-width: 280px;
+  max-height: min(78vh, 560px);
+  display: none;
+  flex-direction: column;
+  padding: 6px 0;
+  margin: 0;
+  font-family: var(--rw-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-size: 13px;
+  color: #131722;
+  background: #ffffff;
+  border: 1px solid #e0e3eb;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(19, 23, 34, 0.14), 0 0 1px rgba(19, 23, 34, 0.1);
+  overflow: hidden;
+}
+
+.rw-ctmenu.rw-ctmenu--open {
+  display: flex;
+}
+
+.rw-ctmenu__scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: min(74vh, 520px);
+  padding: 0 0 4px;
+}
+
+.rw-ctmenu__sep {
+  height: 1px;
+  margin: 6px 0;
+  background: #e0e3eb;
+  border: none;
+}
+
+.rw-ctmenu__btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: #131722;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.rw-ctmenu__btn:hover:not(:disabled) {
+  background: #f0f3fa;
+}
+
+.rw-ctmenu__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rw-ctmenu__btn--active {
+  background: #2a2e39;
+  color: #f0f3fa;
+}
+
+.rw-ctmenu__btn--active:hover:not(:disabled) {
+  background: #363a45;
+}
+
+.rw-ctmenu__btn--active .rw-ctmenu__ico {
+  color: #f0f3fa;
+}
+
+.rw-ctmenu__ico {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #787b86;
+}
+
+.rw-ctmenu__ico svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.rw-ctmenu__lbl {
+  flex: 1;
+  min-width: 0;
+}
+
+.rw-ctmenu__star {
+  flex-shrink: 0;
+  font-size: 12px;
+  opacity: 0.55;
+}

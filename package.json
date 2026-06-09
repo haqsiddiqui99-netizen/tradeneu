@@ -1,0 +1,33 @@
+{
+  "name": "suplexity",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/devWithHistoricApi.mjs",
+    "dev:vite": "node scripts/viteOnlyWarn.mjs && vite",
+    "dev:full": "node scripts/devWithHistoricApi.mjs",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "import:xau": "node scripts/import-xau-csv.mjs",
+    "server:historic": "node server/historicGoldApi.mjs",
+    "ml:venv": "node scripts/mlRunner.mjs venv",
+    "ml:install": "node scripts/mlRunner.mjs install",
+    "ml:api": "node scripts/mlRunner.mjs api",
+    "ml:train": "node scripts/mlRunner.mjs train"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.5.0",
+    "daisyui": "^4.12.24",
+    "postcss": "^8.5.12",
+    "tailwindcss": "^3.4.17",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.10"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.6.0",
+    "express": "^5.1.0",
+    "lightweight-charts": "^5.2.0",
+    "multer": "^2.0.2"
+  }
+}

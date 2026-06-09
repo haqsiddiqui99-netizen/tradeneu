@@ -1,0 +1,38 @@
+@import './sessionModal.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full min-h-0;
+  }
+  body {
+    @apply antialiased;
+  }
+}
+
+/* Session modal + dashboard nav icons (inline SVG) */
+.sx-ico {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.sx-ico--xl {
+  width: 30px;
+  height: 30px;
+}
+
+/* Lightweight Charts containers need explicit height */
+.sx-chart-main {
+  min-height: 0;
+  flex: 1;
+}
+
+.sx-chart-rsi {
+  height: 112px;
+  min-height: 112px;
+}

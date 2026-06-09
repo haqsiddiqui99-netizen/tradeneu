@@ -1,0 +1,411 @@
+import {
+  CandlestickSeries,
+  ColorType,
+  CrosshairMode,
+  HistogramSeries,
+  LineStyle,
+  TickMarkType,
+  createChart,
+} from 'lightweight-charts'
+import type { IChartApi, Time } from 'lightweight-charts'
+import type { Bar } from '../types'
+import { resolveHistogramVolumes } from './volumeDisplay'
+
+export type TradingChartTheme = 'tradingview-light' | 'terminal-dark'
+
+export type TradingChart = {
+  chart: ReturnType<typeof createChart>
+  /** Replace OHLCV series. Pass `{ fit: true }` on first paint / reset. `initialVisibleBarCount` zooms to the last N bars (TradingView-style first open). */
+  setSeriesData: (
+    bars: Bar[],
+    opts?: { fit?: boolean; initialVisibleBarCount?: number; timeAxisUtcMinutes?: 5 | 10 },
+  ) => void
+  /** Redraw 10-minute UTC vertical shading (call after `chart.resize`). */
+  repaintTimeShades: () => void
+  /** Switch TradingView-style light / dark chart chrome without reloading data. */
+  applyTheme: (theme: TradingChartTheme) => void
+  /** Zoom around viewport center: multiplies visible span (e.g. 0.78 zoom in, 1.32 zoom out). */
+  zoomLogicalRange: (factor: number) => void
+  /** Pan by logical bar indices (negative = earlier / chart moves left). */
+  panLogicalRange: (deltaBars: number) => void
+  /** Fit all series data into view (TradingView-style reset). */
+  resetTimeScaleView: () => void
+  dispose: () => void
+}
+
+const TV_FONT = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, 'Segoe UI', sans-serif"
+
+/** TradingView desktop defaults (approx.) */
+const TV_UP = '#089981'
+const TV_DOWN = '#f23645'
+const TV_GRID_LIGHT = '#f0f1f5'
+const TV_GRID_DARK = '#1e222d'
+
+function timeScaleOptions(theme: TradingChartTheme, utcLabelEveryMinutes: 5 | 10) {
+  const borderColor = theme === 'tradingview-light' ? '#e0e3eb' : '#2a2e39'
+  return {
+    borderColor,
+    timeVisible: true,
+    secondsVisible: false,
+    fontSize: 12,
+    tickMarkFormatter: (time: Time, tickMarkType: TickMarkType, locale: string) =>
+      formatTimeAxisUtcGrid(time, tickMarkType, locale, utcLabelEveryMinutes),
+  }
+}
+
+function chartOptions(container: HTMLElement, theme: TradingChartTheme, utcLabelEveryMinutes: 5 | 10 = 5) {
+  const light = theme === 'tradingview-light'
+  if (light) {
+    return {
+      width: container.clientWidth,
+      height: container.clientHeight,
+      layout: {
+        background: { type: ColorType.Solid, color: '#ffffff' },
+        textColor: '#131722',
+        fontSize: 12,
+        fontFamily: TV_FONT,
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { color: TV_GRID_LIGHT, style: LineStyle.Solid },
+        horzLines: { color: TV_GRID_LIGHT, style: LineStyle.Solid },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: {
+          color: '#9598a1',
+          width: 1,
+          style: LineStyle.Dashed,
+          labelBackgroundColor: '#2962ff',
+        },
+        horzLine: {
+          color: '#9598a1',
+          width: 1,
+          style: LineStyle.Dashed,
+          labelBackgroundColor: '#2962ff',
+        },
+      },
+      rightPriceScale: {
+        borderColor: '#e0e3eb',
+        textColor: '#131722',
+        entireTextOnly: false,
+      },
+      timeScale: timeScaleOptions(theme, utcLabelEveryMinutes),
+    } as const
+  }
+  return {
+    width: container.clientWidth,
+    height: container.clientHeight,
+    layout: {
+      background: { type: ColorType.Solid, color: '#131722' },
+      textColor: '#d1d4dc',
+      fontSize: 12,
+      fontFamily: TV_FONT,
+      attributionLogo: false,
+    },
+    grid: {
+      vertLines: { color: TV_GRID_DARK, style: LineStyle.Solid },
+      horzLines: { color: TV_GRID_DARK, style: LineStyle.Solid },
+    },
+    crosshair: {
+      mode: CrosshairMode.Normal,
+      vertLine: {
+        color: '#758696',
+        width: 1,
+        style: LineStyle.Dashed,
+        labelBackgroundColor: '#2962ff',
+      },
+      horzLine: {
+        color: '#758696',
+        width: 1,
+        style: LineStyle.Dashed,
+        labelBackgroundColor: '#2962ff',
+      },
+    },
+    rightPriceScale: {
+      borderColor: '#2a2e39',
+      textColor: '#d1d4dc',
+      entireTextOnly: false,
+    },
+    timeScale: timeScaleOptions(theme, utcLabelEveryMinutes),
+  } as const
+}
+
+function volumeHistogramColors(theme: TradingChartTheme) {
+  const light = theme === 'tradingview-light'
+  const volUp = light ? 'rgba(8, 153, 129, 0.34)' : 'rgba(8, 153, 129, 0.4)'
+  const volDown = light ? 'rgba(242, 54, 69, 0.34)' : 'rgba(242, 54, 69, 0.4)'
+  return { volUp, volDown }
+}
+
+function candlePriceLineColor(theme: TradingChartTheme): string {
+  return theme === 'tradingview-light' ? '#131722' : '#b2b5be'
+}
+
+/** X-axis labels on N-minute UTC boundaries only (e.g. 10 with 1m candles = tick every 10 minutes). */
+function formatTimeAxisUtcGrid(
+  time: Time,
+  tickMarkType: TickMarkType,
+  _locale: string,
+  everyMinutes: 5 | 10,
+): string | null {
+  if (tickMarkType !== TickMarkType.Time && tickMarkType !== TickMarkType.TimeWithSeconds) return null
+  if (typeof time !== 'number') return null
+  const d = new Date(time * 1000)
+  if (d.getUTCMinutes() % everyMinutes !== 0) return ''
+  const hh = String(d.getUTCHours()).padStart(2, '0')
+  const mm = String(d.getUTCMinutes()).padStart(2, '0')
+  return `${hh}:${mm}`
+}
+
+const TEN_MIN_SEC = 600
+
+/** Alternating vertical bands every 10 minutes UTC (1m candles unchanged). */
+function paintTenMinuteUtcBands(
+  chart: IChartApi,
+  canvas: HTMLCanvasElement,
+  theme: TradingChartTheme,
+): void {
+  const ts = chart.timeScale()
+  const range = ts.getVisibleRange()
+  const w = canvas.clientWidth
+  const h = canvas.clientHeight
+  if (w < 2 || h < 2) return
+
+  const dpr = window.devicePixelRatio || 1
+  canvas.width = Math.floor(w * dpr)
+  canvas.height = Math.floor(h * dpr)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, w, h)
+
+  if (!range || typeof range.from !== 'number' || typeof range.to !== 'number') return
+
+  const from = range.from
+  const to = range.to
+  const light = theme === 'tradingview-light'
+  const bandA = light ? 'rgba(19, 23, 34, 0.024)' : 'rgba(255, 255, 255, 0.028)'
+  const bandB = light ? 'rgba(19, 23, 34, 0.058)' : 'rgba(255, 255, 255, 0.055)'
+
+  let t = Math.floor(from / TEN_MIN_SEC) * TEN_MIN_SEC
+  const tMax = to + TEN_MIN_SEC
+
+  while (t < tMax) {
+    const slot = Math.floor(t / TEN_MIN_SEC)
+    const x1 = ts.timeToCoordinate(t as Time)
+    const x2 = ts.timeToCoordinate((t + TEN_MIN_SEC) as Time)
+    if (x1 !== null && x2 !== null) {
+      const left = Math.min(Number(x1), Number(x2))
+      const rw = Math.max(1, Math.abs(Number(x2) - Number(x1)))
+      ctx.fillStyle = slot % 2 === 0 ? bandA : bandB
+      ctx.fillRect(left, 0, rw, h)
+    }
+    t += TEN_MIN_SEC
+  }
+}
+
+export function createTradingChart(
+  container: HTMLElement,
+  opts?: { theme?: TradingChartTheme; timeAxisUtcMinutes?: 5 | 10; tenMinuteUtcShading?: boolean },
+): TradingChart {
+  let themeNow: TradingChartTheme = opts?.theme ?? 'tradingview-light'
+  let timeAxisStep: 5 | 10 = opts?.timeAxisUtcMinutes ?? 5
+  let lastBars: Bar[] = []
+
+  const shadeEnabled = opts?.tenMinuteUtcShading ?? false
+  const prev = container.previousElementSibling
+  const shadeCanvas =
+    shadeEnabled && prev instanceof HTMLCanvasElement && prev.classList.contains('rw-chart-shade')
+      ? prev
+      : null
+
+  const chart = createChart(container, chartOptions(container, themeNow, timeAxisStep))
+
+  const scheduleShadePaint = () => {
+    if (!shadeCanvas) return
+    requestAnimationFrame(() => {
+      paintTenMinuteUtcBands(chart, shadeCanvas, themeNow)
+    })
+  }
+
+  if (shadeCanvas) {
+    chart.timeScale().subscribeVisibleTimeRangeChange(scheduleShadePaint)
+    chart.timeScale().subscribeVisibleLogicalRangeChange(scheduleShadePaint)
+  }
+
+  const up = TV_UP
+  const down = TV_DOWN
+
+  const candleOpts = {
+    upColor: up,
+    downColor: down,
+    borderVisible: true,
+    borderUpColor: up,
+    borderDownColor: down,
+    wickUpColor: up,
+    wickDownColor: down,
+    priceLineVisible: true,
+    priceLineWidth: 1 as const,
+    /* TradingView light: dark dashed last-price line (not candle-colored). */
+    priceLineColor: candlePriceLineColor(themeNow),
+    priceLineStyle: LineStyle.Dashed,
+    lastValueVisible: true,
+    priceFormat: { type: 'price' as const, precision: 3, minMove: 0.001 },
+  }
+  const candle = chart.addSeries(CandlestickSeries, candleOpts)
+
+  const volume = chart.addSeries(HistogramSeries, {
+    priceFormat: { type: 'volume' },
+    priceScaleId: '',
+  })
+  volume.priceScale().applyOptions({
+    scaleMargins: { top: 0.85, bottom: 0 },
+  })
+  candle.priceScale().applyOptions({
+    /* Extra top margin so in-chart “Vol” label clears first candles (TradingView-style). */
+    scaleMargins: { top: 0.08, bottom: 0.2 },
+  })
+
+  let barCount = 0
+
+  function logicalMax(): number {
+    return Math.max(0, barCount - 1)
+  }
+
+  function volumeDataFromBars(bars: Bar[]) {
+    const { volUp, volDown } = volumeHistogramColors(themeNow)
+    const { values } = resolveHistogramVolumes(bars)
+    return bars.map((b, i) => ({
+      time: b.time,
+      value: values[i] ?? 0,
+      color: b.close >= b.open ? volUp : volDown,
+    }))
+  }
+
+  return {
+    chart,
+    setSeriesData(
+      bars: Bar[],
+      opts?: { fit?: boolean; initialVisibleBarCount?: number; timeAxisUtcMinutes?: 5 | 10 },
+    ) {
+      if (opts?.timeAxisUtcMinutes != null) {
+        timeAxisStep = opts.timeAxisUtcMinutes
+        chart.applyOptions({ timeScale: timeScaleOptions(themeNow, timeAxisStep) })
+      }
+      lastBars = bars
+      barCount = bars.length
+      const cData = bars.map((b) => ({
+        time: b.time,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+      }))
+      candle.setData(cData)
+      volume.setData(volumeDataFromBars(bars))
+      scheduleShadePaint()
+      if (!opts?.fit) return
+      const ts = chart.timeScale()
+      const win = opts.initialVisibleBarCount
+      if (win != null && win > 0 && barCount >= 1) {
+        const maxI = logicalMax()
+        const visible = Math.min(Math.floor(win), barCount)
+        const from = Math.max(0, maxI - visible + 1)
+        /* Apply after layout so bar spacing matches TradingView’s first open. */
+        requestAnimationFrame(() => {
+          ts.setVisibleLogicalRange({ from, to: maxI })
+          scheduleShadePaint()
+        })
+      } else {
+        requestAnimationFrame(() => {
+          ts.fitContent()
+          scheduleShadePaint()
+        })
+      }
+    },
+    repaintTimeShades: scheduleShadePaint,
+    applyTheme(next: TradingChartTheme) {
+      themeNow = next
+      chart.applyOptions(chartOptions(container, themeNow, timeAxisStep))
+      candle.applyOptions({
+        upColor: up,
+        downColor: down,
+        borderUpColor: up,
+        borderDownColor: down,
+        wickUpColor: up,
+        wickDownColor: down,
+        priceLineVisible: true,
+        priceLineStyle: LineStyle.Dashed,
+        priceLineWidth: 1 as const,
+        priceLineColor: candlePriceLineColor(themeNow),
+        lastValueVisible: true,
+      })
+      if (lastBars.length) volume.setData(volumeDataFromBars(lastBars))
+      scheduleShadePaint()
+    },
+    zoomLogicalRange(factor: number) {
+      const ts = chart.timeScale()
+      const r = ts.getVisibleLogicalRange()
+      const maxI = logicalMax()
+      if (!r || barCount < 2 || maxI < 1) return
+      const span = Math.max(r.to - r.from, 4)
+      const maxSpan = Math.max(4, maxI + 1)
+      const mid = (r.from + r.to) / 2
+      const newSpan = Math.max(5, Math.min(span * factor, maxSpan))
+      const newHalf = newSpan / 2
+      let from = mid - newHalf
+      let to = mid + newHalf
+      const minSpan = 5
+      if (to - from < minSpan) {
+        const pad = (minSpan - (to - from)) / 2
+        from -= pad
+        to += pad
+      }
+      if (from < 0) {
+        to -= from
+        from = 0
+      }
+      if (to > maxI) {
+        from -= to - maxI
+        to = maxI
+      }
+      if (from < 0) from = 0
+      if (to <= from) to = Math.min(maxI, from + minSpan)
+      ts.setVisibleLogicalRange({ from, to })
+      scheduleShadePaint()
+    },
+    panLogicalRange(deltaBars: number) {
+      const ts = chart.timeScale()
+      const r = ts.getVisibleLogicalRange()
+      const maxI = logicalMax()
+      if (!r || barCount < 2) return
+      const span = r.to - r.from
+      let from = r.from + deltaBars
+      let to = r.to + deltaBars
+      if (from < 0) {
+        to -= from
+        from = 0
+      }
+      if (to > maxI) {
+        from -= to - maxI
+        to = maxI
+      }
+      if (from < 0) from = 0
+      if (to < from + 4) to = Math.min(maxI, from + Math.max(span, 4))
+      ts.setVisibleLogicalRange({ from, to })
+      scheduleShadePaint()
+    },
+    resetTimeScaleView() {
+      chart.timeScale().fitContent()
+      scheduleShadePaint()
+    },
+    dispose() {
+      if (shadeCanvas) {
+        chart.timeScale().unsubscribeVisibleTimeRangeChange(scheduleShadePaint)
+        chart.timeScale().unsubscribeVisibleLogicalRangeChange(scheduleShadePaint)
+      }
+      chart.remove()
+    },
+  }
+}

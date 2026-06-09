@@ -1,0 +1,466 @@
+/* Full-screen surreal login — isolated from chart workspace */
+
+.sx-login .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sx-login {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  background: #0a0612;
+}
+
+.sx-login__mesh {
+  position: absolute;
+  inset: -40%;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(99, 102, 241, 0.35), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 80% 20%, rgba(236, 72, 153, 0.28), transparent 50%),
+    radial-gradient(ellipse 70% 60% at 50% 100%, rgba(56, 189, 248, 0.22), transparent 45%),
+    conic-gradient(from 210deg at 50% 50%, #0f0820, #1a0b2e, #0d1630, #0f0820);
+  animation: sx-login-mesh-drift 28s ease-in-out infinite alternate;
+}
+
+@keyframes sx-login-mesh-drift {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  100% {
+    transform: translate(4%, -3%) rotate(8deg) scale(1.08);
+  }
+}
+
+.sx-login__noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.07;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.sx-login__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.sx-login__orb--a {
+  width: min(420px, 55vw);
+  height: min(420px, 55vw);
+  top: -12%;
+  right: -8%;
+  background: #7c3aed;
+  animation: sx-login-float-a 18s ease-in-out infinite;
+}
+
+.sx-login__orb--b {
+  width: min(360px, 48vw);
+  height: min(360px, 48vw);
+  bottom: -15%;
+  left: -10%;
+  background: #db2777;
+  animation: sx-login-float-b 22s ease-in-out infinite;
+}
+
+.sx-login__orb--c {
+  width: min(200px, 30vw);
+  height: min(200px, 30vw);
+  top: 42%;
+  left: 38%;
+  background: #22d3ee;
+  opacity: 0.35;
+  animation: sx-login-float-c 14s ease-in-out infinite;
+}
+
+@keyframes sx-login-float-a {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(-24px, 32px);
+  }
+}
+
+@keyframes sx-login-float-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(28px, -20px) scale(1.06);
+  }
+}
+
+@keyframes sx-login-float-c {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0.28;
+  }
+  50% {
+    transform: translate(-16px, 12px);
+    opacity: 0.42;
+  }
+}
+
+.sx-login__panel {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 420px;
+  padding: 2.25rem 2rem 2rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.04) 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 32px 80px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.sx-login__brand {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+  color: #fafafa;
+  margin: 0 0 0.875rem;
+  line-height: 1.2;
+  text-shadow: 0 0 28px rgba(167, 139, 250, 0.35);
+}
+
+.sx-login__signup {
+  text-align: center;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  color: rgba(241, 245, 249, 0.92);
+  margin: 0 0 1.25rem;
+}
+
+.sx-login__link {
+  border: none;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 500;
+  line-height: inherit;
+  letter-spacing: -0.01em;
+  color: #38bdf8;
+  text-decoration: none;
+}
+
+.sx-login__link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: #7dd3fc;
+}
+
+.sx-login__link--inline {
+  display: inline;
+}
+
+.sx-login__google {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 0.8125rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: #0c0c0e;
+  color: #fafafa;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sx-login__google:hover {
+  background: linear-gradient(180deg, #1a1a1f 0%, #121216 100%);
+  border-color: rgba(147, 197, 253, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(147, 197, 253, 0.35),
+    0 0 0 4px rgba(59, 130, 246, 0.22),
+    0 12px 40px rgba(99, 102, 241, 0.2);
+}
+
+.sx-login__google:focus {
+  outline: none;
+  background: linear-gradient(180deg, #1c1c22 0%, #141418 100%);
+  border-color: rgba(147, 197, 253, 0.65);
+  box-shadow:
+    0 0 0 1px rgba(191, 219, 254, 0.55),
+    0 0 0 4px rgba(59, 130, 246, 0.35),
+    0 14px 44px rgba(99, 102, 241, 0.28);
+}
+
+.sx-login__google:focus-visible {
+  box-shadow:
+    0 0 0 1px rgba(191, 219, 254, 0.65),
+    0 0 0 4px rgba(59, 130, 246, 0.42),
+    0 14px 44px rgba(99, 102, 241, 0.32);
+}
+
+.sx-login__google:active {
+  background: #0f0f12;
+  border-color: rgba(147, 197, 253, 0.5);
+  box-shadow:
+    0 0 0 2px rgba(59, 130, 246, 0.3),
+    inset 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.sx-login__google-ico {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: block;
+  shape-rendering: geometricPrecision;
+}
+
+.sx-login__or {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  color: rgba(148, 163, 184, 0.9);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.sx-login__or::before,
+.sx-login__or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sx-login__field {
+  margin-bottom: 1rem;
+}
+
+.sx-login__input-wrap {
+  display: flex;
+  align-items: stretch;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(15, 23, 42, 0.55);
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.sx-login__input-wrap:focus-within {
+  border-color: rgba(167, 139, 250, 0.55);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.22);
+}
+
+.sx-login__input-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 0.55rem 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: rgba(148, 163, 184, 0.95);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  user-select: none;
+}
+
+.sx-login__input-prefix--ico {
+  padding: 0 0.5rem 0 0.65rem;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.sx-login__field-ico {
+  display: block;
+}
+
+.sx-login__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.6875rem 0.875rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(15, 23, 42, 0.55);
+  color: #f8fafc;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.45;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.sx-login__input::placeholder {
+  color: rgba(148, 163, 184, 0.88);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  opacity: 1;
+}
+
+.sx-login__input::-webkit-input-placeholder {
+  color: rgba(148, 163, 184, 0.88);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.sx-login__input--inset {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.sx-login__input--inset:focus {
+  box-shadow: none;
+}
+
+.sx-login__eye {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.65rem;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: rgba(148, 163, 184, 0.95);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.sx-login__eye:hover {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sx-login__eye-svg {
+  display: block;
+}
+
+.sx-login__forgot-wrap {
+  text-align: right;
+  margin: -0.25rem 0 1rem;
+}
+
+.sx-login__forgot-wrap .sx-login__link {
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.sx-login__submit {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.875rem 1rem;
+  border: none;
+  border-radius: 9999px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-transform: none;
+  color: #0a0612;
+  cursor: pointer;
+  background: linear-gradient(105deg, #e9d5ff, #fbcfe8, #a5f3fc);
+  background-size: 200% 100%;
+  animation: sx-login-shimmer 8s ease infinite;
+  box-shadow: 0 8px 32px rgba(167, 139, 250, 0.35);
+  transition: transform 0.15s, filter 0.15s;
+}
+
+.sx-login__submit:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.sx-login__submit:active {
+  transform: translateY(0);
+}
+
+@keyframes sx-login-shimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.sx-login__submit-arrow {
+  margin-left: 0.35rem;
+  font-weight: 600;
+}
+
+.sx-login__legal {
+  margin: 1.35rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: -0.01em;
+  text-align: center;
+  color: rgba(203, 213, 225, 0.82);
+}
+
+.sx-login__legal .sx-login__link--inline {
+  font-size: inherit;
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sx-login__mesh,
+  .sx-login__orb--a,
+  .sx-login__orb--b,
+  .sx-login__orb--c,
+  .sx-login__submit {
+    animation: none !important;
+  }
+}

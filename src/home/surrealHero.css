@@ -1,0 +1,361 @@
+/* Surreal hero band — dashboard home only (not chart workspace) */
+
+.sx-surreal-hero {
+  position: relative;
+  margin-bottom: 2.5rem;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: linear-gradient(135deg, #faf8ff 0%, #f0f4ff 35%, #fdf2f8 70%, #ecfeff 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.8) inset,
+    0 24px 60px rgba(79, 70, 229, 0.12);
+}
+
+.sx-surreal-hero__aurora {
+  position: absolute;
+  inset: -30% -20%;
+  background:
+    radial-gradient(ellipse 55% 45% at 15% 30%, rgba(167, 139, 250, 0.45), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 88% 25%, rgba(244, 114, 182, 0.35), transparent 52%),
+    radial-gradient(ellipse 60% 50% at 50% 90%, rgba(34, 211, 238, 0.2), transparent 50%);
+  animation: sx-hero-aurora 20s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes sx-hero-aurora {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(3%, -4%) scale(1.06);
+    opacity: 1;
+  }
+}
+
+.sx-surreal-hero__grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.09;
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.35) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black 20%, transparent 75%);
+  pointer-events: none;
+}
+
+.sx-surreal-hero__ring {
+  position: absolute;
+  width: min(320px, 70vw);
+  height: min(320px, 70vw);
+  top: 50%;
+  right: -8%;
+  translate: 0 -50%;
+  border-radius: 50%;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  box-shadow: 0 0 60px rgba(99, 102, 241, 0.08);
+  animation: sx-hero-ring 24s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes sx-hero-ring {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sx-surreal-hero__mist {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 100% 80% at 50% 100%, rgba(255, 255, 255, 0.65), transparent 55%);
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sx-surreal-hero__orbs {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sx-surreal-hero__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.55;
+  animation: sx-hero-orb 18s ease-in-out infinite;
+}
+
+.sx-surreal-hero__orb--a {
+  width: min(180px, 45vw);
+  height: min(180px, 45vw);
+  top: -6%;
+  left: -4%;
+  background: radial-gradient(circle, rgba(129, 140, 248, 0.9), transparent 70%);
+  animation-delay: -4s;
+}
+
+.sx-surreal-hero__orb--b {
+  width: min(200px, 50vw);
+  height: min(200px, 50vw);
+  bottom: -12%;
+  right: 18%;
+  background: radial-gradient(circle, rgba(244, 114, 182, 0.55), transparent 72%);
+  animation-delay: -9s;
+}
+
+@keyframes sx-hero-orb {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(6%, 4%) scale(1.12);
+  }
+}
+
+.sx-surreal-hero__inner {
+  position: relative;
+  z-index: 1;
+  padding: 2rem 1.75rem 2.25rem;
+}
+
+@media (min-width: 768px) {
+  .sx-surreal-hero__inner {
+    padding: 2.5rem 2.5rem 2.75rem;
+  }
+}
+
+.sx-surreal-hero__layout {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .sx-surreal-hero__layout {
+    grid-template-columns: minmax(0, 1fr) min(280px, 32%);
+    gap: 2.5rem;
+    align-items: center;
+  }
+}
+
+.sx-surreal-hero__copy {
+  min-width: 0;
+}
+
+.sx-surreal-hero__cta-row {
+  margin-top: 1.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 0.75rem;
+}
+
+.sx-surreal-hero__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.15rem;
+  border-radius: 9999px;
+  font-family: 'Syne', system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: none;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.25s ease,
+    background 0.2s ease;
+}
+
+.sx-surreal-hero__btn:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 3px;
+}
+
+.sx-surreal-hero__btn--primary {
+  color: #fff;
+  background: linear-gradient(120deg, #4f46e5 0%, #7c3aed 45%, #db2777 100%);
+  background-size: 160% auto;
+  box-shadow:
+    0 2px 12px rgba(79, 70, 229, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.sx-surreal-hero__btn--primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 28px rgba(79, 70, 229, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.sx-surreal-hero__btn .sx-ico {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.sx-surreal-hero__btn--ghost {
+  color: #3730a3;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.sx-surreal-hero__btn--ghost:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+.sx-surreal-hero__deck {
+  display: none;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1024px) {
+  .sx-surreal-hero__deck {
+    display: flex;
+  }
+}
+
+.sx-surreal-hero__deck-card {
+  position: relative;
+  padding: 1rem 1.1rem;
+  border-radius: 1rem;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.38));
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.06),
+    0 16px 40px rgba(30, 27, 75, 0.08);
+  backdrop-filter: blur(14px);
+  animation: sx-hero-deck-float 7s ease-in-out infinite;
+}
+
+.sx-surreal-hero__deck-card:nth-child(2) {
+  animation-delay: -2.3s;
+  margin-inline-start: 1.25rem;
+}
+
+.sx-surreal-hero__deck-card:nth-child(3) {
+  animation-delay: -4.6s;
+  margin-inline-start: 0.35rem;
+}
+
+@keyframes sx-hero-deck-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.sx-surreal-hero__deck-k {
+  font-family: 'Syne', system-ui, sans-serif;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #6366f1;
+  margin: 0 0 0.35rem;
+}
+
+.sx-surreal-hero__deck-v {
+  font-family: 'Cormorant Infant', Georgia, serif;
+  font-size: 1.35rem;
+  font-style: italic;
+  font-weight: 600;
+  color: #1e1b4b;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.sx-surreal-hero__deck-s {
+  margin: 0.4rem 0 0;
+  font-size: 0.7rem;
+  color: #64748b;
+  letter-spacing: 0.02em;
+}
+
+.sx-surreal-hero__eyebrow {
+  font-family: 'Syne', system-ui, sans-serif;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #6366f1;
+  margin: 0 0 0.75rem;
+}
+
+.sx-surreal-hero__title {
+  font-family: 'Syne', system-ui, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.1rem);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+  margin: 0 0 0.75rem;
+  background: linear-gradient(110deg, #1e1b4b 0%, #4c1d95 35%, #9d174d 65%, #0e7490 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sx-hero-title-shift 14s ease infinite;
+}
+
+@keyframes sx-hero-title-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.sx-surreal-hero__lead {
+  font-family: 'Cormorant Infant', Georgia, serif;
+  font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.45;
+  color: #475569;
+  margin: 0;
+  max-width: 36rem;
+}
+
+.sx-surreal-hero__meta {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.sx-dash-canvas--dream {
+  background: linear-gradient(180deg, #fbfaff 0%, #fafafa 28%, #fafafa 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sx-surreal-hero__aurora,
+  .sx-surreal-hero__ring,
+  .sx-surreal-hero__title,
+  .sx-surreal-hero__orb,
+  .sx-surreal-hero__deck-card {
+    animation: none !important;
+  }
+}
