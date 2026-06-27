@@ -2,22 +2,22 @@
 
 .rw-intmenu {
   position: fixed;
-  z-index: 480000;
+  z-index: var(--rw-z-popover);
   min-width: 200px;
   max-width: 240px;
   max-height: min(72vh, 520px);
   display: none;
   flex-direction: column;
-  padding: 6px 0;
+  padding: var(--rw-space-1) 0;
   margin: 0;
   list-style: none;
-  font-family: var(--rw-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-family: var(--rw-font);
   font-size: 13px;
-  color: #131722;
-  background: #ffffff;
-  border: 1px solid #e0e3eb;
-  border-radius: 4px;
-  box-shadow: 0 4px 16px rgba(19, 23, 34, 0.14), 0 0 1px rgba(19, 23, 34, 0.1);
+  color: var(--rw-menu-text);
+  background: var(--rw-menu-bg);
+  border: 1px solid var(--rw-menu-border);
+  border-radius: var(--rw-radius-sm);
+  box-shadow: var(--rw-menu-shadow);
   overflow: hidden;
 }
 
@@ -29,13 +29,13 @@
   overflow-y: auto;
   overflow-x: hidden;
   max-height: min(68vh, 500px);
-  padding: 0 0 4px;
+  padding: 0 0 var(--rw-space-1);
 }
 
 .rw-intmenu__sep {
   height: 1px;
-  margin: 6px 0;
-  background: #e0e3eb;
+  margin: var(--rw-space-1) 0;
+  background: var(--rw-menu-sep);
   border: none;
 }
 
@@ -43,11 +43,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px 4px;
+  padding: var(--rw-space-1) var(--rw-space-3) var(--rw-space-1);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: #787b86;
+  color: var(--rw-menu-muted);
   text-transform: uppercase;
   user-select: none;
 }
@@ -61,18 +61,18 @@
   display: block;
   width: 100%;
   margin: 0;
-  padding: 8px 14px;
+  padding: var(--rw-space-2) 14px;
   border: none;
   background: transparent;
-  color: #131722;
+  color: var(--rw-menu-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background var(--rw-transition-fast);
 }
 
 .rw-intmenu__btn:hover:not(:disabled) {
-  background: #f0f3fa;
+  background: var(--rw-menu-hover);
 }
 
 .rw-intmenu__btn:disabled {
@@ -81,19 +81,62 @@
 }
 
 .rw-intmenu__btn--active {
-  background: #2a2e39;
-  color: #f0f3fa;
+  background: var(--rw-menu-active-bg);
+  color: var(--rw-menu-active-text);
   font-weight: 500;
 }
 
 .rw-intmenu__btn--active:hover:not(:disabled) {
-  background: #363a45;
+  background: var(--rw-menu-active-hover);
 }
 
 .rw-intmenu__hint {
-  padding: 8px 12px 4px;
+  padding: var(--rw-space-2) var(--rw-space-3) var(--rw-space-1);
   font-size: 11px;
   line-height: 1.35;
-  color: #787b86;
-  border-top: 1px solid #f0f3fa;
+  color: var(--rw-menu-muted);
+  border-top: 1px solid var(--rw-menu-hint-border);
+}
+
+/* Compact interval list under FXReplay floating replay bar */
+.rw-intmenu--replay {
+  min-width: 56px;
+  max-width: 88px;
+  max-height: min(320px, 50vh);
+  padding: var(--rw-space-1) 0;
+  border-radius: var(--rw-radius-lg);
+  box-shadow: var(--rw-menu-shadow);
+}
+
+.rw-intmenu--replay .rw-intmenu__scroll {
+  max-height: min(300px, 48vh);
+  padding: 2px 0;
+}
+
+.rw-intmenu--replay .rw-intmenu__btn {
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.rw-intmenu--replay .rw-intmenu__btn--active {
+  background: var(--rw-menu-hover);
+  color: var(--rw-menu-text);
+  font-weight: 600;
+}
+
+.rw-intmenu--replay .rw-intmenu__btn--active:hover:not(:disabled) {
+  background: var(--rw-menu-hover);
+  filter: brightness(0.97);
+}
+
+.rw-replay-dock__interval--open .rw-replay-dock__interval-chev {
+  transform: rotate(180deg);
+}
+
+.rw-replay-dock__interval-chev {
+  display: inline-block;
+  transition: transform var(--rw-transition-slow);
 }

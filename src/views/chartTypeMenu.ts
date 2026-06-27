@@ -1,5 +1,6 @@
 import type { ChartVisualKind } from '../chart/chartVisualKind'
 import { isChartVisualKindEnabled } from '../chart/chartVisualKind'
+import { syncChartThemeToElement } from '../styles/syncChartTheme'
 import './chartTypeMenu.css'
 
 type RowDef = {
@@ -147,6 +148,7 @@ export function createChartTypeMenu(opts: {
     if (menuOpen) return
     menuOpen = true
     syncActive()
+    syncChartThemeToElement(root)
     document.body.appendChild(root)
     root.classList.add('rw-ctmenu--open')
     opts.onOpenChange?.(true)

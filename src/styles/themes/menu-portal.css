@@ -1,0 +1,40 @@
+/* Popover menus portaled to document.body — theme via data-chart-theme on each root. */
+
+.rw-intmenu[data-chart-theme='light'],
+.rw-ctmenu[data-chart-theme='light'],
+.rw-goto-menu[data-chart-theme='light'] {
+  --rw-menu-bg: #ffffff;
+  --rw-menu-border: #e0e3eb;
+  --rw-menu-text: #131722;
+  --rw-menu-muted: #787b86;
+  --rw-menu-key: #9aa0ab;
+  --rw-menu-hover: #f0f3fa;
+  --rw-menu-active-bg: #2a2e39;
+  --rw-menu-active-text: #f0f3fa;
+  --rw-menu-active-hover: #363a45;
+  --rw-menu-sep: #e0e3eb;
+  --rw-menu-hint-border: #f0f3fa;
+  --rw-menu-shadow: 0 4px 16px rgba(19, 23, 34, 0.14), 0 0 1px rgba(19, 23, 34, 0.1);
+  --rw-menu-shadow-lg:
+    0 0 0 1px rgba(19, 23, 34, 0.04),
+    0 10px 32px rgba(19, 23, 34, 0.14),
+    0 2px 6px rgba(19, 23, 34, 0.06);
+}
+
+.rw-intmenu[data-chart-theme='dark'],
+.rw-ctmenu[data-chart-theme='dark'],
+.rw-goto-menu[data-chart-theme='dark'] {
+  --rw-menu-bg: #1e222d;
+  --rw-menu-border: rgba(255, 255, 255, 0.12);
+  --rw-menu-text: #d1d4dc;
+  --rw-menu-muted: #787b86;
+  --rw-menu-key: #787b86;
+  --rw-menu-hover: rgba(255, 255, 255, 0.08);
+  --rw-menu-active-bg: #363a45;
+  --rw-menu-active-text: #f0f3fa;
+  --rw-menu-active-hover: #434651;
+  --rw-menu-sep: rgba(255, 255, 255, 0.1);
+  --rw-menu-hint-border: rgba(255, 255, 255, 0.08);
+  --rw-menu-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 0, 0, 0.2);
+  --rw-menu-shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.45);
+}

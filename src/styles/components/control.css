@@ -1,0 +1,62 @@
+/* Shared TradingView-style control chrome (buttons, pills, interval toggles). */
+
+.rw-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rw-space-1);
+  height: var(--rw-control-h);
+  padding: 0 var(--rw-space-2);
+  border: 1px solid var(--rw-border);
+  border-radius: var(--rw-radius-md);
+  background: var(--rw-control-bg, var(--rw-panel));
+  color: var(--rw-control-text, var(--rw-bright));
+  font: 500 12px/1 var(--rw-font);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background var(--rw-transition),
+    border-color var(--rw-transition),
+    color var(--rw-transition);
+}
+
+.rw-control:hover:not(:disabled) {
+  background: var(--rw-hover);
+  border-color: var(--rw-border-strong);
+}
+
+.rw-control:focus-visible {
+  outline: 2px solid var(--rw-accent);
+  outline-offset: 1px;
+}
+
+.rw-control:disabled,
+.rw-control[aria-disabled='true'] {
+  opacity: var(--rw-disabled-opacity);
+  cursor: default;
+  pointer-events: none;
+}
+
+.rw-control--active,
+.rw-control[aria-expanded='true'],
+.rw-control[aria-pressed='true'] {
+  background: var(--rw-hover);
+  border-color: var(--rw-border-strong);
+}
+
+.rw-control--accent {
+  color: var(--rw-accent);
+  background: var(--rw-accent-soft);
+  border-color: transparent;
+}
+
+.rw-control--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.rw-control--ghost:hover:not(:disabled) {
+  background: var(--rw-hover);
+  border-color: transparent;
+}

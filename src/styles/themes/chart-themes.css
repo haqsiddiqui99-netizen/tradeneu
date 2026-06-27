@@ -1,0 +1,53 @@
+/* Chart workspace semantic colors — applied on .rw-root and #view-chart. */
+
+#view-chart[data-chart-theme='light'] {
+  background: #ffffff;
+}
+
+#view-chart[data-chart-theme='dark'] {
+  background: #09090b;
+}
+
+.rw-root {
+  background: var(--rw-bg);
+  color: var(--rw-text-mid);
+  font: 13px/1.35 var(--rw-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.rw-root[data-chart-theme='dark'] {
+  --rw-bg: #131722;
+  --rw-panel: #1e222d;
+  --rw-chart: #131722;
+  --rw-border: #2a2e39;
+  --rw-border-strong: #363a45;
+  --rw-text: #787b86;
+  --rw-text-mid: #b2b5be;
+  --rw-bright: #e0e3eb;
+  --rw-accent: #2962ff;
+  --rw-green: #089981;
+  --rw-red: #f23645;
+  --rw-toolbar: #1e222d;
+  --rw-hover: #2a2e39;
+  --rw-control-bg: var(--rw-panel);
+  --rw-control-text: var(--rw-bright);
+}
+
+.rw-root[data-chart-theme='light'] {
+  --rw-bg: #ffffff;
+  --rw-panel: #ffffff;
+  --rw-chart: #ffffff;
+  --rw-border: #e0e3eb;
+  --rw-border-strong: #d1d4dc;
+  --rw-text: #787b86;
+  --rw-text-mid: #434651;
+  --rw-bright: #131722;
+  --rw-accent: #2962ff;
+  --rw-green: #089981;
+  --rw-red: #f23645;
+  --rw-toolbar: #ffffff;
+  --rw-hover: #f0f3fa;
+  --rw-control-bg: var(--rw-panel);
+  --rw-control-text: var(--rw-bright);
+}

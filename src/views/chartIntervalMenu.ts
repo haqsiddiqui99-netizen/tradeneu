@@ -1,4 +1,5 @@
 import './chartIntervalMenu.css'
+import { syncChartThemeToElement } from '../styles/syncChartTheme'
 
 export type IntervalPick = {
   /** Compact label on the pill (e.g. 1m, 5m, 1h, 1D). */
@@ -36,6 +37,19 @@ const DAYS: IntervalPick[] = [
   { pill: '12M', stepSec: 31_536_000, label: '12 months' },
 ]
 
+/** Intervals shown on the floating replay bar (FXReplay-style compact labels). */
+export const REPLAY_DOCK_INTERVALS: IntervalPick[] = [
+  { pill: '1m', stepSec: 60, label: '1m' },
+  { pill: '3m', stepSec: 180, label: '3m' },
+  { pill: '5m', stepSec: 300, label: '5m' },
+  { pill: '10m', stepSec: 600, label: '10m' },
+  { pill: '15m', stepSec: 900, label: '15m' },
+  { pill: '30m', stepSec: 1800, label: '30m' },
+  { pill: '1h', stepSec: 3600, label: '1h' },
+  { pill: '2h', stepSec: 7200, label: '2h' },
+  { pill: '5h', stepSec: 18_000, label: '5h' },
+]
+
 export type ChartIntervalMenuApi = {
   open: () => void
   close: () => void
@@ -44,11 +58,30 @@ export type ChartIntervalMenuApi = {
   dispose: () => void
 }
 
-function positionPanel(anchor: HTMLElement, panel: HTMLElement) {
+function positionPanel(anchor: HTMLElement, panel: HTMLElement, variant: 'default' | 'replay' = 'default') {
   const r = anchor.getBoundingClientRect()
   const pad = 4
-  panel.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - panel.offsetWidth - 8))}px`
-  panel.style.top = `${r.bottom + pad}px`
+  const toolbarClearance = 48
+  const panelW = panel.offsetWidth || (variant === 'replay' ? 72 : 200)
+  const panelH = panel.offsetHeight || 120
+  const left =
+    variant === 'replay'
+      ? r.left + r.width / 2 - panelW / 2
+      : r.left
+  panel.style.left = `${Math.max(8, Math.min(left, window.innerWidth - panelW - 8))}px`
+
+  const spaceAbove = r.top - toolbarClearance
+  const spaceBelow = window.innerHeight - r.bottom
+  const openBelow =
+    spaceBelow >= panelH + pad && (spaceBelow >= spaceAbove || r.top < window.innerHeight * 0.45)
+
+  panel.classList.toggle('rw-intmenu--below', openBelow)
+  panel.classList.toggle('rw-intmenu--above', !openBelow)
+  if (openBelow) {
+    panel.style.top = `${r.bottom + pad}px`
+  } else {
+    panel.style.top = `${Math.max(toolbarClearance, r.top - pad - panelH)}px`
+  }
 }
 
 export function createChartIntervalMenu(opts: {
@@ -58,9 +91,14 @@ export function createChartIntervalMenu(opts: {
   canResampleFrom1m: () => boolean
   onSelect: (pick: IntervalPick) => void
   onOpenChange?: (open: boolean) => void
+  /** When set, only these rows are shown (no section headers). */
+  items?: IntervalPick[]
+  /** `replay` = compact list centered under anchor (FXReplay floating bar). */
+  variant?: 'default' | 'replay'
 }): ChartIntervalMenuApi {
   const root = document.createElement('div')
   root.className = 'rw-intmenu'
+  if (opts.variant === 'replay') root.classList.add('rw-intmenu--replay')
   root.setAttribute('role', 'listbox')
   root.setAttribute('aria-label', 'Chart interval')
 
@@ -99,19 +137,23 @@ export function createChartIntervalMenu(opts: {
     }
   }
 
-  addButtons(MINUTES)
-  scroll.appendChild(hr())
-  scroll.appendChild(sectionHeader('HOURS'))
-  addButtons(HOURS)
-  scroll.appendChild(hr())
-  scroll.appendChild(sectionHeader('DAYS'))
-  addButtons(DAYS)
+  if (opts.items?.length) {
+    addButtons(opts.items)
+  } else {
+    addButtons(MINUTES)
+    scroll.appendChild(hr())
+    scroll.appendChild(sectionHeader('HOURS'))
+    addButtons(HOURS)
+    scroll.appendChild(hr())
+    scroll.appendChild(sectionHeader('DAYS'))
+    addButtons(DAYS)
 
-  const hint = document.createElement('p')
-  hint.className = 'rw-intmenu__hint'
-  hint.textContent =
-    'Intervals above 1 minute are built by combining 1-minute bars from this session’s feed.'
-  scroll.appendChild(hint)
+    const hint = document.createElement('p')
+    hint.className = 'rw-intmenu__hint'
+    hint.textContent =
+      'Intervals above 1 minute are built by combining 1-minute bars from this session’s feed.'
+    scroll.appendChild(hint)
+  }
 
   root.appendChild(scroll)
 
@@ -158,15 +200,17 @@ export function createChartIntervalMenu(opts: {
     if (menuOpen) return
     menuOpen = true
     syncDisabledAndActive()
+    syncChartThemeToElement(root)
     document.body.appendChild(root)
     root.classList.add('rw-intmenu--open')
     opts.onOpenChange?.(true)
+    const variant = opts.variant ?? 'default'
     requestAnimationFrame(() => {
-      positionPanel(opts.anchor, root)
-      requestAnimationFrame(() => positionPanel(opts.anchor, root))
+      positionPanel(opts.anchor, root, variant)
+      requestAnimationFrame(() => positionPanel(opts.anchor, root, variant))
     })
 
-    onWinResize = () => positionPanel(opts.anchor, root)
+    onWinResize = () => positionPanel(opts.anchor, root, variant)
     window.addEventListener('resize', onWinResize)
 
     onDocKeyDown = (e: KeyboardEvent) => {

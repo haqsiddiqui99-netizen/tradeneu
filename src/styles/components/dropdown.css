@@ -1,0 +1,54 @@
+/* Shared dropdown row + separator patterns (interval, chart type, go-to menus). */
+
+.rw-menu-row {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: var(--rw-space-2) 14px;
+  border: none;
+  background: transparent;
+  color: var(--rw-menu-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--rw-transition-fast);
+}
+
+.rw-menu-row:hover:not(:disabled) {
+  background: var(--rw-menu-hover);
+}
+
+.rw-menu-row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rw-menu-row--active {
+  background: var(--rw-menu-active-bg);
+  color: var(--rw-menu-active-text);
+  font-weight: 500;
+}
+
+.rw-menu-row--active:hover:not(:disabled) {
+  background: var(--rw-menu-active-hover);
+}
+
+.rw-menu-sep {
+  height: 1px;
+  margin: var(--rw-space-1) 0;
+  background: var(--rw-menu-sep);
+  border: none;
+}
+
+.rw-menu-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--rw-space-1) var(--rw-space-3) var(--rw-space-1);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--rw-menu-muted);
+  text-transform: uppercase;
+  user-select: none;
+}

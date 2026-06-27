@@ -1,0 +1,63 @@
+/* FXReplay-style “Go to” dropdown */
+
+.rw-goto-menu {
+  position: fixed;
+  z-index: var(--rw-z-popover-top);
+  min-width: 232px;
+  display: none;
+  flex-direction: column;
+  padding: var(--rw-space-1);
+  font-family: var(--rw-font);
+  font-size: 13px;
+  color: var(--rw-menu-text);
+  background: var(--rw-menu-bg);
+  border: 1px solid var(--rw-menu-border);
+  border-radius: var(--rw-radius-xl);
+  box-shadow: var(--rw-menu-shadow-lg);
+}
+
+.rw-goto-menu.rw-goto-menu--open {
+  display: flex;
+}
+
+.rw-goto-menu__btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  margin: 0;
+  padding: 9px var(--rw-space-3);
+  border: none;
+  border-radius: var(--rw-radius-md);
+  background: transparent;
+  color: var(--rw-menu-text);
+  font: 500 13px/1.25 var(--rw-font);
+  letter-spacing: -0.01em;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--rw-transition-fast);
+}
+
+.rw-goto-menu__btn:hover {
+  background: var(--rw-menu-hover);
+}
+
+.rw-goto-menu__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.rw-goto-menu__key {
+  flex-shrink: 0;
+  min-width: 1.1em;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--rw-menu-key);
+  text-align: right;
+}
+
+.rw-replay-dock__action--goto-open {
+  background: var(--rw-panel);
+  box-shadow: 0 1px 4px rgba(19, 23, 34, 0.08);
+}

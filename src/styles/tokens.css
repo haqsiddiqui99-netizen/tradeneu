@@ -1,0 +1,39 @@
+/* TradingView-style design tokens — spacing, radii, motion, z-index. */
+
+:root {
+  --rw-font: Inter, 'Trebuchet MS', Roboto, Ubuntu, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Spacing */
+  --rw-space-1: 4px;
+  --rw-space-2: 8px;
+  --rw-space-3: 12px;
+  --rw-space-4: 16px;
+
+  /* Radii */
+  --rw-radius-sm: 4px;
+  --rw-radius-md: 6px;
+  --rw-radius-lg: 8px;
+  --rw-radius-xl: 10px;
+  --rw-radius-pill: 999px;
+
+  /* Control heights */
+  --rw-control-h: 28px;
+  --rw-control-h-md: 32px;
+  --rw-control-h-lg: 34px;
+
+  /* Motion */
+  --rw-transition-fast: 0.1s ease;
+  --rw-transition: 0.12s ease;
+  --rw-transition-slow: 0.15s ease;
+
+  /* Layering */
+  --rw-z-popover: 480000;
+  --rw-z-popover-top: 480001;
+
+  /* Accent overlays */
+  --rw-accent-soft: rgba(41, 98, 255, 0.1);
+  --rw-accent-soft-strong: rgba(41, 98, 255, 0.12);
+
+  /* Disabled */
+  --rw-disabled-opacity: 0.72;
+}
