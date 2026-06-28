@@ -3,15 +3,30 @@ import type { Bar } from '../types'
 export type ReplayState = {
   playing: boolean
   index: number
+  /** Milliseconds between bar advances during playback. */
   speedMs: number
+  /** Bars revealed per second (1 = 1x per sec, 3 = 3x per sec, …). */
+  barsPerSec: number
+  /** When true, playback wraps to {@link loopStartIndex} at the last bar. */
+  loop: boolean
+  /** 1-based bar index to restart from when looping. */
+  loopStartIndex: number
 }
 
-export const REPLAY_SPEED_MS = [2000, 1000, 500, 250, 100] as const
+/** Discrete playback speeds (1x–20x per sec) — label as “Nx per sec” in the replay dock. */
+export const REPLAY_BARS_PER_SEC = Array.from({ length: 20 }, (_, i) => i + 1) as readonly number[]
+
+export function replaySpeedLabel(barsPerSec: number): string {
+  return `${barsPerSec}x per sec`
+}
+
+/** @deprecated Use REPLAY_BARS_PER_SEC */
+export const REPLAY_SPEED_MS = REPLAY_BARS_PER_SEC.map((bps) => Math.round(1000 / bps)) as readonly number[]
 
 export class ReplayController {
   private bars: Bar[]
   private state: ReplayState
-  private timer: ReturnType<typeof setInterval> | null = null
+  private timer: ReturnType<typeof setTimeout> | null = null
   private onTick: (slice: Bar[], index: number) => void
 
   constructor(bars: Bar[], onTick: (slice: Bar[], index: number) => void) {
@@ -21,8 +36,10 @@ export class ReplayController {
       playing: false,
       /* Last bar = “live” end so legend / watchlist / ticket match the chart’s latest candles. */
       index: Math.max(1, bars.length),
-      /* Default 1× (TradingView-style). */
-      speedMs: REPLAY_SPEED_MS[1],
+      barsPerSec: REPLAY_BARS_PER_SEC[0],
+      speedMs: Math.round(1000 / REPLAY_BARS_PER_SEC[0]),
+      loop: false,
+      loopStartIndex: 1,
     }
   }
 
@@ -30,14 +47,29 @@ export class ReplayController {
     return { ...this.state }
   }
 
+  /** Full bar series backing this replay session (keeps chart `allBars` in sync). */
+  getBars(): Bar[] {
+    return this.bars
+  }
+
   getSpeedIndex(): number {
-    const idx = REPLAY_SPEED_MS.indexOf(this.state.speedMs as (typeof REPLAY_SPEED_MS)[number])
-    return idx >= 0 ? idx : 1
+    const idx = REPLAY_BARS_PER_SEC.indexOf(this.state.barsPerSec)
+    return idx >= 0 ? idx : 0
+  }
+
+  setLoop(enabled: boolean) {
+    this.state.loop = enabled
+  }
+
+  setLoopStartIndex(i: number) {
+    this.state.loopStartIndex =
+      this.bars.length > 0 ? Math.max(1, Math.min(this.bars.length, Math.round(i))) : 1
   }
 
   setSpeedIndex(i: number) {
-    const idx = Math.max(0, Math.min(REPLAY_SPEED_MS.length - 1, i))
-    this.state.speedMs = REPLAY_SPEED_MS[idx]
+    const idx = Math.max(0, Math.min(REPLAY_BARS_PER_SEC.length - 1, Math.round(i)))
+    this.state.barsPerSec = REPLAY_BARS_PER_SEC[idx]!
+    this.state.speedMs = Math.max(40, Math.round(1000 / this.state.barsPerSec))
     if (this.state.playing) {
       this.stopTimer()
       this.startTimer()
@@ -70,7 +102,7 @@ export class ReplayController {
     if (this.state.playing) {
       /* TradingView-style: play from the beginning when already at the last bar. */
       if (this.state.index >= this.bars.length) {
-        this.state.index = 1
+        this.state.index = this.state.loop ? this.state.loopStartIndex : 1
         this.emit()
       }
       this.startTimer()
@@ -90,8 +122,15 @@ export class ReplayController {
 
   private startTimer() {
     this.stopTimer()
-    this.timer = setInterval(() => {
+    const tick = () => {
+      if (!this.state.playing) return
       if (this.state.index >= this.bars.length) {
+        if (this.state.loop) {
+          this.state.index = this.state.loopStartIndex
+          this.emit()
+          if (this.state.playing) this.timer = setTimeout(tick, this.state.speedMs)
+          return
+        }
         this.state.playing = false
         this.stopTimer()
         this.emit()
@@ -99,22 +138,31 @@ export class ReplayController {
       }
       this.state.index += 1
       this.emit()
-    }, this.state.speedMs)
+      if (this.state.playing) {
+        this.timer = setTimeout(tick, this.state.speedMs)
+      }
+    }
+    this.timer = setTimeout(tick, this.state.speedMs)
   }
 
   private stopTimer() {
-    if (this.timer) {
-      clearInterval(this.timer)
+    if (this.timer !== null) {
+      clearTimeout(this.timer)
       this.timer = null
     }
   }
 
   /** Replace the full series (e.g. after interval resample) and jump to the last bar. */
   replaceBars(bars: Bar[]) {
+    this.replaceBarsAt(bars, bars.length > 0 ? Math.max(1, bars.length) : 1)
+  }
+
+  /** Replace series and seek to a 1-based bar index (for backtest / replay frame). */
+  replaceBarsAt(bars: Bar[], index: number) {
     this.stopTimer()
     this.bars = bars
     this.state.playing = false
-    this.state.index = bars.length > 0 ? Math.max(1, bars.length) : 1
+    this.state.index = bars.length > 0 ? Math.max(1, Math.min(Math.round(index), bars.length)) : 1
     this.emit()
   }
 

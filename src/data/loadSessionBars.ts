@@ -9,5 +9,5 @@
  * `resolveSessionBars` / `marketDataClient` without changing the chart UI.
  */
 
-export { resolveSessionBars as loadSessionBars, type ResolvedSeries } from './resolveSessionBars'
+export { resolveSessionBars as loadSessionBars, type ResolvedSeries, type SessionBarsOpts } from './resolveSessionBars'
 export { isGoldBrowserSymbol, usesMarketDataSession } from './resolveSessionBars'

@@ -60,14 +60,18 @@ const GOLD_CHART_INTERVAL =
  * @param {string} [p.chain] comma-separated: twelvedata | upload | tv (default twelvedata)
  * @param {string} [p.chartRange] query `range` (overrides gold defaults when set)
  * @param {string} [p.chartInterval] query `interval`
+ * @param {number} [p.startSec] session fetch start (unix seconds)
+ * @param {number} [p.endSec] session end (unix seconds)
+ * @param {number} [p.sessionStartSec] actual session start — ensures one prior candle is included
  */
-export async function resolveMarketBars({ symbol, chain, chartRange, chartInterval }) {
+export async function resolveMarketBars({ symbol, chain, chartRange, chartInterval, startSec, endSec, sessionStartSec }) {
   const parts = String(chain || 'twelvedata')
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean)
 
   const tried = []
+  let lastError = null
 
   for (const step of parts) {
     if (step === 'twelvedata' || step === '12data' || step === 'twelve_data') {
@@ -92,6 +96,9 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
         symbol,
         range: cRange,
         interval: cInterval,
+        startSec,
+        endSec,
+        sessionStartSec,
       })
       if (td.ok && td.bars?.length >= 16) {
         return {
@@ -103,6 +110,7 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
           twelve_data_request: td.twelve_data_request,
         }
       }
+      if (td.error) lastError = td.error
       continue
     }
     if (step === 'upload') {
@@ -127,7 +135,7 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
 
   return {
     ok: false,
-    error: 'no_provider_returned_bars',
+    error: lastError || 'no_provider_returned_bars',
     chain: tried.join('→') || 'none',
   }
 }

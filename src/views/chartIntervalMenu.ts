@@ -1,54 +1,17 @@
 import './chartIntervalMenu.css'
 import { syncChartThemeToElement } from '../styles/syncChartTheme'
+import { createCustomIntervalDialog } from './chartCustomIntervalDialog'
+import {
+  CHART_INTERVAL_SECTIONS,
+  findIntervalSectionForPill,
+  type IntervalKind,
+  type IntervalPick,
+  type IntervalSection,
+} from './chartIntervalCatalog'
 
-export type IntervalPick = {
-  /** Compact label on the pill (e.g. 1m, 5m, 1h, 1D). */
-  pill: string
-  /** Bar length in seconds for OHLCV bucketing. */
-  stepSec: number
-  /** Row label inside the menu. */
-  label: string
-}
+export type { IntervalKind, IntervalPick } from './chartIntervalCatalog'
 
-const MINUTES: IntervalPick[] = [
-  { pill: '1m', stepSec: 60, label: '1 minute' },
-  { pill: '2m', stepSec: 120, label: '2 minutes' },
-  { pill: '3m', stepSec: 180, label: '3 minutes' },
-  { pill: '5m', stepSec: 300, label: '5 minutes' },
-  { pill: '10m', stepSec: 600, label: '10 minutes' },
-  { pill: '15m', stepSec: 900, label: '15 minutes' },
-  { pill: '30m', stepSec: 1800, label: '30 minutes' },
-  { pill: '45m', stepSec: 2700, label: '45 minutes' },
-]
-
-const HOURS: IntervalPick[] = [
-  { pill: '1h', stepSec: 3600, label: '1 hour' },
-  { pill: '2h', stepSec: 7200, label: '2 hours' },
-  { pill: '3h', stepSec: 10_800, label: '3 hours' },
-  { pill: '4h', stepSec: 14_400, label: '4 hours' },
-]
-
-const DAYS: IntervalPick[] = [
-  { pill: '1D', stepSec: 86_400, label: '1 day' },
-  { pill: '1W', stepSec: 604_800, label: '1 week' },
-  { pill: '1M', stepSec: 2_592_000, label: '1 month' },
-  { pill: '3M', stepSec: 7_776_000, label: '3 months' },
-  { pill: '6M', stepSec: 15_552_000, label: '6 months' },
-  { pill: '12M', stepSec: 31_536_000, label: '12 months' },
-]
-
-/** Intervals shown on the floating replay bar (FXReplay-style compact labels). */
-export const REPLAY_DOCK_INTERVALS: IntervalPick[] = [
-  { pill: '1m', stepSec: 60, label: '1m' },
-  { pill: '3m', stepSec: 180, label: '3m' },
-  { pill: '5m', stepSec: 300, label: '5m' },
-  { pill: '10m', stepSec: 600, label: '10m' },
-  { pill: '15m', stepSec: 900, label: '15m' },
-  { pill: '30m', stepSec: 1800, label: '30m' },
-  { pill: '1h', stepSec: 3600, label: '1h' },
-  { pill: '2h', stepSec: 7200, label: '2h' },
-  { pill: '5h', stepSec: 18_000, label: '5h' },
-]
+export { REPLAY_DOCK_INTERVALS } from './chartIntervalCatalog'
 
 export type ChartIntervalMenuApi = {
   open: () => void
@@ -62,7 +25,7 @@ function positionPanel(anchor: HTMLElement, panel: HTMLElement, variant: 'defaul
   const r = anchor.getBoundingClientRect()
   const pad = 4
   const toolbarClearance = 48
-  const panelW = panel.offsetWidth || (variant === 'replay' ? 72 : 200)
+  const panelW = panel.offsetWidth || (variant === 'replay' ? 72 : 220)
   const panelH = panel.offsetHeight || 120
   const left =
     variant === 'replay'
@@ -84,17 +47,41 @@ function positionPanel(anchor: HTMLElement, panel: HTMLElement, variant: 'defaul
   }
 }
 
+function isPickEnabled(
+  pick: IntervalPick,
+  opts: {
+    canResampleFrom1m: () => boolean
+    canUseTicks?: () => boolean
+    canUseSubMinute?: () => boolean
+    getSelectedPill: () => string
+  },
+): boolean {
+  const sel = opts.getSelectedPill().trim()
+  if (pick.kind === 'tick') {
+    return opts.canUseTicks?.() ?? false
+  }
+  const step = pick.stepSec ?? 60
+  if (step < 60) {
+    return opts.canUseSubMinute?.() ?? false
+  }
+  if (opts.canResampleFrom1m()) return true
+  return pick.pill === sel
+}
+
 export function createChartIntervalMenu(opts: {
   anchor: HTMLElement
   getSelectedPill: () => string
-  /** When false, only the current pill’s bucket stays enabled (no 1m history to resample). */
   canResampleFrom1m: () => boolean
+  canUseTicks?: () => boolean
+  canUseSubMinute?: () => boolean
   onSelect: (pick: IntervalPick) => void
   onOpenChange?: (open: boolean) => void
   /** When set, only these rows are shown (no section headers). */
   items?: IntervalPick[]
   /** `replay` = compact list centered under anchor (FXReplay floating bar). */
   variant?: 'default' | 'replay'
+  /** Show “Add custom interval…” row (TradingView-style). */
+  showCustomInterval?: boolean
 }): ChartIntervalMenuApi {
   const root = document.createElement('div')
   root.className = 'rw-intmenu'
@@ -105,69 +92,138 @@ export function createChartIntervalMenu(opts: {
   const scroll = document.createElement('div')
   scroll.className = 'rw-intmenu__scroll'
 
-  function sectionHeader(text: string) {
-    const h = document.createElement('div')
-    h.className = 'rw-intmenu__head'
-    h.innerHTML = `<span>${text}</span><span class="rw-intmenu__head-chev" aria-hidden="true">▼</span>`
-    return h
+  const expandedSections = new Set<string>()
+
+  const customIntervalDialog =
+    opts.showCustomInterval !== false && !opts.items?.length
+      ? createCustomIntervalDialog({
+          onAdd: (pick) => {
+            close()
+            opts.onSelect(pick)
+          },
+        })
+      : null
+
+  function ensureExpandedForSelection() {
+    const sectionId = findIntervalSectionForPill(opts.getSelectedPill())
+    if (sectionId) expandedSections.add(sectionId)
+    else expandedSections.add('minutes')
   }
 
-  function hr() {
-    const el = document.createElement('div')
-    el.className = 'rw-intmenu__sep'
-    el.setAttribute('role', 'separator')
-    return el
-  }
-
-  function addButtons(items: IntervalPick[]) {
+  function addButtons(items: IntervalPick[], body: HTMLElement) {
     for (const item of items) {
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.className = 'rw-intmenu__btn'
       btn.textContent = item.label
       btn.dataset.pill = item.pill
-      btn.dataset.step = String(item.stepSec)
+      if (item.stepSec != null) btn.dataset.step = String(item.stepSec)
+      if (item.tickCount != null) btn.dataset.ticks = String(item.tickCount)
+      btn.dataset.kind = item.kind
       btn.addEventListener('click', (e) => {
         e.stopPropagation()
         if (btn.disabled) return
         opts.onSelect(item)
         close()
       })
-      scroll.appendChild(btn)
+      body.appendChild(btn)
     }
   }
 
+  function buildAccordionSection(section: IntervalSection, withSep: boolean) {
+    if (withSep) {
+      const sep = document.createElement('div')
+      sep.className = 'rw-intmenu__sep'
+      sep.setAttribute('role', 'separator')
+      scroll.appendChild(sep)
+    }
+
+    const wrap = document.createElement('div')
+    wrap.className = 'rw-intmenu__section'
+    wrap.dataset.sectionId = section.id
+
+    const head = document.createElement('button')
+    head.type = 'button'
+    head.className = 'rw-intmenu__head'
+    head.setAttribute('aria-expanded', 'false')
+    head.innerHTML = `<span>${section.title}</span><span class="rw-intmenu__head-chev" aria-hidden="true"></span>`
+
+    const body = document.createElement('div')
+    body.className = 'rw-intmenu__section-body'
+    addButtons(section.items, body)
+
+    head.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const open = wrap.classList.toggle('rw-intmenu__section--open')
+      head.setAttribute('aria-expanded', open ? 'true' : 'false')
+      if (open) expandedSections.add(section.id)
+      else expandedSections.delete(section.id)
+      requestAnimationFrame(() => positionPanel(opts.anchor, root, opts.variant ?? 'default'))
+    })
+
+    wrap.appendChild(head)
+    wrap.appendChild(body)
+    scroll.appendChild(wrap)
+  }
+
   if (opts.items?.length) {
-    addButtons(opts.items)
+    addButtons(opts.items, scroll)
   } else {
-    addButtons(MINUTES)
-    scroll.appendChild(hr())
-    scroll.appendChild(sectionHeader('HOURS'))
-    addButtons(HOURS)
-    scroll.appendChild(hr())
-    scroll.appendChild(sectionHeader('DAYS'))
-    addButtons(DAYS)
+    if (opts.showCustomInterval !== false) {
+      const addBtn = document.createElement('button')
+      addBtn.type = 'button'
+      addBtn.className = 'rw-intmenu__add'
+      addBtn.innerHTML = `<span class="rw-intmenu__add-ico" aria-hidden="true">+</span><span>Add custom interval…</span>`
+      addBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        close()
+        customIntervalDialog?.open()
+      })
+      scroll.appendChild(addBtn)
+    }
+
+    CHART_INTERVAL_SECTIONS.forEach((section, i) => buildAccordionSection(section, i > 0 || opts.showCustomInterval !== false))
 
     const hint = document.createElement('p')
     hint.className = 'rw-intmenu__hint'
     hint.textContent =
-      'Intervals above 1 minute are built by combining 1-minute bars from this session’s feed.'
+      'Tick intervals use synthetic ticks from 1-minute session bars. Second intervals need sub-minute feed data.'
     scroll.appendChild(hint)
   }
 
   root.appendChild(scroll)
 
+  function syncSectionOpenState() {
+    scroll.querySelectorAll<HTMLElement>('.rw-intmenu__section').forEach((wrap) => {
+      const id = wrap.dataset.sectionId ?? ''
+      const open = expandedSections.has(id)
+      wrap.classList.toggle('rw-intmenu__section--open', open)
+      const head = wrap.querySelector<HTMLButtonElement>('.rw-intmenu__head')
+      head?.setAttribute('aria-expanded', open ? 'true' : 'false')
+    })
+  }
+
   function syncDisabledAndActive() {
     const sel = opts.getSelectedPill().trim()
-    const can = opts.canResampleFrom1m()
     scroll.querySelectorAll<HTMLButtonElement>('.rw-intmenu__btn').forEach((btn) => {
       const pill = btn.dataset.pill ?? ''
       btn.classList.toggle('rw-intmenu__btn--active', pill === sel)
-      if (!can) {
-        btn.disabled = pill !== sel
-      } else {
-        btn.disabled = false
+      const pick: IntervalPick = {
+        pill,
+        label: btn.textContent ?? pill,
+        kind: (btn.dataset.kind as IntervalKind) ?? 'time',
+        stepSec: btn.dataset.step ? Number(btn.dataset.step) : undefined,
+        tickCount: btn.dataset.ticks ? Number(btn.dataset.ticks) : undefined,
       }
+      const enabled = isPickEnabled(pick, opts)
+      btn.disabled = !enabled
+      btn.title = enabled
+        ? ''
+        : pick.kind === 'tick'
+          ? 'Tick intervals need enough 1-minute history to synthesize ticks'
+          : (pick.stepSec ?? 60) < 60
+            ? 'Sub-minute intervals require second-level history'
+            : 'Not enough 1-minute history to build this interval'
     })
   }
 
@@ -199,6 +255,8 @@ export function createChartIntervalMenu(opts: {
   function openMenu() {
     if (menuOpen) return
     menuOpen = true
+    ensureExpandedForSelection()
+    syncSectionOpenState()
     syncDisabledAndActive()
     syncChartThemeToElement(root)
     document.body.appendChild(root)
@@ -243,6 +301,7 @@ export function createChartIntervalMenu(opts: {
     isOpen: () => menuOpen,
     dispose() {
       close()
+      customIntervalDialog?.dispose()
     },
   }
 }

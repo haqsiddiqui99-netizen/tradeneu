@@ -82,44 +82,47 @@ export type SymbolSearchModalApi = {
   dispose: () => void
 }
 
+const PANEL_HTML = `
+  <div class="rw-symsearch__panel" role="document">
+    <div class="rw-symsearch__head">
+      <h2 class="rw-symsearch__title" id="rw-symsearch-title">Symbol search</h2>
+      <button type="button" class="rw-symsearch__close" aria-label="Close">${icons.close}</button>
+    </div>
+    <div class="rw-symsearch__search">
+      <span class="rw-symsearch__search-ico">${icons.search}</span>
+      <input type="text" class="rw-symsearch__input" autocomplete="off" spellcheck="false" placeholder="Symbol, ISIN, or CUSIP" aria-label="Search symbols" />
+      <button type="button" class="rw-symsearch__clear" aria-label="Clear search" hidden>×</button>
+      <span class="rw-symsearch__kbd" title="Keyboard layout">⌨</span>
+    </div>
+    <div class="rw-symsearch__tabs" role="tablist" aria-label="Category"></div>
+    <div class="rw-symsearch__filters" aria-hidden="true">
+      <span class="rw-symsearch__fake-dd">All sources ${icons.chevronDown}</span>
+      <span class="rw-symsearch__fake-dd">All types ${icons.chevronDown}</span>
+      <span class="rw-symsearch__fake-dd">All exchange types ${icons.chevronDown}</span>
+    </div>
+    <div class="rw-symsearch__listwrap">
+      <div class="rw-symsearch__list" role="listbox" aria-label="Symbols"></div>
+    </div>
+    <p class="rw-symsearch__hint">Search using ISIN and CUSIP codes</p>
+  </div>
+`
+
 export function createSymbolSearchModal(opts: {
   getCurrentSymbol: () => string
   onPick: (symbol: string) => void
+  /** Dialog element in the chart DOM — must stay connected for showModal(). */
+  dialog: HTMLDialogElement
 }): SymbolSearchModalApi {
-  const root = el(`
-    <div class="rw-symsearch" hidden aria-hidden="true">
-      <div class="rw-symsearch__backdrop" tabindex="-1"></div>
-      <div class="rw-symsearch__panel" role="dialog" aria-modal="true" aria-labelledby="rw-symsearch-title" tabindex="-1">
-        <div class="rw-symsearch__head">
-          <h2 class="rw-symsearch__title" id="rw-symsearch-title">Symbol search</h2>
-          <button type="button" class="rw-symsearch__close" aria-label="Close">${icons.close}</button>
-        </div>
-        <div class="rw-symsearch__search">
-          <span class="rw-symsearch__search-ico">${icons.search}</span>
-          <input type="text" class="rw-symsearch__input" autocomplete="off" spellcheck="false" placeholder="Symbol, ISIN, or CUSIP" aria-label="Search symbols" />
-          <button type="button" class="rw-symsearch__clear" aria-label="Clear search" hidden>×</button>
-          <span class="rw-symsearch__kbd" title="Keyboard layout">⌨</span>
-        </div>
-        <div class="rw-symsearch__tabs" role="tablist" aria-label="Category"></div>
-        <div class="rw-symsearch__filters" aria-hidden="true">
-          <span class="rw-symsearch__fake-dd">All sources ${icons.chevronDown}</span>
-          <span class="rw-symsearch__fake-dd">All types ${icons.chevronDown}</span>
-          <span class="rw-symsearch__fake-dd">All exchange types ${icons.chevronDown}</span>
-        </div>
-        <div class="rw-symsearch__listwrap">
-          <div class="rw-symsearch__list" role="listbox" aria-label="Symbols"></div>
-        </div>
-        <p class="rw-symsearch__hint">Search using ISIN and CUSIP codes</p>
-      </div>
-    </div>
-  `)
+  const dlg = opts.dialog
+  if (!dlg.querySelector('.rw-symsearch__panel')) {
+    dlg.innerHTML = PANEL_HTML
+  }
 
-  const backdrop = root.querySelector('.rw-symsearch__backdrop') as HTMLElement
-  const btnClose = root.querySelector('.rw-symsearch__close') as HTMLButtonElement
-  const input = root.querySelector('.rw-symsearch__input') as HTMLInputElement
-  const btnClear = root.querySelector('.rw-symsearch__clear') as HTMLButtonElement
-  const tabsEl = root.querySelector('.rw-symsearch__tabs') as HTMLElement
-  const listEl = root.querySelector('.rw-symsearch__list') as HTMLElement
+  const btnClose = dlg.querySelector('.rw-symsearch__close') as HTMLButtonElement
+  const input = dlg.querySelector('.rw-symsearch__input') as HTMLInputElement
+  const btnClear = dlg.querySelector('.rw-symsearch__clear') as HTMLButtonElement
+  const tabsEl = dlg.querySelector('.rw-symsearch__tabs') as HTMLElement
+  const listEl = dlg.querySelector('.rw-symsearch__list') as HTMLElement
 
   let activeTab: TvTab = 'all'
   let selectedSymbol: string | null = null
@@ -242,7 +245,7 @@ export function createSymbolSearchModal(opts: {
   }
 
   function onDocKeyDown(e: KeyboardEvent) {
-    if (!root.hidden && e.key === 'Escape') {
+    if (dlg.open && e.key === 'Escape') {
       e.preventDefault()
       close()
     }
@@ -263,15 +266,12 @@ export function createSymbolSearchModal(opts: {
     input.focus()
   }
 
-  /** Ignore backdrop clicks for a short window right after open (same gesture / focus can synthesize a stray click). */
-  let backdropDismissOkAfter = 0
-
-  function onBackdropClick() {
-    if (typeof performance !== 'undefined' && performance.now() < backdropDismissOkAfter) return
+  function onBtnCloseClick() {
     close()
   }
 
-  function onBtnCloseClick() {
+  function onDialogCancel(e: Event) {
+    e.preventDefault()
     close()
   }
 
@@ -281,17 +281,15 @@ export function createSymbolSearchModal(opts: {
   input.addEventListener('keydown', onInputKeyDown)
   document.addEventListener('keydown', onDocKeyDown, true)
   btnClose.addEventListener('click', onBtnCloseClick)
-  backdrop.addEventListener('click', onBackdropClick)
+  dlg.addEventListener('cancel', onDialogCancel)
   btnClear.addEventListener('click', onClearClick)
 
   function open() {
-    if (!root.parentNode) document.body.appendChild(root)
-    backdropDismissOkAfter =
-      typeof performance !== 'undefined' ? performance.now() + 400 : 0
-    root.classList.add('rw-symsearch--open')
-    root.hidden = false
-    root.removeAttribute('hidden')
-    root.setAttribute('aria-hidden', 'false')
+    if (!dlg.isConnected) {
+      console.error('[SymbolSearch] dialog is not in the document')
+      return
+    }
+    if (!dlg.open) dlg.showModal()
     const cur = opts.getCurrentSymbol().trim().toUpperCase()
     input.value = cur
     syncClearVisible()
@@ -310,18 +308,11 @@ export function createSymbolSearchModal(opts: {
     requestAnimationFrame(() => {
       input.focus()
       input.select()
-      requestAnimationFrame(() => {
-        input.focus()
-      })
     })
   }
 
   function close() {
-    root.classList.remove('rw-symsearch--open')
-    root.hidden = true
-    root.setAttribute('hidden', '')
-    root.setAttribute('aria-hidden', 'true')
-    if (root.parentNode) root.parentNode.removeChild(root)
+    if (dlg.open) dlg.close()
   }
 
   function dispose() {
@@ -330,8 +321,8 @@ export function createSymbolSearchModal(opts: {
     input.removeEventListener('input', onInput)
     input.removeEventListener('keydown', onInputKeyDown)
     btnClear.removeEventListener('click', onClearClick)
-    backdrop.removeEventListener('click', onBackdropClick)
     btnClose.removeEventListener('click', onBtnCloseClick)
+    dlg.removeEventListener('cancel', onDialogCancel)
     document.removeEventListener('keydown', onDocKeyDown, true)
     close()
   }

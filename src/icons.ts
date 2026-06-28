@@ -3,6 +3,15 @@
 const svg = (inner: string, w = 20, h = 20) =>
   `<svg class="sx-ico" width="${w}" height="${h}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${inner}</svg>`
 
+/** Bar Replay dock — 18×18 outline icons (TradingView pixel clarity). */
+const svgReplayTv = (inner: string) =>
+  `<svg class="sx-ico sx-ico--replay-tv" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" shape-rendering="geometricPrecision">${inner}</svg>`
+
+/** Bar-pick cursor — theme PNGs (public/icons/scissors-select-bar-*-theme.png). */
+const scissorsSelectBarImg = () =>
+  `<img class="rw-select-bar-scissors-img rw-select-bar-scissors-img--light" src="/icons/scissors-select-bar-light-theme.png" width="18" height="22" alt="" aria-hidden="true" draggable="false" decoding="async" />` +
+  `<span class="rw-select-bar-scissors-img rw-select-bar-scissors-img--dark" role="img" aria-hidden="true"></span>`
+
 export const icons = {
   chart: svg(
     '<path d="M4 19h16M6 17V9m4 8V5m4 12v-6m4 6v-9" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -75,6 +84,16 @@ export const icons = {
   close: svg(
     '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>',
   ),
+  eye: svg(
+    '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.65"/><circle cx="12" cy="12" r="2.75" stroke="currentColor" stroke-width="1.65"/>',
+    18,
+    18,
+  ),
+  eyeOff: svg(
+    '<path d="M3 3l18 18M10.6 10.6A3 3 0 0012 15a3 3 0 002.4-4.4M6.7 6.7C4.6 8.1 3 10.2 2 12s3.5 7 10 7c1.8 0 3.4-.4 4.8-1.1M17.3 17.3C19.4 15.9 21 13.8 22 12s-3.5-7-10-7c-1.8 0-3.4.4-4.8 1.1" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>',
+    18,
+    18,
+  ),
   search: svg(
     '<circle cx="10.5" cy="10.5" r="6.25" stroke="currentColor" stroke-width="1.65"/><path d="M15.2 15.2L21 21" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>',
   ),
@@ -83,6 +102,12 @@ export const icons = {
   ),
   clock: svg(
     '<circle cx="12" cy="12" r="8.25" stroke="currentColor" stroke-width="1.65"/><path d="M12 8.25V12l3.5 2" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>',
+  ),
+  /** Top toolbar — Bar Replay launch (double chevron left). */
+  replayLaunch: svg(
+    '<path d="M14 7.5 9 12l5 4.5M19 7.5 14 12l5 4.5" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>',
+    18,
+    18,
   ),
   /** Bar Replay “select bar” — vertical mark + left arrow (TradingView-style). */
   replayBarSelect: svg(
@@ -100,20 +125,29 @@ export const icons = {
     18,
     18,
   ),
-  /**
-   * Select-bar replay cursor on chart: classic open scissors, blades **up**, loops down.
-   * Longer handle “tail” vs stock art; `rotate(180 12 12)` flips tips upward.
-   */
-  scissorsSelectBar: svg(
-    '<g transform="rotate(180 12 12)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9.35 3.65 5.85 5.75 11.15 14.25M14.65 3.65 18.15 5.75 12.85 14.25" stroke-width="1.5"/><ellipse cx="5.45" cy="5.15" rx="2.35" ry="2.55" stroke-width="1.35"/><ellipse cx="18.55" cy="5.15" rx="2.35" ry="2.55" stroke-width="1.35"/><path d="M11.2 14.25c.85 1.55 1.1 2.35 2.05 3.55M12.8 14.25c-.85 1.55-1.1 2.35-2.05 3.55" stroke-width="1.5"/></g>',
-    24,
-    24,
-  ),
+  /** Bar-pick cursor — theme PNGs on the blue vertical line. */
+  scissorsSelectBar: scissorsSelectBarImg(),
   /** Bar Replay toolbar — jump to first bar (vertical bar + left triangle). */
   replayTvJumpStart: svg(
     '<path d="M5.5 6.5v11" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/><path d="M14.5 12 9 8.5v7l5.5-3.5z" fill="currentColor"/>',
     20,
     20,
+  ),
+  /** Bar Replay — circular goto arrow (FXReplay-style). */
+  replayGoto: svg(
+    '<path d="M12 4a8 8 0 107.07 4.18M16 4h4v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+    18,
+    18,
+  ),
+  replayPlusCircle: svg(
+    '<circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.45"/><path d="M12 8.25v7.5M8.25 12h7.5" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/>',
+    18,
+    18,
+  ),
+  replayJournal: svg(
+    '<path d="M6 4.5h12a1.5 1.5 0 011.5 1.5v14l-3.5-2-3.5 2-3.5-2-3.5 2V6a1.5 1.5 0 011.5-1.5z" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/><path d="M9 9h6M9 12.5h6M9 16h4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>',
+    18,
+    18,
   ),
   /** Bar Replay — calendar with “+” (go to date). */
   replayCalendarPlus: svg(
@@ -121,28 +155,58 @@ export const icons = {
     20,
     20,
   ),
-  /** Bar Replay toolbar — play (TradingView-style thin). */
-  replayTvPlay: svg(
-    '<path d="M9.5 7.5v9l7.5-4.5-7.5-4.5z" fill="currentColor"/>',
+  /** Bar Replay — “Select date” (calendar + left arrow, TV dock). */
+  replaySelectDate: svgReplayTv(
+    '<rect x="2.5" y="4.25" width="10.5" height="9.25" rx="1" stroke="currentColor" stroke-width="1.25" vector-effect="non-scaling-stroke"/><path d="M2.5 7h10.5M5 2.75v2M10.5 2.75v2" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M7.75 10.25 6 9.25l1.75-1" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
+  ),
+  /** Bar Replay toolbar — play (filled triangle, TV dock). */
+  replayTvPlay: svgReplayTv(
+    '<path d="M6.75 4.75 13.5 9 6.75 13.25Z" fill="currentColor"/>',
+  ),
+  replayTvPause: svgReplayTv(
+    '<rect x="5.75" y="4.75" width="2.5" height="8.5" rx="0.4" fill="currentColor"/><rect x="10.75" y="4.75" width="2.5" height="8.5" rx="0.4" fill="currentColor"/>',
+  ),
+  /** Next bar — filled triangle + vertical bar (skip one candle). */
+  replayTvStepFwd: svgReplayTv(
+    '<path d="M5.5 4.75 10.75 9 5.5 13.25Z" fill="currentColor"/><rect x="12.75" y="4.75" width="1.75" height="8.5" rx="0.35" fill="currentColor"/>',
+  ),
+  /** Previous bar — vertical bar + filled triangle. */
+  replayTvStepBack: svgReplayTv(
+    '<rect x="3.5" y="4.75" width="1.75" height="8.5" rx="0.35" fill="currentColor"/><path d="M7.25 4.75 12.5 9 7.25 13.25Z" fill="currentColor"/>',
+  ),
+  /** Floating replay bar — drag grip (2×3 dots). */
+  replayDragGrip: svg(
+    '<circle cx="7" cy="7" r="1.35" fill="currentColor"/><circle cx="12" cy="7" r="1.35" fill="currentColor"/><circle cx="7" cy="12" r="1.35" fill="currentColor"/><circle cx="12" cy="12" r="1.35" fill="currentColor"/><circle cx="7" cy="17" r="1.35" fill="currentColor"/><circle cx="12" cy="17" r="1.35" fill="currentColor"/>',
     20,
     20,
   ),
-  replayTvPause: svg(
-    '<path d="M8.5 6.5h3.5v11H8.5V6.5zm5.5 0h3.5v11H14V6.5z" fill="currentColor"/>',
-    20,
-    20,
+  /** Jump to latest — two bars + outline triangle (TV dock). */
+  replayTvJumpEnd: svgReplayTv(
+    '<path d="M3.75 5.5v7M6.25 5.5v7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M10.25 6.25v5.5l4.75-2.75L10.25 6.25z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
   ),
-  /** Next bar — triangle + vertical bar. */
-  replayTvStepFwd: svg(
-    '<path d="M8.5 7.5v9l6-4.5-6-4.5z" fill="currentColor"/><path d="M16.5 6.5v11" stroke="currentColor" stroke-width="1.85" stroke-linecap="round"/>',
-    20,
-    20,
+  /** Bar Replay dock — clear filter (circular arrow + center dot). */
+  replayClearFilter: svgReplayTv(
+    '<circle cx="9" cy="9" r="1.15" stroke="currentColor" stroke-width="1.15" fill="none" vector-effect="non-scaling-stroke"/><path d="M12.15 6.4a5.25 5.25 0 1 0-1.9 7.55" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M10.2 13.65 9.05 15.3l1.65-.95" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
   ),
-  /** Jump to latest — two bars + triangle. */
-  replayTvJumpEnd: svg(
-    '<path d="M5.5 6.5v11M8.5 6.5v11" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/><path d="M13 7.5v9l7.5-4.5L13 7.5z" fill="currentColor"/>',
-    20,
-    20,
+  /** Bar Replay dock — thin close (TV clarity). */
+  replayTvClose: svgReplayTv(
+    '<path d="M5.25 5.25l7.5 7.5M12.75 5.25l-7.5 7.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
+  ),
+  /** Side rail — place order (+ in circle, FXReplay). */
+  panelOrder: svg(
+    '<circle cx="12" cy="12" r="8.25" stroke="currentColor" stroke-width="1.55"/><path d="M12 8.25v7.5M8.25 12h7.5" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/>',
+  ),
+  /** Side rail — go to bar / session. */
+  panelGoTo: svg(
+    '<path d="M5 12h11M13 8.5 17.5 12 13 15.5" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"/>',
+  ),
+  /** Side rail — news / calendar. */
+  panelNews: svg(
+    '<rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.55"/><path d="M4 10h16M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/>',
+  ),
+  /** Side rail — Pine Script editor. */
+  panelPine: svg(
+    '<path d="M8 4 6 20M14 4l2 16M6 9h10M6 15h10" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/>',
   ),
   /** Right sidebar — watchlist rail. */
   bookmarkRibbon: svg(
@@ -182,6 +246,32 @@ export const icons = {
   /** Order ticket — ask / buy (circle + up arrow). */
   ticketAsk: svg(
     '<circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1.35" fill="none"/><path d="M12 15.5v-5M9 11.5l3-2.75 3 2.75" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+    16,
+    16,
+  ),
+  /** Chart bottom nav — zoom / pan / reset (TradingView-style outline tiles). */
+  chartNavMinus: svg(
+    '<path d="M5 12h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
+    16,
+    16,
+  ),
+  chartNavPlus: svg(
+    '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
+    16,
+    16,
+  ),
+  chartNavLeft: svg(
+    '<path d="M14 7.5 9.5 12 14 16.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
+    16,
+    16,
+  ),
+  chartNavRight: svg(
+    '<path d="M10 7.5 14.5 12 10 16.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
+    16,
+    16,
+  ),
+  chartNavReset: svg(
+    '<path d="M17 8a7 7 0 10-1.75 4.67M7 8H4M7 8l2-2M7 8l2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
     16,
     16,
   ),

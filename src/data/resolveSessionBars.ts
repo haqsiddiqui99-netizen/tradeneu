@@ -4,10 +4,45 @@ import {
   generateBtcUsdDemoMinuteBars,
   generateGoldSpotMinuteBars,
   generateMockMinuteBars,
+  generateOilDemoMinuteBars,
+  generateSilverSpotMinuteBars,
   seedFromSymbol,
 } from './mockBars'
+import {
+  minuteBarCountForRange,
+  parseSessionDateToSec,
+  sessionDateRangeSec,
+  sessionFetchStartSec,
+} from './sessionDateRange'
 
 const DEFAULT_BAR_COUNT = 1500
+
+export type SessionBarsOpts = {
+  startDate?: string
+  endDate?: string
+}
+
+function resolveFetchRange(startDate?: string, endDate?: string): { startSec?: number; endSec?: number } {
+  const { startSec, endSec } = sessionDateRangeSec(startDate, endDate)
+  const nowSec = Math.floor(Date.now() / 1000)
+  const fetchStart = startSec != null ? sessionFetchStartSec(startSec) : undefined
+  if (startSec != null && endSec != null) return { startSec: fetchStart, endSec }
+  if (startSec != null) return { startSec: fetchStart, endSec: nowSec }
+  if (endSec != null) return { startSec: Math.max(0, endSec - 5 * 86_400), endSec }
+  return {}
+}
+
+function syntheticParams(
+  startDate?: string,
+  endDate?: string,
+  defaultCount = DEFAULT_BAR_COUNT,
+): { count: number; startSec?: number } {
+  const { startSec, endSec } = sessionDateRangeSec(startDate, endDate)
+  if (startSec != null && endSec != null && endSec > startSec) {
+    return { count: minuteBarCountForRange(startSec, endSec) + 1, startSec: startSec - 60 }
+  }
+  return { count: defaultCount }
+}
 
 /** Gold session: bars + timeframe label for the chart chrome. */
 export type ResolvedSeries = {
@@ -38,10 +73,28 @@ export function isLikelyUsStockSymbol(symbol: string): boolean {
   return /^[A-Z0-9.-]+$/i.test(raw)
 }
 
+/** Silver / oil symbols mapped in `server/providers/twelveData.mjs`. */
+export function isCommodityMarketSymbol(symbol: string): boolean {
+  const u = symbol.trim().toUpperCase()
+  return u === 'SI' || u === 'XAGUSD' || u === 'CL'
+}
+
+/** Six-letter FX pairs (EURUSD → EUR/USD on the server). */
+export function isForexPairSymbol(symbol: string): boolean {
+  const u = symbol.trim().toUpperCase()
+  return /^[A-Z]{6}$/.test(u)
+}
+
 /** Symbols that load live OHLCV from `/api/market/bars` (Twelve Data) before static / synthetic fallbacks. */
 export function usesMarketDataSession(symbol: string): boolean {
   const u = symbol.trim().toUpperCase()
-  return isGoldBrowserSymbol(u) || u === 'BTCUSD' || isLikelyUsStockSymbol(u)
+  return (
+    isGoldBrowserSymbol(u) ||
+    u === 'BTCUSD' ||
+    isCommodityMarketSymbol(u) ||
+    isForexPairSymbol(u) ||
+    isLikelyUsStockSymbol(u)
+  )
 }
 
 type RawBar = {
@@ -150,69 +203,148 @@ async function fetchGoldStaticJson(): Promise<ResolvedSeries | null> {
   return null
 }
 
+function mergeBarsByTime(...groups: Bar[][]): Bar[] {
+  const out: Bar[] = []
+  let lastT = -1
+  for (const group of groups) {
+    for (const b of group) {
+      if (b.time <= lastT) continue
+      lastT = b.time
+      out.push(b)
+    }
+  }
+  return out
+}
+
+/** When the main fetch begins exactly at session start, load one earlier candle for chart context. */
+async function ensurePriorBarInPool(symbol: string, bars: Bar[], startDate?: string): Promise<Bar[]> {
+  const startSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : null
+  if (startSec == null || !Number.isFinite(startSec) || !bars.length) return bars
+  if (bars.some((b) => b.time < startSec)) return bars
+
+  const pad = await fetchMarketBarsSeries(symbol, undefined, {
+    interval: '1m',
+    startSec: sessionFetchStartSec(startSec),
+    endSec: startSec,
+    minBars: 1,
+  })
+  if (!pad?.bars.length) return bars
+  return mergeBarsByTime(pad.bars, bars)
+}
+
+async function fetchLiveMarketSeries(
+  symbol: string,
+  startDate?: string,
+  endDate?: string,
+): Promise<ResolvedSeries | null> {
+  const { startSec, endSec } = resolveFetchRange(startDate, endDate)
+  const sessionStartSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : undefined
+  const hasRange = startSec != null && endSec != null && endSec > startSec
+  const fromMarket = await fetchMarketBarsSeries(symbol, undefined, {
+    range: hasRange ? undefined : '5d',
+    interval: '1m',
+    ...(hasRange ? { startSec, endSec, sessionStartSec: sessionStartSec ?? undefined } : {}),
+  })
+  if (!fromMarket) return null
+  const bars = await ensurePriorBarInPool(symbol, fromMarket.bars, startDate)
+  return {
+    bars,
+    timeframe: fromMarket.timeframe,
+    dataSource: fromMarket.dataSource,
+  }
+}
+
+function syntheticFallbackForSymbol(
+  symbol: string,
+  count: number,
+  seed: number,
+  startSec?: number,
+): ResolvedSeries {
+  const u = symbol.trim().toUpperCase()
+  if (isGoldBrowserSymbol(u)) {
+    return {
+      bars: generateGoldSpotMinuteBars(count, seed, startSec),
+      timeframe: '1m',
+      dataSource: 'synthetic:gold-demo',
+    }
+  }
+  if (u === 'BTCUSD') {
+    return {
+      bars: generateBtcUsdDemoMinuteBars(count, seed, startSec),
+      timeframe: '1m',
+      dataSource: 'synthetic:btc-demo',
+    }
+  }
+  if (u === 'SI' || u === 'XAGUSD') {
+    return {
+      bars: generateSilverSpotMinuteBars(count, seed, startSec),
+      timeframe: '1m',
+      dataSource: 'synthetic:silver-demo',
+    }
+  }
+  if (u === 'CL') {
+    return {
+      bars: generateOilDemoMinuteBars(count, seed, startSec),
+      timeframe: '1m',
+      dataSource: 'synthetic:oil-demo',
+    }
+  }
+  if (isForexPairSymbol(u)) {
+    return {
+      bars: generateMockMinuteBars(count, seed, startSec),
+      timeframe: '1m',
+      dataSource: 'synthetic:forex-demo',
+    }
+  }
+  if (isLikelyUsStockSymbol(u)) {
+    return {
+      bars: generateMockMinuteBars(count, seed, startSec),
+      timeframe: '1m',
+      dataSource: 'synthetic:equity-demo',
+    }
+  }
+  return { bars: generateMockMinuteBars(count, seed, startSec), timeframe: '1m', dataSource: 'synthetic:demo' }
+}
+
 /**
  * Gold (XAUUSD / GC): `/api/market/bars` first (`1m` intraday by default), then bundled
  * `public/data/xauusd-bars.json` or `xauusd-1h.json`, then synthetic 1m demo bars.
- * Historic API: `npm run server:historic` (or Vite sidecar) on port 3001.
- * BTCUSD: `/api/market/bars` then synthetic mock 1m bars.
- * US-style stocks (e.g. AAPL): `/api/market/bars` (Twelve Data), then synthetic 1m mock bars.
+ * Commodities (SI, XAGUSD, CL), crypto, forex, and US stocks: `/api/market/bars` then symbol-shaped demo bars.
  * Other symbols: synthetic 1m mock bars.
  */
 export async function resolveSessionBars(
   symbol: string,
   sessionName: string,
   count = DEFAULT_BAR_COUNT,
+  opts?: SessionBarsOpts,
 ): Promise<ResolvedSeries> {
   const u = symbol.trim().toUpperCase()
   const seed = seedFromSymbol(u) + sessionName.length * 17
+  const startDate = opts?.startDate
+  const endDate = opts?.endDate
+  const synth = syntheticParams(startDate, endDate, count)
 
   if (isGoldBrowserSymbol(u)) {
-    const fromMarket = await fetchMarketBarsSeries(u, undefined, { range: '5d', interval: '1m' })
-    if (fromMarket) {
-      return {
-        bars: fromMarket.bars,
-        timeframe: fromMarket.timeframe,
-        dataSource: fromMarket.dataSource,
-      }
-    }
+    const live = await fetchLiveMarketSeries(u, startDate, endDate)
+    if (live) return live
 
     const fromFile = await fetchGoldStaticJson()
-    if (fromFile) return fromFile
+    if (fromFile) {
+      const bars = await ensurePriorBarInPool(u, fromFile.bars, startDate)
+      if (bars.length >= 16) return { ...fromFile, bars }
+    }
 
-    return { bars: generateGoldSpotMinuteBars(count, seed), timeframe: '1m', dataSource: 'synthetic:gold-demo' }
+    return syntheticFallbackForSymbol(u, synth.count, seed, synth.startSec)
   }
 
-  if (u === 'BTCUSD') {
-    const fromMarket = await fetchMarketBarsSeries(u)
-    if (fromMarket) {
-      return {
-        bars: fromMarket.bars,
-        timeframe: fromMarket.timeframe,
-        dataSource: fromMarket.dataSource,
-      }
-    }
-    return {
-      bars: generateBtcUsdDemoMinuteBars(count, seed),
-      timeframe: '1m',
-      dataSource: 'synthetic:btc-demo',
-    }
+  if (usesMarketDataSession(u)) {
+    const live = await fetchLiveMarketSeries(u, startDate, endDate)
+    if (live) return live
+    return syntheticFallbackForSymbol(u, synth.count, seed, synth.startSec)
   }
 
-  if (isLikelyUsStockSymbol(u)) {
-    const fromMarket = await fetchMarketBarsSeries(u, undefined, { range: '5d', interval: '1m' })
-    if (fromMarket) {
-      return {
-        bars: fromMarket.bars,
-        timeframe: fromMarket.timeframe,
-        dataSource: fromMarket.dataSource,
-      }
-    }
-    return {
-      bars: generateMockMinuteBars(count, seed),
-      timeframe: '1m',
-      dataSource: 'synthetic:equity-demo',
-    }
+  return {
+    bars: generateMockMinuteBars(synth.count, seed, synth.startSec),
+    timeframe: '1m',
   }
-
-  return { bars: generateMockMinuteBars(count, seed), timeframe: '1m' }
 }

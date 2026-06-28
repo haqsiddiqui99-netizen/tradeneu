@@ -26,7 +26,10 @@ import { parseXauCsvText } from '../scripts/xauCsvParse.mjs'
 import { resolveMarketBars } from './providers/resolveChain.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DATA_DIR = path.join(__dirname, '..', 'server-data')
+/** Vercel serverless has ephemeral disk; /tmp persists for the lifetime of a warm instance. */
+const DATA_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'suplexity-server-data')
+  : path.join(__dirname, '..', 'server-data')
 const GOLD_FILE = path.join(DATA_DIR, 'gold-bars.json')
 
 /** Load `.env.local` so `TWELVE_DATA_API_KEY` works without exporting in the shell. Does not override existing env. */
@@ -147,8 +150,22 @@ app.get('/api/market/bars', async (req, res) => {
   const chain = String(req.query.chain || DEFAULT_CHAIN).trim()
   const chartRange = firstQueryString(req.query, 'range')
   const chartInterval = firstQueryString(req.query, 'interval')
+  const startRaw = firstQueryString(req.query, 'start')
+  const endRaw = firstQueryString(req.query, 'end')
+  const sessionStartRaw = firstQueryString(req.query, 'sessionStart')
+  const startSec = startRaw != null ? Number.parseInt(startRaw, 10) : undefined
+  const endSec = endRaw != null ? Number.parseInt(endRaw, 10) : undefined
+  const sessionStartSec = sessionStartRaw != null ? Number.parseInt(sessionStartRaw, 10) : undefined
   try {
-    const out = await resolveMarketBars({ symbol, chain, chartRange, chartInterval })
+    const out = await resolveMarketBars({
+      symbol,
+      chain,
+      chartRange,
+      chartInterval,
+      startSec: Number.isFinite(startSec) ? startSec : undefined,
+      endSec: Number.isFinite(endSec) ? endSec : undefined,
+      sessionStartSec: Number.isFinite(sessionStartSec) ? sessionStartSec : undefined,
+    })
     if (!out.ok) {
       res.status(404).json({
         ok: false,
@@ -198,21 +215,27 @@ app.get('/api/market/providers', (_req, res) => {
   })
 })
 
-const PORT = Number(process.env.HISTORIC_API_PORT || 3001)
-app.listen(PORT, '127.0.0.1', () => {
-  const keyOk = Boolean(process.env.TWELVE_DATA_API_KEY?.trim())
-  console.log(`[market-data] http://127.0.0.1:${PORT}`)
-  console.log(`  Default MARKET_BAR_CHAIN: ${DEFAULT_CHAIN}`)
-  if (!keyOk) {
-    console.warn(
-      '  [WARN] TWELVE_DATA_API_KEY is not set — /api/market/bars will fail for Twelve Data. Set env or .env.local at repo root.',
+export default app
+
+/** Standalone dev / `npm run server:historic` — skipped on Vercel (see `api/index.mjs`). */
+if (!process.env.VERCEL) {
+  const PORT = Number(process.env.HISTORIC_API_PORT || 3001)
+  const HOST = process.env.HISTORIC_API_HOST?.trim() || '127.0.0.1'
+  app.listen(PORT, HOST, () => {
+    const keyOk = Boolean(process.env.TWELVE_DATA_API_KEY?.trim())
+    console.log(`[market-data] http://${HOST}:${PORT}`)
+    console.log(`  Default MARKET_BAR_CHAIN: ${DEFAULT_CHAIN}`)
+    if (!keyOk) {
+      console.warn(
+        '  [WARN] TWELVE_DATA_API_KEY is not set — /api/market/bars will fail for Twelve Data. Set env or .env.local at repo root.',
+      )
+    } else {
+      console.log('  TWELVE_DATA_API_KEY: loaded')
+    }
+    console.log(
+      `  Default chart query: range=${process.env.MARKET_CHART_RANGE || process.env.MARKET_YAHOO_RANGE || '5d'} interval=${process.env.MARKET_CHART_INTERVAL || process.env.MARKET_YAHOO_INTERVAL || '1m'} (override with ?range=&interval=)`,
     )
-  } else {
-    console.log('  TWELVE_DATA_API_KEY: loaded')
-  }
-  console.log(
-    `  Default chart query: range=${process.env.MARKET_CHART_RANGE || process.env.MARKET_YAHOO_RANGE || '5d'} interval=${process.env.MARKET_CHART_INTERVAL || process.env.MARKET_YAHOO_INTERVAL || '1m'} (override with ?range=&interval=)`,
-  )
-  console.log(`  GET /api/historic/identity  |  GET /api/market/bars?symbol=AAPL  |  GET /api/market/providers`)
-  console.log(`  Gold CSV: POST/GET/DELETE /api/historic/gold/*`)
-})
+    console.log(`  GET /api/historic/identity  |  GET /api/market/bars?symbol=AAPL  |  GET /api/market/providers`)
+    console.log(`  Gold CSV: POST/GET/DELETE /api/historic/gold/*`)
+  })
+}

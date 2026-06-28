@@ -80,12 +80,33 @@ function tdIntervalToTimeframeLabel(tdInterval) {
   return tdInterval
 }
 
-/** Rough bar count target from chart `range` for intraday outputsize. */
-function outputSizeForRange(range, tdInterval) {
-  const cap = Math.min(
+function tdIntervalToSeconds(tdInterval) {
+  if (tdInterval === '1min') return 60
+  if (tdInterval === '5min') return 300
+  if (tdInterval === '15min') return 900
+  if (tdInterval === '30min') return 1800
+  if (tdInterval === '1h') return 3600
+  if (tdInterval === '1day') return 86_400
+  if (tdInterval === '1week') return 604_800
+  if (tdInterval === '1month') return 2_592_000
+  return 60
+}
+
+function formatTwelveDataUtcDatetime(unixSec) {
+  const d = new Date(unixSec * 1000)
+  return d.toISOString().slice(0, 19)
+}
+
+function outputSizeCap() {
+  return Math.min(
     8000,
     Math.max(30, Number.parseInt(process.env.TWELVE_DATA_OUTPUT_SIZE || '5000', 10) || 5000),
   )
+}
+
+/** Rough bar count target from chart `range` for intraday outputsize. */
+function outputSizeForRange(range, tdInterval) {
+  const cap = outputSizeCap()
   const r = String(range || '5d').trim().toLowerCase()
   const mult = tdInterval === '1min' ? 400 : tdInterval === '5min' ? 80 : tdInterval === '15min' ? 35 : 30
   if (r === '1d') return Math.min(cap, mult * 1)
@@ -116,9 +137,19 @@ function decimalsForPrice(x) {
  * @param {string} opts.symbol App symbol e.g. AAPL, XAUUSD
  * @param {string} [opts.range] Chart range (1d,5d,1mo,…) for outputsize hint
  * @param {string} [opts.interval] Chart interval (1m,5m,1h,1d,1w,1M)
+ * @param {number} [opts.startSec] Session fetch start (unix seconds, UTC instant)
+ * @param {number} [opts.endSec] Session end (unix seconds, UTC instant)
+ * @param {number} [opts.sessionStartSec] Actual session start — prepend one prior bar when missing
  * @returns {Promise<{ ok: boolean, bars?: object[], timeframe?: string, error?: string, source?: string, twelve_data_request?: object }>}
  */
-export async function fetchTwelveDataTimeSeries({ symbol, range = '5d', interval = '1m' }) {
+export async function fetchTwelveDataTimeSeries({
+  symbol,
+  range = '5d',
+  interval = '1m',
+  startSec,
+  endSec,
+  sessionStartSec,
+}) {
   const apiKey = process.env.TWELVE_DATA_API_KEY?.trim()
   if (!apiKey) {
     return { ok: false, error: 'twelvedata: missing TWELVE_DATA_API_KEY' }
@@ -129,79 +160,148 @@ export async function fetchTwelveDataTimeSeries({ symbol, range = '5d', interval
   }
 
   const tdInterval = chartIntervalToTwelveDataInterval(interval)
-  const outputsize = outputSizeForRange(range, tdInterval)
+  const stepSec = tdIntervalToSeconds(tdInterval)
+  const cap = outputSizeCap()
+  const hasRange =
+    Number.isFinite(startSec) && Number.isFinite(endSec) && endSec > startSec
 
-  const url = new URL(TD_TIME_SERIES)
-  url.searchParams.set('symbol', tdSym)
-  url.searchParams.set('interval', tdInterval)
-  url.searchParams.set('apikey', apiKey)
-  url.searchParams.set('outputsize', String(outputsize))
-  url.searchParams.set('timezone', 'UTC')
-  url.searchParams.set('order', 'ASC')
+  async function fetchChunk(chunkStartSec, chunkEndSec, outputsize) {
+    const url = new URL(TD_TIME_SERIES)
+    url.searchParams.set('symbol', tdSym)
+    url.searchParams.set('interval', tdInterval)
+    url.searchParams.set('apikey', apiKey)
+    url.searchParams.set('timezone', 'UTC')
+    url.searchParams.set('order', 'ASC')
+    if (Number.isFinite(chunkStartSec) && Number.isFinite(chunkEndSec)) {
+      url.searchParams.set('start_date', formatTwelveDataUtcDatetime(chunkStartSec))
+      url.searchParams.set('end_date', formatTwelveDataUtcDatetime(chunkEndSec))
+      url.searchParams.set('outputsize', String(Math.min(cap, outputsize || cap)))
+    } else {
+      url.searchParams.set('outputsize', String(outputsize || outputSizeForRange(range, tdInterval)))
+    }
 
-  let res
-  try {
-    res = await fetch(url.toString(), {
-      headers: { Accept: 'application/json' },
-    })
-  } catch (e) {
-    return { ok: false, error: `twelvedata network: ${e?.message || e}` }
+    let res
+    try {
+      res = await fetch(url.toString(), {
+        headers: { Accept: 'application/json' },
+      })
+    } catch (e) {
+      return { ok: false, error: `twelvedata network: ${e?.message || e}` }
+    }
+
+    const data = await res.json().catch(() => null)
+    if (!data || typeof data !== 'object') {
+      return { ok: false, error: 'twelvedata: invalid json' }
+    }
+    if (data.status === 'error' || data.code != null) {
+      const msg = data.message || data.error || String(data.code || 'error')
+      return { ok: false, error: `twelvedata: ${msg}` }
+    }
+    const values = data.values
+    if (!Array.isArray(values) || values.length < 1) {
+      return { ok: true, bars: [], request: Object.fromEntries(url.searchParams) }
+    }
+
+    const bars = []
+    let lastT = -1
+    for (const row of values) {
+      if (!row || typeof row !== 'object') continue
+      const t = parseTwelveDataDatetime(row.datetime)
+      const o = parseFloat(row.open)
+      const h = parseFloat(row.high)
+      const l = parseFloat(row.low)
+      const c = parseFloat(row.close)
+      const v = parseFloat(row.volume)
+      if (!Number.isFinite(t) || t <= lastT) continue
+      if (![o, h, l, c].every(Number.isFinite)) continue
+      lastT = t
+      const dp = decimalsForPrice
+      const vi = Number.isFinite(v) && v >= 0 ? Math.round(v) : 0
+      bars.push({
+        time: t,
+        open: +Number(o).toFixed(dp(o)),
+        high: +Number(h).toFixed(dp(h)),
+        low: +Number(l).toFixed(dp(l)),
+        close: +Number(c).toFixed(dp(c)),
+        volume: vi,
+      })
+    }
+    return { ok: true, bars, request: Object.fromEntries(url.searchParams) }
   }
 
-  const data = await res.json().catch(() => null)
-  if (!data || typeof data !== 'object') {
-    return { ok: false, error: 'twelvedata: invalid json' }
-  }
-  if (data.status === 'error' || data.code != null) {
-    const msg = data.message || data.error || String(data.code || 'error')
-    return { ok: false, error: `twelvedata: ${msg}` }
-  }
-  const values = data.values
-  if (!Array.isArray(values) || values.length < 16) {
-    return { ok: false, error: `twelvedata: too few bars (${Array.isArray(values) ? values.length : 0})` }
+  let merged = []
+  let lastRequest = null
+
+  if (hasRange) {
+    // Twelve Data often caps at ~2000 bars per request even when outputsize is higher.
+    const chunkBarLimit = Math.min(cap, 2000)
+    const maxChunkSpan = Math.max(stepSec, (chunkBarLimit - 1) * stepSec)
+    let cursor = startSec
+    let guard = 0
+    while (cursor < endSec && guard < 128) {
+      guard += 1
+      const chunkEnd = Math.min(endSec, cursor + maxChunkSpan)
+      const chunk = await fetchChunk(cursor, chunkEnd, chunkBarLimit)
+      if (!chunk.ok) {
+        if (merged.length >= 16) break
+        return { ok: false, error: chunk.error }
+      }
+      lastRequest = chunk.request
+      if (!chunk.bars.length) break
+      const before = merged.length
+      for (const b of chunk.bars) {
+        if (b.time >= startSec && b.time <= endSec) {
+          if (!merged.length || b.time > merged[merged.length - 1].time) merged.push(b)
+        }
+      }
+      const lastBar = chunk.bars[chunk.bars.length - 1]
+      const nextCursor = lastBar.time + stepSec
+      if (nextCursor <= cursor) break
+      cursor = nextCursor
+      if (lastBar.time >= endSec - stepSec) break
+      // Keep paging until endSec even when the provider returns fewer than chunkBarLimit bars.
+      if (merged.length === before && chunk.bars.length < chunkBarLimit) break
+    }
+  } else {
+    const single = await fetchChunk(undefined, undefined, outputSizeForRange(range, tdInterval))
+    if (!single.ok) return { ok: false, error: single.error }
+    merged = single.bars
+    lastRequest = single.request
   }
 
-  const bars = []
-  let lastT = -1
-  for (const row of values) {
-    if (!row || typeof row !== 'object') continue
-    const t = parseTwelveDataDatetime(row.datetime)
-    const o = parseFloat(row.open)
-    const h = parseFloat(row.high)
-    const l = parseFloat(row.low)
-    const c = parseFloat(row.close)
-    const v = parseFloat(row.volume)
-    if (!Number.isFinite(t) || t <= lastT) continue
-    if (![o, h, l, c].every(Number.isFinite)) continue
-    lastT = t
-    const dp = decimalsForPrice
-    const vi = Number.isFinite(v) && v >= 0 ? Math.round(v) : 0
-    bars.push({
-      time: t,
-      open: +Number(o).toFixed(dp(o)),
-      high: +Number(h).toFixed(dp(h)),
-      low: +Number(l).toFixed(dp(l)),
-      close: +Number(c).toFixed(dp(c)),
-      volume: vi,
-    })
+  if (merged.length < 16) {
+    return { ok: false, error: `twelvedata: parsed too few bars (${merged.length})` }
   }
 
-  if (bars.length < 16) {
-    return { ok: false, error: `twelvedata: parsed too few bars (${bars.length})` }
+  if (Number.isFinite(sessionStartSec) && !merged.some((b) => b.time < sessionStartSec)) {
+    const lookback = Math.max(stepSec * 500, 86_400)
+    const priorChunk = await fetchChunk(Math.max(0, sessionStartSec - lookback), sessionStartSec, 500)
+    if (priorChunk.ok && priorChunk.bars.length) {
+      let prior = null
+      for (const b of priorChunk.bars) {
+        if (b.time < sessionStartSec) prior = b
+      }
+      if (prior && prior.time < merged[0].time) {
+        merged.unshift(prior)
+      }
+    }
   }
 
   const app = String(symbol).trim()
   return {
     ok: true,
-    bars,
+    bars: merged,
     timeframe: tdIntervalToTimeframeLabel(tdInterval),
     source: `twelvedata:${tdSym}`,
     twelve_data_request: {
       symbol: tdSym,
       app_symbol: app,
       interval: tdInterval,
-      outputsize,
       timezone: 'UTC',
+      startSec: hasRange ? startSec : undefined,
+      endSec: hasRange ? endSec : undefined,
+      chunks: hasRange ? true : undefined,
+      ...(lastRequest || {}),
     },
   }
 }

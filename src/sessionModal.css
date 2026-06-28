@@ -29,7 +29,7 @@ body.sx-modal-open {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 32rem;
+  max-width: 41.6rem;
   max-height: min(90vh, 720px);
   display: flex;
   flex-direction: column;
@@ -265,10 +265,10 @@ body.sx-modal-open {
   color: #9ca3af;
 }
 
-/* Two-column date layout: row 1 labels, row 2 inputs (aligned), row 3 hints + Random */
+/* Date row: Initial | End (+ quick) | Random; hints under start/end */
 .sx-date-2col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr auto;
   column-gap: 1rem;
   row-gap: 0.35rem;
   align-items: end;
@@ -278,17 +278,29 @@ body.sx-modal-open {
   margin-bottom: 0;
 }
 
-@media (max-width: 520px) {
+.sx-date-2col__pad {
+  display: block;
+}
+
+@media (max-width: 640px) {
   .sx-date-2col {
     grid-template-columns: 1fr;
   }
+
+  .sx-date-2col__pad {
+    display: none;
+  }
+}
+
+.sx-date-2col .sx-field-hint {
+  color: #374151;
+  font-weight: 600;
 }
 
 .sx-date-end-label-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
+  align-items: center;
   gap: 0.35rem;
 }
 
@@ -296,23 +308,17 @@ body.sx-modal-open {
   margin-bottom: 0;
 }
 
-.sx-date-end-foot {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.45rem;
-  min-width: 0;
-}
-
 .sx-date-quick {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.25rem;
+  margin-left: auto;
 }
 
 .sx-date-quick__btn {
   border: 1px solid #e5e7eb;
-  background: #fff;
+  background: #f3f4f6;
   border-radius: 9999px;
   padding: 0.2rem 0.45rem;
   font-size: 0.625rem;
@@ -347,13 +353,14 @@ body.sx-modal-open {
   min-width: 0;
 }
 
-/* Bordered “tab” control: checkbox + Random (matches reference) */
+/* Bordered checkbox + Random (aligned with date inputs) */
 .sx-random-tab {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   margin: 0;
-  padding: 0.45rem 0.65rem;
+  padding: 0 0.75rem;
+  min-height: 2.625rem;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
   background: #fff;
@@ -365,6 +372,7 @@ body.sx-modal-open {
   user-select: none;
   flex-shrink: 0;
   box-sizing: border-box;
+  align-self: end;
 }
 
 .sx-random-tab:hover {
@@ -373,14 +381,32 @@ body.sx-modal-open {
 }
 
 .sx-random-tab input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
   width: 1rem;
   height: 1rem;
   margin: 0;
   flex-shrink: 0;
   border-radius: 0.25rem;
   border: 1px solid #d1d5db;
-  accent-color: #2563eb;
+  background: #fff;
   cursor: pointer;
+  display: grid;
+  place-content: center;
+}
+
+.sx-random-tab input[type='checkbox']:checked {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.sx-random-tab input[type='checkbox']:checked::after {
+  content: '';
+  width: 0.3rem;
+  height: 0.55rem;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-0.5px, -1px);
 }
 
 .sx-auto-end-bar {

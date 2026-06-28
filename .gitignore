@@ -16,6 +16,7 @@ ml-service/artifacts/*.pt
 ml-service/data/*.db
 dist
 dist-ssr
+.vercel
 *.local
 
 # Editor directories and files

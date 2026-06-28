@@ -10,17 +10,24 @@
   display: none !important;
 }
 
+#view-chart[data-chart-theme='light'] {
+  background: #ffffff;
+}
+
+#view-chart[data-chart-theme='dark'] {
+  background: #131722;
+}
+
 .sx-dash {
   position: relative;
   isolation: isolate;
   min-height: 0;
   flex: 1;
   font-family:
-    'Inter',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
+    Inter,
+    'Trebuchet MS',
     Roboto,
+    Ubuntu,
     'Helvetica Neue',
     Arial,
     sans-serif;

@@ -9,6 +9,7 @@
     "dev:full": "node scripts/devWithHistoricApi.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "deploy:vercel": "vercel --prod",
     "import:xau": "node scripts/import-xau-csv.mjs",
     "server:historic": "node server/historicGoldApi.mjs",
     "ml:venv": "node scripts/mlRunner.mjs venv",

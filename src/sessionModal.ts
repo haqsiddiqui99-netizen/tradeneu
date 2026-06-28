@@ -1,3 +1,8 @@
+import {
+  fallbackBarCoverage,
+  resolveBarCoverageForSymbols,
+  type BarCoverageBounds,
+} from './data/symbolBarCoverage'
 import { icons } from './icons'
 import {
   ASSET_CATALOG,
@@ -16,19 +21,10 @@ import {
 
 export type { SessionCreatedPayload } from './sessionTypes'
 
-/** Earliest selectable backtest day (matches sample historic coverage UI). */
-const BT_MIN_DATE = '2007-04-03'
-const BT_MIN_DATETIME_LOCAL = `${BT_MIN_DATE}T00:00`
-
-function isoTodayLocal(): string {
+function nowDatetimeLocal(): string {
   const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function isoDaysAgoLocal(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  d.setSeconds(0, 0)
+  return formatDatetimeLocal(d)
 }
 
 function formatHintDate(iso: string): string {
@@ -54,10 +50,6 @@ function parseIsoLocal(iso: string): Date | null {
 
 function toIsoLocal(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function maxDatetimeLocalToday(): string {
-  return `${isoTodayLocal()}T23:59`
 }
 
 function formatDatetimeLocal(d: Date): string {
@@ -108,15 +100,6 @@ function endFromStartPlusOneMonth(startLocal: string, maxLocal: string): string 
   if (Number.isNaN(maxT)) return maxLocal
   if (e.getTime() > maxT) return maxLocal
   return formatDatetimeLocal(e)
-}
-
-function randomEndBetween(startIso: string, maxIso: string): string {
-  const s = parseIsoLocal(startIso)
-  const m = parseIsoLocal(maxIso)
-  if (!s || !m || s > m) return maxIso
-  const span = m.getTime() - s.getTime()
-  const t = s.getTime() + Math.random() * span
-  return toIsoLocal(new Date(t))
 }
 
 function categoryDotClass(cat: AssetCategory): string {
@@ -276,6 +259,7 @@ export function createSessionModal(options?: {
                     <button type="button" class="sx-date-quick__btn" data-date-quick="1m">+1M</button>
                   </div>
                 </div>
+                <span class="sx-date-2col__pad" aria-hidden="true"></span>
 
                 <div class="sx-dt-field" id="sx-session-start-dt">
                   <div class="sx-dt-field__inner">
@@ -305,15 +289,14 @@ export function createSessionModal(options?: {
                   </div>
                   <input type="hidden" id="sx-session-end-date" />
                 </div>
+                <label class="sx-random-tab">
+                  <input type="checkbox" id="sx-session-end-random" />
+                  <span>Random</span>
+                </label>
 
                 <p class="sx-field-hint" id="sx-session-start-hint"></p>
-                <div class="sx-date-end-foot">
-                  <p class="sx-field-hint" id="sx-session-end-hint"></p>
-                  <label class="sx-random-tab">
-                    <input type="checkbox" id="sx-session-end-random" />
-                    <span>Random</span>
-                  </label>
-                </div>
+                <p class="sx-field-hint" id="sx-session-end-hint"></p>
+                <span class="sx-date-2col__pad" aria-hidden="true"></span>
               </div>
               <p class="sx-field-error" id="sx-session-dates-err" hidden></p>
               <div class="sx-auto-end-bar">
@@ -403,6 +386,35 @@ export function createSessionModal(options?: {
   const endHint = wrap.querySelector('#sx-session-end-hint') as HTMLElement
   const modalScroll = wrap.querySelector('.sx-modal__scroll') as HTMLElement | null
 
+  let barCoverage: BarCoverageBounds = fallbackBarCoverage()
+  let coverageRequestId = 0
+
+  function applyDateBounds() {
+    startHint.textContent = `Min: ${formatHintDate(barCoverage.minIso)}`
+    endHint.textContent = `Max: ${formatHintDate(barCoverage.maxIso)}`
+  }
+
+  function clampDatesToCoverage() {
+    const minDt = barCoverage.minDatetimeLocal
+    const maxDt = barCoverage.maxDatetimeLocal
+    if (startDateInput.value) {
+      assignStartValue(clampDateTimeLocal(startDateInput.value, minDt, maxDt), false)
+    }
+    if (endDateInput.value) {
+      assignEndValue(clampDateTimeLocal(endDateInput.value, minDt, maxDt), false)
+    }
+  }
+
+  async function refreshBarCoverage() {
+    const req = ++coverageRequestId
+    const bounds = await resolveBarCoverageForSymbols(selectedSymbols)
+    if (req !== coverageRequestId) return
+    barCoverage = bounds
+    applyDateBounds()
+    clampDatesToCoverage()
+    syncSubmit()
+  }
+
   function syncStartDisplayOnly() {
     const v = startDateInput.value
     startDateDisplay.value = v ? formatDatetimeLocalDisplay(v) : ''
@@ -439,8 +451,8 @@ export function createSessionModal(options?: {
     openSessionDatetimePicker({
       anchor: startDtWrap,
       value: startDateInput.value,
-      min: BT_MIN_DATETIME_LOCAL,
-      max: maxDatetimeLocalToday(),
+      min: barCoverage.minDatetimeLocal,
+      max: barCoverage.maxDatetimeLocal,
       onChange: (v) => assignStartValue(v),
     })
   }
@@ -451,8 +463,8 @@ export function createSessionModal(options?: {
     openSessionDatetimePicker({
       anchor: endDtWrap,
       value: endDateInput.value,
-      min: BT_MIN_DATETIME_LOCAL,
-      max: maxDatetimeLocalToday(),
+      min: barCoverage.minDatetimeLocal,
+      max: barCoverage.maxDatetimeLocal,
       onChange: (v) => assignEndValue(v),
     })
   }
@@ -685,6 +697,7 @@ export function createSessionModal(options?: {
     assetdd.classList.remove('sx-assetdd--error')
     syncAssetTags()
     renderAssetList()
+    void refreshBarCoverage()
   }
 
   function removeAsset(symbol: string) {
@@ -692,12 +705,14 @@ export function createSessionModal(options?: {
     selectedSymbols = selectedSymbols.filter((s) => s !== u)
     syncAssetTags()
     renderAssetList()
+    void refreshBarCoverage()
   }
 
   function clearAssetSelection() {
     selectedSymbols = []
     syncAssetTags()
     renderAssetList()
+    void refreshBarCoverage()
   }
 
   function openAssetPanel() {
@@ -811,8 +826,8 @@ export function createSessionModal(options?: {
     if (!s || !e) return false
     const ds = new Date(s)
     const de = new Date(e)
-    const minD = new Date(BT_MIN_DATETIME_LOCAL)
-    const maxD = new Date(maxDatetimeLocalToday())
+    const minD = new Date(barCoverage.minDatetimeLocal)
+    const maxD = new Date(barCoverage.maxDatetimeLocal)
     if (Number.isNaN(ds.getTime()) || Number.isNaN(de.getTime())) return false
     if (ds < minD || de > maxD) return false
     if (ds > de) return false
@@ -842,11 +857,6 @@ export function createSessionModal(options?: {
     window.alert('Request asset — link this to your intake form or support channel when ready.')
   })
 
-  function applyDateBounds() {
-    startHint.textContent = `Min: ${formatHintDate(BT_MIN_DATE)} (local)`
-    endHint.textContent = `Max: ${formatHintDate(isoTodayLocal())} 23:59 (local)`
-  }
-
   function setAutoEndOn(on: boolean) {
     autoEndSwitch.setAttribute('aria-checked', on ? 'true' : 'false')
     autoEndSwitch.classList.toggle('sx-auto-end-switch--on', on)
@@ -854,24 +864,23 @@ export function createSessionModal(options?: {
 
   /** Pick random start/end in range; end is always >= start. */
   function applyRandomDateRange() {
-    const maxD = isoTodayLocal()
-    const maxDt = maxDatetimeLocalToday()
-    const lo = parseIsoLocal(BT_MIN_DATE)
-    const hi = parseIsoLocal(maxD)
-    if (!lo || !hi) return
-    const spanDays = Math.max(0, Math.floor((hi.getTime() - lo.getTime()) / 86_400_000))
-    if (spanDays < 1) {
-      assignStartValue(BT_MIN_DATETIME_LOCAL, false)
+    const minDt = barCoverage.minDatetimeLocal
+    const maxDt = barCoverage.maxDatetimeLocal
+    const lo = new Date(minDt)
+    const hi = new Date(maxDt)
+    if (Number.isNaN(lo.getTime()) || Number.isNaN(hi.getTime())) return
+    const spanMs = hi.getTime() - lo.getTime()
+    if (spanMs < 60_000) {
+      assignStartValue(minDt, false)
       assignEndValue(maxDt, false)
       syncSubmit()
       return
     }
-    const startOffset = Math.floor(Math.random() * spanDays)
-    const sD = new Date(lo)
-    sD.setDate(sD.getDate() + startOffset)
-    const startIso = clampIsoToRange(toIsoLocal(sD), BT_MIN_DATE, maxD)
-    assignStartValue(`${startIso}T00:00`, false)
-    assignEndValue(`${randomEndBetween(startIso, maxD)}T23:59`, false)
+    const t = lo.getTime() + Math.random() * spanMs
+    const start = formatDatetimeLocal(new Date(t))
+    assignStartValue(clampDateTimeLocal(start, minDt, maxDt), false)
+    const endT = lo.getTime() + Math.random() * (hi.getTime() - new Date(start).getTime())
+    assignEndValue(clampDateTimeLocal(formatDatetimeLocal(new Date(Math.max(endT, new Date(start).getTime()))), minDt, maxDt), false)
     syncSubmit()
   }
 
@@ -895,7 +904,7 @@ export function createSessionModal(options?: {
     if (randomEndCb.checked) return
     clearDatesError()
     randomEndCb.checked = false
-    const maxDt = maxDatetimeLocalToday()
+    const maxDt = barCoverage.maxDatetimeLocal
     const s = startDateInput.value
     const e = endDateInput.value
     if (s && e) {
@@ -938,7 +947,7 @@ export function createSessionModal(options?: {
       setAutoEndOn(false)
       randomEndCb.checked = false
       clearDatesError()
-      const maxDt = maxDatetimeLocalToday()
+      const maxDt = barCoverage.maxDatetimeLocal
       const start = startDateInput.value
       if (!start) {
         showDatesError('Choose an initial date and time first.')
@@ -974,7 +983,7 @@ export function createSessionModal(options?: {
     const next = autoEndSwitch.getAttribute('aria-checked') !== 'true'
     setAutoEndOn(next)
     if (next) {
-      const maxDt = maxDatetimeLocalToday()
+      const maxDt = barCoverage.maxDatetimeLocal
       assignEndValue(maxDt)
       const s = startDateInput.value
       const ds = s ? new Date(s) : null
@@ -1021,6 +1030,7 @@ export function createSessionModal(options?: {
     nameInput.value = d?.name?.trim() ?? ''
     balanceInput.value = d?.balance?.trim() || '100000'
     layoutSelect.value = d?.layout ?? ''
+    barCoverage = fallbackBarCoverage()
     applyDateBounds()
     clearAssetSelection()
     if (d?.assets?.trim()) {
@@ -1032,19 +1042,22 @@ export function createSessionModal(options?: {
         if (findAsset(sym)) addAsset(sym)
       }
     }
-    const maxD = isoTodayLocal()
-    const maxDt = maxDatetimeLocalToday()
+    const minDt = barCoverage.minDatetimeLocal
+    const maxDt = barCoverage.maxDatetimeLocal
     const ds = d?.startDate?.trim()
     const de = d?.endDate?.trim()
     const dtPat = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
-    if (ds && dtPat.test(ds)) assignStartValue(clampDateTimeLocal(ds, BT_MIN_DATETIME_LOCAL, maxDt), false)
-    else if (ds && /^\d{4}-\d{2}-\d{2}$/.test(ds))
-      assignStartValue(`${clampIsoToRange(ds, BT_MIN_DATE, maxD)}T00:00`, false)
-    else assignStartValue(`${isoDaysAgoLocal(30)}T00:00`, false)
-    if (de && dtPat.test(de)) assignEndValue(clampDateTimeLocal(de, BT_MIN_DATETIME_LOCAL, maxDt), false)
-    else if (de && /^\d{4}-\d{2}-\d{2}$/.test(de))
-      assignEndValue(`${clampIsoToRange(de, BT_MIN_DATE, maxD)}T23:59`, false)
-    else assignEndValue(maxDt, false)
+    const todayNow = nowDatetimeLocal()
+    if (ds && dtPat.test(ds)) assignStartValue(clampDateTimeLocal(ds, minDt, maxDt), false)
+    else if (ds && /^\d{4}-\d{2}-\d{2}$/.test(ds)) {
+      const maxD = barCoverage.maxIso
+      assignStartValue(`${clampIsoToRange(ds, barCoverage.minIso, maxD)}T00:00`, false)
+    } else assignStartValue(todayNow, false)
+    if (de && dtPat.test(de)) assignEndValue(clampDateTimeLocal(de, minDt, maxDt), false)
+    else if (de && /^\d{4}-\d{2}-\d{2}$/.test(de)) {
+      const maxD = barCoverage.maxIso
+      assignEndValue(`${clampIsoToRange(de, barCoverage.minIso, maxD)}T23:59`, false)
+    } else assignEndValue(todayNow, false)
     randomEndCb.checked = false
     setAutoEndOn(false)
     syncDateControlsDisabledState()
@@ -1058,6 +1071,7 @@ export function createSessionModal(options?: {
     clearDatesError()
     renderAssetList()
     syncSubmit()
+    void refreshBarCoverage()
     wrap.removeAttribute('hidden')
     document.body.classList.add('sx-modal-open')
     document.addEventListener('keydown', onKey)
@@ -1089,18 +1103,18 @@ export function createSessionModal(options?: {
     }
     const ds = new Date(s)
     const de = new Date(e)
-    const minD = new Date(BT_MIN_DATETIME_LOCAL)
-    const maxD = new Date(maxDatetimeLocalToday())
+    const minD = new Date(barCoverage.minDatetimeLocal)
+    const maxD = new Date(barCoverage.maxDatetimeLocal)
     if (Number.isNaN(ds.getTime()) || Number.isNaN(de.getTime())) {
       showDatesError('Enter valid dates and times.')
       return
     }
     if (ds < minD) {
-      showDatesError(`Initial Date cannot be before ${formatHintDate(BT_MIN_DATE)} 00:00 (local).`)
+      showDatesError(`Initial Date cannot be before ${formatHintDate(barCoverage.minIso)}.`)
       return
     }
     if (de > maxD) {
-      showDatesError(`End Date cannot be after ${formatHintDate(isoTodayLocal())} 23:59 (local).`)
+      showDatesError(`End Date cannot be after ${formatHintDate(barCoverage.maxIso)}.`)
       return
     }
     if (ds > de) {

@@ -1,0 +1,205 @@
+/* TradingView-style Pine Editor — right column beside chart */
+
+.rw-pine-dock {
+  grid-area: pine;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: #ffffff;
+  border-left: 1px solid var(--rw-border);
+}
+
+.rw-pine-dock[hidden] {
+  display: none !important;
+}
+
+.rw-pine-dock__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--rw-border);
+  background: #fafbfb;
+  flex-shrink: 0;
+}
+
+.rw-pine-dock__title {
+  font: 600 13px var(--rw-font);
+  color: var(--rw-bright);
+  letter-spacing: -0.01em;
+}
+
+.rw-pine-dock__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rw-pine-dock__icon-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #787b86;
+  cursor: pointer;
+}
+
+.rw-pine-dock__icon-btn:hover {
+  background: var(--rw-hover);
+  color: var(--rw-bright);
+}
+
+.rw-pine-dock__icon-btn .sx-ico,
+.rw-pine-dock__icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.rw-pine-dock__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--rw-border);
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.rw-pine-dock__script-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: 600 12px var(--rw-font);
+  color: var(--rw-bright);
+  cursor: pointer;
+}
+
+.rw-pine-dock__script-name-chev {
+  display: inline-flex;
+  color: #787b86;
+}
+
+.rw-pine-dock__script-name-chev .sx-ico,
+.rw-pine-dock__script-name-chev svg {
+  width: 10px;
+  height: 10px;
+}
+
+.rw-pine-dock__toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.rw-pine-dock__publish {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--rw-border);
+  border-radius: 14px;
+  background: #ffffff;
+  color: var(--rw-bright);
+  font: 600 11px var(--rw-font);
+  cursor: pointer;
+}
+
+.rw-pine-dock__publish:hover {
+  background: var(--rw-hover);
+}
+
+.rw-pine-dock__editor-wrap {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  overflow: hidden;
+}
+
+.rw-pine-dock__gutter {
+  padding: 8px 0;
+  border-right: 1px solid var(--rw-border);
+  background: #fafbfb;
+  overflow: hidden;
+  user-select: none;
+}
+
+.rw-pine-dock__ln {
+  display: block;
+  padding: 0 10px 0 0;
+  font: 400 12px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #9598a1;
+  text-align: right;
+}
+
+.rw-pine-dock__code {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 12px;
+  border: none;
+  resize: none;
+  outline: none;
+  background: #ffffff;
+  color: #131722;
+  font: 400 12px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  tab-size: 2;
+}
+
+.rw-pine-dock__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  padding: 0 10px;
+  border-top: 1px solid var(--rw-border);
+  background: #fafbfb;
+  flex-shrink: 0;
+  font: 500 11px var(--rw-font);
+  color: #787b86;
+}
+
+.rw-pine-dock__foot-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rw-pine-dock__foot-right {
+  font-variant-numeric: tabular-nums;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pine-dock {
+  background: #131722;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pine-dock__head,
+.rw-root[data-chart-theme='dark'] .rw-pine-dock__foot,
+.rw-root[data-chart-theme='dark'] .rw-pine-dock__gutter {
+  background: #1e222d;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pine-dock__toolbar {
+  background: #131722;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pine-dock__code {
+  background: #131722;
+  color: #d1d4dc;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pine-dock__publish {
+  background: #1e222d;
+}

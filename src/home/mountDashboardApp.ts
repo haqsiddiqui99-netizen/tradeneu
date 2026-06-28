@@ -1047,7 +1047,8 @@ export function mountDashboardApp(root: HTMLElement): void {
         if (!lastSessionPayload) return
         const s = symbol.trim().toUpperCase()
         if (!s) return
-        openChartWithPayload({ ...lastSessionPayload, assets: s })
+        lastSessionPayload = { ...lastSessionPayload, assets: s }
+        saveSessionDraft(lastSessionPayload)
       },
     })
   }

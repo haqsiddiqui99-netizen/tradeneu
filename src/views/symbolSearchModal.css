@@ -1,31 +1,35 @@
-/* TradingView-style symbol search (modal over chart workspace). */
+/* TradingView-style symbol search (native dialog over chart workspace). */
 
-.rw-symsearch {
+.rw-symsearch-dlg {
   position: fixed;
   inset: 0;
-  /* Above chart workspace (.rw-root z-index 150) and dashboard chrome */
-  z-index: 500000;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
   padding: 48px 16px 24px;
+  border: none;
+  background: transparent;
+  overflow: visible;
   font-family: var(--rw-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
 }
 
-/* Beat Tailwind/base `[hidden] { display: none !important }` while open. */
-.rw-symsearch.rw-symsearch--open {
-  display: flex !important;
-}
-
-.rw-symsearch__backdrop {
-  position: absolute;
-  inset: 0;
+.rw-symsearch-dlg::backdrop {
   background: rgba(0, 0, 0, 0.35);
 }
 
+.rw-symsearch-dlg:not([open]) {
+  display: none !important;
+}
+
+.rw-symsearch-dlg[open] {
+  display: flex !important;
+  align-items: flex-start;
+  justify-content: center;
+}
+
 .rw-symsearch__panel {
-  position: relative;
-  z-index: 1;
   width: min(620px, 100%);
   max-height: min(78vh, 720px);
   display: flex;

@@ -12,10 +12,19 @@ function apiOrigin(): string {
   return ''
 }
 
-function marketBarsUrl(symbol: string, chain: string, range?: string, interval?: string): string {
+function marketBarsUrl(symbol: string, chain: string, opts?: MarketBarsFetchOpts): string {
   const params = new URLSearchParams({ symbol, chain })
-  if (range?.trim()) params.set('range', range.trim())
-  if (interval?.trim()) params.set('interval', interval.trim())
+  if (opts?.range?.trim()) params.set('range', opts.range.trim())
+  if (opts?.interval?.trim()) params.set('interval', opts.interval.trim())
+  if (opts?.startSec != null && Number.isFinite(opts.startSec)) {
+    params.set('start', String(Math.floor(opts.startSec)))
+  }
+  if (opts?.endSec != null && Number.isFinite(opts.endSec)) {
+    params.set('end', String(Math.floor(opts.endSec)))
+  }
+  if (opts?.sessionStartSec != null && Number.isFinite(opts.sessionStartSec)) {
+    params.set('sessionStart', String(Math.floor(opts.sessionStartSec)))
+  }
   const path = `api/market/bars?${params.toString()}`
   const base = apiOrigin()
   if (base) return `${base}/${path}`
@@ -24,7 +33,18 @@ function marketBarsUrl(symbol: string, chain: string, range?: string, interval?:
 
 export type MarketBarsSeries = { bars: Bar[]; timeframe: string; dataSource?: string }
 
-export type MarketBarsFetchOpts = { range?: string; interval?: string }
+export type MarketBarsFetchOpts = {
+  range?: string
+  interval?: string
+  /** Unix seconds (session initial date, local interpretation on client). */
+  startSec?: number
+  /** Unix seconds (session end date, local interpretation on client). */
+  endSec?: number
+  /** Actual session start (for server prior-candle backfill). */
+  sessionStartSec?: number
+  /** Minimum bars required (default 16). Use 1 when fetching a single prior candle. */
+  minBars?: number
+}
 
 export async function fetchMarketBarsSeries(
   symbol: string,
@@ -34,7 +54,7 @@ export async function fetchMarketBarsSeries(
   const chainParam =
     (chain ?? (import.meta.env.VITE_MARKET_BAR_CHAIN as string | undefined))?.trim() || 'twelvedata'
   try {
-    const res = await fetch(marketBarsUrl(symbol, chainParam, opts?.range, opts?.interval), {
+    const res = await fetch(marketBarsUrl(symbol, chainParam, opts), {
       credentials: 'same-origin',
       cache: 'no-store',
     })
@@ -43,7 +63,7 @@ export async function fetchMarketBarsSeries(
     if (!json || typeof json !== 'object' || !('ok' in json) || (json as { ok: unknown }).ok !== true) return null
     const bars = (json as { bars?: unknown }).bars
     const timeframe = (json as { timeframe?: unknown }).timeframe
-    if (!Array.isArray(bars) || bars.length < 16) return null
+    if (!Array.isArray(bars) || bars.length < (opts?.minBars ?? 16)) return null
     const tf = typeof timeframe === 'string' && timeframe.trim() ? timeframe.trim() : '1m'
     const src = (json as { source?: unknown }).source
     const dataSource = typeof src === 'string' && src.trim() ? src.trim() : undefined
