@@ -121,6 +121,10 @@ export interface TradeResult {
   indicators:   IndicatorSnapshot
   /** Was this trade stopped out but price returned to target within 8 bars? */
   stopHunted:   boolean
+  /** Human-readable entry rules that fired (all must be true). */
+  entrySignal:  string
+  /** Human-readable exit explanation. */
+  exitSignal:   string
 }
 
 export type ExitReason =

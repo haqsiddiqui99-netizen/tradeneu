@@ -155,8 +155,8 @@ const REPLAY_LINE_COLOR = '#2962ff'
 const REPLAY_LINE_WIDTH_PX = 2
 /** Default chart `layout.fontSize` (px). */
 const CHART_LAYOUT_FONT_PX = 12
-/** Target logical window width during replay. */
-const REPLAY_VISIBLE_BARS = 90
+/** Target logical window width during replay (3 hours at 1m). */
+const REPLAY_VISIBLE_BARS = 180
 /** Bar spacing during replay (px); prevents few bars from stretching across the chart. */
 const REPLAY_BAR_SPACING = 6
 
@@ -787,7 +787,7 @@ export function createTradingChart(
   }
 
   /**
-   * FXReplay-style viewport: fixed bar width, history from bar 0, cursor ~mid-screen,
+   * FXReplay-style viewport: fixed bar width, up to `span` solid bars ending at the replay cursor,
    * empty grid on the right for bars revealed during playback.
    */
   function applyReplayViewport(ts: ReturnType<IChartApi['timeScale']>, span = REPLAY_VISIBLE_BARS) {
@@ -799,8 +799,9 @@ export function createTradingChart(
         ? Math.min(lastPastSnapshot.length - 1, maxI)
         : maxI
 
-    const from = cursor <= historyHalf ? 0 : cursor - historyHalf + 1
-    const to = Math.min(maxI, Math.max(cursor + historyHalf, from + windowBars - 1))
+    const visible = Math.min(windowBars, cursor + 1)
+    const from = Math.max(0, cursor - visible + 1)
+    const to = cursor
     const rightOffset = replayLayoutActive() ? historyHalf : 0
 
     syncReplayTimeScaleExtras(rightOffset)

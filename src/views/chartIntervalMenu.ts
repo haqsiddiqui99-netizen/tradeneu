@@ -2,12 +2,17 @@ import './chartIntervalMenu.css'
 import { syncChartThemeToElement } from '../styles/syncChartTheme'
 import { createCustomIntervalDialog } from './chartCustomIntervalDialog'
 import {
-  CHART_INTERVAL_SECTIONS,
-  findIntervalSectionForPill,
   type IntervalKind,
   type IntervalPick,
   type IntervalSection,
 } from './chartIntervalCatalog'
+import {
+  addCustomInterval,
+  addFavoriteInterval,
+  getEffectiveIntervalSections,
+  isFavoriteInterval,
+  removeFavoriteInterval,
+} from './chartIntervalStore'
 
 export type { IntervalKind, IntervalPick } from './chartIntervalCatalog'
 
@@ -18,14 +23,24 @@ export type ChartIntervalMenuApi = {
   close: () => void
   toggle: () => void
   isOpen: () => boolean
+  /** Sync favorite star buttons when prefs change outside the menu. */
+  refreshPreferences: () => void
   dispose: () => void
 }
+
+const ICON_STAR =
+  '<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6 9.9 5.8l4.4.6-3.2 3.1.75 4.4L8 11.9l-4.85 2.5.75-4.4-3.2-3.1 4.4-.6L8 1.6z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>'
+const ICON_STAR_ON =
+  '<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6 9.9 5.8l4.4.6-3.2 3.1.75 4.4L8 11.9l-4.85 2.5.75-4.4-3.2-3.1 4.4-.6L8 1.6z" fill="currentColor" stroke="currentColor" stroke-width="0.35" stroke-linejoin="round"/></svg>'
+
+/** Defer single-click favorite so double-click-to-unfavorite does not add then remove. */
+const FAV_CLICK_DELAY_MS = 250
 
 function positionPanel(anchor: HTMLElement, panel: HTMLElement, variant: 'default' | 'replay' = 'default') {
   const r = anchor.getBoundingClientRect()
   const pad = 4
   const toolbarClearance = 48
-  const panelW = panel.offsetWidth || (variant === 'replay' ? 72 : 220)
+  const panelW = panel.offsetWidth || (variant === 'replay' ? 50 : 154)
   const panelH = panel.offsetHeight || 120
   const left =
     variant === 'replay'
@@ -76,6 +91,7 @@ export function createChartIntervalMenu(opts: {
   canUseSubMinute?: () => boolean
   onSelect: (pick: IntervalPick) => void
   onOpenChange?: (open: boolean) => void
+  onPreferencesChange?: () => void
   /** When set, only these rows are shown (no section headers). */
   items?: IntervalPick[]
   /** `replay` = compact list centered under anchor (FXReplay floating bar). */
@@ -91,13 +107,17 @@ export function createChartIntervalMenu(opts: {
 
   const scroll = document.createElement('div')
   scroll.className = 'rw-intmenu__scroll'
+  root.appendChild(scroll)
 
-  const expandedSections = new Set<string>()
+  const expandedSections = new Set<string>(['minutes'])
+  const isCompact = Boolean(opts.items?.length) || opts.variant === 'replay'
 
   const customIntervalDialog =
     opts.showCustomInterval !== false && !opts.items?.length
       ? createCustomIntervalDialog({
           onAdd: (pick) => {
+            addCustomInterval(pick)
+            opts.onPreferencesChange?.()
             close()
             opts.onSelect(pick)
           },
@@ -105,32 +125,111 @@ export function createChartIntervalMenu(opts: {
       : null
 
   function ensureExpandedForSelection() {
-    const sectionId = findIntervalSectionForPill(opts.getSelectedPill())
-    if (sectionId) expandedSections.add(sectionId)
-    else expandedSections.add('minutes')
-  }
-
-  function addButtons(items: IntervalPick[], body: HTMLElement) {
-    for (const item of items) {
-      const btn = document.createElement('button')
-      btn.type = 'button'
-      btn.className = 'rw-intmenu__btn'
-      btn.textContent = item.label
-      btn.dataset.pill = item.pill
-      if (item.stepSec != null) btn.dataset.step = String(item.stepSec)
-      if (item.tickCount != null) btn.dataset.ticks = String(item.tickCount)
-      btn.dataset.kind = item.kind
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation()
-        if (btn.disabled) return
-        opts.onSelect(item)
-        close()
-      })
-      body.appendChild(btn)
+    const pill = opts.getSelectedPill().trim()
+    for (const section of getEffectiveIntervalSections()) {
+      if (section.items.some((i) => i.pill === pill)) expandedSections.add(section.id)
     }
+    if (!expandedSections.size) expandedSections.add('minutes')
   }
 
-  function buildAccordionSection(section: IntervalSection, withSep: boolean) {
+  function syncFavButton(favBtn: HTMLButtonElement, pill: string) {
+    const on = isFavoriteInterval(pill)
+    favBtn.innerHTML = on ? ICON_STAR_ON : ICON_STAR
+    favBtn.classList.toggle('rw-intmenu__act--fav-on', on)
+    favBtn.title = on ? 'Double-click to remove from favorites' : 'Add to favorites'
+    favBtn.setAttribute('aria-label', favBtn.title)
+  }
+
+  function wireFavoriteStar(favBtn: HTMLButtonElement, pill: string) {
+    let pendingAddTimer: ReturnType<typeof setTimeout> | null = null
+
+    const clearPendingAdd = () => {
+      if (pendingAddTimer != null) {
+        clearTimeout(pendingAddTimer)
+        pendingAddTimer = null
+      }
+    }
+
+    favBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      e.preventDefault()
+      if (isFavoriteInterval(pill)) return
+      clearPendingAdd()
+      pendingAddTimer = setTimeout(() => {
+        pendingAddTimer = null
+        if (isFavoriteInterval(pill)) return
+        addFavoriteInterval(pill)
+        syncFavButton(favBtn, pill)
+        notifyPrefs()
+      }, FAV_CLICK_DELAY_MS)
+    })
+
+    favBtn.addEventListener('dblclick', (e) => {
+      e.stopPropagation()
+      e.preventDefault()
+      clearPendingAdd()
+      if (!isFavoriteInterval(pill)) return
+      removeFavoriteInterval(pill)
+      syncFavButton(favBtn, pill)
+      notifyPrefs()
+    })
+  }
+
+  function syncAllFavButtons() {
+    scroll.querySelectorAll<HTMLButtonElement>('.rw-intmenu__act--fav').forEach((favBtn) => {
+      const pill = favBtn.closest<HTMLElement>('.rw-intmenu__row')?.dataset.pill ?? ''
+      if (pill) syncFavButton(favBtn, pill)
+    })
+  }
+
+  function notifyPrefs() {
+    opts.onPreferencesChange?.()
+  }
+
+  function addIntervalRow(item: IntervalPick, body: HTMLElement, withActions: boolean) {
+    const row = document.createElement('div')
+    row.className = 'rw-intmenu__row'
+    row.dataset.pill = item.pill
+
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'rw-intmenu__btn'
+    btn.textContent = item.label
+    btn.dataset.pill = item.pill
+    if (item.stepSec != null) btn.dataset.step = String(item.stepSec)
+    if (item.tickCount != null) btn.dataset.ticks = String(item.tickCount)
+    btn.dataset.kind = item.kind
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      if (btn.disabled) return
+      opts.onSelect(item)
+      close()
+    })
+
+    row.appendChild(btn)
+
+    if (withActions) {
+      const actions = document.createElement('div')
+      actions.className = 'rw-intmenu__row-actions'
+
+      const favBtn = document.createElement('button')
+      favBtn.type = 'button'
+      favBtn.className = 'rw-intmenu__act rw-intmenu__act--fav'
+      syncFavButton(favBtn, item.pill)
+      wireFavoriteStar(favBtn, item.pill)
+
+      actions.appendChild(favBtn)
+      row.appendChild(actions)
+    }
+
+    body.appendChild(row)
+  }
+
+  function addButtons(items: IntervalPick[], body: HTMLElement, withActions: boolean) {
+    for (const item of items) addIntervalRow(item, body, withActions)
+  }
+
+  function buildAccordionSection(section: IntervalSection, withSep: boolean, withActions: boolean) {
     if (withSep) {
       const sep = document.createElement('div')
       sep.className = 'rw-intmenu__sep'
@@ -150,7 +249,7 @@ export function createChartIntervalMenu(opts: {
 
     const body = document.createElement('div')
     body.className = 'rw-intmenu__section-body'
-    addButtons(section.items, body)
+    addButtons(section.items, body, withActions)
 
     head.addEventListener('click', (e) => {
       e.stopPropagation()
@@ -166,9 +265,16 @@ export function createChartIntervalMenu(opts: {
     scroll.appendChild(wrap)
   }
 
-  if (opts.items?.length) {
-    addButtons(opts.items, scroll)
-  } else {
+  function rebuildMenuContent() {
+    scroll.innerHTML = ''
+
+    if (opts.items?.length) {
+      addButtons(opts.items, scroll, false)
+      return
+    }
+
+    const withActions = !isCompact
+
     if (opts.showCustomInterval !== false) {
       const addBtn = document.createElement('button')
       addBtn.type = 'button'
@@ -182,16 +288,13 @@ export function createChartIntervalMenu(opts: {
       scroll.appendChild(addBtn)
     }
 
-    CHART_INTERVAL_SECTIONS.forEach((section, i) => buildAccordionSection(section, i > 0 || opts.showCustomInterval !== false))
+    getEffectiveIntervalSections().forEach((section, i) =>
+      buildAccordionSection(section, i > 0 || opts.showCustomInterval !== false, withActions),
+    )
 
-    const hint = document.createElement('p')
-    hint.className = 'rw-intmenu__hint'
-    hint.textContent =
-      'Tick intervals use synthetic ticks from 1-minute session bars. Second intervals need sub-minute feed data.'
-    scroll.appendChild(hint)
+    syncSectionOpenState()
+    syncDisabledAndActive()
   }
-
-  root.appendChild(scroll)
 
   function syncSectionOpenState() {
     scroll.querySelectorAll<HTMLElement>('.rw-intmenu__section').forEach((wrap) => {
@@ -255,6 +358,8 @@ export function createChartIntervalMenu(opts: {
   function openMenu() {
     if (menuOpen) return
     menuOpen = true
+    expandedSections.add('minutes')
+    rebuildMenuContent()
     ensureExpandedForSelection()
     syncSectionOpenState()
     syncDisabledAndActive()
@@ -299,6 +404,9 @@ export function createChartIntervalMenu(opts: {
       else openMenu()
     },
     isOpen: () => menuOpen,
+    refreshPreferences() {
+      if (menuOpen) syncAllFavButtons()
+    },
     dispose() {
       close()
       customIntervalDialog?.dispose()

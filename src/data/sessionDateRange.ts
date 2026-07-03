@@ -94,6 +94,11 @@ export function hasSessionDateRange(startDate?: string, endDate?: string): boole
 /** Look back far enough to load the candle immediately before session start (weekend gaps on 1m). */
 export const SESSION_FETCH_PRE_ROLL_SEC = 7 * 86_400
 
+/** 1m bars of chart context before session start (3 hours). */
+export const SESSION_CHART_LOOKBACK_BARS = 180
+
+export const SESSION_CHART_LOOKBACK_SEC = SESSION_CHART_LOOKBACK_BARS * 60
+
 export function sessionFetchStartSec(startSec: number): number {
   return Math.max(0, startSec - SESSION_FETCH_PRE_ROLL_SEC)
 }
@@ -173,10 +178,17 @@ export function filterBarsBySessionDates(
 
   if (startSec != null && Number.isFinite(startSec)) {
     const firstInPool = pool.findIndex((b) => b.time >= startSec)
-    if (firstInPool > 0) {
-      const prior = pool[firstInPool - 1]!
-      if (prior.time < session[0]!.time) {
-        return [prior, ...session]
+    if (firstInPool >= 0) {
+      const lookbackFrom = Math.max(0, firstInPool - SESSION_CHART_LOOKBACK_BARS)
+      const prefix = pool.slice(lookbackFrom, firstInPool)
+      if (prefix.length) {
+        return [...prefix, ...session]
+      }
+      if (firstInPool > 0) {
+        const prior = pool[firstInPool - 1]!
+        if (prior.time < session[0]!.time) {
+          return [prior, ...session]
+        }
       }
     }
   }

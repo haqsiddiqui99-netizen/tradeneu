@@ -140,6 +140,8 @@
   z-index: 2;
   width: 100%;
   max-width: 420px;
+  max-height: min(92vh, 720px);
+  overflow-y: auto;
   padding: 2.25rem 2rem 2rem;
   border-radius: 1.25rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -165,13 +167,308 @@
 }
 
 .sx-login__signup {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.72);
   text-align: center;
-  font-size: 0.9375rem;
-  font-weight: 400;
-  line-height: 1.55;
-  letter-spacing: -0.01em;
-  color: rgba(241, 245, 249, 0.92);
-  margin: 0 0 1.25rem;
+}
+
+.sx-login__error {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.sx-login__hint {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(120, 53, 15, 0.28);
+  color: #fde68a;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+/* Error popup */
+.sx-login__toast {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.sx-login__toast[hidden] {
+  display: none !important;
+}
+
+.sx-login__toast-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.sx-login__toast-panel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 22rem);
+  padding: 1.35rem 1.25rem 1.15rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: linear-gradient(165deg, #2a1215 0%, #1a0f12 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 24px 48px rgba(0, 0, 0, 0.55);
+  text-align: center;
+  animation: sx-login-toast-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sx-login-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.sx-login__toast-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0 auto 0.65rem;
+  border-radius: 9999px;
+  background: rgba(248, 113, 113, 0.18);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: #fecaca;
+  font: 800 1rem/1 system-ui, sans-serif;
+}
+
+.sx-login__toast-title {
+  margin: 0 0 0.45rem;
+  font: 700 0.95rem/1.3 system-ui, sans-serif;
+  color: #fff;
+}
+
+.sx-login__toast-msg {
+  margin: 0 0 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #fecaca;
+}
+
+.sx-login__toast-btn {
+  min-width: 6.5rem;
+  height: 2.25rem;
+  padding: 0 1.25rem;
+  border: none;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #fb7185 0%, #f43f5e 100%);
+  color: #fff;
+  font: 600 0.8125rem system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.sx-login__toast-btn:hover {
+  filter: brightness(1.06);
+}
+
+.sx-login--toast-open .sx-login__panel {
+  filter: blur(1px);
+  pointer-events: none;
+}
+
+/* Phone row: country code picker + local number */
+.sx-login__phone-row {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 34%) minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.sx-login__dial-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.sx-login__dial-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 0.5rem 0 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.65rem;
+  background: rgba(12, 12, 14, 0.85);
+  color: #f4f4f5;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.sx-login__dial-trigger:hover,
+.sx-login__dial-picker--open .sx-login__dial-trigger {
+  border-color: rgba(129, 140, 248, 0.55);
+  background: rgba(18, 18, 24, 0.95);
+}
+
+.sx-login__dial-trigger:focus-visible {
+  border-color: rgba(129, 140, 248, 0.75);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35);
+}
+
+.sx-login__dial-trigger-code {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sx-login__dial-chev {
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+
+.sx-login__dial-picker--open .sx-login__dial-chev {
+  transform: rotate(180deg);
+}
+
+.sx-login__dial-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  min-width: 14rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.65rem;
+  background: #1a1a22;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.sx-login__dial-menu[hidden] {
+  display: none !important;
+}
+
+.sx-login__dial-option {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: #e4e4e7;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+}
+
+.sx-login__dial-option:hover {
+  background: rgba(99, 102, 241, 0.22);
+  color: #fafafa;
+}
+
+.sx-login__dial-option--active,
+.sx-login__dial-option[aria-selected='true'] {
+  background: rgba(99, 102, 241, 0.35);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.sx-login__dial-option:focus-visible {
+  background: rgba(99, 102, 241, 0.28);
+  color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.45);
+}
+
+.sx-login__input-wrap--phone {
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(12, 12, 14, 0.85);
+}
+
+.sx-login__input-wrap--phone .sx-login__input {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 0.75rem;
+  border: none;
+  background: transparent;
+  color: #fafafa;
+  font-family: inherit;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.sx-login__label {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.sx-login__field {
+  margin-bottom: 0.75rem;
+}
+
+.sx-login__select {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 0.75rem;
+  border: none;
+  border-radius: 0.65rem;
+  background: rgba(12, 12, 14, 0.85);
+  color: #f4f4f5;
+  font-family: inherit;
+  font-size: 0.875rem;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.sx-login__input-wrap--select {
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(12, 12, 14, 0.85);
+}
+
+.sx-login__submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .sx-login__link {
@@ -259,6 +556,18 @@
   height: 20px;
   display: block;
   shape-rendering: geometricPrecision;
+}
+
+.sx-login__google:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+}
+
+.sx-login__google:disabled:hover {
+  background: #121218;
+  border-color: rgba(148, 163, 184, 0.22);
+  box-shadow: none;
 }
 
 .sx-login__or {

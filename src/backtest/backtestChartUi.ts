@@ -1,6 +1,6 @@
 import type { Time, SeriesMarker } from 'lightweight-charts'
 import type { Bar } from '../types'
-import type { BacktestResult, StrategyDefinition } from './BacktestTypes'
+import type { BacktestResult, ExitReason, StrategyDefinition } from './BacktestTypes'
 import type { BacktestReplaySnapshot } from './backtestReplaySnapshot'
 import { runBacktest, numberTrades } from './BacktestEngine'
 
@@ -376,4 +376,168 @@ export function renderSessionStatsPanel(
       <div><dt>Open P&amp;L</dt><dd>${fmtMoney(snapshot.openPosition?.unrealizedPnl ?? 0)}</dd></div>
     </dl>
   `
+}
+
+const EXIT_REASON_LABELS: Record<ExitReason, string> = {
+  stop_loss: 'Stop',
+  take_profit: 'Target',
+  signal_exit: 'Signal',
+  trailing_stop: 'Trail',
+  session_end: 'Session end',
+  max_bars: 'Max bars',
+}
+
+export function formatExitReason(reason: ExitReason): string {
+  return EXIT_REASON_LABELS[reason] ?? reason
+}
+
+function formatTradeDateTime(sec: number): string {
+  try {
+    return new Date(sec * 1000).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return String(sec)
+  }
+}
+
+export type RenderTradeLogOpts = {
+  fmtPrice?: (n: number) => string
+  highlightTradeNum?: number
+}
+
+/** Scrollable trade log for the strategy tester side panel. */
+export function renderTradeLog(
+  el: HTMLElement,
+  result: BacktestResult | null,
+  opts?: RenderTradeLogOpts,
+): void {
+  if (!result) {
+    el.innerHTML =
+      '<p class="rw-session-empty">Run a backtest to see every trade entry and exit.</p>'
+    return
+  }
+
+  const trades = result.trades
+  if (!trades.length) {
+    el.innerHTML =
+      '<p class="rw-session-empty">No trades — try <strong>RSI Mean Reversion</strong>, widen the session date range, or pick a different strategy.</p>'
+    return
+  }
+
+  const fmtPrice = opts?.fmtPrice ?? ((n: number) => n.toFixed(2))
+  const highlight = opts?.highlightTradeNum
+  const detailTrade =
+    highlight != null ? trades.find((t) => t.tradeNum === highlight) ?? null : null
+
+  const rows = trades
+    .map((t) => {
+      const win = t.pnl > 0
+      const pnlClass = win ? 'rw-trade-log__pnl--win' : 'rw-trade-log__pnl--loss'
+      const dirClass = t.direction === 'long' ? 'rw-trade-log__dir--long' : 'rw-trade-log__dir--short'
+      const active = highlight === t.tradeNum ? ' rw-trade-log__row--active' : ''
+      return `<tr class="rw-trade-log__row${active}" data-bt-trade-num="${t.tradeNum}" tabindex="0" role="button" title="Jump chart to entry">
+        <td class="rw-trade-log__num">${t.tradeNum}</td>
+        <td class="rw-trade-log__dir ${dirClass}">${t.direction === 'long' ? 'Long' : 'Short'}</td>
+        <td class="rw-trade-log__time">${escapeHtml(formatTradeDateTime(t.entryTime))}</td>
+        <td class="rw-trade-log__time">${escapeHtml(formatTradeDateTime(t.exitTime))}</td>
+        <td class="rw-trade-log__px">${fmtPrice(t.entryPrice)}</td>
+        <td class="rw-trade-log__px">${fmtPrice(t.exitPrice)}</td>
+        <td class="rw-trade-log__pnl ${pnlClass}">${formatBacktestMoney(t.pnl)}</td>
+        <td class="rw-trade-log__reason">${escapeHtml(formatExitReason(t.exitReason))}</td>
+      </tr>`
+    })
+    .join('')
+
+  el.innerHTML = `
+    <div class="rw-trade-log-wrap">
+      <table class="rw-trade-log" aria-label="Backtest trades">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Side</th>
+            <th scope="col">Entry</th>
+            <th scope="col">Exit</th>
+            <th scope="col">In</th>
+            <th scope="col">Out</th>
+            <th scope="col">PnL</th>
+            <th scope="col">Reason</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${
+      detailTrade
+        ? `<div class="rw-trade-log-detail" data-rw-trade-detail>
+      <p class="rw-trade-log-detail__title">Trade #${detailTrade.tradeNum} — why this trade?</p>
+      <dl class="rw-trade-log-detail__list">
+        <div><dt>Entry</dt><dd>${escapeHtml(detailTrade.entrySignal || '—')}</dd></div>
+        <div><dt>Exit</dt><dd>${escapeHtml(detailTrade.exitSignal || formatExitReason(detailTrade.exitReason))}</dd></div>
+      </dl>
+    </div>`
+        : ''
+    }
+    <p class="rw-trade-log__hint">Click a row to jump the chart and see entry/exit rules.</p>
+  `
+}
+
+function csvEscape(value: string | number): string {
+  const s = String(value)
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
+/** Download trades as CSV (Phase A3). */
+export function exportTradesCsv(result: BacktestResult): void {
+  const header = [
+    'trade_num',
+    'direction',
+    'entry_time',
+    'exit_time',
+    'entry_price',
+    'exit_price',
+    'pnl',
+    'pnl_pct',
+    'exit_reason',
+    'entry_signal',
+    'exit_signal',
+    'condition',
+  ]
+  const lines = [header.join(',')]
+  for (const t of result.trades) {
+    lines.push(
+      [
+        t.tradeNum,
+        t.direction,
+        t.entryTime,
+        t.exitTime,
+        t.entryPrice,
+        t.exitPrice,
+        t.pnl,
+        t.pnlPct,
+        t.exitReason,
+        t.entrySignal ?? '',
+        t.exitSignal ?? '',
+        t.condition,
+      ]
+        .map(csvEscape)
+        .join(','),
+    )
+  }
+  const slug = result.strategy.id.replace(/[^a-z0-9_-]+/gi, '-')
+  const date = new Date().toISOString().slice(0, 10)
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `trades-${slug}-${date}.csv`
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }

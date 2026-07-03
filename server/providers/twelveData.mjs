@@ -132,6 +132,41 @@ function decimalsForPrice(x) {
   return Number(x) >= 100 ? 3 : 5
 }
 
+/** Max concurrent Twelve Data requests when paging a long session range. */
+function chunkFetchConcurrency() {
+  return Math.min(6, Math.max(2, Number.parseInt(process.env.TWELVE_DATA_CHUNK_CONCURRENCY || '4', 10) || 4))
+}
+
+async function mapWithConcurrency(items, limit, fn) {
+  if (!items.length) return []
+  const out = new Array(items.length)
+  let next = 0
+  async function worker() {
+    while (next < items.length) {
+      const i = next
+      next += 1
+      out[i] = await fn(items[i], i)
+    }
+  }
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker())
+  await Promise.all(workers)
+  return out
+}
+
+function mergeSortedBars(chunks, startSec, endSec) {
+  const merged = []
+  let lastT = -1
+  for (const chunk of chunks) {
+    if (!chunk?.length) continue
+    for (const b of chunk) {
+      if (b.time < startSec || b.time > endSec || b.time <= lastT) continue
+      lastT = b.time
+      merged.push(b)
+    }
+  }
+  return merged
+}
+
 /**
  * @param {object} opts
  * @param {string} opts.symbol App symbol e.g. AAPL, XAUUSD
@@ -236,31 +271,26 @@ export async function fetchTwelveDataTimeSeries({
     // Twelve Data often caps at ~2000 bars per request even when outputsize is higher.
     const chunkBarLimit = Math.min(cap, 2000)
     const maxChunkSpan = Math.max(stepSec, (chunkBarLimit - 1) * stepSec)
-    let cursor = startSec
-    let guard = 0
-    while (cursor < endSec && guard < 128) {
-      guard += 1
-      const chunkEnd = Math.min(endSec, cursor + maxChunkSpan)
-      const chunk = await fetchChunk(cursor, chunkEnd, chunkBarLimit)
-      if (!chunk.ok) {
-        if (merged.length >= 16) break
-        return { ok: false, error: chunk.error }
+    const windows = []
+    for (let cursor = startSec; cursor < endSec && windows.length < 128; cursor += maxChunkSpan) {
+      windows.push([cursor, Math.min(endSec, cursor + maxChunkSpan)])
+    }
+    const chunkResults = await mapWithConcurrency(windows, chunkFetchConcurrency(), ([chunkStart, chunkEnd]) =>
+      fetchChunk(chunkStart, chunkEnd, chunkBarLimit),
+    )
+    let hardError = null
+    const okBarGroups = []
+    for (const chunk of chunkResults) {
+      if (!chunk?.ok) {
+        hardError = chunk.error
+        continue
       }
       lastRequest = chunk.request
-      if (!chunk.bars.length) break
-      const before = merged.length
-      for (const b of chunk.bars) {
-        if (b.time >= startSec && b.time <= endSec) {
-          if (!merged.length || b.time > merged[merged.length - 1].time) merged.push(b)
-        }
-      }
-      const lastBar = chunk.bars[chunk.bars.length - 1]
-      const nextCursor = lastBar.time + stepSec
-      if (nextCursor <= cursor) break
-      cursor = nextCursor
-      if (lastBar.time >= endSec - stepSec) break
-      // Keep paging until endSec even when the provider returns fewer than chunkBarLimit bars.
-      if (merged.length === before && chunk.bars.length < chunkBarLimit) break
+      if (chunk.bars?.length) okBarGroups.push(chunk.bars)
+    }
+    merged = mergeSortedBars(okBarGroups, startSec, endSec)
+    if (merged.length < 16 && hardError) {
+      return { ok: false, error: hardError }
     }
   } else {
     const single = await fetchChunk(undefined, undefined, outputSizeForRange(range, tdInterval))
@@ -274,7 +304,7 @@ export async function fetchTwelveDataTimeSeries({
   }
 
   if (Number.isFinite(sessionStartSec) && !merged.some((b) => b.time < sessionStartSec)) {
-    const lookback = Math.max(stepSec * 500, 86_400)
+    const lookback = 7 * 86_400
     const priorChunk = await fetchChunk(Math.max(0, sessionStartSec - lookback), sessionStartSec, 500)
     if (priorChunk.ok && priorChunk.bars.length) {
       let prior = null

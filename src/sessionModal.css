@@ -120,6 +120,23 @@ body.sx-modal-open {
   color: #1d4ed8;
 }
 
+.sx-modal__health {
+  margin: 0 1.25rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.sx-modal__health--muted {
+  border-color: #e5e7eb;
+  background: #f9fafb;
+  color: #6b7280;
+}
+
 .sx-pro-mini {
   display: inline-flex;
   align-items: center;
@@ -1002,4 +1019,45 @@ body.sx-modal-open {
 .sx-dtp__btn--ghost:hover {
   background: #f9fafb;
   border-color: #9ca3af;
+}
+
+.sx-prop-rules {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #e8ebf0;
+  background: #f8fafc;
+}
+
+.sx-prop-rules[hidden] {
+  display: none !important;
+}
+
+.sx-prop-rules__title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.sx-prop-rules__hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+.sx-prop-rules__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sx-field--compact {
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .sx-prop-rules__grid {
+    grid-template-columns: 1fr;
+  }
 }

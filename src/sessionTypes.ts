@@ -1,3 +1,5 @@
+import type { PropChallengeConfig } from './prop/propTypes'
+
 export type SessionCreatedPayload = {
   name: string
   balance: string
@@ -11,6 +13,8 @@ export type SessionCreatedPayload = {
    */
   startDate?: string
   endDate?: string
+  /** Prop firm challenge limits (prop sessions only). */
+  propRules?: PropChallengeConfig
 }
 
 export function parseSessionAssetList(assets: string): string[] {

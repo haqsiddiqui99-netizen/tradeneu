@@ -154,3 +154,16 @@ export const BUILT_IN_STRATEGIES: StrategyDefinition[] = [
   MACD_TREND,
   VWAP_REVERSION,
 ]
+
+/** One-line hints for the strategy toolbar (Phase A3). */
+export const STRATEGY_DESCRIPTIONS: Record<string, string> = {
+  ema_cross: 'EMA 9/21 crossover · ATR stop · 2:1 R:R · Mon–Fri',
+  rsi_mean_rev: 'RSI oversold bounce · ranging markets · 1.5:1 R:R',
+  bb_breakout: 'Bollinger squeeze breakout · trailing stop · trend follow',
+  macd_trend: 'MACD line cross · EMA200 filter · swing trend',
+  vwap_rev: 'VWAP reclaim · intraday · ATR stop',
+}
+
+export function getStrategyDescription(strategyId: string): string {
+  return STRATEGY_DESCRIPTIONS[strategyId] ?? ''
+}

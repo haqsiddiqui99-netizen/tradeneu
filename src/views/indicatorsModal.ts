@@ -1,4 +1,5 @@
 import { icons } from '../icons'
+import { CHART_INDICATOR_CATALOG, type ChartIndicatorId } from '../chart/chartIndicatorCatalog'
 import './indicatorsModal.css'
 
 type ScriptKind = 'indicator' | 'strategy'
@@ -32,9 +33,22 @@ type NavId =
   | 'trending'
   | 'store'
 
+const PERSONAL_NAV_IDS: NavId[] = ['my-scripts', 'invite-only', 'purchased']
+const COMMUNITY_NAV_IDS: NavId[] = ['editors-picks', 'top', 'trending', 'store']
+
+function isPersonalNav(id: NavId): boolean {
+  return PERSONAL_NAV_IDS.includes(id)
+}
+
+function isCommunityNav(id: NavId): boolean {
+  return COMMUNITY_NAV_IDS.includes(id)
+}
+
 export type IndicatorsModalOptions = {
   root: HTMLElement
   onOpenChange?: (open: boolean) => void
+  isIndicatorActive?: (id: ChartIndicatorId) => boolean
+  onAddIndicator?: (id: ChartIndicatorId) => void
 }
 
 export function createIndicatorsModal(opts: IndicatorsModalOptions) {
@@ -116,7 +130,7 @@ export function createIndicatorsModal(opts: IndicatorsModalOptions) {
     ]),
   )
   sidebar.appendChild(
-    navSection('COMMUNITY', [
+    navSection('COMMUNITY (PREVIEW)', [
       { id: 'editors-picks', text: "Editors' picks" },
       { id: 'top', text: 'Top' },
       { id: 'trending', text: 'Trending' },
@@ -132,28 +146,133 @@ export function createIndicatorsModal(opts: IndicatorsModalOptions) {
     return row.name.toLowerCase().includes(q) || row.author.toLowerCase().includes(q)
   }
 
-  function renderRows() {
+
+  function setTableHead(mode: 'community' | 'builtin') {
+    if (!tableHead) return
+    if (mode === 'builtin') {
+      tableHead.innerHTML = '<span>INDICATOR</span><span>TYPE</span><span style="text-align:right">ACTION</span>'
+      tableHead.classList.add('sx-ind-table-head--builtin')
+    } else {
+      tableHead.innerHTML = '<span>SCRIPT NAME</span><span>AUTHOR</span><span style="text-align:right">BOOSTS</span>'
+      tableHead.classList.remove('sx-ind-table-head--builtin')
+    }
+  }
+
+  function renderBuiltinRows() {
     tableScroll.innerHTML = ''
+    setTableHead('builtin')
+    const q = searchQuery.trim().toLowerCase()
+    const rows = CHART_INDICATOR_CATALOG.filter((row) => {
+      if (!q) return true
+      return row.name.toLowerCase().includes(q) || row.author.toLowerCase().includes(q)
+    })
+    if (rows.length === 0) {
+      const empty = document.createElement('div')
+      empty.className = 'sx-ind-empty'
+      empty.textContent = 'No built-in indicators match your search.'
+      tableScroll.appendChild(empty)
+      return
+    }
+    for (const row of rows) {
+      const active = opts.isIndicatorActive?.(row.id) ?? false
+      const el = document.createElement('div')
+      el.className = 'sx-ind-row sx-ind-row--builtin'
+      el.innerHTML = `<span class="sx-ind-row-name"></span><span class="sx-ind-row-author"></span><span class="sx-ind-row-action"></span>`
+      el.querySelector('.sx-ind-row-name')!.textContent = row.name
+      el.querySelector('.sx-ind-row-author')!.textContent =
+        row.kind === 'overlay' || row.kind === 'bb'
+          ? 'Overlay'
+          : row.kind === 'rsi'
+            ? 'Oscillator'
+            : 'Pane'
+      const actionSlot = el.querySelector('.sx-ind-row-action')!
+      if (active) {
+        const badge = document.createElement('span')
+        badge.className = 'sx-ind-added'
+        badge.textContent = 'On chart'
+        actionSlot.appendChild(badge)
+      } else {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'sx-ind-add-btn'
+        btn.textContent = 'Add to chart'
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation()
+          opts.onAddIndicator?.(row.id)
+        })
+        actionSlot.appendChild(btn)
+      }
+      tableScroll.appendChild(el)
+    }
+  }
+
+  function renderCommunityRows() {
+    tableScroll.innerHTML = ''
+    setTableHead('community')
+    const banner = document.createElement('div')
+    banner.className = 'sx-ind-demo-banner'
+    banner.setAttribute('role', 'note')
+    banner.innerHTML =
+      '<strong>Preview only.</strong> Community scripts are sample listings — they are not wired to the chart. Use <strong>Built-in → Technicals</strong> for live indicators.'
+    tableScroll.appendChild(banner)
+
     const rows = DEMO_SCRIPTS.filter(matchesFilter)
     if (rows.length === 0) {
       const empty = document.createElement('div')
       empty.className = 'sx-ind-empty'
-      empty.textContent = 'No scripts match your filters.'
+      empty.textContent = 'No preview scripts match your filters.'
       tableScroll.appendChild(empty)
       return
     }
     for (const row of rows) {
       const el = document.createElement('div')
-      el.className = 'sx-ind-row'
+      el.className = 'sx-ind-row sx-ind-row--demo'
       el.innerHTML = `<span class="sx-ind-row-name"></span><span class="sx-ind-row-author"></span><span class="sx-ind-row-boosts"></span>`
       const nameEl = el.querySelector('.sx-ind-row-name')!
       const authorEl = el.querySelector('.sx-ind-row-author')!
       const boostsEl = el.querySelector('.sx-ind-row-boosts')!
       nameEl.textContent = row.name
       authorEl.textContent = row.author
-      boostsEl.textContent = row.boosts
+      const badge = document.createElement('span')
+      badge.className = 'sx-ind-preview-badge'
+      badge.textContent = 'Preview'
+      boostsEl.appendChild(badge)
       tableScroll.appendChild(el)
     }
+  }
+
+  function renderPersonalRows() {
+    tableScroll.innerHTML = ''
+    setTableHead('community')
+    const empty = document.createElement('div')
+    empty.className = 'sx-ind-empty'
+    empty.textContent = 'Personal script library is coming soon. Use Built-in → Technicals for chart indicators today.'
+    tableScroll.appendChild(empty)
+  }
+
+  function renderRows() {
+    if (navId === 'technicals') {
+      renderBuiltinRows()
+      return
+    }
+    if (navId === 'fundamentals') {
+      tableScroll.innerHTML = ''
+      setTableHead('builtin')
+      const empty = document.createElement('div')
+      empty.className = 'sx-ind-empty'
+      empty.textContent = 'Fundamental overlays are not available yet.'
+      tableScroll.appendChild(empty)
+      return
+    }
+    if (isPersonalNav(navId)) {
+      renderPersonalRows()
+      return
+    }
+    if (isCommunityNav(navId)) {
+      renderCommunityRows()
+      return
+    }
+    renderCommunityRows()
   }
 
   function setFilterTab(tab: typeof filterTab) {
@@ -200,6 +319,7 @@ export function createIndicatorsModal(opts: IndicatorsModalOptions) {
   `
 
   const closeBtn = overlay.querySelector('.sx-ind-close') as HTMLButtonElement
+  const tableHead = overlay.querySelector('.sx-ind-table-head') as HTMLElement
   const searchSlot = overlay.querySelector('.sx-ind-search-slot') as HTMLSpanElement
   const tabsSlot = overlay.querySelector('.sx-ind-tabs-slot') as HTMLSpanElement
   const sidebarSlot = overlay.querySelector('.sx-ind-sidebar-slot') as HTMLSpanElement
@@ -233,7 +353,7 @@ export function createIndicatorsModal(opts: IndicatorsModalOptions) {
     if (!overlay.parentNode) opts.root.appendChild(overlay)
     overlay.hidden = false
     filterTab = 'all'
-    navId = 'top'
+    navId = 'technicals'
     searchQuery = ''
     searchInput.value = ''
     setFilterTab('all')
@@ -274,5 +394,8 @@ export function createIndicatorsModal(opts: IndicatorsModalOptions) {
     close,
     dispose,
     getOpen: () => isOpen,
+    refreshRows: () => {
+      if (isOpen) renderRows()
+    },
   }
 }

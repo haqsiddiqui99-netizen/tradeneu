@@ -1,0 +1,13 @@
+/* TradingView-style chart cursors: crosshair at rest, grabbing hand while panning. */
+
+.rw-chart-host.rw-chart-cursor--cross,
+.rw-chart-host.rw-chart-cursor--cross .rw-chart-lwc,
+.rw-chart-host.rw-chart-cursor--cross .rw-chart-lwc * {
+  cursor: crosshair !important;
+}
+
+.rw-chart-host.rw-chart-cursor--grabbing,
+.rw-chart-host.rw-chart-cursor--grabbing .rw-chart-lwc,
+.rw-chart-host.rw-chart-cursor--grabbing .rw-chart-lwc * {
+  cursor: grabbing !important;
+}

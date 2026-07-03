@@ -1,0 +1,84 @@
+/* TradingView-style chart snapshot dropdown */
+
+.rw-snapmenu {
+  position: fixed;
+  z-index: var(--rw-z-popover-top);
+  min-width: 248px;
+  display: none;
+  flex-direction: column;
+  padding: var(--rw-space-2) 0 var(--rw-space-1);
+  font-family: var(--rw-font);
+  font-size: 13px;
+  color: var(--rw-menu-text);
+  background: var(--rw-menu-bg);
+  border: 1px solid var(--rw-menu-border);
+  border-radius: var(--rw-radius-sm);
+  box-shadow: var(--rw-menu-shadow-lg);
+}
+
+.rw-snapmenu.rw-snapmenu--open {
+  display: flex;
+}
+
+.rw-snapmenu__head {
+  margin: 0;
+  padding: 0 var(--rw-space-3) var(--rw-space-2);
+  font: 600 11px/1.2 var(--rw-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rw-menu-muted);
+}
+
+.rw-snapmenu__btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 8px var(--rw-space-3);
+  border: none;
+  background: transparent;
+  color: var(--rw-menu-text);
+  font: 500 13px/1.25 var(--rw-font);
+  letter-spacing: -0.01em;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--rw-transition-fast);
+}
+
+.rw-snapmenu__btn:hover {
+  background: var(--rw-menu-hover);
+}
+
+.rw-snapmenu__ico {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--rw-menu-muted);
+}
+
+.rw-snapmenu__ico svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rw-snapmenu__lbl {
+  flex: 1;
+  min-width: 0;
+}
+
+.rw-snapmenu__key {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--rw-menu-key);
+  white-space: nowrap;
+}
+
+.rw-icon-btn.rw-top-snapshot--open {
+  background: var(--rw-hover);
+  color: var(--rw-bright);
+}

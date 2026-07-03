@@ -13,6 +13,7 @@
  * Twelve Data: set TWELVE_DATA_API_KEY (server env only). Optional `.env.local` at repo root
  * is loaded here (gitignored via `*.local`). Override chain with MARKET_BAR_CHAIN.
  * Optional: TWELVE_DATA_OUTPUT_SIZE, MARKET_CHART_RANGE / MARKET_CHART_INTERVAL (or legacy MARKET_YAHOO_*).
+ * Optional cache: MARKET_BARS_CACHE_TTL_MS (default 120000), MARKET_BARS_CACHE_HISTORICAL_TTL_MS (default 600000).
  *
  * Port: HISTORIC_API_PORT or 3001. Dev: Vite proxies /api → this server.
  */
@@ -24,6 +25,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { parseXauCsvText } from '../scripts/xauCsvParse.mjs'
 import { resolveMarketBars } from './providers/resolveChain.mjs'
+import { getCachedMarketBars, invalidateMarketBarsCache, marketBarsCacheKey } from './providers/marketBarsCache.mjs'
+import { mountLocalAuthRoutes } from './auth/localAuth.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 /** Vercel serverless has ephemeral disk; /tmp persists for the lifetime of a warm instance. */
@@ -73,6 +76,8 @@ const upload = multer({
   limits: { fileSize: 80 * 1024 * 1024 },
 })
 
+app.use(express.json({ limit: '32kb' }))
+
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
@@ -83,6 +88,8 @@ app.use((req, res, next) => {
   }
   next()
 })
+
+mountLocalAuthRoutes(app, { dataDir: DATA_DIR })
 
 app.get('/api/historic/gold/bars', (req, res) => {
   try {
@@ -118,6 +125,8 @@ app.post('/api/historic/gold/upload', upload.single('file'), (req, res) => {
     bars: parsed.bars,
   }
   fs.writeFileSync(GOLD_FILE, JSON.stringify(payload))
+  invalidateMarketBarsCache('XAUUSD')
+  invalidateMarketBarsCache('GC')
   res.json({
     ok: true,
     barCount: parsed.bars.length,
@@ -129,6 +138,8 @@ app.post('/api/historic/gold/upload', upload.single('file'), (req, res) => {
 app.delete('/api/historic/gold/upload', (req, res) => {
   try {
     if (fs.existsSync(GOLD_FILE)) fs.unlinkSync(GOLD_FILE)
+    invalidateMarketBarsCache('XAUUSD')
+    invalidateMarketBarsCache('GC')
     res.json({ ok: true })
   } catch {
     res.status(500).json({ ok: false })
@@ -156,16 +167,30 @@ app.get('/api/market/bars', async (req, res) => {
   const startSec = startRaw != null ? Number.parseInt(startRaw, 10) : undefined
   const endSec = endRaw != null ? Number.parseInt(endRaw, 10) : undefined
   const sessionStartSec = sessionStartRaw != null ? Number.parseInt(sessionStartRaw, 10) : undefined
+  const cacheKey = marketBarsCacheKey({
+    symbol,
+    chain,
+    chartRange,
+    chartInterval,
+    startSec: Number.isFinite(startSec) ? startSec : undefined,
+    endSec: Number.isFinite(endSec) ? endSec : undefined,
+    sessionStartSec: Number.isFinite(sessionStartSec) ? sessionStartSec : undefined,
+  })
   try {
-    const out = await resolveMarketBars({
-      symbol,
-      chain,
-      chartRange,
-      chartInterval,
-      startSec: Number.isFinite(startSec) ? startSec : undefined,
-      endSec: Number.isFinite(endSec) ? endSec : undefined,
-      sessionStartSec: Number.isFinite(sessionStartSec) ? sessionStartSec : undefined,
-    })
+    const out = await getCachedMarketBars(
+      cacheKey,
+      () =>
+        resolveMarketBars({
+          symbol,
+          chain,
+          chartRange,
+          chartInterval,
+          startSec: Number.isFinite(startSec) ? startSec : undefined,
+          endSec: Number.isFinite(endSec) ? endSec : undefined,
+          sessionStartSec: Number.isFinite(sessionStartSec) ? sessionStartSec : undefined,
+        }),
+      { endSec: Number.isFinite(endSec) ? endSec : undefined },
+    )
     if (!out.ok) {
       res.status(404).json({
         ok: false,
@@ -175,7 +200,8 @@ app.get('/api/market/bars', async (req, res) => {
       })
       return
     }
-    res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('Cache-Control', 'private, max-age=60')
+    if (out.cache) res.setHeader('X-Market-Bars-Cache', out.cache)
     res.json({
       ok: true,
       symbol,
@@ -236,6 +262,7 @@ if (!process.env.VERCEL) {
       `  Default chart query: range=${process.env.MARKET_CHART_RANGE || process.env.MARKET_YAHOO_RANGE || '5d'} interval=${process.env.MARKET_CHART_INTERVAL || process.env.MARKET_YAHOO_INTERVAL || '1m'} (override with ?range=&interval=)`,
     )
     console.log(`  GET /api/historic/identity  |  GET /api/market/bars?symbol=AAPL  |  GET /api/market/providers`)
+    console.log(`  GET /api/auth/me  |  POST /api/auth/register  |  POST /api/auth/login  |  POST /api/auth/logout`)
     console.log(`  Gold CSV: POST/GET/DELETE /api/historic/gold/*`)
   })
 }

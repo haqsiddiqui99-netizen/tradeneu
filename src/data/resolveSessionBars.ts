@@ -13,6 +13,7 @@ import {
   parseSessionDateToSec,
   sessionDateRangeSec,
   sessionFetchStartSec,
+  SESSION_CHART_LOOKBACK_SEC,
 } from './sessionDateRange'
 
 const DEFAULT_BAR_COUNT = 1500
@@ -25,9 +26,10 @@ export type SessionBarsOpts = {
 function resolveFetchRange(startDate?: string, endDate?: string): { startSec?: number; endSec?: number } {
   const { startSec, endSec } = sessionDateRangeSec(startDate, endDate)
   const nowSec = Math.floor(Date.now() / 1000)
-  const fetchStart = startSec != null ? sessionFetchStartSec(startSec) : undefined
-  if (startSec != null && endSec != null) return { startSec: fetchStart, endSec }
-  if (startSec != null) return { startSec: fetchStart, endSec: nowSec }
+  const lookback = (sec: number) => Math.max(0, sec - SESSION_CHART_LOOKBACK_SEC)
+  // Fetch session window plus 3h lookback for chart context; prior bar also backfilled server-side via sessionStartSec.
+  if (startSec != null && endSec != null) return { startSec: lookback(startSec), endSec }
+  if (startSec != null) return { startSec: lookback(startSec), endSec: nowSec }
   if (endSec != null) return { startSec: Math.max(0, endSec - 5 * 86_400), endSec }
   return {}
 }
@@ -246,9 +248,8 @@ async function fetchLiveMarketSeries(
     ...(hasRange ? { startSec, endSec, sessionStartSec: sessionStartSec ?? undefined } : {}),
   })
   if (!fromMarket) return null
-  const bars = await ensurePriorBarInPool(symbol, fromMarket.bars, startDate)
   return {
-    bars,
+    bars: fromMarket.bars,
     timeframe: fromMarket.timeframe,
     dataSource: fromMarket.dataSource,
   }

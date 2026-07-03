@@ -8,6 +8,7 @@ import {
   renderSessionPositionPanel,
   renderSessionStatsFromSummary,
   renderSessionStatsPanel,
+  renderTradeLog,
 } from '../backtest/backtestChartUi'
 
 export type SidePanelUpdate = {
@@ -17,6 +18,8 @@ export type SidePanelUpdate = {
   result?: BacktestResult | null
   /** When true, show final summary stats (end of backtest run). */
   isFinal?: boolean
+  /** Highlighted row in trade log (# trade number). */
+  highlightTradeNum?: number
   /** @deprecated Use snapshot.openPosition */
   openPosition?: BacktestReplaySnapshot['openPosition'] | null
   /** @deprecated Use result.summary when isFinal */
@@ -26,12 +29,14 @@ export type SidePanelUpdate = {
 export type SidePanelEls = {
   positionEl: HTMLElement
   statsEl: HTMLElement
+  tradesEl: HTMLElement
   equityEl: HTMLElement
   diagnosisEl: HTMLElement
   fmtPrice: (n: number) => string
   /** Scroll container to bring session panel into view after backtest. */
   scrollEl?: HTMLElement | null
   rerunBtn?: HTMLButtonElement | null
+  tradeExportBtn?: HTMLButtonElement | null
 }
 
 export type SidePanelApi = {
@@ -46,6 +51,9 @@ const EMPTY_POSITION =
 const EMPTY_STATS =
   '<p class="rw-session-empty">Run a backtest to see live performance as replay plays.</p>'
 
+const EMPTY_TRADES =
+  '<p class="rw-session-empty">Run a backtest to see every trade entry and exit.</p>'
+
 const EMPTY_EQUITY =
   '<p class="rw-session-empty">Run a backtest to see equity and drawdown.</p>'
 
@@ -57,12 +65,26 @@ export function createSidePanel(els: SidePanelEls): SidePanelApi {
     if (els.rerunBtn) els.rerunBtn.hidden = !visible
   }
 
+  function setTradeExportVisible(visible: boolean) {
+    if (els.tradeExportBtn) els.tradeExportBtn.hidden = !visible
+  }
+
+  function paintTradeLog(result: BacktestResult | null, highlightTradeNum?: number) {
+    renderTradeLog(els.tradesEl, result, {
+      fmtPrice: els.fmtPrice,
+      highlightTradeNum,
+    })
+    setTradeExportVisible(Boolean(result?.trades.length))
+  }
+
   function update(patch: SidePanelUpdate) {
     const result = patch.result ?? null
     const snapshot = patch.snapshot ?? null
+    const highlight = patch.highlightTradeNum
 
     if (patch.isFinal && result) {
       renderBacktestSummary(els.statsEl, result)
+      paintTradeLog(result, highlight)
       renderEquityCurve(els.equityEl, result)
       renderSessionPositionPanel(
         els.positionEl,
@@ -78,6 +100,7 @@ export function createSidePanel(els: SidePanelEls): SidePanelApi {
 
     if (result && snapshot) {
       renderSessionStatsPanel(els.statsEl, snapshot, true, formatBacktestMoney)
+      paintTradeLog(result, highlight)
       renderEquityCurve(els.equityEl, result)
       renderSessionPositionPanel(
         els.positionEl,
@@ -93,6 +116,7 @@ export function createSidePanel(els: SidePanelEls): SidePanelApi {
 
     if (result) {
       renderSessionStatsFromSummary(els.statsEl, result, formatBacktestMoney)
+      paintTradeLog(result, highlight)
       renderEquityCurve(els.equityEl, result)
       renderDiagnosisPanel(els.diagnosisEl, result)
       setRerunVisible(true)
@@ -102,9 +126,11 @@ export function createSidePanel(els: SidePanelEls): SidePanelApi {
   function clear() {
     els.positionEl.innerHTML = EMPTY_POSITION
     els.statsEl.innerHTML = EMPTY_STATS
+    els.tradesEl.innerHTML = EMPTY_TRADES
     els.equityEl.innerHTML = EMPTY_EQUITY
     els.diagnosisEl.innerHTML = EMPTY_DIAGNOSIS
     setRerunVisible(false)
+    setTradeExportVisible(false)
   }
 
   function scrollIntoView() {

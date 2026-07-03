@@ -97,12 +97,20 @@ export function createPineEditorDock(opts: {
   function matchStrategyId(script: string): string | null {
     const lower = script.toLowerCase()
     for (const s of BUILT_IN_STRATEGIES) {
-      if (lower.includes(s.id.replace(/_/g, ' ')) || lower.includes(s.name.toLowerCase())) {
+      const idNorm = s.id.replace(/_/g, ' ')
+      if (
+        lower.includes(s.id) ||
+        lower.includes(idNorm) ||
+        lower.includes(s.name.toLowerCase())
+      ) {
         return s.id
       }
     }
     if (/\bema\b/.test(lower) && /\bcross/.test(lower)) return 'ema_cross'
     if (/\brsi\b/.test(lower)) return 'rsi_mean_rev'
+    if (/\bmacd\b/.test(lower)) return 'macd_trend'
+    if (/\bbollinger\b/.test(lower) || /\bbb\b/.test(lower)) return 'bb_breakout'
+    if (/\bvwap\b/.test(lower)) return 'vwap_rev'
     return null
   }
 
@@ -124,10 +132,13 @@ export function createPineEditorDock(opts: {
     if (!codeEl) return
     const script = codeEl.value
     const strategyId = matchStrategyId(script)
+    const matched = strategyId
+      ? BUILT_IN_STRATEGIES.find((s) => s.id === strategyId)
+      : null
     if (statusEl) {
-      statusEl.textContent = strategyId
-        ? `Linked to ${BUILT_IN_STRATEGIES.find((s) => s.id === strategyId)?.name ?? strategyId}`
-        : 'Indicator script applied to chart'
+      statusEl.textContent = matched
+        ? `Matched “${matched.name}” — opening Strategy builder…`
+        : 'No built-in strategy match — Pine Script is not executed on chart'
     }
     opts.onAddToChart?.(script, strategyId)
   }

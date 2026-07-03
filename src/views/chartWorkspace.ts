@@ -4,9 +4,17 @@ import '../chart/chartPositionOverlay.css'
 import { icons } from '../icons'
 import { findAsset, RECENT_SYMBOLS } from '../assetCatalog'
 import { aggregateOHLCV } from '../chart/aggregateBars'
+import { readDefaultChartInterval, readDefaultStrategyId } from '../home/dashboardUserPrefs'
 import { aggregateBarsByTicks, syntheticTicksFromMinuteBars } from '../chart/aggregateTicks'
 import { createTradingChart } from '../chart/tradingChart'
+import {
+  createChartIndicatorManager,
+  renderChartIndicatorBar,
+} from '../chart/chartIndicators'
+import { isChartIndicatorId, type ChartIndicatorId } from '../chart/chartIndicatorCatalog'
 import { isGoldBrowserSymbol, loadSessionBars, usesMarketDataSession } from '../data/loadSessionBars'
+import { fetchMarketDataHealth, type MarketDataHealth } from '../data/marketDataHealth'
+import { resolveFeedStatus } from '../data/feedStatus'
 import { inferTimeframeFromBars } from '../data/resolveSessionBars'
 import {
   filterBarsBySessionDates,
@@ -14,30 +22,67 @@ import {
   formatChartCrosshairTime,
   formatSessionModalDate,
   localHmFromSec,
-  localTimezoneLabel,
   localYmdFromSec,
   sessionStartReplayIndex,
 } from '../data/sessionDateRange'
 import { createChartIntervalMenu, type IntervalPick } from './chartIntervalMenu'
+import { getFavoriteIntervals, removeFavoriteInterval, resolveIntervalPick } from './chartIntervalStore'
 import { createChartTypeMenu } from './chartTypeMenu'
+import { createChartSnapshotMenu, type ChartSnapshotAction } from './chartSnapshotMenu'
+import {
+  captureChartSnapshotCanvas,
+  chartSnapshotFilename,
+  copyChartShareLink,
+  copyChartSnapshotCanvas,
+  downloadChartSnapshotCanvas,
+  openChartSnapshotInNewTab,
+} from '../chart/chartSnapshot'
 import { createSymbolSearchModal } from './symbolSearchModal'
 import { createIndicatorsModal } from './indicatorsModal'
 import { REPLAY_BARS_PER_SEC, ReplayController, replaySpeedLabel } from '../playback/replayController'
-import { createReplayAccount, defaultTpSl, positionUnrealized } from '../replay/replayPositions'
+import { createReplayAccount, defaultTpSl, longOrderCost, positionUnrealized, shortOrderMargin } from '../replay/replayPositions'
+import {
+  exportReplayJournalCsv,
+  renderReplayJournal,
+  renderReplayJournalStats,
+} from '../replay/replayJournalUi'
+import { confirmDialog } from './confirmDialog'
 import { mountChartPositionOverlay } from '../chart/chartPositionOverlay'
+import type { SessionBacktestSnapshot, SessionReplaySnapshot } from '../data/sessionStore'
+import type { PropChallengeConfig, PropChallengeState } from '../prop/propTypes'
+import {
+  createInitialPropState,
+  evaluatePropChallenge,
+  normalizePropRules,
+} from '../prop/propRuleEngine'
+import { renderPropBanner } from '../prop/propChallengeUi'
 import { primarySessionSymbol, parseSessionAssetList, type SessionCreatedPayload } from '../sessionTypes'
 import type { Bar } from '../types'
 import type { TradingChartTheme } from '../chart/tradingChart'
 import { CrosshairMode } from 'lightweight-charts'
-import type { IChartApi, Logical } from 'lightweight-charts'
+import type { IChartApi, Logical, MouseEventParams, Time } from 'lightweight-charts'
+import { mountChartCursorUi } from '../chart/chartCursorUi'
+import {
+  findBarAtTime,
+  mountChartLegendOhlc,
+  updateChartLegendMarketStatus,
+  updateChartLegendOhlc,
+  type ChartLegendOhlcRefs,
+} from '../chart/chartLegendOhlc'
+import { mountChartMarketStatusPopup } from '../chart/chartMarketStatusPopup'
 import { mountChartDrawingUi } from '../chart/chartDrawingUi'
-import { BUILT_IN_STRATEGIES, EMA_CROSS } from '../backtest/ExampleStrategies'
+import { EMA_CROSS } from '../backtest/ExampleStrategies'
+import { listAllStrategies, resolveStrategy, strategySelectLabel } from '../strategy/strategyCatalog'
+import { saveCustomStrategy } from '../strategy/strategyStore'
+import { mountStrategyBuilder } from '../strategy/strategyBuilderUi'
+import '../strategy/strategyBuilder.css'
 import type { BacktestResult, StrategyDefinition } from '../backtest/BacktestTypes'
 import { runBacktest, numberTrades } from '../backtest/BacktestEngine'
 import { createSidePanel } from './sidePanel'
 import { createPineEditorDock } from './pineEditorDock'
 import {
   defaultBacktestSlippage,
+  exportTradesCsv,
   tradeMarkersUpToTime,
 } from '../backtest/backtestChartUi'
 import {
@@ -49,7 +94,10 @@ import { REPLAY_GOTO_MENU_ITEMS } from './replayGoToMenu'
 
 function setReplayPlayButtonIcon(btn: HTMLButtonElement | null, playing: boolean) {
   if (!btn) return
-  btn.innerHTML = playing ? icons.replayTvPause : icons.replayTvPlay
+  const playIco = btn.querySelector('.rw-replay-dock__play-ico--play') as HTMLElement | null
+  const pauseIco = btn.querySelector('.rw-replay-dock__play-ico--pause') as HTMLElement | null
+  if (playIco) playIco.hidden = playing
+  if (pauseIco) pauseIco.hidden = !playing
   btn.classList.toggle('rw-replay-dock__play--active', playing)
   btn.setAttribute('aria-pressed', playing ? 'true' : 'false')
 }
@@ -119,8 +167,20 @@ function legendTimeframeLabel(tf: string): string {
   return tf
 }
 
-function legendPlatformFeed(_feedLabel: string): string {
-  return 'OANDA on Suplexity'
+function brokerTag(feedLabel: string): string {
+  if (/twelvedata|twelve data/i.test(feedLabel)) return 'Twelve Data'
+  if (/synthetic|demo/i.test(feedLabel)) return 'Demo data'
+  if (/OANDA/i.test(feedLabel)) return 'OANDA'
+  if (/imported|json|static|sample|upload/i.test(feedLabel)) return 'Replay data'
+  if (/market data|server chain/i.test(feedLabel)) return 'Twelve Data'
+  return 'Suplexity'
+}
+
+/** Chart legend vendor line (e.g. Twelve Data on Suplexity). */
+function legendPlatformFeed(feedLabel: string): string {
+  const tag = brokerTag(feedLabel)
+  if (tag === 'Suplexity') return 'Suplexity'
+  return `${tag} on Suplexity`
 }
 
 function escapeLoadingHtml(s: string): string {
@@ -184,13 +244,6 @@ function formatSessionPrice(x: number): string {
   return x.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
 }
 
-function brokerTag(feedLabel: string): string {
-  if (/OANDA/i.test(feedLabel)) return 'OANDA'
-  if (/twelvedata|twelve data/i.test(feedLabel)) return 'Twelve Data'
-  if (/imported|json|static|sample/i.test(feedLabel)) return 'Replay data'
-  return 'Suplexity'
-}
-
 /** Right-panel data vendor line (TradingView-style). */
 function symDetailFeedTag(symbol: string, feedLabel: string): string {
   if (isGoldBrowserSymbol(symbol)) return 'PYTH'
@@ -202,8 +255,8 @@ function defaultSessionFeedLabel(
   symbol: string,
 ): string {
   if (sessionType === 'prop') return 'Suplexity · Prop rules'
-  if (usesMarketDataSession(symbol)) return 'Suplexity · market data (server chain + static fallback)'
-  return 'OANDA on Suplexity'
+  if (usesMarketDataSession(symbol)) return 'Suplexity · twelvedata'
+  return 'Suplexity'
 }
 
 function symbolPanelMeta(symbol: string) {
@@ -227,8 +280,8 @@ function filterSessionChartBars(
   return filterBarsBySessionDates(rawBars, session.startDate, session.endDate, rawBars)
 }
 
-/** First open with 1m candles: 90 bars ≈ 1h30 on screen (TradingView-style intraday default). */
-const TV_1M_DEFAULT_VISIBLE_BARS = 90
+/** First open with 1m candles: 180 bars = 3 hours on screen (FXReplay-style intraday default). */
+const TV_1M_DEFAULT_VISIBLE_BARS = 180
 
 const FOOT_RANGE_LABELS = ['1D', '5D', '1M', '3M', '6M', 'YTD', '1Y', 'ALL'] as const
 type FootRangeLabel = (typeof FOOT_RANGE_LABELS)[number]
@@ -298,9 +351,26 @@ function applyChartFootRange(
 export function mountChartWorkspace(
   host: HTMLElement,
   session: SessionCreatedPayload,
-  opts?: { onExit?: () => void; onSymbolChange?: (symbol: string) => void },
+  opts?: {
+    onExit?: () => void
+    onSymbolChange?: (symbol: string) => void
+    sessionId?: string | null
+    lastStrategyId?: string
+    onStrategyChange?: (strategyId: string) => void
+    onBacktestComplete?: (snapshot: SessionBacktestSnapshot) => void
+    replayState?: SessionReplaySnapshot | null
+    onReplayStateChange?: (snapshot: SessionReplaySnapshot) => void
+    propRules?: PropChallengeConfig | null
+    propResult?: PropChallengeState | null
+    onPropStateChange?: (state: PropChallengeState) => void
+    activeChartIndicators?: ChartIndicatorId[]
+    onChartIndicatorsChange?: (ids: ChartIndicatorId[]) => void
+    autoRunBacktest?: boolean
+    onEditSession?: () => void
+  },
 ): () => void {
   let activeSession: SessionCreatedPayload = { ...session }
+  const restoredReplay = opts?.replayState ?? null
   let currentChartSymbol = primarySessionSymbol(activeSession.assets)
   const initialMeta = symbolPanelMeta(currentChartSymbol)
   const symUi = initialMeta.symUi
@@ -331,6 +401,7 @@ export function mountChartWorkspace(
             <span class="rw-symbol-search-field__label" data-rw-symbol-toolbar-label>${escapeLoadingHtml(formatLegendSymbol(currentChartSymbol, currentFullName))}</span>
           </button>
           <span class="rw-top__sep" aria-hidden="true"></span>
+          <div class="rw-interval-favs" data-rw-interval-favs hidden aria-label="Favorite intervals"></div>
           <button type="button" class="rw-pill-btn rw-interval-pill" title="Chart interval" aria-haspopup="listbox" aria-expanded="false">1m</button>
           <button type="button" class="rw-pill-btn rw-pill-btn--ico rw-chart-type-btn" title="Chart type" aria-haspopup="listbox" aria-expanded="false">${candleIco}</button>
           <button type="button" class="rw-pill-btn rw-pill-btn--ico rw-compare-btn rw-fxr-hide" title="Compare or add symbol">${icons.plus}</button>
@@ -338,16 +409,19 @@ export function mountChartWorkspace(
           <button type="button" class="rw-pill-btn">New Layout</button>
           <button type="button" class="rw-pill-btn rw-fxr-hide">Alert</button>
           <button type="button" class="rw-pill-btn rw-replay-launch" data-rw-replay-launch aria-expanded="false" aria-controls="rw-chart-replay-dock" title="Bar replay">${icons.replayLaunch} Replay</button>
-          <select class="rw-backtest-strategy-toolbar" data-rw-backtest-strategy-toolbar aria-label="Backtest strategy"></select>
           <button type="button" class="rw-pill-btn rw-backtest-launch" title="Run strategy backtest on loaded bars">${icons.bolt} Backtest</button>
           <button type="button" class="rw-pill-btn rw-fxr-hide">${icons.layout}</button>
         </div>
         <div class="rw-top__right">
           <button type="button" class="rw-layout-name" title="Layouts">Unnamed ${icons.chevronDown}</button>
-          <button type="button" class="rw-icon-btn rw-theme-toggle" title="Chart palette" aria-label="Toggle chart palette"></button>
-          <button type="button" class="rw-icon-btn" title="Settings">${icons.gear}</button>
-          <button type="button" class="rw-icon-btn" title="Snapshot">${icons.camera}</button>
-          <button type="button" class="rw-btn-fxr-editor">Editor</button>
+          <span class="rw-top__vsep" aria-hidden="true"></span>
+          <div class="rw-top__utility" role="group" aria-label="Chart utilities">
+            <button type="button" class="rw-icon-btn" data-rw-top-settings title="Chart settings" aria-label="Chart settings">${icons.tvToolbarSettings}</button>
+            <button type="button" class="rw-icon-btn" data-rw-top-snapshot title="Take a snapshot" aria-label="Take a snapshot" aria-haspopup="menu" aria-expanded="false">${icons.camera}</button>
+            <span class="rw-top__vsep rw-top__vsep--utility" aria-hidden="true"></span>
+            <button type="button" class="rw-icon-btn rw-theme-toggle" data-rw-top-theme title="Toggle theme" aria-label="Toggle theme">${icons.sun}</button>
+            <button type="button" class="rw-icon-btn" data-rw-top-fullscreen title="Fullscreen mode" aria-label="Fullscreen mode">${icons.expand}</button>
+          </div>
           <button type="button" class="rw-btn-tv-trade rw-fxr-hide">Trade</button>
           <button type="button" class="rw-btn-publish rw-fxr-hide">Publish</button>
           <div class="rw-avatar rw-fxr-hide" title="Account" aria-hidden="true"></div>
@@ -367,7 +441,7 @@ export function mountChartWorkspace(
         <div class="rw-tools__group" role="group" aria-label="Shapes">
           <button type="button" class="rw-tools__btn rw-tools__btn--tool" data-draw-tool="rect" title="Rectangle">${toolRect}</button>
           <button type="button" class="rw-tools__btn rw-tools__btn--ico-muted" title="Ellipse (coming soon)" disabled aria-disabled="true">${toolSmiley}</button>
-          <button type="button" class="rw-tools__btn rw-tools__btn--ico-muted" title="Text (coming soon)" disabled aria-disabled="true">${toolText}</button>
+          <button type="button" class="rw-tools__btn rw-tools__btn--tool" data-draw-tool="text" title="Text label">${toolText}</button>
         </div>
         <div class="rw-tools__group" role="group" aria-label="Measure">
           <button type="button" class="rw-tools__btn rw-tools__btn--ico-muted" title="Long/short projection (coming soon)" disabled aria-disabled="true">${toolBrackets}</button>
@@ -394,9 +468,12 @@ export function mountChartWorkspace(
           </div>
         </div>
         <div class="rw-subbar">
-          <div class="rw-data-banner" role="alert" hidden></div>
+          <div class="rw-replay-notice" data-rw-replay-notice role="status" hidden></div>
+          <div class="rw-prop-banner rw-prop-banner--active" data-rw-prop-banner role="status" hidden></div>
+          <div class="rw-data-banner rw-data-banner--feed" role="alert" hidden></div>
           <div class="rw-subbar__stack">
             <div class="rw-subbar__head rw-legend" aria-live="polite"></div>
+            <div class="rw-subbar__indicators" data-rw-indicator-bar hidden></div>
           </div>
         </div>
         <div class="rw-chart-canvas">
@@ -477,22 +554,27 @@ export function mountChartWorkspace(
               </div>
               <span class="rw-replay-dock__vsep rw-replay-dock__vsep--fx" aria-hidden="true"></span>
               <button type="button" class="rw-replay-dock__tico" data-rw="start" title="First bar">${icons.replayTvJumpStart}</button>
-              <div class="rw-replay-dock__speed-wrap" data-rw-replay-speed-wrap>
-                <span class="rw-replay-dock__speed-bubble" data-rw-replay-speed-bubble aria-hidden="true">1x per sec</span>
-                <input
-                  type="range"
-                  class="rw-replay-dock__speed"
-                  data-rw-replay-speed
-                  min="0"
-                  max="${REPLAY_BARS_PER_SEC.length - 1}"
-                  value="0"
-                  step="1"
-                  aria-label="Playback speed"
-                  aria-valuetext="1x per sec"
-                />
+              <div class="rw-replay-dock__speed-cluster" data-rw-replay-speed-cluster>
+                <button type="button" class="rw-replay-dock__tico rw-replay-dock__speed-step" data-rw-replay-speed-down title="Decrease speed" aria-label="Decrease speed">${icons.replayTvSpeedDown}</button>
+                <div class="rw-replay-dock__speed-wrap" data-rw-replay-speed-wrap>
+                  <span class="rw-replay-dock__speed-bubble" data-rw-replay-speed-bubble aria-hidden="true">1x per sec</span>
+                  <input
+                    type="range"
+                    class="rw-replay-dock__speed"
+                    data-rw-replay-speed
+                    min="0"
+                    max="${REPLAY_BARS_PER_SEC.length - 1}"
+                    value="0"
+                    step="1"
+                    aria-label="Playback speed"
+                    aria-valuetext="1x per sec"
+                  />
+                </div>
+                <button type="button" class="rw-replay-dock__tico rw-replay-dock__speed-step" data-rw-replay-speed-up title="Increase speed" aria-label="Increase speed">${icons.replayTvSpeedUp}</button>
               </div>
-              <button type="button" class="rw-replay-dock__tico rw-replay-dock__tico--end" data-rw="end" title="Jump to latest bar">${icons.replayTvJumpEnd}</button>
-              <button type="button" class="rw-replay-dock__tico rw-replay-dock__play" data-rw="play" title="Play / Pause" aria-pressed="false">${icons.replayTvPlay}</button>
+              <span class="rw-replay-dock__vsep rw-replay-dock__vsep--fx" aria-hidden="true"></span>
+              <button type="button" class="rw-replay-dock__tico rw-replay-dock__play" data-rw="play" title="Play / Pause" aria-pressed="false"><span class="rw-replay-dock__play-ico rw-replay-dock__play-ico--play" aria-hidden="true">${icons.replayTvPlay}</span><span class="rw-replay-dock__play-ico rw-replay-dock__play-ico--pause" aria-hidden="true" hidden>${icons.replayTvPause}</span></button>
+              <button type="button" class="rw-replay-dock__tico" data-rw="fwd" title="Skip one candle">${icons.replayTvStepFwd}</button>
               <button
                 type="button"
                 class="rw-replay-dock__interval"
@@ -504,7 +586,7 @@ export function mountChartWorkspace(
                 <span data-rw-replay-dock-tf>1m</span>
                 <span class="rw-replay-dock__interval-chev" aria-hidden="true">${icons.chevronDown}</span>
               </button>
-              <button type="button" class="rw-replay-dock__tico" data-rw="fwd" title="Skip one candle">${icons.replayTvStepFwd}</button>
+              <button type="button" class="rw-replay-dock__tico rw-replay-dock__tico--end" data-rw="end" title="Last Bar">${icons.replayTvJumpEnd}</button>
               <button type="button" class="rw-replay-dock__clear-filter" data-rw-replay-clear-filter title="Clear filter" aria-label="Clear filter">${icons.replayClearFilter}</button>
               <label class="rw-replay-dock__switch" title="Sync timeframe">
                 <input type="checkbox" class="rw-replay-dock__switch-input" data-rw-replay-sync-tf aria-label="Sync timeframe" checked />
@@ -525,20 +607,24 @@ export function mountChartWorkspace(
               ).join('')}
               <button type="button" class="rw-foot__goto" data-rw-foot-goto title="Go to date…" aria-haspopup="dialog">${iconCalendarGoto}</button>
             </div>
-            <button type="button" class="rw-foot__analytics" title="Analytics">
-              ${icons.chart} Analytics
-            </button>
-            <div class="rw-trade-bar" role="group" aria-label="Place order">
+          </div>
+          <div class="rw-foot__strip-right rw-foot__strip-right--tv">
+            <div class="rw-foot__clock" aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="rw-foot__trade-dock-row" data-rw-trade-dock-row>
+          <div class="rw-foot__trade-dock" data-rw-trade-dock>
+            <div class="rw-trade-bar" data-rw-trade-bar role="group" aria-label="Place order">
               <button type="button" class="rw-trade-btn rw-trade-btn--buy rw-ticket-buy" title="Buy at ask">Buy</button>
               <button type="button" class="rw-trade-btn rw-trade-btn--sell rw-ticket-sell" title="Sell at bid">Sell</button>
-              <div class="rw-foot__qty rw-qty rw-qty--inline" role="group" aria-label="Order quantity">
+              <div class="rw-foot__qty rw-qty rw-qty--fxr" role="group" aria-label="Order quantity">
                 <input
                   id="rw-order-qty"
                   class="rw-qty__field"
                   type="number"
                   min="1"
                   step="1"
-                  value="1"
+                  placeholder="Quantity"
                   inputmode="numeric"
                   data-rw-order-qty
                   autocomplete="off"
@@ -553,16 +639,32 @@ export function mountChartWorkspace(
                   </button>
                 </div>
               </div>
+              <button type="button" class="rw-trade-bar__ico" data-rw-trade-quick title="Quick order" aria-label="Quick order">${icons.tradeRocket}</button>
+              <button type="button" class="rw-trade-dock__drag" data-rw-trade-drag aria-label="Drag trade panel" title="Drag">${icons.replayDragGrip}</button>
+              <button type="button" class="rw-foot__analytics" title="Analytics">
+                ${icons.chart} Analytics
+              </button>
+              <span class="rw-trade-bar__spacer" aria-hidden="true"></span>
               <div class="rw-trade-stats" data-rw-trade-stats>
-                <span class="rw-trade-stats__item"><span>Account Balance:</span> <span class="rw-trade-stats__val rw-bal"></span></span>
-                <span class="rw-trade-stats__item"><span>Realized PnL:</span> <span class="rw-trade-stats__val rw-rp">$0.00</span></span>
-                <span class="rw-trade-stats__item"><span>Unrealized PnL:</span> <span class="rw-trade-stats__val rw-up">$0.00</span></span>
+                <div class="rw-trade-stats__item">
+                  <span class="rw-trade-stats__lbl">Account Balance</span>
+                  <span class="rw-trade-stats__val rw-bal">—</span>
+                </div>
+                <div class="rw-trade-stats__item">
+                  <span class="rw-trade-stats__lbl">Realized PnL</span>
+                  <span class="rw-trade-stats__val rw-rp">$0.00</span>
+                </div>
+                <div class="rw-trade-stats__item">
+                  <span class="rw-trade-stats__lbl">Unrealized PnL</span>
+                  <span class="rw-trade-stats__val rw-up">$0.00</span>
+                </div>
+              </div>
+              <div class="rw-trade-bar__actions">
                 <button type="button" class="rw-trade-stats__toggle" data-rw-stats-toggle aria-label="Hide account values" aria-pressed="false">${icons.eye}</button>
+                <button type="button" class="rw-trade-dock__collapse" data-rw-trade-dock-collapse aria-label="Collapse trade panel" title="Collapse">${icons.chevronUp}</button>
+                <button type="button" class="rw-trade-dock__fullscreen" data-rw-trade-fullscreen title="Fullscreen mode" aria-label="Fullscreen mode">${icons.expand}</button>
               </div>
             </div>
-          </div>
-          <div class="rw-foot__strip-right rw-foot__strip-right--tv">
-            <div class="rw-foot__clock" aria-live="polite"></div>
           </div>
         </div>
       </div>
@@ -605,7 +707,10 @@ export function mountChartWorkspace(
                 </div>
               </div>
               <div class="rw-sym-card__name">${currentFullName}</div>
-              <div class="rw-sym-card__feed">${symDetailFeed}</div>
+              <div class="rw-sym-card__feed-row">
+                <div class="rw-sym-card__feed">${symDetailFeed}</div>
+                <span class="rw-feed-pill rw-feed-pill--loading" data-rw-feed-pill aria-label="Data feed status">Loading…</span>
+              </div>
               <div class="rw-sym-card__type">${symCardTypeLine}</div>
               <div class="rw-quote-row">
                 <span class="rw-quote-big rw-right-quote-num">—</span>
@@ -631,6 +736,22 @@ export function mountChartWorkspace(
               </div>
             </div>
             </div>
+            <div class="rw-rpanel-view rw-rpanel-view--strategy" data-rw-panel-view="strategy" hidden>
+              <div class="rw-wl-head">
+                <div class="rw-wl-head__title">
+                  <span class="rw-wl-head__text">Strategy builder</span>
+                </div>
+              </div>
+              <div class="rw-wl-scroll rw-wl-scroll--full">
+                <div class="rw-strategy-panel">
+                  <label class="rw-strategy-panel__pick">
+                    <span class="rw-strategy-panel__pick-lbl">Active strategy</span>
+                    <select class="rw-strategy-panel__select" data-rw-strategy-panel-select aria-label="Active strategy"></select>
+                  </label>
+                  <div data-rw-strategy-builder-host></div>
+                </div>
+              </div>
+            </div>
             <div class="rw-rpanel-view rw-rpanel-view--backtest" data-rw-panel-view="backtest" hidden>
               <div class="rw-wl-head">
                 <div class="rw-wl-head__title">
@@ -650,6 +771,15 @@ export function mountChartWorkspace(
                     <h3 class="rw-session-block__title">Strategy performance</h3>
                     <div class="rw-session-block__body" data-rw-session-stats>
                       <p class="rw-session-empty">Run a backtest to see live performance as replay plays.</p>
+                    </div>
+                  </section>
+                  <section class="rw-session-block" aria-label="Trade log">
+                    <div class="rw-session-block__title-row">
+                      <h3 class="rw-session-block__title">Trades</h3>
+                      <button type="button" class="rw-trade-log-export" data-rw-trade-export hidden>Export CSV</button>
+                    </div>
+                    <div class="rw-session-block__body" data-rw-session-trades>
+                      <p class="rw-session-empty">Run a backtest to see every trade entry and exit.</p>
                     </div>
                   </section>
                   <section class="rw-session-block" aria-label="Equity curve">
@@ -708,17 +838,30 @@ export function mountChartWorkspace(
               </div>
             </div>
             <div class="rw-rpanel-view" data-rw-panel-view="journal" hidden>
-              <div class="rw-panel-page">
+              <div class="rw-panel-page rw-panel-page--journal">
                 <h3 class="rw-panel-page__title">Journal</h3>
-                <p class="rw-panel-page__hint">Review trades and notes from this replay session.</p>
-                <p class="rw-session-empty">Journal entries will appear here.</p>
+                <p class="rw-panel-page__hint">Manual replay trades for this session — saved automatically.</p>
+                <div data-rw-journal-stats></div>
+                <div class="rw-journal-toolbar">
+                  <button type="button" class="rw-trade-log-export" data-rw-journal-export hidden>Export CSV</button>
+                  <button type="button" class="rw-journal-reset" data-rw-journal-reset>Reset account</button>
+                </div>
+                <div data-rw-journal-trades></div>
               </div>
             </div>
             <div class="rw-rpanel-view" data-rw-panel-view="settings" hidden>
               <div class="rw-panel-page">
                 <h3 class="rw-panel-page__title">Settings</h3>
-                <p class="rw-panel-page__hint">Chart and replay preferences.</p>
+                <p class="rw-panel-page__hint">Chart display and workspace preferences.</p>
                 <button type="button" class="rw-panel-page__cta" data-rw-panel-theme-toggle>Toggle chart theme</button>
+              </div>
+            </div>
+            <div class="rw-rpanel-view" data-rw-panel-view="session-settings" hidden>
+              <div class="rw-panel-page rw-panel-page--session-settings">
+                <h3 class="rw-panel-page__title">Session settings</h3>
+                <p class="rw-panel-page__hint">Replay range, balance, and session options for this chart.</p>
+                <div class="rw-session-settings__body" data-rw-session-settings-body></div>
+                <button type="button" class="rw-panel-page__cta" data-rw-session-settings-edit>Edit session</button>
               </div>
             </div>
           </div>
@@ -739,6 +882,10 @@ export function mountChartWorkspace(
               <span class="rw-rail-btn__ico" aria-hidden="true">${icons.panelNews}</span>
               <span class="rw-rail-btn__lbl">News</span>
             </button>
+            <button type="button" class="rw-rail-btn rw-rail-btn--labeled" data-rw-rail="strategy" title="Strategy builder">
+              <span class="rw-rail-btn__ico" aria-hidden="true">${icons.compass}</span>
+              <span class="rw-rail-btn__lbl">Strategy</span>
+            </button>
             <button type="button" class="rw-rail-btn rw-rail-btn--labeled" data-rw-rail="pine" title="Pine Editor">
               <span class="rw-rail-btn__ico" aria-hidden="true">${icons.panelPine}</span>
               <span class="rw-rail-btn__lbl">Pine</span>
@@ -748,9 +895,9 @@ export function mountChartWorkspace(
               <span class="rw-rail-btn__lbl">Journal</span>
             </button>
             <span class="rw-rpanel__rail-spacer" aria-hidden="true"></span>
-            <button type="button" class="rw-rail-btn rw-rail-btn--labeled" data-rw-rail="settings" title="Settings">
+            <button type="button" class="rw-rail-btn rw-rail-btn--labeled" data-rw-rail="session-settings" title="Session settings">
               <span class="rw-rail-btn__ico" aria-hidden="true">${icons.gear}</span>
-              <span class="rw-rail-btn__lbl">Settings</span>
+              <span class="rw-rail-btn__lbl">Session</span>
             </button>
           </nav>
         </div>
@@ -868,8 +1015,57 @@ export function mountChartWorkspace(
   const symDetailLogoEl = host.querySelector('.rw-sym-card__logo') as HTMLElement | null
 
   const subbarHeadEl = host.querySelector('.rw-subbar__head') as HTMLElement
+  const indicatorBarEl = host.querySelector('[data-rw-indicator-bar]') as HTMLElement
   const chartVolEl = host.querySelector('.rw-chart-vol') as HTMLElement
   const dataBanner = host.querySelector('.rw-data-banner') as HTMLElement | null
+  const propBannerEl = host.querySelector('[data-rw-prop-banner]') as HTMLElement | null
+  const replayNoticeEl = host.querySelector('[data-rw-replay-notice]') as HTMLElement | null
+  const feedPillEl = host.querySelector('[data-rw-feed-pill]') as HTMLElement | null
+  let marketHealth: MarketDataHealth | null = null
+
+  function applyFeedUi(opts: {
+    symbol: string
+    dataSource?: string
+    barCount?: number
+    timeframe?: string
+    loading?: boolean
+    emptyDateRange?: boolean
+    loadFailed?: boolean
+  }) {
+    const status = resolveFeedStatus({
+      ...opts,
+      health: marketHealth,
+      isProd: import.meta.env.PROD,
+    })
+
+    if (feedPillEl) {
+      feedPillEl.hidden = false
+      feedPillEl.className = `rw-feed-pill ${status.pillClass}`
+      feedPillEl.textContent = status.pillLabel
+      feedPillEl.title = status.tooltip
+      feedPillEl.setAttribute('aria-label', `Data feed: ${status.pillLabel}`)
+    }
+
+    if (dataBanner) {
+      const base = 'rw-data-banner rw-data-banner--feed'
+      dataBanner.className = status.bannerClass ? `${base} ${status.bannerClass}` : base
+      dataBanner.hidden = !status.showBanner
+      dataBanner.textContent = status.showBanner ? status.bannerMessage : ''
+    }
+  }
+
+  function showReplayNotice(message: string) {
+    if (!replayNoticeEl) return
+    replayNoticeEl.hidden = false
+    replayNoticeEl.textContent = message
+  }
+
+  function hideReplayNotice() {
+    if (!replayNoticeEl) return
+    replayNoticeEl.hidden = true
+    replayNoticeEl.textContent = ''
+  }
+
   const chartHost = host.querySelector('.rw-chart-host') as HTMLElement
   const chartCanvas = host.querySelector('.rw-chart-canvas') as HTMLElement
   const chartLwc = host.querySelector('.rw-chart-lwc') as HTMLElement
@@ -889,29 +1085,38 @@ export function mountChartWorkspace(
   const clockEl = host.querySelector('.rw-foot__clock') as HTMLElement | null
   const btnHome = host.querySelector('.rw-top__home') as HTMLButtonElement
   const intervalPill = host.querySelector('.rw-interval-pill') as HTMLButtonElement
+  const intervalFavsEl = host.querySelector('[data-rw-interval-favs]') as HTMLElement | null
   const btnIndicators = host.querySelector('.rw-indicators-btn') as HTMLButtonElement | null
   const rightQuoteEl = host.querySelector('.rw-right-quote-num') as HTMLElement | null
   const rightChgEl = host.querySelector('.rw-right-chg') as HTMLElement | null
   const sessionPosEl = host.querySelector('[data-rw-session-position]') as HTMLElement | null
   const sessionStatsEl = host.querySelector('[data-rw-session-stats]') as HTMLElement | null
+  const sessionTradesEl = host.querySelector('[data-rw-session-trades]') as HTMLElement | null
   const sessionEquityEl = host.querySelector('[data-rw-session-equity]') as HTMLElement | null
   const sessionDiagnosisEl = host.querySelector('[data-rw-session-diagnosis]') as HTMLElement | null
+  const journalStatsEl = host.querySelector('[data-rw-journal-stats]') as HTMLElement | null
+  const journalTradesEl = host.querySelector('[data-rw-journal-trades]') as HTMLElement | null
+  const btnJournalExport = host.querySelector('[data-rw-journal-export]') as HTMLButtonElement | null
+  const btnJournalReset = host.querySelector('[data-rw-journal-reset]') as HTMLButtonElement | null
   const sessionScrollEl = host.querySelector('[data-rw-panel-view="backtest"] .rw-wl-scroll') as HTMLElement | null
   const watchlistBodyEl = host.querySelector('[data-rw-watchlist-body]') as HTMLElement | null
   const rpanelEl = host.querySelector('[data-rw-rpanel]') as HTMLElement | null
   const btnBacktestRerun = host.querySelector('[data-rw-backtest-rerun]') as HTMLButtonElement | null
-  const backtestState = { result: null as BacktestResult | null }
+  const btnTradeExport = host.querySelector('[data-rw-trade-export]') as HTMLButtonElement | null
+  const backtestState = { result: null as BacktestResult | null, highlightTradeNum: undefined as number | undefined }
 
   const sidePanel =
-    sessionPosEl && sessionStatsEl && sessionEquityEl && sessionDiagnosisEl
+    sessionPosEl && sessionStatsEl && sessionTradesEl && sessionEquityEl && sessionDiagnosisEl
       ? createSidePanel({
           positionEl: sessionPosEl,
           statsEl: sessionStatsEl,
+          tradesEl: sessionTradesEl,
           equityEl: sessionEquityEl,
           diagnosisEl: sessionDiagnosisEl,
           fmtPrice: formatSessionPrice,
           scrollEl: sessionScrollEl,
           rerunBtn: btnBacktestRerun,
+          tradeExportBtn: btnTradeExport,
         })
       : null
   const symDetailFeedEl = host.querySelector('.rw-sym-card__feed') as HTMLElement | null
@@ -939,12 +1144,17 @@ export function mountChartWorkspace(
   }
   const rwRoot = host.querySelector('.rw-root') as HTMLElement
   const btnThemeToggle = host.querySelector('.rw-theme-toggle') as HTMLButtonElement | null
+  const btnTopSettings = host.querySelector('[data-rw-top-settings]') as HTMLButtonElement | null
+  const btnTopSnapshot = host.querySelector('[data-rw-top-snapshot]') as HTMLButtonElement | null
+  const btnTopFullscreen = host.querySelector('[data-rw-top-fullscreen]') as HTMLButtonElement | null
   const btnReplayLaunch = host.querySelector('[data-rw-replay-launch]') as HTMLButtonElement | null
   const replayDock = host.querySelector('[data-rw-replay-dock]') as HTMLElement | null
   const replayDockDrag = host.querySelector('[data-rw-replay-drag]') as HTMLButtonElement | null
   const replaySpeed = host.querySelector('[data-rw-replay-speed]') as HTMLInputElement | null
   const replaySpeedWrap = host.querySelector('[data-rw-replay-speed-wrap]') as HTMLElement | null
   const replaySpeedBubble = host.querySelector('[data-rw-replay-speed-bubble]') as HTMLElement | null
+  const replaySpeedDown = host.querySelector('[data-rw-replay-speed-down]') as HTMLButtonElement | null
+  const replaySpeedUp = host.querySelector('[data-rw-replay-speed-up]') as HTMLButtonElement | null
   const replaySyncTf = host.querySelector('[data-rw-replay-sync-tf]') as HTMLInputElement | null
   const replayClearFilterBtn = host.querySelector('[data-rw-replay-clear-filter]') as HTMLButtonElement | null
   const chartWrapEl = host.querySelector('.rw-chart-wrap') as HTMLElement | null
@@ -1035,20 +1245,24 @@ export function mountChartWorkspace(
       replayDock.style.top = `${Math.round(top)}px`
     }
 
-    const onUp = (e: PointerEvent) => {
+    const endDrag = (e: PointerEvent) => {
       if (!dragging) return
       dragging = false
       replayDockDrag.releasePointerCapture(e.pointerId)
       replayDock?.classList.remove('rw-replay-dock--dragging')
+      document.body.classList.remove('rw-replay-dock-dragging')
       replayDockDragged = true
       syncReplayStartMenuPlacement()
     }
+
+    const onUp = (e: PointerEvent) => endDrag(e)
 
     replayDockDrag.addEventListener('pointerdown', (e) => {
       if (!replayDock) return
       e.preventDefault()
       dragging = true
       replayDock.classList.add('rw-replay-dock--dragging')
+      document.body.classList.add('rw-replay-dock-dragging')
       replayDockDrag.setPointerCapture(e.pointerId)
       replayDock.style.position = 'fixed'
       replayDock.style.bottom = 'auto'
@@ -1063,10 +1277,16 @@ export function mountChartWorkspace(
     replayDockDrag.addEventListener('pointermove', onMove)
     replayDockDrag.addEventListener('pointerup', onUp)
     replayDockDrag.addEventListener('pointercancel', onUp)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
     cleanupFns.push(() => {
       replayDockDrag.removeEventListener('pointermove', onMove)
       replayDockDrag.removeEventListener('pointerup', onUp)
       replayDockDrag.removeEventListener('pointercancel', onUp)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      document.body.classList.remove('rw-replay-dock-dragging')
+      replayDock?.classList.remove('rw-replay-dock--dragging')
     })
   }
 
@@ -1151,6 +1371,38 @@ export function mountChartWorkspace(
   const replayDockTf = host.querySelector('[data-rw-replay-dock-tf]') as HTMLElement | null
   const replayStatusEl = host.querySelector('[data-rw-replay-status]') as HTMLElement | null
 
+  let speedBubbleHideTimer: ReturnType<typeof setTimeout> | null = null
+
+  function syncReplaySpeedBubblePosition(speedIndex: number) {
+    if (!replaySpeedBubble) return
+    const max = REPLAY_BARS_PER_SEC.length - 1
+    const pct = max <= 0 ? 0 : (speedIndex / max) * 100
+    replaySpeedBubble.style.left = `${pct}%`
+  }
+
+  function showReplaySpeedBubble(persist = false) {
+    if (!replaySpeedWrap) return
+    replaySpeedWrap.classList.add('rw-replay-dock__speed-wrap--active')
+    if (speedBubbleHideTimer) {
+      clearTimeout(speedBubbleHideTimer)
+      speedBubbleHideTimer = null
+    }
+    if (!persist) {
+      speedBubbleHideTimer = setTimeout(() => {
+        hideReplaySpeedBubble()
+      }, 1400)
+    }
+  }
+
+  function hideReplaySpeedBubble() {
+    if (!replaySpeedWrap) return
+    replaySpeedWrap.classList.remove('rw-replay-dock__speed-wrap--active')
+    if (speedBubbleHideTimer) {
+      clearTimeout(speedBubbleHideTimer)
+      speedBubbleHideTimer = null
+    }
+  }
+
   function syncReplaySpeedUi(speedIndex?: number) {
     if (!replaySpeed) return
     const idx = speedIndex ?? state.replay?.getSpeedIndex() ?? 0
@@ -1160,6 +1412,20 @@ export function mountChartWorkspace(
     replaySpeed.value = String(clamped)
     replaySpeed.setAttribute('aria-valuetext', label)
     if (replaySpeedBubble) replaySpeedBubble.textContent = label
+    syncReplaySpeedBubblePosition(clamped)
+    if (replaySpeedDown) replaySpeedDown.disabled = clamped <= 0
+    if (replaySpeedUp) replaySpeedUp.disabled = clamped >= REPLAY_BARS_PER_SEC.length - 1
+  }
+
+  function bumpReplaySpeed(delta: number) {
+    if (!replaySpeed || !state.replay) return
+    const cur = Number(replaySpeed.value)
+    const next = Math.max(0, Math.min(REPLAY_BARS_PER_SEC.length - 1, cur + delta))
+    if (next === cur) return
+    replaySpeed.value = String(next)
+    state.replay.setSpeedIndex(next)
+    syncReplaySpeedUi(next)
+    showReplaySpeedBubble()
   }
 
   let chartBarCount = 1
@@ -1219,7 +1485,7 @@ export function mountChartWorkspace(
     toggleStartMenu()
   }
 
-  let chartTimeframe = '1m'
+  let chartTimeframe = readDefaultChartInterval()
   subbarHeadEl.innerHTML = `<span style="color:#787b86">Loading <strong>${symUi}</strong>…</span>`
   chartVolEl.innerHTML = ''
 
@@ -1266,12 +1532,16 @@ export function mountChartWorkspace(
   }
   const readOrderQty = (): number => {
     if (!qtyInput) return 1
-    const n = Number(qtyInput.value)
-    return Number.isFinite(n) ? n : 1
+    const raw = qtyInput.value.trim()
+    if (!raw) return 1
+    const n = Number(raw)
+    return Number.isFinite(n) ? clampOrderQty(n) : 1
   }
   function syncOrderQtyField() {
     if (!qtyInput) return
-    qtyInput.value = String(clampOrderQty(readOrderQty()))
+    const raw = qtyInput.value.trim()
+    if (!raw) return
+    qtyInput.value = String(clampOrderQty(Number(raw)))
   }
   const onQtyStepUp = () => {
     if (!qtyInput) return
@@ -1310,13 +1580,41 @@ export function mountChartWorkspace(
     if (!btnThemeToggle) return
     const dark = uiChartTheme === 'dark'
     btnThemeToggle.innerHTML = dark ? icons.sun : icons.moon
-    btnThemeToggle.title = dark ? 'Switch to light theme (FXReplay / TradingView style)' : 'Switch to dark theme'
-    btnThemeToggle.setAttribute(
-      'aria-label',
-      dark ? 'Switch to light theme' : 'Switch to dark theme',
-    )
+    btnThemeToggle.title = 'Toggle theme'
+    btnThemeToggle.setAttribute('aria-label', 'Toggle theme')
   }
   syncThemeToggleButton()
+
+  function syncFullscreenButton() {
+    const fs = document.fullscreenElement != null
+    if (btnTopFullscreen) {
+      btnTopFullscreen.innerHTML = fs ? icons.tvToolbarCompress : icons.expand
+      btnTopFullscreen.title = fs ? 'Exit fullscreen' : 'Fullscreen mode'
+      btnTopFullscreen.setAttribute('aria-label', fs ? 'Exit fullscreen' : 'Fullscreen mode')
+    }
+    const btnTradeFullscreen = host.querySelector('[data-rw-trade-fullscreen]') as HTMLButtonElement | null
+    if (btnTradeFullscreen) {
+      btnTradeFullscreen.innerHTML = fs ? icons.tvToolbarCompress : icons.expand
+      btnTradeFullscreen.title = fs ? 'Exit fullscreen' : 'Fullscreen mode'
+      btnTradeFullscreen.setAttribute('aria-label', fs ? 'Exit fullscreen' : 'Fullscreen mode')
+    }
+    rwRoot.classList.toggle('rw-root--fullscreen', fs)
+  }
+  syncFullscreenButton()
+
+  function toggleChartFullscreen() {
+    void (async () => {
+      try {
+        if (!document.fullscreenElement) {
+          await host.requestFullscreen()
+        } else {
+          await document.exitFullscreen()
+        }
+      } catch {
+        /* fullscreen blocked or unsupported */
+      }
+    })()
+  }
 
   function applyChartPaletteToggle() {
     uiChartTheme = uiChartTheme === 'dark' ? 'light' : 'dark'
@@ -1381,9 +1679,50 @@ export function mountChartWorkspace(
 
   cleanupFns.push(() => symbolSearch?.dispose())
 
+  let indicatorMgr: ReturnType<typeof createChartIndicatorManager> | null = null
+  let activeChartIndicators: ChartIndicatorId[] = (opts?.activeChartIndicators ?? []).filter(isChartIndicatorId)
+  let persistIndicatorsTimer: ReturnType<typeof setTimeout> | null = null
+
+  function paintIndicatorBar() {
+    if (!indicatorBarEl) return
+    renderChartIndicatorBar(indicatorBarEl, activeChartIndicators, (id) => {
+      indicatorMgr?.remove(id)
+      activeChartIndicators = indicatorMgr?.getActiveIds() ?? []
+      paintIndicatorBar()
+      indicatorsModal.refreshRows()
+      schedulePersistIndicators()
+    })
+  }
+
+  function schedulePersistIndicators() {
+    if (!opts?.onChartIndicatorsChange) return
+    if (persistIndicatorsTimer) clearTimeout(persistIndicatorsTimer)
+    persistIndicatorsTimer = setTimeout(() => {
+      persistIndicatorsTimer = null
+      opts.onChartIndicatorsChange?.(activeChartIndicators)
+    }, 400)
+  }
+
+  function syncChartIndicators(allBars: Bar[], displayBars: Bar[]) {
+    indicatorMgr?.sync(allBars, displayBars)
+  }
+
+  function addChartIndicator(id: ChartIndicatorId) {
+    if (!indicatorMgr?.add(id)) return
+    activeChartIndicators = indicatorMgr.getActiveIds()
+    paintIndicatorBar()
+    indicatorsModal.refreshRows()
+    if (state.replay) {
+      syncChartIndicators(state.replay.getBars(), state.replay.slice())
+    }
+    schedulePersistIndicators()
+  }
+
   const indicatorsModal = createIndicatorsModal({
     root: document.body,
     onOpenChange: (v) => btnIndicators?.setAttribute('aria-expanded', v ? 'true' : 'false'),
+    isIndicatorActive: (id) => activeChartIndicators.includes(id),
+    onAddIndicator: (id) => addChartIndicator(id),
   })
   const onIndicatorsClick = (e: MouseEvent) => {
     e.stopPropagation()
@@ -1446,7 +1785,44 @@ export function mountChartWorkspace(
     setPineEditorOpen(true)
   }
 
-  type SidePanelViewId = 'watchlist' | 'backtest' | 'order' | 'goto' | 'news' | 'journal' | 'settings'
+  type SidePanelViewId =
+    | 'watchlist'
+    | 'backtest'
+    | 'strategy'
+    | 'order'
+    | 'goto'
+    | 'news'
+    | 'journal'
+    | 'settings'
+    | 'session-settings'
+
+  function sessionSettingsBodyHtml(session: SessionCreatedPayload): string {
+    const rows: Array<[string, string]> = [
+      ['Name', session.name.trim() || 'Untitled'],
+      ['Type', session.sessionType === 'prop' ? 'Prop firm' : 'Backtest'],
+      ['Assets', parseSessionAssetList(session.assets).join(', ') || '—'],
+      ['Balance', session.balance.trim() || '—'],
+      ['From', formatSessionModalDate(session.startDate)],
+      ['To', formatSessionModalDate(session.endDate)],
+    ]
+    return `<dl class="rw-session-settings__meta">${rows
+      .map(
+        ([label, value]) =>
+          `<div><dt>${escapeLoadingHtml(label)}</dt><dd>${escapeLoadingHtml(value)}</dd></div>`,
+      )
+      .join('')}</dl>`
+  }
+
+  function paintSessionSettingsPanel() {
+    const body = host.querySelector('[data-rw-session-settings-body]') as HTMLElement | null
+    if (!body) return
+    body.innerHTML = sessionSettingsBodyHtml(activeSession)
+  }
+
+  function openSessionSettings() {
+    paintSessionSettingsPanel()
+    openSidePanel('session-settings')
+  }
 
   let sidePanelOpen = false
   let sidePanelView: SidePanelViewId = 'watchlist'
@@ -1590,6 +1966,123 @@ export function mountChartWorkspace(
   btnPanelThemeToggle?.addEventListener('click', onPanelThemeToggle)
   cleanupFns.push(() => btnPanelThemeToggle?.removeEventListener('click', onPanelThemeToggle))
 
+  const onTopSettings = () => openSidePanel('settings')
+  btnTopSettings?.addEventListener('click', onTopSettings)
+  cleanupFns.push(() => btnTopSettings?.removeEventListener('click', onTopSettings))
+
+  host.querySelectorAll<HTMLButtonElement>('[data-rw-session-settings]').forEach((btn) => {
+    const onSessionSettings = () => openSessionSettings()
+    btn.addEventListener('click', onSessionSettings)
+    cleanupFns.push(() => btn.removeEventListener('click', onSessionSettings))
+  })
+
+  const btnSessionSettingsEdit = host.querySelector('[data-rw-session-settings-edit]') as HTMLButtonElement | null
+  const onSessionSettingsEdit = () => opts?.onEditSession?.()
+  btnSessionSettingsEdit?.addEventListener('click', onSessionSettingsEdit)
+  cleanupFns.push(() => btnSessionSettingsEdit?.removeEventListener('click', onSessionSettingsEdit))
+
+  const tradeDockRow = host.querySelector('[data-rw-trade-dock-row]') as HTMLElement | null
+  const btnTradeDockCollapse = host.querySelector('[data-rw-trade-dock-collapse]') as HTMLButtonElement | null
+  const onTradeDockCollapse = () => {
+    if (!tradeDockRow || !btnTradeDockCollapse) return
+    const collapsed = tradeDockRow.classList.toggle('rw-foot__trade-dock-row--collapsed')
+    btnTradeDockCollapse.setAttribute('aria-label', collapsed ? 'Expand trade panel' : 'Collapse trade panel')
+    btnTradeDockCollapse.title = collapsed ? 'Expand' : 'Collapse'
+  }
+  btnTradeDockCollapse?.addEventListener('click', onTradeDockCollapse)
+  cleanupFns.push(() => btnTradeDockCollapse?.removeEventListener('click', onTradeDockCollapse))
+
+  const btnTradeFullscreen = host.querySelector('[data-rw-trade-fullscreen]') as HTMLButtonElement | null
+  const onTradeFullscreen = () => toggleChartFullscreen()
+  btnTradeFullscreen?.addEventListener('click', onTradeFullscreen)
+  cleanupFns.push(() => btnTradeFullscreen?.removeEventListener('click', onTradeFullscreen))
+
+  function captureSnapshotOrNotice() {
+    const canvas = captureChartSnapshotCanvas(chartLwc)
+    if (!canvas) {
+      showReplayNotice('Chart is not ready for a snapshot yet.')
+      return null
+    }
+    return canvas
+  }
+
+  async function runSnapshotAction(action: ChartSnapshotAction) {
+    const canvas = captureSnapshotOrNotice()
+    if (!canvas) return
+    const shareUrl = window.location.href
+    switch (action) {
+      case 'download':
+        downloadChartSnapshotCanvas(canvas, chartSnapshotFilename(currentChartSymbol))
+        showReplayNotice('Snapshot downloaded.')
+        break
+      case 'copy-image': {
+        const ok = await copyChartSnapshotCanvas(canvas)
+        showReplayNotice(ok ? 'Snapshot copied to clipboard.' : 'Could not copy image — check browser permissions.')
+        break
+      }
+      case 'copy-link': {
+        const ok = await copyChartShareLink(shareUrl)
+        showReplayNotice(ok ? 'Chart link copied.' : 'Could not copy link.')
+        break
+      }
+      case 'open-tab':
+        if (!openChartSnapshotInNewTab(canvas)) {
+          showReplayNotice('Could not open snapshot in a new tab.')
+        }
+        break
+    }
+  }
+
+  const snapshotMenu = btnTopSnapshot
+    ? createChartSnapshotMenu({
+        anchor: btnTopSnapshot,
+        onAction: (action) => {
+          void runSnapshotAction(action)
+        },
+        onOpenChange: (open) => {
+          btnTopSnapshot!.setAttribute('aria-expanded', open ? 'true' : 'false')
+          btnTopSnapshot!.classList.toggle('rw-top-snapshot--open', open)
+        },
+      })
+    : null
+
+  const onTopSnapshot = (e: MouseEvent) => {
+    e.stopPropagation()
+    snapshotMenu?.toggle()
+  }
+  btnTopSnapshot?.addEventListener('click', onTopSnapshot)
+  cleanupFns.push(() => {
+    btnTopSnapshot?.removeEventListener('click', onTopSnapshot)
+    snapshotMenu?.dispose()
+    btnTopSnapshot?.setAttribute('aria-expanded', 'false')
+    btnTopSnapshot?.classList.remove('rw-top-snapshot--open')
+  })
+
+  const onSnapshotShortcut = (e: KeyboardEvent) => {
+    if (state.disposed) return
+    const key = e.key.toLowerCase()
+    if (e.ctrlKey && e.altKey && key === 's') {
+      e.preventDefault()
+      void runSnapshotAction('download')
+    } else if (e.ctrlKey && e.shiftKey && key === 's') {
+      e.preventDefault()
+      void runSnapshotAction('copy-image')
+    } else if (e.altKey && !e.ctrlKey && !e.shiftKey && key === 's') {
+      e.preventDefault()
+      void runSnapshotAction('copy-link')
+    }
+  }
+  window.addEventListener('keydown', onSnapshotShortcut, true)
+  cleanupFns.push(() => window.removeEventListener('keydown', onSnapshotShortcut, true))
+
+  const onTopFullscreen = () => toggleChartFullscreen()
+  btnTopFullscreen?.addEventListener('click', onTopFullscreen)
+  cleanupFns.push(() => btnTopFullscreen?.removeEventListener('click', onTopFullscreen))
+
+  const onFullscreenChange = () => syncFullscreenButton()
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+  cleanupFns.push(() => document.removeEventListener('fullscreenchange', onFullscreenChange))
+
   const onHome = () => opts?.onExit?.()
   btnHome.addEventListener('click', onHome)
   cleanupFns.push(() => btnHome.removeEventListener('click', onHome))
@@ -1613,6 +2106,7 @@ export function mountChartWorkspace(
       result: backtestState.result,
       snapshot: snap,
       isFinal: false,
+      highlightTradeNum: backtestState.highlightTradeNum,
     })
     syncOrderPanelPosition()
   }
@@ -1651,7 +2145,12 @@ export function mountChartWorkspace(
   }
 
   void (async () => {
+    let selectBarChartActive = false
     let series: Awaited<ReturnType<typeof loadSessionBars>> | null = null
+    applyFeedUi({ symbol: currentChartSymbol, loading: true })
+    void fetchMarketDataHealth().then((health) => {
+      marketHealth = health
+    })
     try {
       series = await loadSessionBars(currentChartSymbol, activeSession.name, undefined, {
         startDate: activeSession.startDate,
@@ -1659,6 +2158,8 @@ export function mountChartWorkspace(
       })
     } catch (err) {
       console.error('[ChartLoad]', err)
+      marketHealth = marketHealth ?? (await fetchMarketDataHealth().catch(() => null))
+      applyFeedUi({ symbol: currentChartSymbol, loadFailed: true })
       subbarHeadEl.innerHTML = `<span style="color:#787b86">Failed to load <strong>${symUi}</strong>. Check the data feed and try another symbol from search.</span>`
       chartVolEl.innerHTML = ''
       if (replayStatusEl) replayStatusEl.textContent = 'Replay · load failed'
@@ -1671,29 +2172,59 @@ export function mountChartWorkspace(
       feedLabel = `Suplexity · ${series.dataSource}`
     }
     if (symDetailFeedEl) symDetailFeedEl.textContent = symDetailFeedTag(currentChartSymbol, feedLabel)
-    if (dataBanner && usesMarketDataSession(currentChartSymbol) && series.dataSource?.includes('synthetic')) {
-      dataBanner.hidden = false
-      dataBanner.textContent =
-        'Live market data unavailable (showing demo bars). Check historic API on 127.0.0.1:3001, TWELVE_DATA_API_KEY, and your Twelve Data plan for this symbol (silver/oil need Grow+), then reload.'
-    }
     let chartBars = filterSessionChartBars(series.bars, activeSession)
     const sessionReplayStartIndex = sessionStartReplayIndex(chartBars, activeSession.startDate)
-    if (
+    const emptyDateRange =
       chartBars.length < 8 &&
-      (activeSession.startDate?.trim() || activeSession.endDate?.trim())
-    ) {
-      if (dataBanner) {
-        dataBanner.hidden = false
-        dataBanner.textContent =
-          'No bars in the selected date range. Check that the range has market data, or adjust start/end in a new session.'
-      }
-    }
+      Boolean(activeSession.startDate?.trim() || activeSession.endDate?.trim())
+    applyFeedUi({
+      symbol: currentChartSymbol,
+      dataSource: series.dataSource,
+      barCount: series.bars.length,
+      timeframe: series.timeframe,
+      emptyDateRange,
+    })
     chartTimeframe = series.timeframe
 
+    let source1mBars = chartBars.slice()
+    let sourceTickBars: ReturnType<typeof syntheticTicksFromMinuteBars> = []
+    let canResample = inferTimeframeFromBars(source1mBars) === '1m'
+
+    function refreshTickSource() {
+      sourceTickBars = canResample ? syntheticTicksFromMinuteBars(source1mBars) : []
+    }
+    refreshTickSource()
+
+    /** Apply user default interval when session has resampleable 1m history. */
+    if (canResample) {
+      const preferred = readDefaultChartInterval()
+      const pick = resolveIntervalPick(preferred)
+      if (pick?.kind === 'time' && preferred !== '1m') {
+        const step = pick.stepSec ?? 60
+        if (step >= 60) {
+          const nextBars = step === 60 ? source1mBars.slice() : aggregateOHLCV(source1mBars, step)
+          if (nextBars.length >= 2) {
+            chartTimeframe = pick.pill
+            chartBars = nextBars
+          } else {
+            chartTimeframe = '1m'
+            chartBars = source1mBars.slice()
+          }
+        } else {
+          chartTimeframe = '1m'
+          chartBars = source1mBars.slice()
+        }
+      } else {
+        chartTimeframe = '1m'
+        chartBars = source1mBars.slice()
+      }
+    }
+
     function computeInitialVisibleForBars(bars: Bar[]) {
-      return inferTimeframeFromBars(bars) === '1m'
-        ? Math.min(TV_1M_DEFAULT_VISIBLE_BARS, Math.max(2, bars.length))
-        : undefined
+      if (chartTimeframe === '1m' || inferTimeframeFromBars(bars) === '1m') {
+        return Math.min(TV_1M_DEFAULT_VISIBLE_BARS, Math.max(2, bars.length))
+      }
+      return undefined
     }
     intervalPill.textContent = chartTimeframe
     if (replayDockTf) replayDockTf.textContent = chartTimeframe
@@ -1705,8 +2236,120 @@ export function mountChartWorkspace(
       return
     }
 
-    const replayAccount = createReplayAccount(initialCash)
+    const replayAccount = createReplayAccount(initialCash, restoredReplay?.account ?? null)
     let positionOverlay: ReturnType<typeof mountChartPositionOverlay> | null = null
+    let journalHighlightTrade: number | undefined
+    let persistReplayTimer: ReturnType<typeof setTimeout> | null = null
+    let persistPropTimer: ReturnType<typeof setTimeout> | null = null
+
+    const propRules = normalizePropRules(activeSession.propRules ?? opts?.propRules)
+    let propState: PropChallengeState =
+      opts?.propResult ?? createInitialPropState(initialCash)
+    let propTradingAllowed = activeSession.sessionType !== 'prop' || propState.status === 'active'
+
+    function flushPersistProp() {
+      if (persistPropTimer) {
+        clearTimeout(persistPropTimer)
+        persistPropTimer = null
+      }
+      if (activeSession.sessionType === 'prop') {
+        opts?.onPropStateChange?.(propState)
+      }
+    }
+
+    function schedulePersistProp() {
+      if (!opts?.onPropStateChange || activeSession.sessionType !== 'prop') return
+      if (persistPropTimer) clearTimeout(persistPropTimer)
+      persistPropTimer = setTimeout(flushPersistProp, 400)
+    }
+
+    cleanupFns.push(() => flushPersistProp())
+
+    function evaluatePropIfNeeded(b: Bar | null): boolean {
+      if (activeSession.sessionType !== 'prop') {
+        if (propBannerEl) {
+          propBannerEl.hidden = true
+          propBannerEl.innerHTML = ''
+        }
+        propTradingAllowed = true
+        return true
+      }
+
+      const mark = b?.close ?? 0
+      const barTime = b ? Number(b.time) : Math.floor(Date.now() / 1000)
+      const equity = replayAccount.summary(mark).equity
+      const prevStatus = propState.status
+      const result = evaluatePropChallenge({
+        rules: propRules,
+        state: propState,
+        equity,
+        barTimeSec: barTime,
+      })
+      propState = result.state
+      if (propBannerEl) renderPropBanner(propBannerEl, result.eval)
+
+      if (prevStatus === 'active' && propState.status !== 'active') {
+        replay.pause()
+        syncPlayBtnPaused()
+        propTradingAllowed = false
+        showReplayNotice(
+          propState.status === 'passed'
+            ? 'Prop challenge passed — replay paused. Reset account in Journal to try again.'
+            : 'Prop challenge failed — replay paused. Reset account in Journal to try again.',
+        )
+        flushPersistProp()
+      } else {
+        propTradingAllowed = propState.status === 'active'
+        if (prevStatus !== propState.status) flushPersistProp()
+        else schedulePersistProp()
+      }
+      return propTradingAllowed
+    }
+
+    function buildReplaySnapshot(): SessionReplaySnapshot {
+      return {
+        account: replayAccount.getPersisted(),
+        replayBarIndex: state.replay?.getState().index,
+        savedAt: Date.now(),
+      }
+    }
+
+    function flushPersistReplay() {
+      if (persistReplayTimer) {
+        clearTimeout(persistReplayTimer)
+        persistReplayTimer = null
+      }
+      opts?.onReplayStateChange?.(buildReplaySnapshot())
+    }
+
+    function schedulePersistReplay() {
+      if (!opts?.onReplayStateChange) return
+      if (persistReplayTimer) clearTimeout(persistReplayTimer)
+      persistReplayTimer = setTimeout(flushPersistReplay, 400)
+    }
+
+    cleanupFns.push(() => flushPersistReplay())
+
+    function renderJournalPanel(markPrice: number) {
+      const sum = replayAccount.summary(markPrice)
+      const trades = replayAccount.getClosedTrades()
+      if (journalStatsEl) {
+        renderReplayJournalStats(journalStatsEl, {
+          initialCash,
+          equity: sum.equity,
+          realizedPnL: sum.realizedPnL,
+          unrealizedPnL: sum.unrealizedPnL,
+          closedTrades: trades,
+        })
+      }
+      if (journalTradesEl) {
+        renderReplayJournal(journalTradesEl, trades, {
+          fmtPrice: formatSessionPrice,
+          highlightTradeNum: journalHighlightTrade,
+        })
+      }
+      if (btnJournalExport) btnJournalExport.hidden = !trades.length
+    }
 
     function renderManualPositionPanel(markPrice: number) {
       if (!sessionPositionEl || backtestState.result) return
@@ -1724,6 +2367,7 @@ export function mountChartWorkspace(
             <span class="rw-manual-pos__dir rw-manual-pos__dir--${p.direction}">${p.direction === 'long' ? 'Long' : 'Short'}</span>
             <span>${p.qty} @ ${formatSessionPrice(p.entryPrice)}</span>
             <span class="rw-manual-pos__pnl${up ? ' rw-manual-pos__pnl--up' : ' rw-manual-pos__pnl--down'}">${formatMoney(pnl)}</span>
+            <button type="button" class="rw-manual-pos__close" data-rw-close-pos="${p.id}" title="Close position">Close</button>
           </div>`
         })
         .join('')
@@ -1746,9 +2390,11 @@ export function mountChartWorkspace(
 
     function syncTradingUi(b: Bar | null) {
       const mark = b?.close ?? 0
+      let accountChanged = false
       if (b) {
         const { bid, ask } = bidAskFromBar(b)
-        replayAccount.processExits(Number(b.time), mark, bid, ask)
+        const closed = replayAccount.processExits(Number(b.time), mark, bid, ask)
+        if (closed.length) accountChanged = true
       }
       const sum = replayAccount.summary(mark)
       host.querySelectorAll('.rw-bal').forEach((el) => {
@@ -1763,7 +2409,11 @@ export function mountChartWorkspace(
         el.classList.toggle('rw-trade-stats__val--down', sum.unrealizedPnL < 0)
       })
       renderManualPositionPanel(mark)
+      renderJournalPanel(mark)
+      syncOrderPanelPosition()
       syncPositionOverlay(true)
+      if (accountChanged) schedulePersistReplay()
+      evaluatePropIfNeeded(b)
     }
 
     const trading = createTradingChart(chartLwc, {
@@ -1777,6 +2427,22 @@ export function mountChartWorkspace(
       state.trading = null
       return
     }
+
+    indicatorMgr = createChartIndicatorManager({ chart: trading.chart })
+    if (activeChartIndicators.length) {
+      indicatorMgr.restore(activeChartIndicators)
+      paintIndicatorBar()
+    }
+    cleanupFns.push(() => {
+      indicatorMgr?.dispose()
+      indicatorMgr = null
+    })
+
+    const chartCursorUi = mountChartCursorUi({
+      chartHost,
+      isBlocked: () => selectBarChartActive,
+    })
+    cleanupFns.push(() => chartCursorUi.dispose())
 
     const navHandlers: Array<{ el: Element; fn: () => void }> = []
     host.querySelectorAll('[data-chart-nav]').forEach((btn) => {
@@ -1931,44 +2597,63 @@ export function mountChartWorkspace(
     const legendTitle = () =>
       `${formatLegendSymbol(currentChartSymbol, currentFullName)} · ${legendTimeframeLabel(chartTimeframe)} · ${legendPlatformFeed(feedLabel)}`
 
-    function updateLegend(slice: Bar[]) {
-      const title = legendTitle()
-      const b = lastBar(slice)
-      if (!b) {
-        subbarHeadEl.innerHTML = `
-        <div class="rw-subbar__tvrow">
-          <div class="rw-subbar__sym"><span class="rw-legend-title">${title}</span></div>
-        </div>`
-        chartVolEl.innerHTML = ''
-        syncTradingUi(null)
-        updateRightPanel(null, null)
-        return
+    let legendRefs: ChartLegendOhlcRefs | null = null
+    let legendLastSlice: Bar[] = []
+    let legendHoverActive = false
+    let marketStatusPopup: ReturnType<typeof mountChartMarketStatusPopup> | null = null
+
+    function ensureLegendRefs(): ChartLegendOhlcRefs {
+      if (!legendRefs || !subbarHeadEl.querySelector('[data-rw-legend-title]')) {
+        legendRefs = mountChartLegendOhlc(subbarHeadEl)
+        if (!marketStatusPopup) {
+          marketStatusPopup = mountChartMarketStatusPopup({
+            getAnchor: () => legendRefs!.statusBtn,
+            getSymbol: () => currentChartSymbol,
+          })
+          const onMarketStatusClick = (e: MouseEvent) => {
+            e.stopPropagation()
+            marketStatusPopup?.toggle()
+          }
+          legendRefs.statusBtn.addEventListener('click', onMarketStatusClick)
+          cleanupFns.push(() => {
+            legendRefs?.statusBtn.removeEventListener('click', onMarketStatusClick)
+            marketStatusPopup?.dispose()
+            marketStatusPopup = null
+          })
+        }
       }
-      const prev = slice.length >= 2 ? slice[slice.length - 2]! : null
-      const chg = b.close - b.open
-      const pct = b.open !== 0 ? (chg / b.open) * 100 : 0
-      const up = b.close >= b.open
-      const dirClass = up ? 'rw-legend-ohlc--up' : 'rw-legend-ohlc--down'
-      const sign = chg >= 0 ? '+' : '−'
-      const pctSign = pct >= 0 ? '+' : '−'
-      const chgStr = `${sign}${formatSessionPrice(Math.abs(chg))} (${pctSign}${Math.abs(pct).toFixed(2)}%)`
-      const p = formatSessionPrice
-      /* TradingView desktop: tight OHLC string (O4,625.455 H… L… C… Δ). */
-      const ohlcTv = `O${p(b.open)} H${p(b.high)} L${p(b.low)} C${p(b.close)} ${chgStr}`
-      subbarHeadEl.innerHTML = `
-      <div class="rw-subbar__tvrow">
-        <div class="rw-subbar__sym">
-          <span class="rw-legend-title">${title}</span>
-        </div>
-        <div class="rw-subbar__ohlc rw-legend-ohlc ${dirClass}">
-          <span class="rw-legend-status" aria-hidden="true"></span>
-          <span class="rw-subbar__ohlc-txt">${ohlcTv}</span>
-        </div>
-      </div>
-    `
+      return legendRefs
+    }
+
+    function paintLegendBar(b: Bar | null, prev: Bar | null, opts?: { syncPanels?: boolean }) {
+      const refs = ensureLegendRefs()
+      updateChartLegendOhlc(refs, {
+        title: legendTitle(),
+        bar: b,
+        fmtPrice: formatSessionPrice,
+      })
+      updateChartLegendMarketStatus(refs, currentChartSymbol)
+      marketStatusPopup?.refresh()
       chartVolEl.innerHTML = ''
+      if (opts?.syncPanels === false) return
       syncTradingUi(b)
       updateRightPanel(b, prev)
+    }
+
+    function updateLegend(slice: Bar[]) {
+      legendLastSlice = slice
+      if (legendHoverActive) return
+      const b = lastBar(slice)
+      const prev = slice.length >= 2 ? slice[slice.length - 2]! : null
+      paintLegendBar(b, prev)
+    }
+
+    function resetLegendHover() {
+      if (!legendHoverActive) return
+      legendHoverActive = false
+      const b = lastBar(legendLastSlice)
+      const prev = legendLastSlice.length >= 2 ? legendLastSlice[legendLastSlice.length - 2]! : null
+      paintLegendBar(b, prev)
     }
 
     let firstChartPaint = true
@@ -1976,15 +2661,16 @@ export function mountChartWorkspace(
 
     function onReplayTick(slice: Bar[], index: number) {
       const allBars = replay.getBars()
+      const showFullSession = index >= allBars.length && slice.length === allBars.length
+      const displayBars = showFullSession ? allBars : slice
       if (state.trading) {
-        const showFullSession = index >= allBars.length && slice.length === allBars.length
         const paintOpts = {
           fit: firstChartPaint,
           initialVisibleBarCount: firstChartPaint ? computeInitialVisibleForBars(allBars) : undefined,
-          initialVisibleAnchor: firstChartPaint && activeSession.startDate?.trim() ? ('start' as const) : ('end' as const),
+          initialVisibleAnchor: 'end' as const,
           ...(firstChartPaint ? { timeAxisUtcMinutes: 5 as const } : {}),
         }
-        state.trading.setReplayData(showFullSession ? allBars : slice, allBars, paintOpts)
+        state.trading.setReplayData(displayBars, allBars, paintOpts)
         firstChartPaint = false
       }
       const cursorBar = lastBar(slice)
@@ -1999,20 +2685,45 @@ export function mountChartWorkspace(
         const mode = activeSession.sessionType === 'prop' ? 'Prop challenge' : 'Backtest'
         replayStatusEl.textContent = `${mode} · bar ${index} / ${chartBars.length} · ${feedLabel}`
       }
-      const playBtnEl = host.querySelector<HTMLButtonElement>('[data-rw="play"]')
-      setReplayPlayButtonIcon(playBtnEl, state.replay?.getState().playing ?? false)
       updateLegend(slice)
       updateSidePanelFromReplay(cursorBar)
       chartBarCount = chartBars.length
       syncReplayTransportUi(index)
       syncTradeNavUi(cursorBar ? Number(cursorBar.time) : undefined)
       syncPositionOverlay(true)
+      syncChartIndicators(allBars, displayBars)
+      schedulePersistReplay()
+      if (!(state.replay?.getState().playing ?? false)) {
+        const playBtnEl = host.querySelector<HTMLButtonElement>('[data-rw="play"]')
+        setReplayPlayButtonIcon(playBtnEl, false)
+      }
     }
 
     const replay = new ReplayController(chartBars, onReplayTick)
     replay.setLoopStartIndex(sessionReplayStartIndex)
-    replay.replaceBarsAt(chartBars, chartBars.length)
+    const savedReplayIndex = restoredReplay?.replayBarIndex
+    const initialReplayIndex =
+      savedReplayIndex != null && savedReplayIndex >= 1
+        ? Math.min(Math.round(savedReplayIndex), chartBars.length)
+        : chartBars.length
+    replay.replaceBarsAt(chartBars, initialReplayIndex)
     state.replay = replay
+    setReplayDockOpen(false)
+    requestAnimationFrame(() => state.trading?.scrollReplayCursorIntoView())
+
+    const onCrosshairMove = (param: MouseEventParams<Time>) => {
+      if (selectBarChartActive) return
+      if (param.point === undefined || param.time === undefined) {
+        resetLegendHover()
+        return
+      }
+      const hit = findBarAtTime(replay.getBars(), Number(param.time))
+      if (!hit) return
+      legendHoverActive = true
+      paintLegendBar(hit.bar, hit.prev, { syncPanels: false })
+    }
+    trading.chart.subscribeCrosshairMove(onCrosshairMove)
+    cleanupFns.push(() => trading.chart.unsubscribeCrosshairMove(onCrosshairMove))
 
     positionOverlay = mountChartPositionOverlay({
       chartHost,
@@ -2033,7 +2744,11 @@ export function mountChartWorkspace(
         const { bid, ask } = bidAskFromBar(b)
         const pos = replayAccount.getPositions().find((p) => p.id === id)
         if (!pos) return
-        replayAccount.closePosition(id, pos.direction === 'long' ? bid : ask)
+        replayAccount.closePosition(id, pos.direction === 'long' ? bid : ask, {
+          exitTime: Number(b.time),
+          exitReason: 'manual',
+        })
+        schedulePersistReplay()
         syncTradingUi(b)
       },
       onToggleTakeProfit: (id) => {
@@ -2063,14 +2778,63 @@ export function mountChartWorkspace(
     })
     syncTradingUi(lastBar(replay.slice()))
 
-    let source1mBars = chartBars.slice()
-    let sourceTickBars: ReturnType<typeof syntheticTicksFromMinuteBars> = []
-    let canResample = inferTimeframeFromBars(source1mBars) === '1m'
-
-    function refreshTickSource() {
-      sourceTickBars = canResample ? syntheticTicksFromMinuteBars(source1mBars) : []
+    const onManualPosClick = (e: Event) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-rw-close-pos]')
+      if (!btn) return
+      const id = btn.dataset.rwClosePos
+      if (!id) return
+      const b = lastBar(replay.slice())
+      if (!b) return
+      const { bid, ask } = bidAskFromBar(b)
+      const pos = replayAccount.getPositions().find((p) => p.id === id)
+      if (!pos) return
+      replayAccount.closePosition(id, pos.direction === 'long' ? bid : ask, {
+        exitTime: Number(b.time),
+        exitReason: 'manual',
+      })
+      schedulePersistReplay()
+      syncTradingUi(b)
     }
-    refreshTickSource()
+    sessionPositionEl?.addEventListener('click', onManualPosClick)
+    cleanupFns.push(() => sessionPositionEl?.removeEventListener('click', onManualPosClick))
+
+    const onJournalExport = () => {
+      exportReplayJournalCsv(
+        replayAccount.getClosedTrades(),
+        formatDisplaySymbol(currentChartSymbol).toLowerCase(),
+      )
+    }
+    btnJournalExport?.addEventListener('click', onJournalExport)
+    cleanupFns.push(() => btnJournalExport?.removeEventListener('click', onJournalExport))
+
+    const onJournalResetClick = () => {
+      void (async () => {
+        const ok = await confirmDialog({
+          title: 'Reset paper account?',
+          message:
+            'This clears all open positions and journal trades and restores your starting balance. This cannot be undone.',
+          confirmLabel: 'Reset',
+          danger: true,
+        })
+        if (!ok) return
+        replay.pause()
+        replayAccount.resetAccount()
+        journalHighlightTrade = undefined
+        if (activeSession.sessionType === 'prop') {
+          const b = lastBar(replay.slice())
+          propState = createInitialPropState(initialCash, b ? Number(b.time) : undefined)
+          propTradingAllowed = true
+          hideReplayNotice()
+          flushPersistProp()
+        }
+        flushPersistReplay()
+        syncTradingUi(lastBar(replay.slice()))
+      })()
+    }
+    btnJournalReset?.addEventListener('click', onJournalResetClick)
+    cleanupFns.push(() => btnJournalReset?.removeEventListener('click', onJournalResetClick))
+
+    let onJournalTradeClick: ((e: Event) => void) | null = null
 
     function canUseTickIntervals() {
       return canResample && sourceTickBars.length >= 8
@@ -2094,11 +2858,13 @@ export function mountChartWorkspace(
         const playBtn = host.querySelector<HTMLButtonElement>('[data-rw="play"]')
         setReplayPlayButtonIcon(playBtn, false)
         backtestState.result = null
+        backtestState.highlightTradeNum = undefined
         sidePanel?.clear()
         syncOrderPanelPosition()
         syncTradeNavUi()
         state.trading?.setTradeMarkers([])
-        if (dataBanner) dataBanner.hidden = true
+        hideReplayNotice()
+        applyFeedUi({ symbol: s, loading: true })
 
         const series = await loadSessionBars(s, activeSession.name, undefined, {
           startDate: activeSession.startDate,
@@ -2118,14 +2884,18 @@ export function mountChartWorkspace(
         paintSymbolPanel(s, feedLabel)
         renderWatchlistTable(null, null)
 
-        if (dataBanner && usesMarketDataSession(s) && series.dataSource?.includes('synthetic')) {
-          dataBanner.hidden = false
-          dataBanner.textContent =
-            'Live market data unavailable (showing demo bars). Check historic API on 127.0.0.1:3001, TWELVE_DATA_API_KEY, and your Twelve Data plan for this symbol (silver/oil need Grow+), then reload.'
-        }
-
         chartBars = filterSessionChartBars(series.bars, activeSession)
         const sessionReplayStartIndex = sessionStartReplayIndex(chartBars, activeSession.startDate)
+        const emptyDateRange =
+          chartBars.length < 8 &&
+          Boolean(activeSession.startDate?.trim() || activeSession.endDate?.trim())
+        applyFeedUi({
+          symbol: s,
+          dataSource: series.dataSource,
+          barCount: series.bars.length,
+          timeframe: series.timeframe,
+          emptyDateRange,
+        })
         chartTimeframe = series.timeframe
         intervalPill.textContent = chartTimeframe
         if (replayDockTf) replayDockTf.textContent = chartTimeframe
@@ -2167,34 +2937,135 @@ export function mountChartWorkspace(
 
     // ── Backtest engine ─────────────────────────────────────────────────────
     const btnBacktest = host.querySelector('.rw-backtest-launch') as HTMLButtonElement | null
-    const backtestStrategyToolbar = host.querySelector('[data-rw-backtest-strategy-toolbar]') as HTMLSelectElement | null
+    const strategyPanelSelect = host.querySelector('[data-rw-strategy-panel-select]') as HTMLSelectElement | null
+    const strategyBuilderHost = host.querySelector('[data-rw-strategy-builder-host]') as HTMLElement | null
 
     let activeStrategy: StrategyDefinition = EMA_CROSS
+    const savedStrategyId = opts?.lastStrategyId?.trim()
+    if (savedStrategyId) {
+      const saved = resolveStrategy(savedStrategyId)
+      if (saved) activeStrategy = saved
+    } else {
+      const defaultId = readDefaultStrategyId()
+      if (defaultId) {
+        const saved = resolveStrategy(defaultId)
+        if (saved) activeStrategy = saved
+      }
+    }
     const backtestBtnDefaultHtml = btnBacktest?.innerHTML ?? ''
 
-    const strategyOptionsHtml = BUILT_IN_STRATEGIES.map(
-      (s) => `<option value="${s.id}">${s.name}</option>`,
-    ).join('')
+    function strategyOptionsHtml(): string {
+      return listAllStrategies()
+        .map((s) => `<option value="${s.id}">${strategySelectLabel(s)}</option>`)
+        .join('')
+    }
+
+    let syncingStrategySelects = false
+
+    function setActiveStrategy(strategy: StrategyDefinition) {
+      activeStrategy = strategy
+      syncingStrategySelects = true
+      try {
+        if (strategyPanelSelect && strategyPanelSelect.value !== strategy.id) {
+          strategyPanelSelect.value = strategy.id
+        }
+      } finally {
+        syncingStrategySelects = false
+      }
+      opts?.onStrategyChange?.(strategy.id)
+    }
 
     function populateStrategySelects() {
-      if (backtestStrategyToolbar) {
-        backtestStrategyToolbar.innerHTML = strategyOptionsHtml
-        backtestStrategyToolbar.value = activeStrategy.id
+      const html = strategyOptionsHtml()
+      if (strategyPanelSelect) {
+        strategyPanelSelect.innerHTML = html
+        strategyPanelSelect.value = activeStrategy.id
       }
     }
 
     populateStrategySelects()
 
-    onPineAddToChart = (_script, strategyId) => {
-      if (!strategyId || !backtestStrategyToolbar) return
-      backtestStrategyToolbar.value = strategyId
-      syncActiveStrategyFromSelect()
+    let strategyBuilder: ReturnType<typeof mountStrategyBuilder> | null = null
+    const mountStrategyBuilderDeferred = () => {
+      if (state.disposed || !strategyBuilderHost || strategyBuilder) return
+      strategyBuilder = mountStrategyBuilder({
+        host: strategyBuilderHost,
+        mode: 'panel',
+        initialStrategy: activeStrategy,
+        onSave: (saved) => {
+          populateStrategySelects()
+          setActiveStrategy(saved)
+          strategyBuilder?.loadStrategy(saved)
+        },
+        onDelete: () => {
+          populateStrategySelects()
+          const fallback = resolveStrategy(EMA_CROSS.id) ?? EMA_CROSS
+          setActiveStrategy(fallback)
+          strategyBuilder?.loadStrategy(fallback)
+        },
+        onRunBacktest: (strategy) => {
+          let next = strategy
+          if (strategy.id.startsWith('custom_')) {
+            next = saveCustomStrategy(strategy)
+            populateStrategySelects()
+            strategyBuilder?.loadStrategy(next)
+          }
+          setActiveStrategy(next)
+          runAndShowBacktest()
+        },
+      })
+      cleanupFns.push(() => strategyBuilder?.dispose())
     }
+    const scheduleStrategyBuilderMount = () => {
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(() => mountStrategyBuilderDeferred(), { timeout: 1200 })
+      } else {
+        setTimeout(mountStrategyBuilderDeferred, 0)
+      }
+    }
+    scheduleStrategyBuilderMount()
 
     function syncActiveStrategyFromSelect() {
-      const id = backtestStrategyToolbar?.value
-      const found = BUILT_IN_STRATEGIES.find((s) => s.id === id)
-      if (found) activeStrategy = found
+      if (syncingStrategySelects) return
+      const id = strategyPanelSelect?.value
+      const found = id ? resolveStrategy(id) : null
+      if (!found || found.id === activeStrategy.id) return
+      setActiveStrategy(found)
+      strategyBuilder?.loadStrategy(found)
+    }
+
+    const onPanelStrategyChange = () => syncActiveStrategyFromSelect()
+    strategyPanelSelect?.addEventListener('change', onPanelStrategyChange)
+    cleanupFns.push(() => {
+      strategyPanelSelect?.removeEventListener('change', onPanelStrategyChange)
+    })
+
+    onPineAddToChart = (_script, strategyId) => {
+      mountStrategyBuilderDeferred()
+      if (strategyId) {
+        const found = resolveStrategy(strategyId)
+        if (found) {
+          setActiveStrategy(found)
+          strategyBuilder?.loadStrategy(found)
+          openSidePanel('strategy')
+          showReplayNotice(
+            `Loaded “${found.name}” from your Pine script keywords. Edit rules in Strategy builder, then run Backtest.`,
+          )
+          return
+        }
+      }
+      void confirmDialog({
+        title: 'Pine Script not supported',
+        message:
+          'Suplexity does not run Pine Script on the chart. Use the visual Strategy builder to define entry and exit rules, then run a backtest.',
+        confirmLabel: 'Open Strategy builder',
+        cancelLabel: 'Close',
+      }).then((openBuilder) => {
+        if (!openBuilder) return
+        mountStrategyBuilderDeferred()
+        openSidePanel('strategy')
+        showReplayNotice('Define entry and exit rules below, then press Run backtest.')
+      })
     }
 
     function barsForBacktest(): Bar[] {
@@ -2248,6 +3119,7 @@ export function mountChartWorkspace(
         console.log('Backtest done:', result.summary)
 
         backtestState.result = result
+        backtestState.highlightTradeNum = undefined
         ;(window as unknown as { __backtestResult?: BacktestResult }).__backtestResult = result
         showFullChartForBacktest(bars, replayStartBar)
         replay.setLoopStartIndex(replayStartBar)
@@ -2265,6 +3137,13 @@ export function mountChartWorkspace(
           result,
           runningSummary: result.summary,
           isFinal: true,
+        })
+        opts?.onBacktestComplete?.({
+          netPnl: result.summary.netPnl,
+          totalTrades: result.summary.totalTrades,
+          winRate: result.summary.winRate,
+          strategyId: activeStrategy.id,
+          ranAt: Date.now(),
         })
         syncOrderPanelPosition()
         openSidePanel('backtest')
@@ -2293,9 +3172,61 @@ export function mountChartWorkspace(
     btnBacktestRerun?.addEventListener('click', onBacktestRerunClick)
     cleanupFns.push(() => btnBacktestRerun?.removeEventListener('click', onBacktestRerunClick))
 
-    const onStrategyToolbarChange = () => syncActiveStrategyFromSelect()
-    backtestStrategyToolbar?.addEventListener('change', onStrategyToolbarChange)
-    cleanupFns.push(() => backtestStrategyToolbar?.removeEventListener('change', onStrategyToolbarChange))
+    if (opts?.autoRunBacktest) {
+      requestAnimationFrame(() => {
+        if (!state.disposed && chartBars.length >= 50) runAndShowBacktest()
+      })
+    }
+
+    function seekToTrade(tradeNum: number) {
+      const result = backtestState.result
+      if (!result) return
+      const trade = result.trades.find((t) => t.tradeNum === tradeNum)
+      if (!trade) return
+      backtestState.highlightTradeNum = tradeNum
+      const bars = replay.getBars()
+      const idx = barIndexAtOrBeforeTime(bars, trade.entryTime)
+      void seekReplayToIndex(idx, false)
+      sidePanel?.update({
+        result,
+        isFinal: true,
+        highlightTradeNum: tradeNum,
+      })
+      if (state.trading) {
+        state.trading.setTradeMarkers(tradeMarkersUpToTime(result, trade.entryTime))
+      }
+    }
+
+    const onTradeLogClick = (e: Event) => {
+      const row = (e.target as Element | null)?.closest<HTMLElement>('[data-bt-trade-num]')
+      if (!row || !sessionTradesEl?.contains(row)) return
+      const num = Number.parseInt(row.getAttribute('data-bt-trade-num') ?? '', 10)
+      if (!Number.isFinite(num)) return
+      seekToTrade(num)
+    }
+
+    const onTradeLogKeydown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return
+      const row = (e.target as Element | null)?.closest<HTMLElement>('[data-bt-trade-num]')
+      if (!row || !sessionTradesEl?.contains(row)) return
+      e.preventDefault()
+      const num = Number.parseInt(row.getAttribute('data-bt-trade-num') ?? '', 10)
+      if (!Number.isFinite(num)) return
+      seekToTrade(num)
+    }
+
+    sessionTradesEl?.addEventListener('click', onTradeLogClick)
+    sessionTradesEl?.addEventListener('keydown', onTradeLogKeydown)
+    cleanupFns.push(() => {
+      sessionTradesEl?.removeEventListener('click', onTradeLogClick)
+      sessionTradesEl?.removeEventListener('keydown', onTradeLogKeydown)
+    })
+
+    const onTradeExportClick = () => {
+      if (backtestState.result?.trades.length) exportTradesCsv(backtestState.result)
+    }
+    btnTradeExport?.addEventListener('click', onTradeExportClick)
+    cleanupFns.push(() => btnTradeExport?.removeEventListener('click', onTradeExportClick))
 
     let syncTimeframe = true
 
@@ -2326,9 +3257,11 @@ export function mountChartWorkspace(
       chartTimeframe = pick.pill
       intervalPill.textContent = pick.pill
       if (replayDockTf) replayDockTf.textContent = pick.pill
+      paintIntervalFavorites(applyIntervalPick, onIntervalPrefsChange)
       firstChartPaint = true
       state.trading?.setTradeMarkers([])
       backtestState.result = null
+      backtestState.highlightTradeNum = undefined
       sidePanel?.clear()
       syncOrderPanelPosition()
       syncTradeNavUi()
@@ -2339,14 +3272,56 @@ export function mountChartWorkspace(
       requestAnimationFrame(() => state.trading?.scrollReplayCursorIntoView())
     }
 
+    function paintIntervalFavorites(
+      onPick: (pick: IntervalPick) => void,
+      onPrefsChange?: () => void,
+    ) {
+      if (!intervalFavsEl) return
+      const favs = getFavoriteIntervals()
+      intervalFavsEl.innerHTML = ''
+      if (!favs.length) {
+        intervalFavsEl.hidden = true
+        return
+      }
+      intervalFavsEl.hidden = false
+      for (const pick of favs) {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'rw-pill-btn rw-interval-fav'
+        btn.textContent = pick.pill
+        btn.title = `${pick.label} — double-click to remove from favorites`
+        btn.classList.toggle('rw-interval-fav--active', pick.pill === chartTimeframe)
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation()
+          onPick(pick)
+        })
+        btn.addEventListener('dblclick', (e) => {
+          e.stopPropagation()
+          e.preventDefault()
+          removeFavoriteInterval(pick.pill)
+          paintIntervalFavorites(onPick, onPrefsChange)
+          onPrefsChange?.()
+        })
+        intervalFavsEl.appendChild(btn)
+      }
+    }
+
+    const onIntervalPrefsChange = () => {
+      paintIntervalFavorites(applyIntervalPick, onIntervalPrefsChange)
+      intervalMenu.refreshPreferences()
+    }
+
     const intervalMenu = createChartIntervalMenu({
       anchor: intervalPill,
       getSelectedPill: () => chartTimeframe,
       canResampleFrom1m: () => canResample,
       canUseTicks: () => canUseTickIntervals(),
       onSelect: (p) => applyIntervalPick(p),
+      onPreferencesChange: onIntervalPrefsChange,
       onOpenChange: (v) => intervalPill.setAttribute('aria-expanded', v ? 'true' : 'false'),
     })
+
+    onIntervalPrefsChange()
 
     const replayIntervalMenu = replayIntervalBtn
       ? createChartIntervalMenu({
@@ -2394,12 +3369,13 @@ export function mountChartWorkspace(
     function resolveReplayPickIndex(y: number, m0: number, d: number, hh: number, mm: number): number {
       const bars = replay.getBars()
       const { index, clamped } = findReplayBarIndex(bars, y, m0, d, hh, mm)
-      if (clamped && dataBanner) {
+      if (clamped) {
         const lastBar = bars[bars.length - 1]
-        dataBanner.hidden = false
-        dataBanner.textContent = lastBar
-          ? `Selected moment is beyond loaded candles (last bar ${formatChartCrosshairTime(lastBar.time)}). Jumped to the closest available bar.`
-          : 'No candles loaded for the selected date.'
+        showReplayNotice(
+          lastBar
+            ? `Selected moment is beyond loaded candles (last bar ${formatChartCrosshairTime(lastBar.time)}). Jumped to the closest available bar.`
+            : 'No candles loaded for the selected date.',
+        )
       }
       return index
     }
@@ -2429,6 +3405,23 @@ export function mountChartWorkspace(
       }
     }
 
+    onJournalTradeClick = (e: Event) => {
+      const row = (e.target as HTMLElement).closest<HTMLElement>('[data-replay-trade-num]')
+      if (!row) return
+      const tradeNum = Number(row.dataset.replayTradeNum)
+      if (!Number.isFinite(tradeNum)) return
+      const trade = replayAccount.getClosedTrades().find((t) => t.tradeNum === tradeNum)
+      if (!trade) return
+      journalHighlightTrade = tradeNum
+      const idx = barIndexAtOrBeforeTime(replay.getBars(), trade.entryTime)
+      if (idx >= 1) void seekReplayToIndex(idx, false)
+      renderJournalPanel(lastBar(replay.slice())?.close ?? 0)
+    }
+    journalTradesEl?.addEventListener('click', onJournalTradeClick)
+    cleanupFns.push(() => {
+      if (onJournalTradeClick) journalTradesEl?.removeEventListener('click', onJournalTradeClick)
+    })
+
     function formatLocalPickLabel(sec: number): string {
       const d = new Date(Number(sec) * 1000)
       const wk = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()]!
@@ -2442,7 +3435,6 @@ export function mountChartWorkspace(
       return `Re: ${wk} ${day} ${mon} '${y2} ${hh}:${mm}`
     }
 
-    let selectBarChartActive = false
     let replaySelectMode: 'bar' | 'date' = 'date'
     let lastPointerClientX: number | null = null
     let lastPointerClientY: number | null = null
@@ -2616,6 +3608,8 @@ export function mountChartWorkspace(
         const slice = replay.slice()
         onReplayTick(slice, replay.getState().index)
       }
+      chartCursorUi.refresh()
+      resetLegendHover()
     }
 
     function openSelectBarChartMode() {
@@ -2641,6 +3635,8 @@ export function mountChartWorkspace(
       pickStableIdx = Math.max(0, Math.min(maxPickBarIndex(), replay.getState().index - 1))
       setSelectBarPointerInChart(false)
       state.trading?.clearReplayPickPreview()
+      chartCursorUi.refresh()
+      legendHoverActive = false
     }
 
     function toggleSelectBarChartMode() {
@@ -2962,8 +3958,8 @@ export function mountChartWorkspace(
         state.replay?.setSpeedIndex(idx)
         syncReplaySpeedUi(idx)
       }
-      const showSpeedBubble = () => replaySpeedWrap.classList.add('rw-replay-dock__speed-wrap--active')
-      const hideSpeedBubble = () => replaySpeedWrap.classList.remove('rw-replay-dock__speed-wrap--active')
+      const showSpeedBubble = () => showReplaySpeedBubble(true)
+      const hideSpeedBubble = () => hideReplaySpeedBubble()
       replaySpeed.addEventListener('input', onSpeedInput)
       replaySpeed.addEventListener('pointerdown', showSpeedBubble)
       replaySpeed.addEventListener('pointerup', hideSpeedBubble)
@@ -2975,7 +3971,19 @@ export function mountChartWorkspace(
         replaySpeed!.removeEventListener('pointerup', hideSpeedBubble)
         replaySpeed!.removeEventListener('pointercancel', hideSpeedBubble)
         replaySpeed!.removeEventListener('blur', hideSpeedBubble)
+        hideReplaySpeedBubble()
       })
+    }
+
+    if (replaySpeedDown) {
+      const onSpeedDown = () => bumpReplaySpeed(-1)
+      replaySpeedDown.addEventListener('click', onSpeedDown)
+      cleanupFns.push(() => replaySpeedDown.removeEventListener('click', onSpeedDown))
+    }
+    if (replaySpeedUp) {
+      const onSpeedUp = () => bumpReplaySpeed(1)
+      replaySpeedUp.addEventListener('click', onSpeedUp)
+      cleanupFns.push(() => replaySpeedUp.removeEventListener('click', onSpeedUp))
     }
 
     if (replaySyncTf) {
@@ -3013,6 +4021,7 @@ export function mountChartWorkspace(
       state.trading?.clearReplayPickPreview()
       state.trading?.setTradeMarkers([])
       backtestState.result = null
+      backtestState.highlightTradeNum = undefined
       sidePanel?.clear()
       syncOrderPanelPosition()
       syncTradeNavUi()
@@ -3042,7 +4051,7 @@ export function mountChartWorkspace(
         source1mBars = chartBars.slice()
         canResample = inferTimeframeFromBars(source1mBars) === '1m'
         refreshTickSource()
-        if (dataBanner) dataBanner.hidden = true
+        hideReplayNotice()
 
         if (canResample && chartTimeframe !== '1m') {
           applyIntervalPick({ pill: '1m', kind: 'time', stepSec: 60, label: '1 minute' })
@@ -3081,15 +4090,32 @@ export function mountChartWorkspace(
     chartBarCount = chartBars.length
     syncReplayTransportUi(replay.getState().index)
 
+    const playBtnEl = host.querySelector<HTMLButtonElement>('[data-rw="play"]')
+    if (playBtnEl) {
+      const onPlayPointerDown = (e: PointerEvent) => {
+        if (e.button !== 0) return
+        e.preventDefault()
+        e.stopPropagation()
+        const wasPlaying = replay.getState().playing
+        if (wasPlaying) {
+          replay.pause()
+          syncChartIndicators(replay.getBars(), replay.slice())
+          setReplayPlayButtonIcon(playBtnEl, false)
+        } else {
+          replay.play()
+          setReplayPlayButtonIcon(playBtnEl, true)
+        }
+      }
+      playBtnEl.addEventListener('pointerdown', onPlayPointerDown, true)
+      cleanupFns.push(() => playBtnEl.removeEventListener('pointerdown', onPlayPointerDown, true))
+    }
+
     const replayHandlers: Array<{ el: Element; fn: () => void }> = []
     host.querySelectorAll('[data-rw-replay-dock] [data-rw]').forEach((btn) => {
+      if ((btn as HTMLElement).dataset.rw === 'play') return
       const fn = () => {
         const act = (btn as HTMLElement).dataset.rw
-        const playBtn = host.querySelector<HTMLButtonElement>('[data-rw="play"]')
-        if (act === 'play') {
-          replay.togglePlay()
-          setReplayPlayButtonIcon(playBtn, replay.getState().playing)
-        } else if (act === 'start') {
+        if (act === 'start') {
           seekReplayToIndex(replay.getState().loopStartIndex)
         } else if (act === 'back') {
           seekReplayToIndex(replay.getState().index - 1, false)
@@ -3137,7 +4163,12 @@ export function mountChartWorkspace(
         const sp = document.activeElement as HTMLElement | null
         if (sp?.closest?.('[data-rw-replay-interval-toggle]')) return
         e.preventDefault()
-        replay.togglePlay()
+        const wasPlaying = replay.getState().playing
+        if (wasPlaying) replay.pause()
+        else replay.play()
+        if (wasPlaying) {
+          syncChartIndicators(replay.getBars(), replay.slice())
+        }
         const playBtn = host.querySelector<HTMLButtonElement>('[data-rw="play"]')
         setReplayPlayButtonIcon(playBtn, replay.getState().playing)
         return
@@ -3156,25 +4187,49 @@ export function mountChartWorkspace(
     cleanupFns.push(() => window.removeEventListener('keydown', onReplayKeydown, true))
 
     const onBuy = () => {
+      if (!propTradingAllowed) {
+        showReplayNotice(
+          'Prop challenge is no longer active — reset the account in Journal to start over.',
+        )
+        return
+      }
       const b = lastBar(replay.slice())
       if (!b) return
       const { ask } = bidAskFromBar(b)
-      const opened = replayAccount.openLong(readOrderQty(), ask, Number(b.time))
+      const qty = readOrderQty()
+      const cost = longOrderCost(qty, ask)
+      const { cash } = replayAccount.summary(ask)
+      const opened = replayAccount.openLong(qty, ask, Number(b.time))
       if (!opened) {
-        window.alert('Insufficient balance for this order.')
+        showReplayNotice(
+          `Insufficient cash for long order. Need ${formatMoney(cost)} (${qty} × ${formatSessionPrice(ask)}), available ${formatMoney(cash)}.`,
+        )
         return
       }
+      schedulePersistReplay()
       syncTradingUi(b)
     }
     const onSell = () => {
+      if (!propTradingAllowed) {
+        showReplayNotice(
+          'Prop challenge is no longer active — reset the account in Journal to start over.',
+        )
+        return
+      }
       const b = lastBar(replay.slice())
       if (!b) return
       const { bid } = bidAskFromBar(b)
-      const opened = replayAccount.openShort(readOrderQty(), bid, Number(b.time))
+      const qty = readOrderQty()
+      const margin = shortOrderMargin(qty, bid)
+      const { cash } = replayAccount.summary(bid)
+      const opened = replayAccount.openShort(qty, bid, Number(b.time))
       if (!opened) {
-        window.alert('Insufficient margin for this order.')
+        showReplayNotice(
+          `Insufficient margin for short order. Need ${formatMoney(margin)} (5% of ${qty} × ${formatSessionPrice(bid)}), available ${formatMoney(cash)}.`,
+        )
         return
       }
+      schedulePersistReplay()
       syncTradingUi(b)
     }
     ticketBuy.addEventListener('click', onBuy)
@@ -3182,15 +4237,16 @@ export function mountChartWorkspace(
     cleanupFns.push(() => ticketBuy.removeEventListener('click', onBuy))
     cleanupFns.push(() => ticketSell.removeEventListener('click', onSell))
 
-    const tzLabel = localTimezoneLabel()
+    const tzLabel = 'UTC'
 
     function tickClock() {
       const d = new Date()
-      const clockStr = d.toLocaleTimeString(undefined, {
+      const clockStr = d.toLocaleTimeString('en-GB', {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
         hour12: false,
+        timeZone: 'UTC',
       })
       if (clockEl) clockEl.textContent = `${clockStr} ${tzLabel}`
     }
@@ -3212,6 +4268,7 @@ export function mountChartWorkspace(
         paintedWithNonZeroHost = true
         firstChartPaint = true
         onReplayTick(replay.slice(), replay.getState().index)
+        requestAnimationFrame(() => state.trading?.scrollReplayCursorIntoView())
       }
     })
     state.ro = ro

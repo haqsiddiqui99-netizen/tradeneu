@@ -1,0 +1,109 @@
+/* In-app confirm dialog (dashboard delete, etc.) */
+
+.sx-confirm-dlg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 1.25rem;
+  border: none;
+  background: transparent;
+  overflow: visible;
+  z-index: 200;
+}
+
+.sx-confirm-dlg::backdrop {
+  background: rgba(10, 6, 18, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.sx-confirm-dlg:not([open]) {
+  display: none !important;
+}
+
+.sx-confirm-dlg[open] {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.sx-confirm-dlg__panel {
+  width: min(22rem, 100%);
+  padding: 1.25rem 1.35rem 1.15rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(165deg, #16121f 0%, #0f0b16 100%);
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #f4f4f5;
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+}
+
+.sx-confirm-dlg__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.sx-confirm-dlg__message {
+  margin: 0 0 1.15rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: #a1a1aa;
+}
+
+.sx-confirm-dlg__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.sx-confirm-dlg__btn {
+  min-width: 5.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.625rem;
+  border: 1px solid transparent;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.sx-confirm-dlg__btn--cancel {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e4e4e7;
+}
+
+.sx-confirm-dlg__btn--cancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sx-confirm-dlg__btn--confirm {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+  color: #fff;
+}
+
+.sx-confirm-dlg__btn--confirm:hover {
+  filter: brightness(1.08);
+}
+
+.sx-confirm-dlg__btn--confirm.sx-confirm-dlg__btn--danger {
+  border-color: rgba(244, 63, 94, 0.45);
+  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+}
+
+.sx-confirm-dlg__btn:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.65);
+  outline-offset: 2px;
+}

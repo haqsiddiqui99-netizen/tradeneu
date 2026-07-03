@@ -2,7 +2,8 @@
 
 .rw-intmenu[data-chart-theme='light'],
 .rw-ctmenu[data-chart-theme='light'],
-.rw-goto-menu[data-chart-theme='light'] {
+.rw-goto-menu[data-chart-theme='light'],
+.rw-snapmenu[data-chart-theme='light'] {
   --rw-menu-bg: #ffffff;
   --rw-menu-border: #e0e3eb;
   --rw-menu-text: #131722;
@@ -23,7 +24,8 @@
 
 .rw-intmenu[data-chart-theme='dark'],
 .rw-ctmenu[data-chart-theme='dark'],
-.rw-goto-menu[data-chart-theme='dark'] {
+.rw-goto-menu[data-chart-theme='dark'],
+.rw-snapmenu[data-chart-theme='dark'] {
   --rw-menu-bg: #1e222d;
   --rw-menu-border: rgba(255, 255, 255, 0.12);
   --rw-menu-text: #d1d4dc;

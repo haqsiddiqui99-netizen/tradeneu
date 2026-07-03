@@ -13,11 +13,17 @@ import {
   type CatalogAsset,
 } from './assetCatalog'
 import type { SessionCreatedPayload } from './sessionTypes'
+import { DEFAULT_PROP_RULES, normalizePropRules } from './prop/propRuleEngine'
 import {
   closeSessionDatetimePicker,
   isSessionDatetimePickerOpen,
   openSessionDatetimePicker,
 } from './sessionDatetimePicker'
+import { fetchMarketDataHealth } from './data/marketDataHealth'
+import {
+  buildCoverageFallbackHint,
+  buildSessionModalHealthMessage,
+} from './data/sessionModalHealth'
 
 export type { SessionCreatedPayload } from './sessionTypes'
 
@@ -124,9 +130,14 @@ function el(html: string) {
 
 export type SessionModalOpenOpts = {
   sessionType?: 'backtest' | 'prop'
+  /** When set, submit updates an existing session instead of creating one. */
+  editSessionId?: string
   /** Pre-fill fields when resuming a saved draft (e.g. from dashboard). */
   draft?: Partial<
-    Pick<SessionCreatedPayload, 'name' | 'balance' | 'assets' | 'layout' | 'sessionType' | 'startDate' | 'endDate'>
+    Pick<
+      SessionCreatedPayload,
+      'name' | 'balance' | 'assets' | 'layout' | 'sessionType' | 'startDate' | 'endDate' | 'propRules'
+    >
   >
 }
 
@@ -154,7 +165,9 @@ const CATEGORY_ORDER: AssetCategory[] = [
 
 export function createSessionModal(options?: {
   onSessionCreate?: (payload: SessionCreatedPayload) => void
+  onSessionUpdate?: (id: string, payload: SessionCreatedPayload) => void
 }) {
+  let editingSessionId: string | null = null
   const wrap = el(`
     <div class="sx-modal" id="sx-session-modal" hidden>
       <div class="sx-modal__backdrop" data-close="backdrop"></div>
@@ -181,6 +194,9 @@ export function createSessionModal(options?: {
           </button>
         </div>
 
+        <div class="sx-modal__health" id="sx-session-health-banner" hidden role="status"></div>
+        <div class="sx-modal__health sx-modal__health--muted" id="sx-session-coverage-hint" hidden role="status"></div>
+
         <div class="sx-modal__scroll">
           <div class="sx-modal__body">
             <div class="sx-field">
@@ -205,6 +221,25 @@ export function createSessionModal(options?: {
                   </svg>
                 </span>
                 <input type="text" id="sx-session-balance" class="sx-input sx-input--with-prefix" inputmode="numeric" value="100000" />
+              </div>
+            </div>
+
+            <div class="sx-prop-rules" id="sx-prop-rules" hidden>
+              <h3 class="sx-prop-rules__title">Prop challenge rules</h3>
+              <p class="sx-prop-rules__hint">Limits are checked on each replay bar against your paper account equity.</p>
+              <div class="sx-prop-rules__grid">
+                <div class="sx-field sx-field--compact">
+                  <label class="sx-label" for="sx-prop-profit">Profit target (%)</label>
+                  <input type="number" id="sx-prop-profit" class="sx-input" min="1" max="100" step="0.5" value="10" />
+                </div>
+                <div class="sx-field sx-field--compact">
+                  <label class="sx-label" for="sx-prop-drawdown">Max drawdown (%)</label>
+                  <input type="number" id="sx-prop-drawdown" class="sx-input" min="0.5" max="50" step="0.5" value="5" />
+                </div>
+                <div class="sx-field sx-field--compact">
+                  <label class="sx-label" for="sx-prop-daily">Max daily loss (%)</label>
+                  <input type="number" id="sx-prop-daily" class="sx-input" min="0.5" max="20" step="0.5" value="2" />
+                </div>
               </div>
             </div>
 
@@ -357,6 +392,10 @@ export function createSessionModal(options?: {
   const segBtns = wrap.querySelectorAll<HTMLButtonElement>('.sx-modal__seg-btn')
   const nameInput = wrap.querySelector('#sx-session-name') as HTMLInputElement
   const balanceInput = wrap.querySelector('#sx-session-balance') as HTMLInputElement
+  const propRulesWrap = wrap.querySelector('#sx-prop-rules') as HTMLElement
+  const propProfitInput = wrap.querySelector('#sx-prop-profit') as HTMLInputElement
+  const propDrawdownInput = wrap.querySelector('#sx-prop-drawdown') as HTMLInputElement
+  const propDailyInput = wrap.querySelector('#sx-prop-daily') as HTMLInputElement
   const layoutSelect = wrap.querySelector('#sx-session-layout') as HTMLSelectElement
   const nameErr = wrap.querySelector('#sx-session-name-err')!
   const assetsErr = wrap.querySelector('#sx-session-assets-err')!
@@ -384,7 +423,38 @@ export function createSessionModal(options?: {
   const autoEndSwitch = wrap.querySelector('#sx-session-auto-end') as HTMLButtonElement
   const startHint = wrap.querySelector('#sx-session-start-hint') as HTMLElement
   const endHint = wrap.querySelector('#sx-session-end-hint') as HTMLElement
+  const healthBanner = wrap.querySelector('#sx-session-health-banner') as HTMLElement
+  const coverageHint = wrap.querySelector('#sx-session-coverage-hint') as HTMLElement
   const modalScroll = wrap.querySelector('.sx-modal__scroll') as HTMLElement | null
+
+  const isProd = import.meta.env.PROD
+
+  let marketHealthCache: Awaited<ReturnType<typeof fetchMarketDataHealth>> | null = null
+
+  async function syncHealthBanner() {
+    if (!healthBanner) return
+    if (!marketHealthCache) marketHealthCache = await fetchMarketDataHealth()
+    const msg = buildSessionModalHealthMessage(marketHealthCache, selectedSymbols, isProd)
+    if (msg) {
+      healthBanner.hidden = false
+      healthBanner.textContent = msg
+    } else {
+      healthBanner.hidden = true
+      healthBanner.textContent = ''
+    }
+  }
+
+  function syncCoverageHint() {
+    if (!coverageHint) return
+    const hint = buildCoverageFallbackHint(barCoverage.minIso)
+    if (hint && selectedSymbols.length > 0) {
+      coverageHint.hidden = false
+      coverageHint.textContent = hint
+    } else {
+      coverageHint.hidden = true
+      coverageHint.textContent = ''
+    }
+  }
 
   let barCoverage: BarCoverageBounds = fallbackBarCoverage()
   let coverageRequestId = 0
@@ -412,6 +482,7 @@ export function createSessionModal(options?: {
     barCoverage = bounds
     applyDateBounds()
     clampDatesToCoverage()
+    syncCoverageHint()
     syncSubmit()
   }
 
@@ -698,6 +769,8 @@ export function createSessionModal(options?: {
     syncAssetTags()
     renderAssetList()
     void refreshBarCoverage()
+    void syncHealthBanner()
+    closeAssetPanel()
   }
 
   function removeAsset(symbol: string) {
@@ -706,6 +779,7 @@ export function createSessionModal(options?: {
     syncAssetTags()
     renderAssetList()
     void refreshBarCoverage()
+    void syncHealthBanner()
   }
 
   function clearAssetSelection() {
@@ -713,6 +787,7 @@ export function createSessionModal(options?: {
     syncAssetTags()
     renderAssetList()
     void refreshBarCoverage()
+    void syncHealthBanner()
   }
 
   function openAssetPanel() {
@@ -773,6 +848,22 @@ export function createSessionModal(options?: {
       const on = b.dataset.seg === type
       b.classList.toggle('sx-modal__seg-btn--on', on)
     })
+    if (propRulesWrap) propRulesWrap.hidden = type !== 'prop'
+  }
+
+  function readPropRulesFromForm(): SessionCreatedPayload['propRules'] {
+    return normalizePropRules({
+      profitTargetPct: Number(propProfitInput?.value),
+      maxDrawdownPct: Number(propDrawdownInput?.value),
+      maxDailyLossPct: Number(propDailyInput?.value),
+    })
+  }
+
+  function applyPropRulesToForm(rules?: SessionCreatedPayload['propRules'] | null) {
+    const r = normalizePropRules(rules ?? DEFAULT_PROP_RULES)
+    if (propProfitInput) propProfitInput.value = String(r.profitTargetPct)
+    if (propDrawdownInput) propDrawdownInput.value = String(r.maxDrawdownPct)
+    if (propDailyInput) propDailyInput.value = String(r.maxDailyLossPct)
   }
 
   segBtns.forEach((b) => {
@@ -916,7 +1007,7 @@ export function createSessionModal(options?: {
       }
     }
     if (autoEndSwitch.getAttribute('aria-checked') === 'true') {
-      assignEndValue(maxDt)
+      assignEndValue(maxDt, false)
     }
     syncSubmit()
   })
@@ -983,13 +1074,14 @@ export function createSessionModal(options?: {
     const next = autoEndSwitch.getAttribute('aria-checked') !== 'true'
     setAutoEndOn(next)
     if (next) {
+      syncDateControlsDisabledState()
       const maxDt = barCoverage.maxDatetimeLocal
-      assignEndValue(maxDt)
+      assignEndValue(maxDt, false)
       const s = startDateInput.value
       const ds = s ? new Date(s) : null
       const dm = new Date(maxDt)
       if (ds && !Number.isNaN(ds.getTime()) && !Number.isNaN(dm.getTime()) && ds > dm) {
-        assignStartValue(maxDt)
+        assignStartValue(maxDt, false)
       }
     }
     clearDatesError()
@@ -998,6 +1090,7 @@ export function createSessionModal(options?: {
   })
 
   function close() {
+    editingSessionId = null
     closeSessionDatetimePicker()
     closeAssetPanel()
     wrap.setAttribute('hidden', '')
@@ -1022,11 +1115,18 @@ export function createSessionModal(options?: {
     }
   }
 
+  const modalTitle = wrap.querySelector('#sx-modal-title') as HTMLElement | null
+
   function open(opts?: SessionModalOpenOpts) {
+    editingSessionId = opts?.editSessionId?.trim() || null
+    if (modalTitle) {
+      modalTitle.textContent = editingSessionId ? 'Edit session' : 'Create a quick session'
+    }
     const d = opts?.draft
     const seg: 'backtest' | 'prop' =
       d?.sessionType === 'prop' || opts?.sessionType === 'prop' ? 'prop' : 'backtest'
     setSeg(seg)
+    applyPropRulesToForm(d?.propRules)
     nameInput.value = d?.name?.trim() ?? ''
     balanceInput.value = d?.balance?.trim() || '100000'
     layoutSelect.value = d?.layout ?? ''
@@ -1072,6 +1172,7 @@ export function createSessionModal(options?: {
     renderAssetList()
     syncSubmit()
     void refreshBarCoverage()
+    void syncHealthBanner()
     wrap.removeAttribute('hidden')
     document.body.classList.add('sx-modal-open')
     document.addEventListener('keydown', onKey)
@@ -1132,8 +1233,13 @@ export function createSessionModal(options?: {
       sessionType: sessionType === 'prop' ? 'prop' : 'backtest',
       startDate: s,
       endDate: e,
+      ...(sessionType === 'prop' ? { propRules: readPropRulesFromForm() } : {}),
     }
-    options?.onSessionCreate?.(payload)
+    if (editingSessionId) {
+      options?.onSessionUpdate?.(editingSessionId, payload)
+    } else {
+      options?.onSessionCreate?.(payload)
+    }
     close()
   })
 

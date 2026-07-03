@@ -1,10 +1,10 @@
-/* TradingView-style interval dropdown (anchored under the interval pill). */
+/* FXReplay-style compact interval dropdown (anchored under the interval pill). */
 
 .rw-intmenu {
   position: fixed;
   z-index: var(--rw-z-popover);
-  min-width: 220px;
-  max-width: 260px;
+  min-width: 154px;
+  max-width: 182px;
   max-height: min(78vh, 560px);
   display: none;
   flex-direction: column;
@@ -12,7 +12,7 @@
   margin: 0;
   list-style: none;
   font-family: var(--rw-font);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--rw-menu-text);
   background: var(--rw-menu-bg);
   border: 1px solid var(--rw-menu-border);
@@ -29,21 +29,21 @@
   overflow-y: auto;
   overflow-x: hidden;
   max-height: min(74vh, 540px);
-  padding: var(--rw-space-1) 0;
+  padding: 2px 0;
 }
 
 .rw-intmenu__add {
   display: flex;
   align-items: center;
-  gap: var(--rw-space-2);
-  width: calc(100% - 16px);
-  margin: var(--rw-space-1) var(--rw-space-2) var(--rw-space-2);
-  padding: 7px var(--rw-space-2);
+  gap: 6px;
+  width: calc(100% - 12px);
+  margin: 4px 6px 6px;
+  padding: 5px 8px;
   border: 1px solid var(--rw-menu-border);
   border-radius: var(--rw-radius-md);
   background: var(--rw-menu-hover);
   color: var(--rw-menu-text);
-  font: 500 13px/1.2 var(--rw-font);
+  font: 500 12px/1.2 var(--rw-font);
   text-align: left;
   cursor: pointer;
   transition: background var(--rw-transition-fast);
@@ -58,9 +58,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  font-size: 15px;
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
   font-weight: 400;
   line-height: 1;
   color: var(--rw-menu-muted);
@@ -83,10 +83,10 @@
   justify-content: space-between;
   width: 100%;
   margin: 0;
-  padding: 8px var(--rw-space-3) 6px;
+  padding: 6px 10px 4px;
   border: none;
   background: transparent;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
   color: var(--rw-menu-muted);
@@ -103,8 +103,8 @@
 
 .rw-intmenu__head-chev {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
   transform: rotate(45deg);
@@ -126,11 +126,72 @@
   display: block;
 }
 
+.rw-intmenu__row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.rw-intmenu__row .rw-intmenu__btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 28px;
+}
+
+.rw-intmenu__row-actions {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.rw-intmenu__row:hover .rw-intmenu__row-actions,
+.rw-intmenu__row:focus-within .rw-intmenu__row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.rw-intmenu__row:has(.rw-intmenu__act--fav-on) .rw-intmenu__row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.rw-intmenu__act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--rw-menu-muted);
+  cursor: pointer;
+  transition:
+    background var(--rw-transition-fast),
+    color var(--rw-transition-fast);
+}
+
+.rw-intmenu__act:hover {
+  background: var(--rw-menu-hover);
+  color: var(--rw-menu-text);
+}
+
+.rw-intmenu__act--fav-on {
+  color: #f5c518;
+}
+
 .rw-intmenu__btn {
   display: block;
   width: 100%;
   margin: 0;
-  padding: 8px var(--rw-space-3) 8px 14px;
+  padding: 6px 10px 6px 12px;
   border: none;
   background: transparent;
   color: var(--rw-menu-text);
@@ -159,20 +220,12 @@
   background: var(--rw-menu-active-hover);
 }
 
-.rw-intmenu__hint {
-  padding: var(--rw-space-2) var(--rw-space-3) var(--rw-space-1);
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--rw-menu-muted);
-  border-top: 1px solid var(--rw-menu-hint-border);
-}
-
 /* Compact interval list under FXReplay floating replay bar */
 .rw-intmenu--replay {
-  min-width: 56px;
-  max-width: 88px;
+  min-width: 40px;
+  max-width: 62px;
   max-height: min(320px, 50vh);
-  padding: var(--rw-space-1) 0;
+  padding: 2px 0;
   border-radius: var(--rw-radius-lg);
   box-shadow: var(--rw-menu-shadow);
 }
@@ -183,8 +236,8 @@
 }
 
 .rw-intmenu--replay .rw-intmenu__btn {
-  padding: 7px 14px;
-  font-size: 13px;
+  padding: 5px 10px;
+  font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   text-align: center;

@@ -44,6 +44,55 @@ export type MarketBarsFetchOpts = {
   sessionStartSec?: number
   /** Minimum bars required (default 16). Use 1 when fetching a single prior candle. */
   minBars?: number
+  /** Skip in-memory cache (e.g. force refresh). */
+  noCache?: boolean
+}
+
+const BARS_CACHE_TTL_MS = Math.max(
+  15_000,
+  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_CACHE_TTL_MS ?? '120000'), 10) || 120_000,
+)
+const BARS_CACHE_HISTORICAL_TTL_MS = Math.max(
+  BARS_CACHE_TTL_MS,
+  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_CACHE_HISTORICAL_TTL_MS ?? '600000'), 10) ||
+    600_000,
+)
+const BARS_CACHE_MAX = 32
+
+type CachedSeries = { at: number; data: MarketBarsSeries }
+const seriesCache = new Map<string, CachedSeries>()
+
+function barsCacheKey(symbol: string, chainParam: string, opts?: MarketBarsFetchOpts): string {
+  return [
+    symbol.trim().toUpperCase(),
+    chainParam.trim().toLowerCase(),
+    opts?.range?.trim() || '',
+    opts?.interval?.trim() || '',
+    opts?.startSec ?? '',
+    opts?.endSec ?? '',
+    opts?.sessionStartSec ?? '',
+    opts?.minBars ?? 16,
+  ].join('|')
+}
+
+function barsCacheTtlMs(endSec?: number): number {
+  const nowSec = Math.floor(Date.now() / 1000)
+  if (endSec != null && Number.isFinite(endSec) && endSec < nowSec - 300) {
+    return BARS_CACHE_HISTORICAL_TTL_MS
+  }
+  return BARS_CACHE_TTL_MS
+}
+
+function pruneSeriesCache() {
+  const now = Date.now()
+  for (const [k, v] of seriesCache) {
+    if (now - v.at > BARS_CACHE_HISTORICAL_TTL_MS) seriesCache.delete(k)
+  }
+  while (seriesCache.size > BARS_CACHE_MAX) {
+    const first = seriesCache.keys().next().value
+    if (first == null) break
+    seriesCache.delete(first)
+  }
 }
 
 export async function fetchMarketBarsSeries(
@@ -53,10 +102,16 @@ export async function fetchMarketBarsSeries(
 ): Promise<MarketBarsSeries | null> {
   const chainParam =
     (chain ?? (import.meta.env.VITE_MARKET_BAR_CHAIN as string | undefined))?.trim() || 'twelvedata'
+  const cacheKey = barsCacheKey(symbol, chainParam, opts)
+  if (!opts?.noCache) {
+    const hit = seriesCache.get(cacheKey)
+    if (hit && Date.now() - hit.at < barsCacheTtlMs(opts?.endSec)) {
+      return hit.data
+    }
+  }
   try {
     const res = await fetch(marketBarsUrl(symbol, chainParam, opts), {
       credentials: 'same-origin',
-      cache: 'no-store',
     })
     if (!res.ok) return null
     const json: unknown = await res.json()
@@ -67,11 +122,16 @@ export async function fetchMarketBarsSeries(
     const tf = typeof timeframe === 'string' && timeframe.trim() ? timeframe.trim() : '1m'
     const src = (json as { source?: unknown }).source
     const dataSource = typeof src === 'string' && src.trim() ? src.trim() : undefined
-    return {
+    const data: MarketBarsSeries = {
       bars: bars as Bar[],
       timeframe: tf,
       dataSource,
     }
+    if (!opts?.noCache) {
+      pruneSeriesCache()
+      seriesCache.set(cacheKey, { at: Date.now(), data })
+    }
+    return data
   } catch {
     return null
   }

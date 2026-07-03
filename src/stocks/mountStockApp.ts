@@ -1,5 +1,7 @@
 import { createStockChart } from './stockChart'
 import { fetchMarketBarsForStockApp } from '../data/marketDataClient'
+import { fetchMarketDataHealth } from '../data/marketDataHealth'
+import { createSymbolSearchModal } from '../views/symbolSearchModal'
 import {
   addWatchlistSymbol,
   fetchWatchlist,
@@ -29,6 +31,8 @@ function el(html: string) {
 export type MountStockOpts = {
   /** Return to FX-style dashboard; omit for standalone markets (dark theme home). */
   onBack?: () => void
+  /** Open or create a chart session for the symbol. */
+  onOpenInChart?: (symbol: string) => void
 }
 
 export function mountStockApp(root: HTMLElement, opts?: MountStockOpts): () => void {
@@ -68,7 +72,9 @@ export function mountStockApp(root: HTMLElement, opts?: MountStockOpts): () => v
       <main class="flex flex-col flex-1 min-w-0 min-h-0 p-2 gap-2">
         <div class="flex flex-wrap items-center gap-2 shrink-0">
           <div class="join" data-sx-tf></div>
-          <div class="badge badge-outline badge-lg font-mono" data-sx-symbol>AAPL</div>
+          <button type="button" class="btn btn-ghost btn-sm font-mono" data-sx-symbol-search title="Search symbol">⌕</button>
+          <div class="badge badge-outline badge-lg font-mono cursor-pointer" data-sx-symbol title="Click to search">AAPL</div>
+          <button type="button" class="btn btn-primary btn-sm" data-sx-open-chart hidden>Open in chart</button>
           <div class="text-xs text-base-content/50 truncate" data-sx-meta></div>
         </div>
         <div class="alert alert-error py-2 text-sm min-h-0 hidden" data-sx-err></div>
@@ -101,6 +107,8 @@ export function mountStockApp(root: HTMLElement, opts?: MountStockOpts): () => v
   const wlPanel = root.querySelector('[data-sx-wl]') as HTMLElement
   const chartHost = root.querySelector('[data-sx-chart]') as HTMLElement
   const symbolBadge = root.querySelector('[data-sx-symbol]') as HTMLElement
+  const symbolSearchBtn = root.querySelector('[data-sx-symbol-search]') as HTMLButtonElement
+  const openChartBtn = root.querySelector('[data-sx-open-chart]') as HTMLButtonElement
   const metaEl = root.querySelector('[data-sx-meta]') as HTMLElement
   const errEl = root.querySelector('[data-sx-err]') as HTMLElement
   const tfHost = root.querySelector('[data-sx-tf]') as HTMLElement
@@ -109,6 +117,31 @@ export function mountStockApp(root: HTMLElement, opts?: MountStockOpts): () => v
   const drawer = root.querySelector('#sx-drawer') as HTMLInputElement
 
   root.querySelector('[data-sx-back]')?.addEventListener('click', () => opts?.onBack?.())
+
+  if (opts?.onOpenInChart) {
+    openChartBtn.hidden = false
+    openChartBtn.addEventListener('click', () => opts.onOpenInChart?.(selected))
+  }
+
+  const symbolDialog = document.createElement('dialog')
+  symbolDialog.id = 'sx-stock-symbol-dlg'
+  symbolDialog.className = 'rw-symsearch-dlg'
+  root.appendChild(symbolDialog)
+  const symbolSearch = createSymbolSearchModal({
+    dialog: symbolDialog,
+    getCurrentSymbol: () => selected,
+    onPick: (sym) => {
+      selected = sym.toUpperCase()
+      void (async () => {
+        await refreshQuotes()
+        const s = await fetchWatchlist()
+        renderWatchlist(s)
+        await loadBars()
+      })()
+    },
+  })
+  symbolSearchBtn.addEventListener('click', () => symbolSearch.open())
+  symbolBadge.addEventListener('click', () => symbolSearch.open())
 
   for (const tf of TIMEFRAMES) {
     const b = document.createElement('button')
@@ -175,7 +208,19 @@ export function mountStockApp(root: HTMLElement, opts?: MountStockOpts): () => v
       const now = new Date()
       updatedEl.textContent = `Updated ${now.toLocaleTimeString()}`
     } catch (e) {
-      showErr(e instanceof Error ? e.message : String(e))
+      const health = await fetchMarketDataHealth()
+      const base = e instanceof Error ? e.message : String(e)
+      if (!health.apiReachable) {
+        showErr(
+          import.meta.env.PROD
+            ? `${base} — Market API unreachable. Set TWELVE_DATA_API_KEY on Vercel and redeploy.`
+            : `${base} — Start the dev server (npm run dev) so /api/market/bars is available.`,
+        )
+      } else if (health.twelveDataKeyConfigured === false) {
+        showErr(`${base} — Add TWELVE_DATA_API_KEY to .env.local (dev) or Vercel env (prod).`)
+      } else {
+        showErr(base)
+      }
     }
   }
 
@@ -338,6 +383,8 @@ export function mountStockApp(root: HTMLElement, opts?: MountStockOpts): () => v
 
   return () => {
     disposed = true
+    symbolSearch.dispose()
+    symbolDialog.remove()
     if (refreshTimer) clearInterval(refreshTimer)
     if (quoteTimer) clearInterval(quoteTimer)
     chart.dispose()

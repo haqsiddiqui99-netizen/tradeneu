@@ -15,6 +15,7 @@ export type DrawingToolId =
   | 'fib'
   | 'rect'
   | 'measure'
+  | 'text'
   | 'zoom'
 
 type ThemeMode = 'light' | 'dark'
@@ -26,6 +27,7 @@ type Prim =
   | { kind: 'hline'; price: number }
   | { kind: 'fib'; t1: number; p1: number; t2: number; p2: number }
   | { kind: 'rect'; t1: number; p1: number; t2: number; p2: number }
+  | { kind: 'text'; t: number; price: number; text: string }
 
 const FIB_RATIOS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1] as const
 
@@ -194,6 +196,7 @@ export function mountChartDrawingUi(opts: {
 
   let draft: DraftState = null
   let measureLabel: { x: number; y: number; text: string } | null = null
+  let textInputEl: HTMLInputElement | null = null
 
   const toolBtns = toolbarRoot.querySelectorAll<HTMLButtonElement>('[data-draw-tool]')
   const toggleBtns = toolbarRoot.querySelectorAll<HTMLButtonElement>('[data-draw-toggle]')
@@ -224,16 +227,92 @@ export function mountChartDrawingUi(opts: {
     })
   }
 
+  function removeTextEditor() {
+    textInputEl?.remove()
+    textInputEl = null
+  }
+
   function finishOrStayAfterShape() {
     draft = null
+    removeTextEditor()
     if (!stayInDraw) setTool('crosshair')
     else syncToolbarClasses()
+  }
+
+  function paintTextLabel(
+    ctx: CanvasRenderingContext2D,
+    pr: Extract<Prim, { kind: 'text' }>,
+    col: string,
+    labelFill: string,
+  ) {
+    const xy = xyFromTimePrice(chart, series, pr.t, pr.price)
+    if (!xy) return
+    ctx.save()
+    ctx.font = '12px system-ui, sans-serif'
+    const padX = 6
+    const padY = 4
+    const textW = ctx.measureText(pr.text).width
+    const boxW = textW + padX * 2
+    const boxH = 20
+    const x = xy.x
+    const y = xy.y - boxH + 4
+    ctx.fillStyle = getUiTheme() === 'dark' ? 'rgba(30,34,45,0.92)' : 'rgba(255,255,255,0.95)'
+    ctx.strokeStyle = col
+    ctx.lineWidth = 1
+    ctx.fillRect(x, y, boxW, boxH)
+    ctx.strokeRect(x, y, boxW, boxH)
+    ctx.fillStyle = labelFill
+    ctx.fillText(pr.text, x + padX, y + boxH - padY - 2)
+    ctx.restore()
+  }
+
+  function openTextEditor(x: number, y: number, t: number, price: number) {
+    removeTextEditor()
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.className = 'rw-chart-text-input'
+    input.style.left = `${x}px`
+    input.style.top = `${y}px`
+    input.placeholder = 'Label'
+    input.maxLength = 120
+    input.setAttribute('aria-label', 'Chart text label')
+    chartHost.appendChild(input)
+    textInputEl = input
+    requestAnimationFrame(() => input.focus())
+
+    const commit = () => {
+      const text = input.value.trim()
+      removeTextEditor()
+      if (text) {
+        primitives.push({ kind: 'text', t, price, text })
+        paint()
+        repaintShades()
+      }
+      finishOrStayAfterShape()
+    }
+
+    const cancel = () => {
+      removeTextEditor()
+      finishOrStayAfterShape()
+    }
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        commit()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        cancel()
+      }
+    })
+    input.addEventListener('blur', () => commit(), { once: true })
   }
 
   function setTool(next: DrawingToolId) {
     tool = next
     draft = null
     measureLabel = null
+    removeTextEditor()
     const active = tool !== 'crosshair'
     drawCanvas.style.pointerEvents = active ? 'auto' : 'none'
     drawCanvas.classList.toggle('rw-chart-draw--active', active)
@@ -274,6 +353,10 @@ export function mountChartDrawingUi(opts: {
       ctx.fillStyle = col
 
       for (const pr of primitives) {
+        if (pr.kind === 'text') {
+          paintTextLabel(ctx, pr, col, labelFill)
+          continue
+        }
         if (pr.kind === 'hline') {
           const y = series.priceToCoordinate(pr.price)
           if (y == null) continue
@@ -366,6 +449,11 @@ export function mountChartDrawingUi(opts: {
       finishOrStayAfterShape()
       paint()
       repaintShades()
+      return
+    }
+
+    if (tool === 'text') {
+      openTextEditor(x, y, tp.t, tp.price)
       return
     }
 
@@ -501,6 +589,7 @@ export function mountChartDrawingUi(opts: {
     primitives.length = 0
     measureLabel = null
     draft = null
+    removeTextEditor()
     paint()
     repaintShades()
   }
@@ -538,6 +627,11 @@ export function mountChartDrawingUi(opts: {
 
   const onEscKey = (e: KeyboardEvent) => {
     if (e.code !== 'Escape') return
+    if (textInputEl) {
+      removeTextEditor()
+      finishOrStayAfterShape()
+      return
+    }
     if (!draft) return
     draft = null
     paint()
@@ -545,6 +639,7 @@ export function mountChartDrawingUi(opts: {
   window.addEventListener('keydown', onEscKey, true)
 
   const dispose = () => {
+    removeTextEditor()
     window.removeEventListener('keydown', onEscKey, true)
     chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRangeChange)
     chart.timeScale().unsubscribeVisibleTimeRangeChange(onRangeChange)

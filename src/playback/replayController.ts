@@ -23,10 +23,18 @@ export function replaySpeedLabel(barsPerSec: number): string {
 /** @deprecated Use REPLAY_BARS_PER_SEC */
 export const REPLAY_SPEED_MS = REPLAY_BARS_PER_SEC.map((bps) => Math.round(1000 / bps)) as readonly number[]
 
+/**
+ * Bar replay driver.
+ *
+ * One bar per timeout chain: advance → paint callback → schedule next.
+ * Never setInterval, never rAF bursts, never more than one pending timer.
+ */
 export class ReplayController {
   private bars: Bar[]
   private state: ReplayState
-  private timer: ReturnType<typeof setTimeout> | null = null
+  private tickTimer: ReturnType<typeof setTimeout> | null = null
+  /** Bumped on pause/stop so in-flight ticks cannot schedule another. */
+  private playbackGen = 0
   private onTick: (slice: Bar[], index: number) => void
 
   constructor(bars: Bar[], onTick: (slice: Bar[], index: number) => void) {
@@ -69,11 +77,8 @@ export class ReplayController {
   setSpeedIndex(i: number) {
     const idx = Math.max(0, Math.min(REPLAY_BARS_PER_SEC.length - 1, Math.round(i)))
     this.state.barsPerSec = REPLAY_BARS_PER_SEC[idx]!
-    this.state.speedMs = Math.max(40, Math.round(1000 / this.state.barsPerSec))
-    if (this.state.playing) {
-      this.stopTimer()
-      this.startTimer()
-    }
+    this.state.speedMs = this.msPerBar()
+    /* Speed is read live each tick — do not restart the driver here. */
   }
 
   slice(): Bar[] {
@@ -97,59 +102,82 @@ export class ReplayController {
     this.setIndex(this.bars.length)
   }
 
-  togglePlay() {
-    this.state.playing = !this.state.playing
-    if (this.state.playing) {
-      /* TradingView-style: play from the beginning when already at the last bar. */
-      if (this.state.index >= this.bars.length) {
-        this.state.index = this.state.loop ? this.state.loopStartIndex : 1
-        this.emit()
-      }
-      this.startTimer()
-    } else {
-      this.stopTimer()
+  play() {
+    if (this.state.playing) return
+    this.state.playing = true
+    if (this.state.index >= this.bars.length) {
+      this.state.index = this.state.loop ? this.state.loopStartIndex : 1
+      this.emit()
     }
+    this.armPlayback()
+  }
+
+  togglePlay() {
+    if (this.state.playing) this.pause()
+    else this.play()
   }
 
   pause() {
     this.state.playing = false
-    this.stopTimer()
+    this.cancelPendingTick()
+    this.playbackGen += 1
+  }
+
+  private isLive(gen: number): boolean {
+    return this.state.playing && gen === this.playbackGen
+  }
+
+  private msPerBar(): number {
+    return Math.max(40, Math.round(1000 / this.state.barsPerSec))
   }
 
   private emit() {
     this.onTick(this.slice(), this.state.index)
   }
 
-  private startTimer() {
-    this.stopTimer()
-    const tick = () => {
-      if (!this.state.playing) return
-      if (this.state.index >= this.bars.length) {
-        if (this.state.loop) {
-          this.state.index = this.state.loopStartIndex
-          this.emit()
-          if (this.state.playing) this.timer = setTimeout(tick, this.state.speedMs)
-          return
-        }
-        this.state.playing = false
-        this.stopTimer()
-        this.emit()
-        return
-      }
-      this.state.index += 1
-      this.emit()
-      if (this.state.playing) {
-        this.timer = setTimeout(tick, this.state.speedMs)
-      }
+  private cancelPendingTick() {
+    if (this.tickTimer !== null) {
+      clearTimeout(this.tickTimer)
+      this.tickTimer = null
     }
-    this.timer = setTimeout(tick, this.state.speedMs)
   }
 
-  private stopTimer() {
-    if (this.timer !== null) {
-      clearTimeout(this.timer)
-      this.timer = null
+  private scheduleNextTick(gen: number) {
+    if (!this.isLive(gen)) return
+    this.cancelPendingTick()
+    this.tickTimer = setTimeout(() => this.runTick(gen), this.msPerBar())
+  }
+
+  /** Start the timeout chain without bumping playbackGen (pause uses gen to invalidate). */
+  private armPlayback() {
+    this.cancelPendingTick()
+    const gen = this.playbackGen
+    this.scheduleNextTick(gen)
+  }
+
+  /** Advance one bar, paint, then chain the next timeout (never queue multiple). */
+  private runTick(gen: number) {
+    this.tickTimer = null
+    if (!this.isLive(gen)) return
+
+    if (this.state.index >= this.bars.length) {
+      if (this.state.loop) {
+        this.state.index = this.state.loopStartIndex
+        if (!this.isLive(gen)) return
+        this.emit()
+        this.scheduleNextTick(gen)
+        return
+      }
+      this.state.playing = false
+      this.emit()
+      return
     }
+
+    this.state.index += 1
+    if (!this.isLive(gen)) return
+    this.emit()
+    if (!this.isLive(gen)) return
+    this.scheduleNextTick(gen)
   }
 
   /** Replace the full series (e.g. after interval resample) and jump to the last bar. */
@@ -159,7 +187,8 @@ export class ReplayController {
 
   /** Replace series and seek to a 1-based bar index (for backtest / replay frame). */
   replaceBarsAt(bars: Bar[], index: number) {
-    this.stopTimer()
+    this.cancelPendingTick()
+    this.playbackGen += 1
     this.bars = bars
     this.state.playing = false
     this.state.index = bars.length > 0 ? Math.max(1, Math.min(Math.round(index), bars.length)) : 1
@@ -167,6 +196,6 @@ export class ReplayController {
   }
 
   dispose() {
-    this.stopTimer()
+    this.pause()
   }
 }

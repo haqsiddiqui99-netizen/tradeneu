@@ -779,3 +779,43 @@
     transition: none;
   }
 }
+
+.sx-dash-session-row--expanded .sx-dash-session-expand-ico {
+  transform: rotate(180deg);
+}
+
+.sx-dash-session-expand-ico {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.sx-ai-chat__messages {
+  min-height: 8rem;
+}
+
+.sx-ai-chat__msg {
+  max-width: 92%;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.65rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.sx-ai-chat__msg--user {
+  align-self: flex-end;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(14, 165, 233, 0.15);
+  color: #e0f2fe;
+}
+
+.sx-ai-chat__msg--assistant {
+  align-self: flex-start;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #d4d4d8;
+}
+
+.sx-ai-chat__status {
+  flex-shrink: 0;
+}

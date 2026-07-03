@@ -245,6 +245,72 @@
   color: var(--sx-text-muted, #787b86);
 }
 
+.sx-ind-table-head--builtin,
+.sx-ind-row--builtin {
+  grid-template-columns: 1fr minmax(88px, 120px) 108px;
+}
+
+.sx-ind-row-action {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.sx-ind-add-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--sx-accent, #2962ff);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sx-accent, #2962ff);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sx-ind-add-btn:hover {
+  background: rgba(41, 98, 255, 0.08);
+}
+
+.sx-ind-added {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sx-text-muted, #787b86);
+}
+
+.sx-ind-demo-banner {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--sx-text, #131722);
+}
+
+.sx-ind-demo-banner strong {
+  font-weight: 600;
+}
+
+.sx-ind-row--demo {
+  opacity: 0.82;
+}
+
+.sx-ind-preview-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 123, 134, 0.35);
+  background: rgba(120, 123, 134, 0.12);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sx-text-muted, #787b86);
+}
+
 @media (max-width: 640px) {
   .sx-ind-body {
     flex-direction: column;

@@ -1,0 +1,109 @@
+.sx-battle-dlg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 1.25rem;
+  border: none;
+  background: transparent;
+  overflow: visible;
+  z-index: 210;
+}
+
+.sx-battle-dlg::backdrop {
+  background: rgba(10, 6, 18, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.sx-battle-dlg:not([open]) {
+  display: none !important;
+}
+
+.sx-battle-dlg[open] {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.sx-battle-dlg__panel {
+  width: min(28rem, 100%);
+  padding: 1.25rem 1.35rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(165deg, #16121f 0%, #0f0b16 100%);
+  color: #f4f4f5;
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+}
+
+.sx-battle-dlg__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.sx-battle-dlg__meta {
+  margin: 0 0 1rem;
+  font-size: 0.75rem;
+  color: #71717a;
+}
+
+.sx-battle-dlg__field {
+  margin-bottom: 0.85rem;
+}
+
+.sx-battle-dlg__label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #a1a1aa;
+}
+
+.sx-battle-dlg__select {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: #f4f4f5;
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.sx-battle-dlg__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.sx-battle-dlg__btn {
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e4e4e7;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sx-battle-dlg__btn--primary {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+  color: #fff;
+}
+
+.sx-battle-dlg__result {
+  margin-top: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #d4d4d8;
+}

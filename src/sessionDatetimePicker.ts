@@ -219,9 +219,9 @@ function render() {
     } else {
       btn.addEventListener('click', () => {
         draft = clampInstant(dayInstant(c.y, c.m, c.d, draft), min, max)
-        viewY = c.y
-        viewM = c.m
-        render()
+        if (!openArgs) return
+        openArgs.onChange(formatDatetimeLocalFromDate(draft))
+        closeSessionDatetimePicker()
       })
     }
 

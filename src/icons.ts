@@ -67,6 +67,20 @@ export const icons = {
   expand: svg(
     '<path d="M9 3H3v6M15 3h6v6M21 15v6h-6M3 15v6h6" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>',
   ),
+  /** TradingView toolbar — hex nut settings. */
+  tvToolbarSettings: svg(
+    '<path d="M12 3.25 16.4 5.6v4.8L16.4 15.2 12 17.5l-4.4-2.3v-4.8L7.6 5.6 12 3.25z" stroke="currentColor" stroke-width="1.55" stroke-linejoin="round"/><circle cx="12" cy="10.4" r="2" stroke="currentColor" stroke-width="1.55"/>',
+  ),
+  /** TradingView toolbar — exit fullscreen (corners inward). */
+  tvToolbarCompress: svg(
+    '<path d="M9 9V3H3M15 9V3h6M15 15v6h6M9 15v6H3" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>',
+  ),
+  /** FX Replay trade bar — quick order rocket. */
+  tradeRocket: svg(
+    '<path d="M12 2.5c1.8 3.1-.2 7-.9 9.2-1.6 2.2-3.8 3.2-5.1 3.5 1.2.3 3.3-.4 5-2.1 2.2-2.2 6.1-4.1 9.2-2.3-2.1-.9-3.8-2.6-4.7-4.7z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M7.25 12.75 5 18.5l5.75-2.25" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10.25" cy="8.75" r="1.05" fill="currentColor"/>',
+    18,
+    18,
+  ),
   /** Compact plus — compare / add symbol (chart toolbar). */
   plus: svg(
     '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>',
@@ -127,11 +141,9 @@ export const icons = {
   ),
   /** Bar-pick cursor — theme PNGs on the blue vertical line. */
   scissorsSelectBar: scissorsSelectBarImg(),
-  /** Bar Replay toolbar — jump to first bar (vertical bar + left triangle). */
-  replayTvJumpStart: svg(
-    '<path d="M5.5 6.5v11" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/><path d="M14.5 12 9 8.5v7l5.5-3.5z" fill="currentColor"/>',
-    20,
-    20,
+  /** Bar Replay toolbar — jump to first bar (|◄||, mirror of jump end ||►). */
+  replayTvJumpStart: svgReplayTv(
+    '<rect x="2.25" y="4.75" width="1.25" height="8.5" rx="0.3" fill="currentColor"/><path d="M9.25 4.75 4.25 9 9.25 13.25Z" fill="currentColor"/><path d="M11.75 5.5v7M14.25 5.5v7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
   ),
   /** Bar Replay — circular goto arrow (FXReplay-style). */
   replayGoto: svg(
@@ -179,6 +191,14 @@ export const icons = {
     '<circle cx="7" cy="7" r="1.35" fill="currentColor"/><circle cx="12" cy="7" r="1.35" fill="currentColor"/><circle cx="7" cy="12" r="1.35" fill="currentColor"/><circle cx="12" cy="12" r="1.35" fill="currentColor"/><circle cx="7" cy="17" r="1.35" fill="currentColor"/><circle cx="12" cy="17" r="1.35" fill="currentColor"/>',
     20,
     20,
+  ),
+  /** Replay dock — decrease playback speed. */
+  replayTvSpeedDown: svgReplayTv(
+    '<path d="M5.25 9h7.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
+  ),
+  /** Replay dock — increase playback speed. */
+  replayTvSpeedUp: svgReplayTv(
+    '<path d="M9 5.25v7.5M5.25 9h7.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
   ),
   /** Jump to latest — two bars + outline triangle (TV dock). */
   replayTvJumpEnd: svgReplayTv(

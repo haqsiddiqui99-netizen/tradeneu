@@ -72,6 +72,7 @@ export const CHART_INTERVAL_SECTIONS: IntervalSection[] = [
 /** Flat list for replay dock compact menu. */
 export const REPLAY_DOCK_INTERVALS: IntervalPick[] = [
   { pill: '1m', kind: 'time', stepSec: 60, label: '1m' },
+  { pill: '2m', kind: 'time', stepSec: 120, label: '2m' },
   { pill: '3m', kind: 'time', stepSec: 180, label: '3m' },
   { pill: '5m', kind: 'time', stepSec: 300, label: '5m' },
   { pill: '10m', kind: 'time', stepSec: 600, label: '10m' },

@@ -35,6 +35,7 @@ import {
   precompute, snapshotAt, getIndicatorValue,
   type PrecomputedIndicators,
 } from './BacktestIndicators'
+import { formatExitReasonSignal, formatStrategyConditions } from './strategyConditionText'
 
 // ─── DEFAULTS ────────────────────────────────────────────────────────────────
 const DEFAULT_OPTS: Required<Omit<BacktestOptions, 'startBarIndex'>> & { startBarIndex: number } = {
@@ -191,6 +192,7 @@ interface OpenPosition {
   units:      number
   peakPrice:  number   // for trailing stop
   barsOpen:   number
+  entrySignal: string
 }
 
 function invertEntryConditions(conds: StrategyCondition[]): StrategyCondition[] {
@@ -230,6 +232,7 @@ function tryOpenPosition(
     evalAllConditions(strategy.entryConditions, ind, bar, prevBar, i, i - 1)
 
   let entryDirection: 'long' | 'short' | null = longOk ? 'long' : null
+  let entryConditionsUsed = strategy.entryConditions
   if (
     !entryDirection &&
     strategy.direction === 'both' &&
@@ -237,6 +240,7 @@ function tryOpenPosition(
     evalAllConditions(invertEntryConditions(strategy.entryConditions), ind, bar, prevBar, i, i - 1)
   ) {
     entryDirection = 'short'
+    entryConditionsUsed = invertEntryConditions(strategy.entryConditions)
   }
   if (!entryDirection) return null
 
@@ -261,6 +265,10 @@ function tryOpenPosition(
     units,
     peakPrice: entryPrice,
     barsOpen: 0,
+    entrySignal:
+      entryDirection === 'short'
+        ? `Short entry: ${formatStrategyConditions(entryConditionsUsed)}`
+        : formatStrategyConditions(entryConditionsUsed),
   }
 }
 
@@ -333,7 +341,7 @@ export function runBacktest(
       if (hour < strategy.sessionFilter.fromHour || hour > strategy.sessionFilter.toHour) {
         if (openPos) {
           // Force close at session end
-          trades.push(closeTrade(openPos, bar, i, 'session_end', ind, bars, cfg))
+          trades.push(closeTrade(openPos, bar, i, 'session_end', ind, bars, cfg, strategy))
           equity += trades[trades.length - 1]!.pnl
           openPos = null
         }
@@ -408,7 +416,7 @@ export function runBacktest(
       else if (signalExit)    exitReason = 'signal_exit'
 
       if (exitReason) {
-        const trade = closeTrade(openPos, bar, i, exitReason, ind, bars, cfg)
+        const trade = closeTrade(openPos, bar, i, exitReason, ind, bars, cfg, strategy)
         trades.push(trade)
         equity += trade.pnl
         if (trade.pnl < 0 && cfg.maxBarsInTrade) {
@@ -445,7 +453,7 @@ export function runBacktest(
   // Close any open position at last bar
   if (openPos) {
     const lastBar = bars[bars.length - 1]!
-    const trade   = closeTrade(openPos, lastBar, bars.length - 1, 'session_end', ind, bars, cfg)
+    const trade   = closeTrade(openPos, lastBar, bars.length - 1, 'session_end', ind, bars, cfg, strategy)
     trades.push(trade)
     equity += trade.pnl
   }
@@ -476,6 +484,7 @@ function closeTrade(
   ind:       PrecomputedIndicators,
   bars:      Bar[],
   cfg:       Required<BacktestOptions>,
+  strategy:  StrategyDefinition,
 ): TradeResult {
   const isLong = pos.direction === 'long'
   let exitPrice = exitBar.close
@@ -532,6 +541,14 @@ function closeTrade(
     condition:   ind.conditions[pos.entryBarI]!,
     indicators:  snapshotAt(ind, pos.entryBarI),
     stopHunted,
+    entrySignal: pos.entrySignal,
+    exitSignal: formatExitReasonSignal(
+      reason,
+      strategy.exitConditions,
+      pos.stopPrice,
+      pos.targetPrice,
+      cfg.maxBarsInTrade,
+    ),
   }
 }
 

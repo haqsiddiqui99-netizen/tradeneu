@@ -1,5 +1,7 @@
 export type PositionDirection = 'long' | 'short'
 
+export type ReplayExitReason = 'manual' | 'take_profit' | 'stop_loss'
+
 export type OpenPosition = {
   id: string
   direction: PositionDirection
@@ -10,15 +12,37 @@ export type OpenPosition = {
   stopLoss: number | null
 }
 
+export type ClosedReplayTrade = {
+  tradeNum: number
+  positionId: string
+  direction: PositionDirection
+  qty: number
+  entryPrice: number
+  exitPrice: number
+  entryTime: number
+  exitTime: number
+  pnl: number
+  exitReason: ReplayExitReason
+}
+
 export type ReplayAccountState = {
   cash: number
   realizedPnL: number
   positions: OpenPosition[]
+  closedTrades: ClosedReplayTrade[]
 }
 
 export type ReplayAccountSummary = ReplayAccountState & {
   unrealizedPnL: number
   equity: number
+}
+
+export type ReplayAccountPersisted = {
+  cash: number
+  realizedPnL: number
+  positions: OpenPosition[]
+  closedTrades: ClosedReplayTrade[]
+  nextId: number
 }
 
 function defaultTpSl(entry: number, direction: PositionDirection): { tp: number; sl: number } {
@@ -42,14 +66,51 @@ export function positionPoints(pos: OpenPosition, markPrice: number): number {
   return Math.round(raw * 1000)
 }
 
-export function createReplayAccount(initialCash: number) {
-  let cash = initialCash
-  let realizedPnL = 0
-  const positions: OpenPosition[] = []
-  let nextId = 1
+export function longOrderCost(qty: number, ask: number): number {
+  const q = Math.max(1, Math.floor(qty))
+  return q * ask
+}
+
+export function shortOrderMargin(qty: number, bid: number): number {
+  const q = Math.max(1, Math.floor(qty))
+  return q * bid * 0.05
+}
+
+function clonePositions(list: OpenPosition[]): OpenPosition[] {
+  return list.map((p) => ({ ...p }))
+}
+
+export function createReplayAccount(initialCash: number, restored?: ReplayAccountPersisted | null) {
+  let cash = restored?.cash ?? initialCash
+  let realizedPnL = restored?.realizedPnL ?? 0
+  const positions: OpenPosition[] = clonePositions(restored?.positions ?? [])
+  const closedTrades: ClosedReplayTrade[] = restored?.closedTrades ? [...restored.closedTrades] : []
+  let nextId = restored?.nextId ?? 1
 
   function getPositions(): OpenPosition[] {
-    return positions.slice()
+    return clonePositions(positions)
+  }
+
+  function getClosedTrades(): ClosedReplayTrade[] {
+    return closedTrades.slice()
+  }
+
+  function getPersisted(): ReplayAccountPersisted {
+    return {
+      cash,
+      realizedPnL,
+      positions: clonePositions(positions),
+      closedTrades: closedTrades.slice(),
+      nextId,
+    }
+  }
+
+  function resetAccount() {
+    cash = initialCash
+    realizedPnL = 0
+    positions.length = 0
+    closedTrades.length = 0
+    nextId = 1
   }
 
   function summary(markPrice: number): ReplayAccountSummary {
@@ -57,7 +118,8 @@ export function createReplayAccount(initialCash: number) {
     return {
       cash,
       realizedPnL,
-      positions: positions.slice(),
+      positions: clonePositions(positions),
+      closedTrades: closedTrades.slice(),
       unrealizedPnL,
       equity: cash + unrealizedPnL,
     }
@@ -100,7 +162,11 @@ export function createReplayAccount(initialCash: number) {
     return pos
   }
 
-  function closePosition(id: string, exitPrice: number): number | null {
+  function closePosition(
+    id: string,
+    exitPrice: number,
+    meta?: { exitTime?: number; exitReason?: ReplayExitReason },
+  ): ClosedReplayTrade | null {
     const idx = positions.findIndex((p) => p.id === id)
     if (idx < 0) return null
     const pos = positions[idx]!
@@ -113,7 +179,20 @@ export function createReplayAccount(initialCash: number) {
     }
     realizedPnL += pnl
     positions.splice(idx, 1)
-    return pnl
+    const trade: ClosedReplayTrade = {
+      tradeNum: closedTrades.length + 1,
+      positionId: pos.id,
+      direction: pos.direction,
+      qty: pos.qty,
+      entryPrice: pos.entryPrice,
+      exitPrice,
+      entryTime: pos.entryTime,
+      exitTime: meta?.exitTime ?? Math.floor(Date.now() / 1000),
+      pnl,
+      exitReason: meta?.exitReason ?? 'manual',
+    }
+    closedTrades.push(trade)
+    return trade
   }
 
   function setTakeProfit(id: string, tp: number | null) {
@@ -127,8 +206,8 @@ export function createReplayAccount(initialCash: number) {
   }
 
   /** Auto-close positions when price hits TP/SL on replay tick (only at/after entry bar). */
-  function processExits(barTime: number, markPrice: number, bid: number, ask: number): OpenPosition[] {
-    const closed: OpenPosition[] = []
+  function processExits(barTime: number, markPrice: number, bid: number, ask: number): ClosedReplayTrade[] {
+    const closed: ClosedReplayTrade[] = []
     for (let i = positions.length - 1; i >= 0; i--) {
       const pos = positions[i]!
       if (barTime < pos.entryTime) continue
@@ -142,14 +221,18 @@ export function createReplayAccount(initialCash: number) {
       }
       if (!hit) continue
       const exit = pos.direction === 'long' ? bid : ask
-      closePosition(pos.id, exit)
-      closed.push(pos)
+      const reason: ReplayExitReason = hit === 'tp' ? 'take_profit' : 'stop_loss'
+      const trade = closePosition(pos.id, exit, { exitTime: barTime, exitReason: reason })
+      if (trade) closed.push(trade)
     }
     return closed
   }
 
   return {
     getPositions,
+    getClosedTrades,
+    getPersisted,
+    resetAccount,
     summary,
     openLong,
     openShort,
