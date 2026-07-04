@@ -22,10 +22,6 @@ async function bootstrap(): Promise<void> {
   const authed = await resolveAuthSession()
 
   if (path === LOGIN_PAGE_PATH) {
-    if (authed) {
-      window.location.replace(HOME_PAGE_PATH)
-      return
-    }
     mountLoginGate(root, () => {
       window.location.assign(HOME_PAGE_PATH)
     })

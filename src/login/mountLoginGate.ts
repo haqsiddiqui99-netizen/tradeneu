@@ -1,7 +1,7 @@
 import './loginGate.css'
 import { HOME_PAGE_PATH } from '../appPaths'
 import { fetchAuthServerStatus, loginUser, registerUser } from '../auth/authApi'
-import { mirrorServerUser } from '../auth/authSession'
+import { clearAllAuthSessions, getAuthUser, mirrorServerUser } from '../auth/authSession'
 import { writeDisplayName } from '../home/dashboardUserPrefs'
 import {
   buildFullMobile,
@@ -66,6 +66,12 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
         <button type="button" class="sx-login__link" id="sx-login-signup">Create account</button>
       </p>
       <p class="sx-login__hint" id="sx-login-offline-hint" hidden></p>
+      <p class="sx-login__hint sx-login__hint--authed" id="sx-login-authed-hint" hidden>
+        Already signed in.
+        <button type="button" class="sx-login__link" id="sx-login-continue">Go to dashboard</button>
+        ·
+        <button type="button" class="sx-login__link" id="sx-login-signout">Sign out</button>
+      </p>
 
       <div class="sx-login__field sx-login__field--signup-only" data-signup-only hidden>
         <label class="sx-login__label" for="sx-login-name">Full name</label>
@@ -154,6 +160,9 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
   const terms = wrap.querySelector('#sx-login-terms') as HTMLButtonElement
   const privacy = wrap.querySelector('#sx-login-privacy') as HTMLButtonElement
   const offlineHintEl = wrap.querySelector('#sx-login-offline-hint') as HTMLElement
+  const authedHintEl = wrap.querySelector('#sx-login-authed-hint') as HTMLElement
+  const continueBtn = wrap.querySelector('#sx-login-continue') as HTMLButtonElement
+  const signoutBtn = wrap.querySelector('#sx-login-signout') as HTMLButtonElement
   const submitBtn = wrap.querySelector('#sx-login-submit') as HTMLButtonElement
   const signupOnlyFields = wrap.querySelectorAll<HTMLElement>('[data-signup-only]')
   const signinOnlyEls = wrap.querySelectorAll<HTMLElement>('.sx-login__field--signin-only')
@@ -375,6 +384,18 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
   })
   privacy.addEventListener('click', () => {
     showError('Privacy Policy — replace with your legal URL when publishing.', 'Privacy Policy')
+  })
+
+  if (getAuthUser() && authedHintEl) authedHintEl.hidden = false
+  continueBtn?.addEventListener('click', () => {
+    if (onEnter) onEnter()
+    else window.location.assign(HOME_PAGE_PATH)
+  })
+  signoutBtn?.addEventListener('click', () => {
+    void clearAllAuthSessions().then(() => {
+      if (authedHintEl) authedHintEl.hidden = true
+      hideToast()
+    })
   })
 
   syncSignupMode()
