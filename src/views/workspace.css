@@ -4014,6 +4014,24 @@ body.rw-replay-dock-dragging * {
   color: var(--rw-red);
 }
 
+.rw-quote-big .rw-quote-part,
+.rw-wl-num--split .rw-quote-part {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.rw-quote-part--flat {
+  color: var(--rw-bright);
+}
+
+.rw-quote-part--up {
+  color: var(--rw-green);
+}
+
+.rw-quote-part--down {
+  color: var(--rw-red);
+}
+
 .rw-quote-big--up,
 .rw-quote-big--down {
   transition: color 0.12s ease;

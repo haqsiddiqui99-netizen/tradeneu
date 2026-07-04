@@ -259,16 +259,99 @@ function applyQuoteTickClasses(el: HTMLElement, dir: QuoteTickDir, prefix: 'rw-q
   el.classList.toggle(`${prefix}--down`, dir === 'down')
 }
 
-function quoteTickClassSuffix(dir: QuoteTickDir): string {
-  if (dir === 'up') return ' rw-wl-tick--up'
-  if (dir === 'down') return ' rw-wl-tick--down'
-  return ' rw-wl-tick--flat'
-}
-
 function changeDirFromDelta(d: number): QuoteTickDir {
   if (d > 0) return 'up'
   if (d < 0) return 'down'
   return 'flat'
+}
+
+/** Strip grouping commas; keep digits and decimal point for left-to-right compare. */
+function priceDigitStream(formatted: string): string {
+  return formatted.replace(/,/g, '')
+}
+
+function findFirstDigitDiffIndex(prevFormatted: string, currFormatted: string): number {
+  const a = priceDigitStream(prevFormatted)
+  const b = priceDigitStream(currFormatted)
+  const len = Math.max(a.length, b.length)
+  for (let i = 0; i < len; i++) {
+    if ((a[i] ?? '') !== (b[i] ?? '')) return i
+  }
+  return -1
+}
+
+function splitFormattedPriceAtDigitIndex(
+  formatted: string,
+  digitIndex: number,
+): { prefix: string; suffix: string } {
+  if (digitIndex <= 0) return { prefix: '', suffix: formatted }
+  let di = 0
+  for (let i = 0; i < formatted.length; i++) {
+    const ch = formatted[i]!
+    if (ch === ',') continue
+    if (di === digitIndex) {
+      return { prefix: formatted.slice(0, i), suffix: formatted.slice(i) }
+    }
+    di++
+  }
+  return { prefix: formatted, suffix: '' }
+}
+
+function escapePriceHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+/** TradingView-style: unchanged digit prefix neutral, suffix from first change green/red. */
+function buildSplitPriceHtml(current: number, previous: number | null): string {
+  const formatted = formatSessionPrice(current)
+  if (previous == null || !Number.isFinite(previous)) return escapePriceHtml(formatted)
+  const dir = quoteTickDir(current, previous)
+  if (dir === 'flat') return escapePriceHtml(formatted)
+  const prevFormatted = formatSessionPrice(previous)
+  const diffIdx = findFirstDigitDiffIndex(prevFormatted, formatted)
+  if (diffIdx < 0) return escapePriceHtml(formatted)
+  const { prefix, suffix } = splitFormattedPriceAtDigitIndex(formatted, diffIdx)
+  let html = ''
+  if (prefix) {
+    html += `<span class="rw-quote-part rw-quote-part--flat">${escapePriceHtml(prefix)}</span>`
+  }
+  if (suffix) {
+    html += `<span class="rw-quote-part rw-quote-part--${dir}">${escapePriceHtml(suffix)}</span>`
+  }
+  return html || escapePriceHtml(formatted)
+}
+
+function paintSplitPriceEl(el: HTMLElement, current: number, previous: number | null): void {
+  el.classList.remove('rw-quote-big--up', 'rw-quote-big--down')
+  const formatted = formatSessionPrice(current)
+  if (previous == null || !Number.isFinite(previous) || quoteTickDir(current, previous) === 'flat') {
+    el.textContent = formatted
+    return
+  }
+  const prevFormatted = formatSessionPrice(previous)
+  const diffIdx = findFirstDigitDiffIndex(prevFormatted, formatted)
+  if (diffIdx < 0) {
+    el.textContent = formatted
+    return
+  }
+  const dir = quoteTickDir(current, previous)
+  const { prefix, suffix } = splitFormattedPriceAtDigitIndex(formatted, diffIdx)
+  el.replaceChildren()
+  if (prefix) {
+    const pre = document.createElement('span')
+    pre.className = 'rw-quote-part rw-quote-part--flat'
+    pre.textContent = prefix
+    el.appendChild(pre)
+  }
+  if (suffix) {
+    const suf = document.createElement('span')
+    suf.className = `rw-quote-part rw-quote-part--${dir}`
+    suf.textContent = suffix
+    el.appendChild(suf)
+  }
 }
 
 /** Right-panel data vendor line (TradingView-style). */
@@ -1918,14 +2001,13 @@ export function mountChartWorkspace(
             <td class="rw-wl-num">—</td>
           </tr>`
         }
-        const last = formatSessionPrice(b.close)
-        const tickDir = quoteTickDir(b.close, tickPrice)
-        const priceCls = `rw-wl-num${quoteTickClassSuffix(tickDir)}`
+        const lastHtml = buildSplitPriceHtml(b.close, tickPrice)
+        const priceCls = 'rw-wl-num rw-wl-num--split'
         const ref = prev?.close
         if (ref == null || !Number.isFinite(ref) || ref === 0) {
           return `<tr class="rw-wl-row${rowCls}" data-rw-wl-symbol="${symUi}" role="button" tabindex="0">
             <td>${symUi}</td>
-            <td class="${priceCls}">${last}</td>
+            <td class="${priceCls}">${lastHtml}</td>
             <td class="rw-wl-num">—</td>
           </tr>`
         }
@@ -1937,7 +2019,7 @@ export function mountChartWorkspace(
           chgDir === 'up' ? 'rw-wl-pos' : chgDir === 'down' ? 'rw-wl-neg' : 'rw-wl-flat'
         return `<tr class="rw-wl-row${rowCls}" data-rw-wl-symbol="${symUi}" role="button" tabindex="0">
           <td>${symUi}</td>
-          <td class="${priceCls}">${last}</td>
+          <td class="${priceCls}">${lastHtml}</td>
           <td class="rw-wl-num ${chgCls}">${sign}${Math.abs(pct).toFixed(2)}%</td>
         </tr>`
       })
@@ -2158,10 +2240,8 @@ export function mountChartWorkspace(
     }
     const price = b.close
     const prevTick = lastTickQuotePrice
-    const tickDir = quoteTickDir(price, prevTick)
     lastTickQuotePrice = price
-    rightQuoteEl.textContent = formatSessionPrice(price)
-    applyQuoteTickClasses(rightQuoteEl, tickDir, 'rw-quote-big')
+    paintSplitPriceEl(rightQuoteEl, price, prevTick)
     const ref = prev?.close
     if (ref != null && Number.isFinite(ref) && ref !== 0) {
       const d = price - ref
