@@ -4004,20 +4004,46 @@ body.rw-replay-dock-dragging * {
   font: 700 26px/1.15 var(--rw-font);
   color: var(--rw-bright);
   letter-spacing: -0.02em;
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
 }
 
-.rw-quote-big--up {
-  color: var(--rw-green);
+.rw-quote-major {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
-.rw-quote-big--down {
-  color: var(--rw-red);
+.rw-quote-minor {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.rw-quote-major--compact {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.rw-quote-minor--compact {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.rw-wl-num--split {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .rw-quote-big .rw-quote-part,
 .rw-wl-num--split .rw-quote-part {
-  font: inherit;
-  letter-spacing: inherit;
+  display: inline;
 }
 
 .rw-quote-part--flat {

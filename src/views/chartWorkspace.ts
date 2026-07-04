@@ -304,54 +304,77 @@ function escapePriceHtml(s: string): string {
     .replace(/>/g, '&gt;')
 }
 
-/** TradingView-style: unchanged digit prefix neutral, suffix from first change green/red. */
-function buildSplitPriceHtml(current: number, previous: number | null): string {
-  const formatted = formatSessionPrice(current)
-  if (previous == null || !Number.isFinite(previous)) return escapePriceHtml(formatted)
-  const dir = quoteTickDir(current, previous)
-  if (dir === 'flat') return escapePriceHtml(formatted)
-  const prevFormatted = formatSessionPrice(previous)
-  const diffIdx = findFirstDigitDiffIndex(prevFormatted, formatted)
-  if (diffIdx < 0) return escapePriceHtml(formatted)
-  const { prefix, suffix } = splitFormattedPriceAtDigitIndex(formatted, diffIdx)
-  let html = ''
-  if (prefix) {
-    html += `<span class="rw-quote-part rw-quote-part--flat">${escapePriceHtml(prefix)}</span>`
+/** TradingView-style: last integer digit + decimal + fraction = emphasized minor block. */
+function tradingViewTypoSplitIndex(formatted: string): number {
+  const stream = priceDigitStream(formatted)
+  const minorLen = 5
+  return Math.max(0, stream.length - minorLen)
+}
+
+function extractDigitRange(formatted: string, startDigit: number, endDigit: number): string {
+  const streamLen = priceDigitStream(formatted).length
+  const startPos = startDigit <= 0 ? 0 : splitFormattedPriceAtDigitIndex(formatted, startDigit).prefix.length
+  const endPos = endDigit >= streamLen ? formatted.length : splitFormattedPriceAtDigitIndex(formatted, endDigit).prefix.length
+  return formatted.slice(startPos, endPos)
+}
+
+type QuotePriceVariant = 'big' | 'compact'
+
+function quoteSizeClasses(variant: QuotePriceVariant, part: 'major' | 'minor'): string {
+  if (part === 'major') {
+    return variant === 'big' ? 'rw-quote-major' : 'rw-quote-major rw-quote-major--compact'
   }
-  if (suffix) {
-    html += `<span class="rw-quote-part rw-quote-part--${dir}">${escapePriceHtml(suffix)}</span>`
+  return variant === 'big' ? 'rw-quote-minor' : 'rw-quote-minor rw-quote-minor--compact'
+}
+
+/** TradingView quote: major prefix + larger minor suffix; color from first changed digit. */
+function buildTradingViewPriceHtml(
+  current: number,
+  previous: number | null,
+  variant: QuotePriceVariant = 'big',
+): string {
+  const formatted = formatSessionPrice(current)
+  const prevFormatted =
+    previous != null && Number.isFinite(previous) ? formatSessionPrice(previous) : null
+  const dir = prevFormatted ? quoteTickDir(current, previous!) : 'flat'
+  const colorIdx =
+    prevFormatted && dir !== 'flat' ? findFirstDigitDiffIndex(prevFormatted, formatted) : -1
+
+  const streamLen = priceDigitStream(formatted).length
+  let html = ''
+
+  if (colorIdx < 0) {
+    const typoIdx = tradingViewTypoSplitIndex(formatted)
+    const majorText = extractDigitRange(formatted, 0, typoIdx)
+    const minorText = extractDigitRange(formatted, typoIdx, streamLen)
+    if (majorText) {
+      html += `<span class="rw-quote-part ${quoteSizeClasses(variant, 'major')} rw-quote-part--flat">${escapePriceHtml(majorText)}</span>`
+    }
+    if (minorText) {
+      html += `<span class="rw-quote-part ${quoteSizeClasses(variant, 'minor')} rw-quote-part--flat">${escapePriceHtml(minorText)}</span>`
+    }
+    return html || escapePriceHtml(formatted)
+  }
+
+  const prefixText = colorIdx <= 0 ? '' : extractDigitRange(formatted, 0, colorIdx)
+  const suffixText = extractDigitRange(formatted, colorIdx, streamLen)
+  if (prefixText) {
+    html += `<span class="rw-quote-part ${quoteSizeClasses(variant, 'major')} rw-quote-part--flat">${escapePriceHtml(prefixText)}</span>`
+  }
+  if (suffixText) {
+    html += `<span class="rw-quote-part ${quoteSizeClasses(variant, 'minor')} rw-quote-part--${dir}">${escapePriceHtml(suffixText)}</span>`
   }
   return html || escapePriceHtml(formatted)
 }
 
-function paintSplitPriceEl(el: HTMLElement, current: number, previous: number | null): void {
+function paintTradingViewPriceEl(
+  el: HTMLElement,
+  current: number,
+  previous: number | null,
+  variant: QuotePriceVariant = 'big',
+): void {
   el.classList.remove('rw-quote-big--up', 'rw-quote-big--down')
-  const formatted = formatSessionPrice(current)
-  if (previous == null || !Number.isFinite(previous) || quoteTickDir(current, previous) === 'flat') {
-    el.textContent = formatted
-    return
-  }
-  const prevFormatted = formatSessionPrice(previous)
-  const diffIdx = findFirstDigitDiffIndex(prevFormatted, formatted)
-  if (diffIdx < 0) {
-    el.textContent = formatted
-    return
-  }
-  const dir = quoteTickDir(current, previous)
-  const { prefix, suffix } = splitFormattedPriceAtDigitIndex(formatted, diffIdx)
-  el.replaceChildren()
-  if (prefix) {
-    const pre = document.createElement('span')
-    pre.className = 'rw-quote-part rw-quote-part--flat'
-    pre.textContent = prefix
-    el.appendChild(pre)
-  }
-  if (suffix) {
-    const suf = document.createElement('span')
-    suf.className = `rw-quote-part rw-quote-part--${dir}`
-    suf.textContent = suffix
-    el.appendChild(suf)
-  }
+  el.innerHTML = buildTradingViewPriceHtml(current, previous, variant)
 }
 
 /** Right-panel data vendor line (TradingView-style). */
@@ -2001,7 +2024,7 @@ export function mountChartWorkspace(
             <td class="rw-wl-num">—</td>
           </tr>`
         }
-        const lastHtml = buildSplitPriceHtml(b.close, tickPrice)
+        const lastHtml = buildTradingViewPriceHtml(b.close, tickPrice, 'compact')
         const priceCls = 'rw-wl-num rw-wl-num--split'
         const ref = prev?.close
         if (ref == null || !Number.isFinite(ref) || ref === 0) {
@@ -2241,7 +2264,7 @@ export function mountChartWorkspace(
     const price = b.close
     const prevTick = lastTickQuotePrice
     lastTickQuotePrice = price
-    paintSplitPriceEl(rightQuoteEl, price, prevTick)
+    paintTradingViewPriceEl(rightQuoteEl, price, prevTick, 'big')
     const ref = prev?.close
     if (ref != null && Number.isFinite(ref) && ref !== 0) {
       const d = price - ref
