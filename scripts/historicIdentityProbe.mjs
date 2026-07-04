@@ -1,5 +1,5 @@
 /**
- * HTTP probe: true only if 127.0.0.1:port is `server/historicGoldApi.mjs` (Suplexity historic API).
+ * HTTP probe: true only if 127.0.0.1:port is `server/historicGoldApi.mjs` (Tradeneu historic API).
  */
 import http from 'node:http'
 

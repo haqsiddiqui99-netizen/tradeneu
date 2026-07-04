@@ -47,7 +47,7 @@ export function mountProfilePage(root: HTMLElement, opts: MountProfilePageOption
         ${opts.onBack ? `<button type="button" class="sx-platform-page__back" data-sx-profile-back aria-label="Back to dashboard">← Dashboard</button>` : ''}
         <div>
           <h1 class="sx-platform-page__title">Profile</h1>
-          <p class="sx-platform-page__subtitle">Your local Suplexity identity and usage summary.</p>
+          <p class="sx-platform-page__subtitle">Your local Tradeneu identity and usage summary.</p>
         </div>
       </div>
       <div class="sx-platform-page__actions">

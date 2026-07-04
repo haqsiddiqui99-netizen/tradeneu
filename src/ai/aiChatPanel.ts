@@ -28,7 +28,7 @@ function buildReply(userText: string, sessions: StoredSession[]): string {
   if (!q) return 'Ask me about sessions, backtests, prop rules, or market data setup.'
 
   if (/hello|hi|hey/.test(q)) {
-    return `Hi! I can summarize your lab activity and explain Suplexity features. ${sessionSummary(sessions)}`
+    return `Hi! I can summarize your lab activity and explain Tradeneu features. ${sessionSummary(sessions)}`
   }
   if (/session|dashboard/.test(q)) {
     return sessionSummary(sessions) + ' Use **New Session** to create one, or open a row to resume replay.'
@@ -125,7 +125,7 @@ export function mountAiChatPanel(opts: AiChatPanelOptions): () => void {
   const messages: ChatMessage[] = [
     {
       role: 'assistant',
-      text: 'I summarize your local session data and explain Suplexity features. I do not give live trading advice.',
+      text: 'I summarize your local session data and explain Tradeneu features. I do not give live trading advice.',
     },
   ]
   renderMessages(messagesEl, messages)

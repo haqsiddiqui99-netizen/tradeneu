@@ -54,7 +54,7 @@ export function mountStockApp(root: HTMLElement, opts?: MountStockOpts): () => v
         <label for="sx-drawer" class="btn btn-square btn-ghost drawer-button" aria-label="Open menu">☰</label>
       </div>
       <div class="flex-1 min-w-0">
-        <span class="font-bold text-lg tracking-tight text-primary">Suplexity</span>
+        <span class="font-bold text-lg tracking-tight text-primary">Tradeneu</span>
         <span class="text-base-content/60 text-sm ml-2 hidden sm:inline">Twelve Data · Lightweight Charts</span>
       </div>
       <div class="flex-none flex items-center gap-2">

@@ -7,7 +7,7 @@ from app.api.routes import router as ml_router
 from app.api.watchlist_routes import router as watchlist_router
 
 app = FastAPI(
-    title="Suplexity ML",
+    title="Tradeneu ML",
     version="0.1.0",
     description="Heavy ML / research API (Python). Historic CSV remains on Node.",
 )
@@ -26,4 +26,4 @@ app.include_router(watchlist_router)
 
 @app.get("/")
 def root() -> dict[str, str]:
-    return {"service": "suplexity-ml", "docs": "/docs"}
+    return {"service": "tradeneu-ml", "docs": "/docs"}

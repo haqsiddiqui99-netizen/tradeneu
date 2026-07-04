@@ -60,7 +60,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
     </div>
 
     <form class="sx-login__panel" id="sx-login-form">
-      <div class="sx-login__brand" id="sx-login-title">SUPLEXITY</div>
+      <div class="sx-login__brand" id="sx-login-title">TRADENEU</div>
       <p class="sx-login__signup">
         <span data-sx-login-prompt>First time here?</span>
         <button type="button" class="sx-login__link" id="sx-login-signup">Create account</button>

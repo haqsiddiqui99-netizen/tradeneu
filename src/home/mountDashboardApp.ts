@@ -694,7 +694,7 @@ export function mountDashboardApp(root: HTMLElement): void {
         <div class="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-2">
           <div class="sx-dash__brand-mark shrink-0 px-1">
             <div class="sx-dash__brand-ico" aria-hidden="true"></div>
-            <span class="sx-dash__brand">Suplexity</span>
+            <span class="sx-dash__brand">Tradeneu</span>
           </div>
 
           <div class="shrink-0 rounded-2xl border border-white/[0.1] bg-gradient-to-b from-white/[0.07] to-white/[0.02] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
@@ -774,7 +774,7 @@ export function mountDashboardApp(root: HTMLElement): void {
             <span class="sx-dash-tip">Settings</span>
           </span>
         </div>
-        <p class="shrink-0 border-t border-white/[0.06] px-1 pt-3 text-center text-[10px] text-zinc-600">Suplexity · v0.1.0-dev</p>
+        <p class="shrink-0 border-t border-white/[0.06] px-1 pt-3 text-center text-[10px] text-zinc-600">Tradeneu · v0.1.0-dev</p>
       </aside>
 
       <main class="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:ml-64 lg:max-w-[1440px] lg:pl-3 lg:pr-10 lg:pb-10" id="sx-welcome">

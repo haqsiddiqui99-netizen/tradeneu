@@ -173,14 +173,14 @@ function brokerTag(feedLabel: string): string {
   if (/OANDA/i.test(feedLabel)) return 'OANDA'
   if (/imported|json|static|sample|upload/i.test(feedLabel)) return 'Replay data'
   if (/market data|server chain/i.test(feedLabel)) return 'Twelve Data'
-  return 'Suplexity'
+  return 'Tradeneu'
 }
 
-/** Chart legend vendor line (e.g. Twelve Data on Suplexity). */
+/** Chart legend vendor line (e.g. Twelve Data on Tradeneu). */
 function legendPlatformFeed(feedLabel: string): string {
   const tag = brokerTag(feedLabel)
-  if (tag === 'Suplexity') return 'Suplexity'
-  return `${tag} on Suplexity`
+  if (tag === 'Tradeneu') return 'Tradeneu'
+  return `${tag} on Tradeneu`
 }
 
 function escapeLoadingHtml(s: string): string {
@@ -254,9 +254,9 @@ function defaultSessionFeedLabel(
   sessionType: SessionCreatedPayload['sessionType'],
   symbol: string,
 ): string {
-  if (sessionType === 'prop') return 'Suplexity · Prop rules'
-  if (usesMarketDataSession(symbol)) return 'Suplexity · twelvedata'
-  return 'Suplexity'
+  if (sessionType === 'prop') return 'Tradeneu · Prop rules'
+  if (usesMarketDataSession(symbol)) return 'Tradeneu · twelvedata'
+  return 'Tradeneu'
 }
 
 function symbolPanelMeta(symbol: string) {
@@ -487,7 +487,7 @@ export function mountChartWorkspace(
             </div>
           </div>
           <div class="rw-chart-vol" aria-live="polite"></div>
-          <div class="rw-watermark">Suplexity</div>
+          <div class="rw-watermark">Tradeneu</div>
           <div class="rw-chart-nav-hoverzone" data-rw-chart-nav-hoverzone aria-label="Chart zoom and pan">
             <div class="rw-chart-float rw-chart-float--nav" role="toolbar" aria-label="Chart zoom, pan, and reset">
               <button type="button" class="rw-chart-float__btn" data-chart-nav="zoom-out" title="Zoom out">${icons.chartNavMinus}</button>
@@ -2169,7 +2169,7 @@ export function mountChartWorkspace(
     }
     if (state.disposed || !series) return
     if (series.dataSource && usesMarketDataSession(currentChartSymbol)) {
-      feedLabel = `Suplexity · ${series.dataSource}`
+      feedLabel = `Tradeneu · ${series.dataSource}`
     }
     if (symDetailFeedEl) symDetailFeedEl.textContent = symDetailFeedTag(currentChartSymbol, feedLabel)
     let chartBars = filterSessionChartBars(series.bars, activeSession)
@@ -2876,7 +2876,7 @@ export function mountChartWorkspace(
         currentChartSymbol = s
 
         if (series.dataSource && usesMarketDataSession(s)) {
-          feedLabel = `Suplexity · ${series.dataSource}`
+          feedLabel = `Tradeneu · ${series.dataSource}`
         } else {
           feedLabel = defaultSessionFeedLabel(activeSession.sessionType, s)
         }
@@ -3057,7 +3057,7 @@ export function mountChartWorkspace(
       void confirmDialog({
         title: 'Pine Script not supported',
         message:
-          'Suplexity does not run Pine Script on the chart. Use the visual Strategy builder to define entry and exit rules, then run a backtest.',
+          'Tradeneu does not run Pine Script on the chart. Use the visual Strategy builder to define entry and exit rules, then run a backtest.',
         confirmLabel: 'Open Strategy builder',
         cancelLabel: 'Close',
       }).then((openBuilder) => {

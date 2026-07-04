@@ -1,7 +1,7 @@
 /**
  * src/backtest/BacktestEngine.ts
  *
- * The core backtesting engine for Tradeneu / Suplexity.
+ * The core backtesting engine for Tradeneu.
  *
  * Features:
  *  ✓ Bar-by-bar simulation (no look-ahead bias)

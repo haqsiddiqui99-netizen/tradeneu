@@ -72,7 +72,7 @@ if (alreadyUp) {
     )
     process.exit(1)
   }
-  console.log('[dev] 127.0.0.1:3001 — verified Suplexity historic API. Starting Vite only.')
+  console.log('[dev] 127.0.0.1:3001 — verified Tradeneu historic API. Starting Vite only.')
 } else {
   historicChild = spawn(process.execPath, [historicScript], {
     cwd: root,

@@ -3,7 +3,7 @@ import { icons } from '../icons'
 import { BUILT_IN_STRATEGIES } from '../backtest/ExampleStrategies'
 
 const DEFAULT_SCRIPT = `// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
-// © Suplexity
+// © Tradeneu
 
 //@version=5
 indicator("My script", overlay=true)
@@ -74,7 +74,7 @@ export function createPineEditorDock(opts: {
   const btnRun = opts.host.querySelector('[data-rw-pine-run]') as HTMLButtonElement | null
 
   if (codeEl) {
-    codeEl.value = DEFAULT_SCRIPT.replace('Suplexity', opts.getSymbol())
+    codeEl.value = DEFAULT_SCRIPT.replace('Tradeneu', opts.getSymbol())
     syncLineNumbers()
     syncCursor()
   }
