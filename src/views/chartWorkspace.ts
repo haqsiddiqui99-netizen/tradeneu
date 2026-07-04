@@ -244,6 +244,33 @@ function formatSessionPrice(x: number): string {
   return x.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
 }
 
+type QuoteTickDir = 'up' | 'down' | 'flat'
+
+/** TradingView-style tick color: green up, red down, neutral when unchanged. */
+function quoteTickDir(current: number, previous: number | null): QuoteTickDir {
+  if (previous == null || !Number.isFinite(previous)) return 'flat'
+  if (current > previous) return 'up'
+  if (current < previous) return 'down'
+  return 'flat'
+}
+
+function applyQuoteTickClasses(el: HTMLElement, dir: QuoteTickDir, prefix: 'rw-quote-big' | 'rw-quote-sub'): void {
+  el.classList.toggle(`${prefix}--up`, dir === 'up')
+  el.classList.toggle(`${prefix}--down`, dir === 'down')
+}
+
+function quoteTickClassSuffix(dir: QuoteTickDir): string {
+  if (dir === 'up') return ' rw-wl-tick--up'
+  if (dir === 'down') return ' rw-wl-tick--down'
+  return ' rw-wl-tick--flat'
+}
+
+function changeDirFromDelta(d: number): QuoteTickDir {
+  if (d > 0) return 'up'
+  if (d < 0) return 'down'
+  return 'flat'
+}
+
 /** Right-panel data vendor line (TradingView-style). */
 function symDetailFeedTag(symbol: string, feedLabel: string): string {
   if (isGoldBrowserSymbol(symbol)) return 'PYTH'
@@ -1849,6 +1876,7 @@ export function mountChartWorkspace(
 
   let lastWatchlistBar: Bar | null = null
   let lastWatchlistPrev: Bar | null = null
+  let lastTickQuotePrice: number | null = null
 
   function openSidePanel(id: SidePanelViewId) {
     if (pineEditor?.isOpen()) setPineEditorOpen(false)
@@ -1875,7 +1903,7 @@ export function mountChartWorkspace(
     return out.slice(0, 12)
   }
 
-  function renderWatchlistTable(b: Bar | null, prev: Bar | null) {
+  function renderWatchlistTable(b: Bar | null, prev: Bar | null, tickPrice: number | null = lastTickQuotePrice) {
     if (!watchlistBodyEl) return
     const list = watchlistSymbols()
     watchlistBodyEl.innerHTML = list
@@ -1891,22 +1919,25 @@ export function mountChartWorkspace(
           </tr>`
         }
         const last = formatSessionPrice(b.close)
+        const tickDir = quoteTickDir(b.close, tickPrice)
+        const priceCls = `rw-wl-num${quoteTickClassSuffix(tickDir)}`
         const ref = prev?.close
         if (ref == null || !Number.isFinite(ref) || ref === 0) {
           return `<tr class="rw-wl-row${rowCls}" data-rw-wl-symbol="${symUi}" role="button" tabindex="0">
             <td>${symUi}</td>
-            <td class="rw-wl-num">${last}</td>
+            <td class="${priceCls}">${last}</td>
             <td class="rw-wl-num">—</td>
           </tr>`
         }
         const d = b.close - ref
         const pct = (d / ref) * 100
-        const up = d >= 0
-        const sign = up ? '+' : '−'
-        const chgCls = up ? 'rw-wl-pos' : 'rw-wl-neg'
+        const chgDir = changeDirFromDelta(d)
+        const sign = d > 0 ? '+' : d < 0 ? '−' : ''
+        const chgCls =
+          chgDir === 'up' ? 'rw-wl-pos' : chgDir === 'down' ? 'rw-wl-neg' : 'rw-wl-flat'
         return `<tr class="rw-wl-row${rowCls}" data-rw-wl-symbol="${symUi}" role="button" tabindex="0">
           <td>${symUi}</td>
-          <td class="rw-wl-num">${last}</td>
+          <td class="${priceCls}">${last}</td>
           <td class="rw-wl-num ${chgCls}">${sign}${Math.abs(pct).toFixed(2)}%</td>
         </tr>`
       })
@@ -2114,33 +2145,40 @@ export function mountChartWorkspace(
   function updateRightPanel(b: Bar | null, prev: Bar | null) {
     lastWatchlistBar = b
     lastWatchlistPrev = prev
-    renderWatchlistTable(b, prev)
     if (!rightQuoteEl || !rightChgEl) return
     if (!b) {
+      lastTickQuotePrice = null
       rightQuoteEl.textContent = '—'
       rightChgEl.textContent = '—'
-      rightQuoteEl.classList.remove('rw-quote-big--up', 'rw-quote-big--down')
+      applyQuoteTickClasses(rightQuoteEl, 'flat', 'rw-quote-big')
+      applyQuoteTickClasses(rightChgEl, 'flat', 'rw-quote-sub')
+      renderWatchlistTable(null, null, null)
       updateSidePanelFromReplay(null)
       return
     }
-    rightQuoteEl.textContent = formatSessionPrice(b.close)
+    const price = b.close
+    const prevTick = lastTickQuotePrice
+    const tickDir = quoteTickDir(price, prevTick)
+    lastTickQuotePrice = price
+    rightQuoteEl.textContent = formatSessionPrice(price)
+    applyQuoteTickClasses(rightQuoteEl, tickDir, 'rw-quote-big')
     const ref = prev?.close
     if (ref != null && Number.isFinite(ref) && ref !== 0) {
-      const d = b.close - ref
+      const d = price - ref
       const pct = (d / ref) * 100
-      const up = d >= 0
-      const sign = d >= 0 ? '+' : '−'
+      const chgDir = changeDirFromDelta(d)
+      const sign = d > 0 ? '+' : d < 0 ? '−' : ''
       const absD = Math.abs(d)
-      rightQuoteEl.classList.toggle('rw-quote-big--up', up)
-      rightQuoteEl.classList.toggle('rw-quote-big--down', !up)
-      rightChgEl.textContent = `${sign}${formatSessionPrice(absD)} ${sign}${Math.abs(pct).toFixed(2)}%`
-      rightChgEl.classList.toggle('rw-quote-sub--up', up)
-      rightChgEl.classList.toggle('rw-quote-sub--down', !up)
+      applyQuoteTickClasses(rightChgEl, chgDir, 'rw-quote-sub')
+      rightChgEl.textContent =
+        absD > 0
+          ? `${sign}${formatSessionPrice(absD)} ${sign}${Math.abs(pct).toFixed(2)}%`
+          : `${Math.abs(pct).toFixed(2)}%`
     } else {
-      rightQuoteEl.classList.remove('rw-quote-big--up', 'rw-quote-big--down')
+      applyQuoteTickClasses(rightChgEl, 'flat', 'rw-quote-sub')
       rightChgEl.textContent = '—'
-      rightChgEl.classList.remove('rw-quote-sub--up', 'rw-quote-sub--down')
     }
+    renderWatchlistTable(b, prev, prevTick)
     updateSidePanelFromReplay(b)
   }
 
@@ -2874,6 +2912,7 @@ export function mountChartWorkspace(
 
         activeSession = { ...activeSession, assets: s }
         currentChartSymbol = s
+        lastTickQuotePrice = null
 
         if (series.dataSource && usesMarketDataSession(s)) {
           feedLabel = `Tradeneu · ${series.dataSource}`

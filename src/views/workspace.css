@@ -3901,6 +3901,22 @@ body.rw-replay-dock-dragging * {
   color: var(--rw-green) !important;
 }
 
+.rw-wl-flat {
+  color: var(--rw-bright) !important;
+}
+
+.rw-wl-tick--up {
+  color: var(--rw-green) !important;
+}
+
+.rw-wl-tick--down {
+  color: var(--rw-red) !important;
+}
+
+.rw-wl-tick--flat {
+  color: var(--rw-bright) !important;
+}
+
 .rw-wl-row--active td {
   background: linear-gradient(90deg, rgba(41, 98, 255, 0.08), transparent);
   font-weight: 600;
@@ -3996,6 +4012,16 @@ body.rw-replay-dock-dragging * {
 
 .rw-quote-big--down {
   color: var(--rw-red);
+}
+
+.rw-quote-big--up,
+.rw-quote-big--down {
+  transition: color 0.12s ease;
+}
+
+.rw-quote-sub--up,
+.rw-quote-sub--down {
+  transition: color 0.12s ease;
 }
 
 .rw-quote-currency {
