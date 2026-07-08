@@ -1,7 +1,7 @@
 import './loginGate.css'
 import { HOME_PAGE_PATH } from '../appPaths'
 import { fetchAuthServerStatus, loginUser, registerUser } from '../auth/authApi'
-import { clearAllAuthSessions, getAuthUser, mirrorServerUser } from '../auth/authSession'
+import { clearAllAuthSessions, getAuthUser, GUEST_AUTH_EMAIL, mirrorServerUser, setGuestLoginSession } from '../auth/authSession'
 import { writeDisplayName } from '../home/dashboardUserPrefs'
 import {
   buildFullMobile,
@@ -18,6 +18,7 @@ export {
   clearLoginSession,
   hasLoginSession,
   resolveAuthSession,
+  setGuestLoginSession,
 } from '../auth/authSession'
 
 const lockIcon = `<svg class="sx-login__field-ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M7 11V8a5 5 0 0110 0v3"/><rect x="5" y="11" width="14" height="10" rx="2"/></svg>`
@@ -130,6 +131,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
       </div>
 
       <button type="submit" class="sx-login__submit" id="sx-login-submit">Sign in <span class="sx-login__submit-arrow" aria-hidden="true">→</span></button>
+      <button type="button" class="sx-login__skip" id="sx-login-skip">Skip for now — continue without account</button>
       <p class="sx-login__legal">
         By using our services you agree to our
         <button type="button" class="sx-login__link sx-login__link--inline" id="sx-login-terms">Terms of Service</button>
@@ -164,6 +166,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
   const continueBtn = wrap.querySelector('#sx-login-continue') as HTMLButtonElement
   const signoutBtn = wrap.querySelector('#sx-login-signout') as HTMLButtonElement
   const submitBtn = wrap.querySelector('#sx-login-submit') as HTMLButtonElement
+  const skipBtn = wrap.querySelector('#sx-login-skip') as HTMLButtonElement
   const signupOnlyFields = wrap.querySelectorAll<HTMLElement>('[data-signup-only]')
   const signinOnlyEls = wrap.querySelectorAll<HTMLElement>('.sx-login__field--signin-only')
   const toastEl = wrap.querySelector('#sx-login-toast') as HTMLElement
@@ -357,6 +360,12 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
   signupBtn.addEventListener('click', () => {
     signupMode = !signupMode
     syncSignupMode()
+  })
+
+  skipBtn?.addEventListener('click', () => {
+    hideToast()
+    setGuestLoginSession()
+    enterApp({ name: 'Guest', email: GUEST_AUTH_EMAIL })
   })
 
   let eyeShowing = false

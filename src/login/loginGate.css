@@ -734,6 +734,33 @@
   transform: translateY(0);
 }
 
+.sx-login__skip {
+  width: 100%;
+  margin-top: 0.65rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: rgba(226, 232, 240, 0.88);
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.sx-login__skip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #f8fafc;
+}
+
+.sx-login__skip:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.45);
+  outline-offset: 2px;
+}
+
 @keyframes sx-login-shimmer {
   0%,
   100% {

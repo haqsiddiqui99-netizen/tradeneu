@@ -3,6 +3,7 @@ import { assignSessionsToUser } from '../data/sessionStore'
 import { writeDisplayName } from '../home/dashboardUserPrefs'
 
 const SS_SESSION = 'suplexity-auth'
+export const GUEST_AUTH_EMAIL = 'guest@tradeneu.local'
 
 export type AuthUser = {
   id?: string
@@ -12,7 +13,7 @@ export type AuthUser = {
   mobile?: string
   country?: string
   picture?: string
-  provider?: 'local'
+  provider?: 'local' | 'guest'
 }
 
 function serverUserToAuthUser(user: ServerAuthUser): AuthUser {
@@ -52,7 +53,7 @@ function readLocalSession(): AuthUser | null {
       mobile: u.mobile,
       country: u.country,
       picture: u.picture,
-      provider: 'local',
+      provider: u.provider === 'guest' ? 'guest' : 'local',
     }
   } catch {
     return null
@@ -75,6 +76,23 @@ export function hasLocalLoginSession(): boolean {
 /** Sync check — mirrored session only. Prefer resolveAuthSession() on boot. */
 export function hasLoginSession(): boolean {
   return hasLocalLoginSession()
+}
+
+export function isGuestAuthUser(user: AuthUser | null | undefined): boolean {
+  if (!user) return false
+  return user.provider === 'guest' || user.email === GUEST_AUTH_EMAIL
+}
+
+export function setGuestLoginSession(): void {
+  const user: AuthUser = {
+    email: GUEST_AUTH_EMAIL,
+    name: 'Guest',
+    loggedInAt: Date.now(),
+    provider: 'guest',
+  }
+  assignSessionsToUser(GUEST_AUTH_EMAIL, { reset: false })
+  writeLocalSession(user)
+  writeDisplayName('Guest')
 }
 
 export function getAuthUser(): AuthUser | null {
@@ -107,6 +125,8 @@ export async function resolveAuthSession(): Promise<boolean> {
     mirrorServerUser(serverUser)
     return true
   }
+  const local = readLocalSession()
+  if (local && isGuestAuthUser(local)) return true
   clearLoginSession()
   return false
 }
