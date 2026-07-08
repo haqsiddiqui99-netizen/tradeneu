@@ -37,6 +37,7 @@ import { mountStrategyPage } from '../views/mountStrategyPage'
 import { mountSettingsPage } from '../views/mountSettingsPage'
 import { mountProfilePage, type ProfileSessionStats } from '../views/mountProfilePage'
 import { buildHomeChartBrowseHtml, wireHomeChartBrowse } from './homeChartBrowse'
+import { DASH_LOCALES, dashLocaleMenuLabel, isDashLocaleCode } from './dashboardLocales'
 import { readDisplayName } from './dashboardUserPrefs'
 import {
   buildDashboardPerfChartSvg,
