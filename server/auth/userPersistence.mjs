@@ -13,8 +13,15 @@ function blobToken() {
   return process.env.BLOB_READ_WRITE_TOKEN?.trim() || ''
 }
 
+function blobStoreId() {
+  return process.env.BLOB_STORE_ID?.trim() || ''
+}
+
+/** True when Blob SDK can read/write (token locally, or linked store on Vercel via OIDC). */
 function useBlobStorage() {
-  return Boolean(blobToken())
+  if (blobToken()) return true
+  if (process.env.VERCEL && blobStoreId()) return true
+  return false
 }
 
 function runBlobExclusive(fn) {
