@@ -1,13 +1,16 @@
+import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
-import { get, put } from '@vercel/blob'
+import { get, list, put } from '@vercel/blob'
 
 const USERS_FILE = 'users.json'
-/** Fixed blob path — must use addRandomSuffix: false on every put. */
-const USERS_BLOB_PATHNAME = 'tradeneu/auth/users.json'
+const USERS_DIR = 'users'
+const LEGACY_BLOB_PATHNAME = 'tradeneu/auth/users.json'
+const USER_BLOB_PREFIX = 'tradeneu/auth/users/'
 
-/** Serialize blob read-modify-write so concurrent requests cannot overwrite users. */
+/** Serialize blob operations on this instance (per-user blobs avoid cross-instance array races). */
 let blobQueue = Promise.resolve()
+let legacyBlobMigrated = false
 
 function blobToken() {
   return process.env.BLOB_READ_WRITE_TOKEN?.trim() || ''
@@ -17,7 +20,6 @@ function blobStoreId() {
   return process.env.BLOB_STORE_ID?.trim() || ''
 }
 
-/** True when Blob SDK can read/write (token locally, or linked store on Vercel via OIDC). */
 function useBlobStorage() {
   if (blobToken()) return true
   if (process.env.VERCEL && blobStoreId()) return true
@@ -32,6 +34,34 @@ function runBlobExclusive(fn) {
 
 export function usersFilePath(dataDir) {
   return path.join(dataDir, USERS_FILE)
+}
+
+function usersDirPath(dataDir) {
+  return path.join(dataDir, USERS_DIR)
+}
+
+function normalizeEmailKey(email) {
+  return String(email || '')
+    .trim()
+    .toLowerCase()
+}
+
+/** Safe blob pathname segment from email (no slashes or reserved chars). */
+export function emailToStorageKey(email) {
+  const e = normalizeEmailKey(email)
+  if (!e) return ''
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.createHash('sha256').update(e).digest('base64url').slice(0, 43)
+  }
+  return Buffer.from(e).toString('base64url').replace(/=/g, '')
+}
+
+function userBlobPathname(email) {
+  return `${USER_BLOB_PREFIX}${emailToStorageKey(email)}.json`
+}
+
+function userFilePath(dataDir, email) {
+  return path.join(usersDirPath(dataDir), `${emailToStorageKey(email)}.json`)
 }
 
 /**
@@ -72,20 +102,12 @@ function blobPutOptions() {
   }
 }
 
-function readUsersFromFile(dataDir) {
-  const file = usersFilePath(dataDir)
-  try {
-    if (!fs.existsSync(file)) return []
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'))
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
+function blobListOptions() {
+  const token = blobToken()
+  return {
+    prefix: USER_BLOB_PREFIX,
+    ...(token ? { token } : {}),
   }
-}
-
-function writeUsersToFile(dataDir, users) {
-  fs.mkdirSync(dataDir, { recursive: true })
-  fs.writeFileSync(usersFilePath(dataDir), JSON.stringify(users, null, 2), 'utf8')
 }
 
 function isBlobNotFound(err) {
@@ -105,28 +127,142 @@ async function streamToText(stream) {
   return Buffer.concat(chunks).toString('utf8')
 }
 
-async function readUsersFromBlob() {
+async function readJsonFromBlobPath(pathname) {
   try {
-    const result = await get(USERS_BLOB_PATHNAME, blobGetOptions())
-    if (!result || result.statusCode !== 200 || !result.stream) return []
+    const result = await get(pathname, blobGetOptions())
+    if (!result || result.statusCode !== 200 || !result.stream) return null
     const text = await streamToText(result.stream)
-    if (!text.trim()) return []
-    const parsed = JSON.parse(text)
-    return Array.isArray(parsed) ? parsed : []
+    if (!text.trim()) return null
+    return JSON.parse(text)
   } catch (err) {
-    if (isBlobNotFound(err)) return []
+    if (isBlobNotFound(err)) return null
     throw err
   }
 }
 
-async function writeUsersToBlob(users) {
-  await put(USERS_BLOB_PATHNAME, JSON.stringify(users, null, 2), blobPutOptions())
+async function writeJsonToBlobPath(pathname, data) {
+  await put(pathname, JSON.stringify(data, null, 2), blobPutOptions())
+}
+
+function readUsersFromFile(dataDir) {
+  const dir = usersDirPath(dataDir)
+  if (fs.existsSync(dir)) {
+    const users = []
+    for (const name of fs.readdirSync(dir)) {
+      if (!name.endsWith('.json')) continue
+      try {
+        const parsed = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'))
+        if (parsed && typeof parsed === 'object' && parsed.email) users.push(parsed)
+      } catch {
+        /* skip corrupt file */
+      }
+    }
+    if (users.length) return users
+  }
+  const legacy = usersFilePath(dataDir)
+  try {
+    if (!fs.existsSync(legacy)) return []
+    const parsed = JSON.parse(fs.readFileSync(legacy, 'utf8'))
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function writeUserToFile(dataDir, user) {
+  const dir = usersDirPath(dataDir)
+  fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(userFilePath(dataDir, user.email), JSON.stringify(user, null, 2), 'utf8')
+}
+
+function readUserFromFile(dataDir, email) {
+  const file = userFilePath(dataDir, email)
+  try {
+    if (!fs.existsSync(file)) return null
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'))
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+async function migrateLegacyBlobUsersIfNeeded() {
+  if (legacyBlobMigrated) return
+  legacyBlobMigrated = true
+  const legacy = await readJsonFromBlobPath(LEGACY_BLOB_PATHNAME)
+  if (!Array.isArray(legacy) || !legacy.length) return
+  for (const row of legacy) {
+    if (!row?.email) continue
+    const pathname = userBlobPathname(row.email)
+    const existing = await readJsonFromBlobPath(pathname)
+    if (!existing) await writeJsonToBlobPath(pathname, row)
+  }
+}
+
+async function readUserFromBlob(email) {
+  await migrateLegacyBlobUsersIfNeeded()
+  return readJsonFromBlobPath(userBlobPathname(email))
+}
+
+async function writeUserToBlob(user) {
+  await writeJsonToBlobPath(userBlobPathname(user.email), user)
+}
+
+async function listAllUsersFromBlob() {
+  await migrateLegacyBlobUsersIfNeeded()
+  const users = []
+  let cursor
+  do {
+    const page = await list({ ...blobListOptions(), cursor })
+    for (const blob of page.blobs) {
+      if (!blob.pathname?.endsWith('.json')) continue
+      const row = await readJsonFromBlobPath(blob.pathname)
+      if (row?.email) users.push(row)
+    }
+    cursor = page.hasMore ? page.cursor : undefined
+  } while (cursor)
+  return users
+}
+
+/** @returns {Promise<import('./userStore.mjs').StoredUser | null>} */
+export async function getUserByEmail(dataDir, email) {
+  const e = normalizeEmailKey(email)
+  if (!e) return null
+  if (useBlobStorage()) {
+    return runBlobExclusive(() => readUserFromBlob(e))
+  }
+  let user = readUserFromFile(dataDir, e)
+  if (user) return user
+  const legacy = readUsersFromFile(dataDir)
+  return legacy.find((u) => u && normalizeEmailKey(u.email) === e) ?? null
+}
+
+/** @returns {Promise<import('./userStore.mjs').StoredUser | null>} */
+export async function getUserByMobile(dataDir, mobileDigits) {
+  const m = String(mobileDigits || '').replace(/\D/g, '')
+  if (m.length < 10) return null
+  if (useBlobStorage()) {
+    const users = await runBlobExclusive(() => listAllUsersFromBlob())
+    return users.find((u) => String(u.mobile || '').replace(/\D/g, '') === m) ?? null
+  }
+  const users = readUsersFromFile(dataDir)
+  return users.find((u) => String(u.mobile || '').replace(/\D/g, '') === m) ?? null
+}
+
+/** @param {import('./userStore.mjs').StoredUser} user */
+export async function saveUser(dataDir, user) {
+  if (useBlobStorage()) {
+    return runBlobExclusive(async () => {
+      await writeUserToBlob(user)
+    })
+  }
+  writeUserToFile(dataDir, user)
 }
 
 /** @returns {Promise<import('./userStore.mjs').StoredUser[]>} */
 export async function readUsers(dataDir) {
   if (useBlobStorage()) {
-    return runBlobExclusive(() => readUsersFromBlob())
+    return runBlobExclusive(() => listAllUsersFromBlob())
   }
   return readUsersFromFile(dataDir)
 }
@@ -135,31 +271,44 @@ export async function readUsers(dataDir) {
 export async function writeUsers(dataDir, users) {
   if (useBlobStorage()) {
     return runBlobExclusive(async () => {
-      await writeUsersToBlob(users)
+      for (const user of users) {
+        if (user?.email) await writeUserToBlob(user)
+      }
     })
+    return
   }
-  writeUsersToFile(dataDir, users)
+  const dir = usersDirPath(dataDir)
+  fs.mkdirSync(dir, { recursive: true })
+  for (const user of users) {
+    if (user?.email) writeUserToFile(dataDir, user)
+  }
+  fs.writeFileSync(usersFilePath(dataDir), JSON.stringify(users, null, 2), 'utf8')
 }
 
 /**
- * Atomic read → mutate → write for blob (prevents lost updates on login/register races).
  * @template T
  * @param {string} dataDir
- * @param {(users: import('./userStore.mjs').StoredUser[]) => Promise<T>} mutate
- * @returns {Promise<T>}
+ * @param {(user: import('./userStore.mjs').StoredUser | null) => Promise<{ ok: true, result: T, user?: import('./userStore.mjs').StoredUser } | { ok: false, error: string, status?: number }>>} work
  */
-export async function mutateUsers(dataDir, mutate) {
-  if (!useBlobStorage()) {
-    const users = readUsersFromFile(dataDir)
-    const result = await mutate(users)
-    writeUsersToFile(dataDir, users)
-    return result
+export async function withUserByEmail(dataDir, email, work) {
+  const e = normalizeEmailKey(email)
+  if (useBlobStorage()) {
+    return runBlobExclusive(async () => {
+      await migrateLegacyBlobUsersIfNeeded()
+      const user = await readUserFromBlob(e)
+      const outcome = await work(user)
+      if (!outcome.ok) return outcome
+      if (outcome.user) await writeUserToBlob(outcome.user)
+      return { ok: true, result: outcome.result }
+    })
   }
-
-  return runBlobExclusive(async () => {
-    const users = await readUsersFromBlob()
-    const result = await mutate(users)
-    await writeUsersToBlob(users)
-    return result
-  })
+  let user = readUserFromFile(dataDir, e)
+  if (!user) {
+    const legacy = readUsersFromFile(dataDir)
+    user = legacy.find((u) => u && normalizeEmailKey(u.email) === e) ?? null
+  }
+  const outcome = await work(user)
+  if (!outcome.ok) return outcome
+  if (outcome.user) writeUserToFile(dataDir, outcome.user)
+  return { ok: true, result: outcome.result }
 }

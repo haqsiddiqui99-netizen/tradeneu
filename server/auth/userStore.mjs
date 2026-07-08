@@ -1,5 +1,11 @@
 import crypto from 'crypto'
-import { authStorageStatus, mutateUsers, readUsers } from './userPersistence.mjs'
+import {
+  authStorageStatus,
+  getUserByEmail,
+  getUserByMobile,
+  saveUser,
+  withUserByEmail,
+} from './userPersistence.mjs'
 
 /** @typedef {{ id: string, name: string, email: string, mobile: string, country: string, passwordHash: string, passwordSalt: string, createdAt: number, lastLoginAt: number }} StoredUser */
 
@@ -34,16 +40,13 @@ export function verifyPassword(password, salt, expectedHash) {
 }
 
 export async function findUserByEmail(dataDir, email) {
-  const e = normalizeEmail(email)
-  const users = await readUsers(dataDir)
-  return users.find((u) => u && u.email === e) ?? null
+  return getUserByEmail(dataDir, email)
 }
 
 export async function findUserByMobile(dataDir, mobile) {
   const m = normalizeMobile(mobile)
   if (!m) return null
-  const users = await readUsers(dataDir)
-  return users.find((u) => u && normalizeMobile(u.mobile) === m) ?? null
+  return getUserByMobile(dataDir, m)
 }
 
 export function normalizeEmail(email) {
@@ -106,6 +109,15 @@ export async function registerUser(dataDir, input) {
     return { ok: false, error: 'Password must be at least 8 characters.', status: 400 }
   }
 
+  const existingEmail = await getUserByEmail(dataDir, email)
+  if (existingEmail) {
+    return { ok: false, error: 'An account with this email already exists. Sign in instead.', status: 409 }
+  }
+  const existingMobile = await getUserByMobile(dataDir, mobile)
+  if (existingMobile) {
+    return { ok: false, error: 'An account with this mobile number already exists.', status: 409 }
+  }
+
   const { passwordHash, passwordSalt } = createPasswordCreds(password)
   const now = Date.now()
   const user = {
@@ -119,17 +131,8 @@ export async function registerUser(dataDir, input) {
     createdAt: now,
     lastLoginAt: now,
   }
-
-  return mutateUsers(dataDir, async (users) => {
-    if (users.some((u) => u.email === email)) {
-      return { ok: false, error: 'An account with this email already exists. Sign in instead.', status: 409 }
-    }
-    if (users.some((u) => normalizeMobile(u.mobile) === mobile)) {
-      return { ok: false, error: 'An account with this mobile number already exists.', status: 409 }
-    }
-    users.push(user)
-    return { ok: true, user }
-  })
+  await saveUser(dataDir, user)
+  return { ok: true, user }
 }
 
 /**
@@ -145,8 +148,7 @@ export async function authenticateUser(dataDir, email, password) {
     return { ok: false, error: 'Enter your email and password.', status: 400 }
   }
 
-  return mutateUsers(dataDir, async (users) => {
-    const user = users.find((u) => u.email === e)
+  const outcome = await withUserByEmail(dataDir, e, async (user) => {
     if (!user) {
       return { ok: false, error: 'No account found for this email. Sign up first.', status: 401 }
     }
@@ -154,6 +156,9 @@ export async function authenticateUser(dataDir, email, password) {
       return { ok: false, error: 'Incorrect password.', status: 401 }
     }
     user.lastLoginAt = Date.now()
-    return { ok: true, user }
+    return { ok: true, result: user, user }
   })
+
+  if (!outcome.ok) return outcome
+  return { ok: true, user: outcome.result }
 }
