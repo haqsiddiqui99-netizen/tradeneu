@@ -24,7 +24,10 @@ export type AuthApiResult =
 export type AuthServerStatus = {
   online: boolean
   localAuth: boolean
-  reason?: 'offline' | 'outdated_api'
+  storageReady?: boolean
+  storageBackend?: string
+  storageMessage?: string
+  reason?: 'offline' | 'outdated_api' | 'storage'
 }
 
 async function readResponsePayload(res: Response): Promise<{ json: unknown | null; text: string }> {
@@ -130,9 +133,31 @@ export async function fetchAuthServerStatus(): Promise<AuthServerStatus> {
     if (!res.ok || !json || typeof json !== 'object') {
       return { online: false, localAuth: false, reason: 'offline' }
     }
-    const body = json as { ok?: boolean; authMode?: string; googleEnabled?: boolean }
+    const body = json as {
+      ok?: boolean
+      authMode?: string
+      googleEnabled?: boolean
+      storageReady?: boolean
+      storageBackend?: string
+      storageMessage?: string
+    }
     if (body.authMode === 'local') {
-      return { online: true, localAuth: true }
+      if (body.storageReady === false) {
+        return {
+          online: true,
+          localAuth: true,
+          storageReady: false,
+          storageBackend: body.storageBackend,
+          storageMessage: body.storageMessage,
+          reason: 'storage',
+        }
+      }
+      return {
+        online: true,
+        localAuth: true,
+        storageReady: body.storageReady ?? true,
+        storageBackend: body.storageBackend,
+      }
     }
     // Old API build (Google-only config) — register route missing
     if ('googleEnabled' in body && body.authMode !== 'local') {

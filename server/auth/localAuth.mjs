@@ -1,6 +1,6 @@
 /**
- * Email + password auth — users stored in server-data/users.json.
- * Requires AUTH_SESSION_SECRET in env (min 16 chars).
+ * Email + password auth — users stored in server-data/users.json (local)
+ * or Vercel Blob (production). Requires AUTH_SESSION_SECRET in env (min 16 chars).
  */
 
 import {
@@ -8,7 +8,7 @@ import {
   readSessionFromRequest,
   setSessionCookie,
 } from './sessionCookie.mjs'
-import { authenticateUser, publicUser, registerUser } from './userStore.mjs'
+import { authStorageStatus, authenticateUser, publicUser, registerUser } from './userStore.mjs'
 
 function isSecureRequest(req) {
   const proto = req.get('x-forwarded-proto') || req.protocol || 'http'
@@ -31,8 +31,15 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
   app.set('trust proxy', 1)
 
   app.get('/api/auth/config', (_req, res) => {
+    const storage = authStorageStatus()
     res.setHeader('Cache-Control', 'no-store')
-    res.json({ ok: true, authMode: 'local' })
+    res.json({
+      ok: true,
+      authMode: 'local',
+      storageBackend: storage.backend,
+      storageReady: storage.ready,
+      storageMessage: storage.message,
+    })
   })
 
   app.get('/api/auth/me', (req, res) => {
@@ -57,9 +64,9 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
     })
   })
 
-  app.post('/api/auth/register', (req, res) => {
+  app.post('/api/auth/register', async (req, res) => {
     try {
-      const result = registerUser(dataDir, req.body ?? {})
+      const result = await registerUser(dataDir, req.body ?? {})
       if (!result.ok) {
         res.status(result.status ?? 400).json({ ok: false, error: result.error })
         return
@@ -73,11 +80,11 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
     }
   })
 
-  app.post('/api/auth/login', (req, res) => {
+  app.post('/api/auth/login', async (req, res) => {
     try {
       const email = req.body?.email
       const password = req.body?.password
-      const result = authenticateUser(dataDir, email, password)
+      const result = await authenticateUser(dataDir, email, password)
       if (!result.ok) {
         res.status(result.status ?? 401).json({ ok: false, error: result.error })
         return
@@ -91,8 +98,9 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
     }
   })
 
-  app.post('/api/auth/logout', (_req, res) => {
-    clearSessionCookie(res)
+  app.post('/api/auth/logout', (req, res) => {
+    const secure = isSecureRequest(req)
+    clearSessionCookie(res, { secure })
     res.json({ ok: true })
   })
 }

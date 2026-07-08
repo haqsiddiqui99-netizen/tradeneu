@@ -402,12 +402,14 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
 
   void fetchAuthServerStatus().then((status) => {
     if (!offlineHintEl) return
-    if (status.online && status.localAuth) {
+    if (status.online && status.localAuth && status.storageReady !== false) {
       offlineHintEl.hidden = true
       return
     }
     offlineHintEl.hidden = false
-    if (status.reason === 'outdated_api') {
+    if (status.reason === 'storage' && status.storageMessage) {
+      offlineHintEl.textContent = status.storageMessage
+    } else if (status.reason === 'outdated_api') {
       offlineHintEl.textContent =
         'Account API is outdated. Stop the old server on port 3001, then run npm run dev and try again.'
     } else {

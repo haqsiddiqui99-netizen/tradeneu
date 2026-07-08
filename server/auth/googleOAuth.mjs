@@ -5,7 +5,7 @@
  *   GOOGLE_CLIENT_ID
  *   GOOGLE_CLIENT_SECRET
  *   AUTH_SESSION_SECRET   — min 16 chars, random string
- *   AUTH_BASE_URL         — e.g. http://localhost:5199 (dev via Vite) or https://your-app.vercel.app
+ *   AUTH_BASE_URL         — e.g. http://localhost:5199 (dev via Vite) or https://tradeneu.com
  *
  * Google Cloud Console → OAuth client → Authorized redirect URI:
  *   {AUTH_BASE_URL}/api/auth/google/callback

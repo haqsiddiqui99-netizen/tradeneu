@@ -36,7 +36,7 @@ import { resolveStrategy } from '../strategy/strategyCatalog'
 import { mountStrategyPage } from '../views/mountStrategyPage'
 import { mountSettingsPage } from '../views/mountSettingsPage'
 import { mountProfilePage, type ProfileSessionStats } from '../views/mountProfilePage'
-import { DASH_LOCALES, dashLocaleMenuLabel, isDashLocaleCode } from './dashboardLocales'
+import { buildHomeChartBrowseHtml, wireHomeChartBrowse } from './homeChartBrowse'
 import { readDisplayName } from './dashboardUserPrefs'
 import {
   buildDashboardPerfChartSvg,
@@ -545,6 +545,105 @@ function saveSessionDraft(p: SessionCreatedPayload) {
   saveSessionDraftCompat(p)
 }
 
+function buildRecentSessionsSectionHtml(): string {
+  return `
+            <section
+              class="sx-dash-recent-sessions sx-dash-card-surface overflow-hidden rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-8 lg:p-10"
+              aria-labelledby="sx-dash-recent-sessions-title"
+            >
+              <div class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <h3 id="sx-dash-recent-sessions-title" class="text-lg font-bold tracking-tight text-slate-900 dark:text-white sm:text-xl">
+                  Recent Sessions
+                </h3>
+                <div class="flex flex-wrap items-center gap-3">
+                  <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400" data-sx-sessions-count>0 out of 2 sessions</span>
+                  <div
+                    class="h-2 w-28 overflow-hidden rounded-full bg-zinc-200 dark:bg-white/10"
+                    role="progressbar"
+                    aria-valuemin="0"
+                    aria-valuemax="2"
+                    aria-valuenow="0"
+                    data-sx-sessions-count-bar
+                  >
+                    <div
+                      class="h-full rounded-full bg-gradient-to-r from-teal-500 to-emerald-400 transition-[width] duration-300"
+                      data-sx-sessions-count-fill
+                      style="width: 0%"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <div class="relative min-w-0 flex-1">
+                  <i
+                    class="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[0.8rem] text-zinc-500 dark:text-zinc-500"
+                    aria-hidden="true"
+                  ></i>
+                  <input
+                    id="sx-dash-sessions-search"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Search sessions"
+                    class="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-400/50 focus:outline-none focus:ring-2 focus:ring-sky-400/25 dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  />
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                  <div class="sx-dash-perf-dd relative" data-sx-session-dd="filter">
+                    <button
+                      type="button"
+                      data-action="sessions-filter"
+                      class="flex h-10 min-w-[2.5rem] items-center justify-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 text-zinc-600 transition hover:bg-zinc-50 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-300 dark:hover:bg-white/[0.1]"
+                      title="Filter sessions"
+                      aria-label="Filter sessions"
+                      aria-expanded="false"
+                    >
+                      <i class="fa-solid fa-filter text-[0.85rem]" aria-hidden="true"></i>
+                      <span class="sx-dash-session-filter-label hidden text-xs font-semibold sm:inline">All</span>
+                      <i class="fa-solid fa-chevron-down sx-dash-perf-trigger__chev hidden text-[0.55rem] text-zinc-400 sm:inline" aria-hidden="true"></i>
+                    </button>
+                    <div class="sx-dash-perf-panel hidden min-w-[11rem]" role="listbox" aria-label="Session filter"></div>
+                  </div>
+                  <div class="sx-dash-perf-dd relative" data-sx-session-dd="sort">
+                    <button
+                      type="button"
+                      data-action="sessions-sort"
+                      class="inline-flex h-10 min-w-[10.5rem] items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-200 dark:hover:bg-white/[0.1]"
+                      aria-label="Sort sessions"
+                      aria-expanded="false"
+                    >
+                      <i class="fa-solid fa-arrows-up-down text-[0.75rem] text-zinc-500 dark:text-zinc-400" aria-hidden="true"></i>
+                      <span class="sx-dash-session-sort-label truncate">Recently opened</span>
+                      <i class="fa-solid fa-chevron-down sx-dash-perf-trigger__chev text-[0.55rem] text-zinc-400" aria-hidden="true"></i>
+                    </button>
+                    <div class="sx-dash-perf-panel hidden min-w-[11rem]" role="listbox" aria-label="Session sort"></div>
+                  </div>
+                </div>
+              </div>
+
+              <ul id="sx-dash-session-list" class="mb-5 list-none space-y-3 p-0" aria-live="polite"></ul>
+
+              <div
+                class="sx-dash-recent-sessions__banner flex flex-col gap-3 rounded-xl border border-sky-400/25 bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-violet-500/10 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+                data-sx-sessions-banner
+                role="status"
+              >
+                <p class="text-sm leading-snug text-slate-700 dark:text-sky-100/95">
+                  Sessions on the Beginner plan are hidden after 1 week.
+                  <span class="text-slate-600 dark:text-zinc-300">Upgrade to Pro to unlock all your past sessions.</span>
+                </p>
+                <button
+                  type="button"
+                  data-action="pro-upgrade"
+                  class="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg border border-sky-500/35 bg-white px-4 py-2 text-xs font-bold text-sky-800 shadow-sm transition hover:bg-sky-50 dark:border-sky-400/40 dark:bg-white/[0.12] dark:text-white dark:hover:bg-white/[0.18] sm:self-center"
+                >
+                  <i class="fa-solid fa-bolt text-amber-500 dark:text-amber-300" aria-hidden="true"></i>
+                  Upgrade
+                </button>
+              </div>
+            </section>`
+}
+
 /**
  * TraderLocal-style dark dashboard — session launcher & markets.
  */
@@ -832,48 +931,12 @@ export function mountDashboardApp(root: HTMLElement): void {
           </button>
         </section>
 
-        <section class="grid grid-cols-12 gap-6">
-          <div class="sx-dash-card-surface relative col-span-12 overflow-hidden rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-10 lg:col-span-8">
-            <div class="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-center sm:justify-between">
-              <h3 class="text-xl font-bold">System Performance</h3>
-              <div class="flex gap-2">
-                <span class="rounded-lg bg-white/5 px-3 py-1 text-[10px] font-bold text-zinc-400">LAST 30 DAYS</span>
-              </div>
-            </div>
-            <div class="flex h-64 items-end gap-2 rounded-xl border-b border-white/5 bg-gradient-to-t from-blue-500/5 to-transparent p-4">
-              <div class="flex-1 rounded-t-sm border-t border-blue-500/40 bg-blue-600/20" style="height: 40%"></div>
-              <div class="flex-1 rounded-t-sm border-t border-blue-500/40 bg-blue-600/20" style="height: 70%"></div>
-              <div class="flex-1 rounded-t-sm border-t border-blue-500/40 bg-blue-600/20" style="height: 45%"></div>
-              <div class="flex-1 rounded-t-sm border-t border-blue-500/40 bg-blue-600/20" style="height: 90%"></div>
-              <div class="flex-1 rounded-t-sm border-t border-blue-500/40 bg-blue-600/20" style="height: 65%"></div>
-              <div class="flex-1 rounded-t-sm border-t border-blue-500/40 bg-blue-600/20" style="height: 80%"></div>
-              <div class="flex-1 rounded-t-sm border-t border-blue-500/40 bg-blue-600/20" style="height: 50%"></div>
-              <div class="flex-1 rounded-t-sm border-t border-blue-500/40 bg-blue-600/20" style="height: 85%"></div>
-            </div>
-          </div>
+        ${buildHomeChartBrowseHtml()}
 
-          <div class="col-span-12 flex flex-col gap-6 lg:col-span-4">
-            <div class="rounded-[2.5rem] bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-700 p-8 text-white shadow-2xl shadow-fuchsia-900/30">
-              <p class="mb-2 text-[10px] font-bold uppercase tracking-widest opacity-60">Simulation Time</p>
-              <h4 class="mb-1 text-4xl font-bold">12.4 <span class="text-xl opacity-60">hrs</span></h4>
-              <p class="text-xs opacity-80">+2.1 hrs from last week</p>
-            </div>
-            <div class="sx-dash-card-surface rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-              <p class="mb-4 text-[10px] font-bold uppercase tracking-widest text-zinc-500">Quick Stats</p>
-              <div class="space-y-4">
-                <div class="flex justify-between border-b border-white/5 pb-2">
-                  <span class="text-sm text-zinc-400">Win Rate</span>
-                  <span class="text-sm font-bold text-green-400">64%</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-sm text-zinc-400">Profit Factor</span>
-                  <span class="text-sm font-bold text-white">1.82</span>
-                </div>
-              </div>
-            </div>
-          </div>
+        ${buildRecentSessionsSectionHtml()}
 
-          <div class="col-span-12">
+        <section>
+          <div>
             <div class="sx-dash-card-surface rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-8 lg:p-10">
               <div class="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
                 <h3 class="text-xl font-bold text-white">Performance</h3>
@@ -1010,104 +1073,6 @@ export function mountDashboardApp(root: HTMLElement): void {
                 </div>
               </div>
             </div>
-          </div>
-
-          <div class="col-span-12">
-            <section
-              class="sx-dash-recent-sessions sx-dash-card-surface overflow-hidden rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-8 lg:p-10"
-              aria-labelledby="sx-dash-recent-sessions-title"
-            >
-              <div class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <h3 id="sx-dash-recent-sessions-title" class="text-lg font-bold tracking-tight text-slate-900 dark:text-white sm:text-xl">
-                  Recent Sessions
-                </h3>
-                <div class="flex flex-wrap items-center gap-3">
-                  <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400" data-sx-sessions-count>0 out of 2 sessions</span>
-                  <div
-                    class="h-2 w-28 overflow-hidden rounded-full bg-zinc-200 dark:bg-white/10"
-                    role="progressbar"
-                    aria-valuemin="0"
-                    aria-valuemax="2"
-                    aria-valuenow="0"
-                    data-sx-sessions-count-bar
-                  >
-                    <div
-                      class="h-full rounded-full bg-gradient-to-r from-teal-500 to-emerald-400 transition-[width] duration-300"
-                      data-sx-sessions-count-fill
-                      style="width: 0%"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <div class="relative min-w-0 flex-1">
-                  <i
-                    class="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[0.8rem] text-zinc-500 dark:text-zinc-500"
-                    aria-hidden="true"
-                  ></i>
-                  <input
-                    id="sx-dash-sessions-search"
-                    type="search"
-                    autocomplete="off"
-                    placeholder="Search sessions"
-                    class="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-400/50 focus:outline-none focus:ring-2 focus:ring-sky-400/25 dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                  />
-                </div>
-                <div class="flex shrink-0 items-center gap-2">
-                  <div class="sx-dash-perf-dd relative" data-sx-session-dd="filter">
-                    <button
-                      type="button"
-                      data-action="sessions-filter"
-                      class="flex h-10 min-w-[2.5rem] items-center justify-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 text-zinc-600 transition hover:bg-zinc-50 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-300 dark:hover:bg-white/[0.1]"
-                      title="Filter sessions"
-                      aria-label="Filter sessions"
-                      aria-expanded="false"
-                    >
-                      <i class="fa-solid fa-filter text-[0.85rem]" aria-hidden="true"></i>
-                      <span class="sx-dash-session-filter-label hidden text-xs font-semibold sm:inline">All</span>
-                      <i class="fa-solid fa-chevron-down sx-dash-perf-trigger__chev hidden text-[0.55rem] text-zinc-400 sm:inline" aria-hidden="true"></i>
-                    </button>
-                    <div class="sx-dash-perf-panel hidden min-w-[11rem]" role="listbox" aria-label="Session filter"></div>
-                  </div>
-                  <div class="sx-dash-perf-dd relative" data-sx-session-dd="sort">
-                    <button
-                      type="button"
-                      data-action="sessions-sort"
-                      class="inline-flex h-10 min-w-[10.5rem] items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-200 dark:hover:bg-white/[0.1]"
-                      aria-label="Sort sessions"
-                      aria-expanded="false"
-                    >
-                      <i class="fa-solid fa-arrows-up-down text-[0.75rem] text-zinc-500 dark:text-zinc-400" aria-hidden="true"></i>
-                      <span class="sx-dash-session-sort-label truncate">Recently opened</span>
-                      <i class="fa-solid fa-chevron-down sx-dash-perf-trigger__chev text-[0.55rem] text-zinc-400" aria-hidden="true"></i>
-                    </button>
-                    <div class="sx-dash-perf-panel hidden min-w-[11rem]" role="listbox" aria-label="Session sort"></div>
-                  </div>
-                </div>
-              </div>
-
-              <ul id="sx-dash-session-list" class="mb-5 list-none space-y-3 p-0" aria-live="polite"></ul>
-
-              <div
-                class="sx-dash-recent-sessions__banner flex flex-col gap-3 rounded-xl border border-sky-400/25 bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-violet-500/10 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5"
-                data-sx-sessions-banner
-                role="status"
-              >
-                <p class="text-sm leading-snug text-slate-700 dark:text-sky-100/95">
-                  Sessions on the Beginner plan are hidden after 1 week.
-                  <span class="text-slate-600 dark:text-zinc-300">Upgrade to Pro to unlock all your past sessions.</span>
-                </p>
-                <button
-                  type="button"
-                  data-action="pro-upgrade"
-                  class="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg border border-sky-500/35 bg-white px-4 py-2 text-xs font-bold text-sky-800 shadow-sm transition hover:bg-sky-50 dark:border-sky-400/40 dark:bg-white/[0.12] dark:text-white dark:hover:bg-white/[0.18] sm:self-center"
-                >
-                  <i class="fa-solid fa-bolt text-amber-500 dark:text-amber-300" aria-hidden="true"></i>
-                  Upgrade
-                </button>
-              </div>
-            </section>
           </div>
         </section>
         </div>
@@ -2045,6 +2010,7 @@ export function mountDashboardApp(root: HTMLElement): void {
 
   syncPerfUi()
   syncRecentSessionsUi()
+  wireHomeChartBrowse(root)
 
   function onPopState() {
     const path = normalizeAppPath(window.location.pathname)

@@ -27,6 +27,7 @@ import { parseXauCsvText } from '../scripts/xauCsvParse.mjs'
 import { resolveMarketBars } from './providers/resolveChain.mjs'
 import { getCachedMarketBars, invalidateMarketBarsCache, marketBarsCacheKey } from './providers/marketBarsCache.mjs'
 import { mountLocalAuthRoutes } from './auth/localAuth.mjs'
+import { authStorageStatus } from './auth/userPersistence.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 /** Vercel serverless has ephemeral disk; /tmp persists for the lifetime of a warm instance. */
@@ -90,6 +91,12 @@ app.use((req, res, next) => {
 })
 
 mountLocalAuthRoutes(app, { dataDir: DATA_DIR })
+const authStorage = authStorageStatus()
+if (authStorage.ready) {
+  console.log(`[auth] user storage: ${authStorage.backend}`)
+} else {
+  console.warn(`[auth] user storage not ready: ${authStorage.message || authStorage.backend}`)
+}
 
 app.get('/api/historic/gold/bars', (req, res) => {
   try {

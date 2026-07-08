@@ -46,8 +46,14 @@ export function serializeCookie(name, value, opts = {}) {
   return parts.join('; ')
 }
 
-export function clearCookie(name) {
-  return serializeCookie(name, '', { maxAge: 0, path: '/', httpOnly: true, sameSite: 'Lax' })
+export function clearCookie(name, opts = {}) {
+  return serializeCookie(name, '', {
+    maxAge: 0,
+    path: '/',
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: opts.secure,
+  })
 }
 
 export function createSessionToken(payload) {
@@ -111,8 +117,8 @@ function appendSetCookie(res, value) {
   else res.setHeader('Set-Cookie', value)
 }
 
-export function clearSessionCookie(res) {
-  appendSetCookie(res, clearCookie(COOKIE_NAME))
+export function clearSessionCookie(res, { secure } = {}) {
+  appendSetCookie(res, clearCookie(COOKIE_NAME, { secure }))
 }
 
 export function setOAuthStateCookie(res, state, { secure }) {

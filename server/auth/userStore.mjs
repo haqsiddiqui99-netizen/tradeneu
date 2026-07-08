@@ -1,30 +1,9 @@
 import crypto from 'crypto'
-import fs from 'fs'
-import path from 'path'
-
-const USERS_FILE = 'users.json'
+import { authStorageStatus, mutateUsers, readUsers } from './userPersistence.mjs'
 
 /** @typedef {{ id: string, name: string, email: string, mobile: string, country: string, passwordHash: string, passwordSalt: string, createdAt: number, lastLoginAt: number }} StoredUser */
 
-export function usersFilePath(dataDir) {
-  return path.join(dataDir, USERS_FILE)
-}
-
-function readUsers(dataDir) {
-  const file = usersFilePath(dataDir)
-  try {
-    if (!fs.existsSync(file)) return []
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'))
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-function writeUsers(dataDir, users) {
-  fs.mkdirSync(dataDir, { recursive: true })
-  fs.writeFileSync(usersFilePath(dataDir), JSON.stringify(users, null, 2))
-}
+export { authStorageStatus, usersFilePath } from './userPersistence.mjs'
 
 export function newUserId() {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -54,15 +33,17 @@ export function verifyPassword(password, salt, expectedHash) {
   }
 }
 
-export function findUserByEmail(dataDir, email) {
+export async function findUserByEmail(dataDir, email) {
   const e = normalizeEmail(email)
-  return readUsers(dataDir).find((u) => u && u.email === e) ?? null
+  const users = await readUsers(dataDir)
+  return users.find((u) => u && u.email === e) ?? null
 }
 
-export function findUserByMobile(dataDir, mobile) {
+export async function findUserByMobile(dataDir, mobile) {
   const m = normalizeMobile(mobile)
   if (!m) return null
-  return readUsers(dataDir).find((u) => u && normalizeMobile(u.mobile) === m) ?? null
+  const users = await readUsers(dataDir)
+  return users.find((u) => u && normalizeMobile(u.mobile) === m) ?? null
 }
 
 export function normalizeEmail(email) {
@@ -90,10 +71,22 @@ export function publicUser(row) {
   }
 }
 
+function storageUnavailableResult() {
+  const status = authStorageStatus()
+  return {
+    ok: false,
+    error: status.message || 'Account storage is unavailable. Try again later.',
+    status: 503,
+  }
+}
+
 /**
- * @returns {{ ok: true, user: StoredUser } | { ok: false, error: string, status?: number }}
+ * @returns {Promise<{ ok: true, user: StoredUser } | { ok: false, error: string, status?: number }>}
  */
-export function registerUser(dataDir, input) {
+export async function registerUser(dataDir, input) {
+  const storage = authStorageStatus()
+  if (!storage.ready) return storageUnavailableResult()
+
   const name = String(input.name || '').trim()
   const email = normalizeEmail(input.email)
   const mobile = normalizeMobile(input.mobile)
@@ -113,14 +106,6 @@ export function registerUser(dataDir, input) {
     return { ok: false, error: 'Password must be at least 8 characters.', status: 400 }
   }
 
-  const users = readUsers(dataDir)
-  if (users.some((u) => u.email === email)) {
-    return { ok: false, error: 'An account with this email already exists. Sign in instead.', status: 409 }
-  }
-  if (users.some((u) => normalizeMobile(u.mobile) === mobile)) {
-    return { ok: false, error: 'An account with this mobile number already exists.', status: 409 }
-  }
-
   const { passwordHash, passwordSalt } = createPasswordCreds(password)
   const now = Date.now()
   const user = {
@@ -134,28 +119,41 @@ export function registerUser(dataDir, input) {
     createdAt: now,
     lastLoginAt: now,
   }
-  users.push(user)
-  writeUsers(dataDir, users)
-  return { ok: true, user }
+
+  return mutateUsers(dataDir, async (users) => {
+    if (users.some((u) => u.email === email)) {
+      return { ok: false, error: 'An account with this email already exists. Sign in instead.', status: 409 }
+    }
+    if (users.some((u) => normalizeMobile(u.mobile) === mobile)) {
+      return { ok: false, error: 'An account with this mobile number already exists.', status: 409 }
+    }
+    users.push(user)
+    return { ok: true, user }
+  })
 }
 
 /**
  * Login with email + password.
+ * @returns {Promise<{ ok: true, user: StoredUser } | { ok: false, error: string, status?: number }>}
  */
-export function authenticateUser(dataDir, email, password) {
+export async function authenticateUser(dataDir, email, password) {
+  const storage = authStorageStatus()
+  if (!storage.ready) return storageUnavailableResult()
+
   const e = normalizeEmail(email)
   if (!e || !password) {
     return { ok: false, error: 'Enter your email and password.', status: 400 }
   }
-  const users = readUsers(dataDir)
-  const user = users.find((u) => u.email === e)
-  if (!user) {
-    return { ok: false, error: 'No account found for this email. Sign up first.', status: 401 }
-  }
-  if (!verifyPassword(password, user.passwordSalt, user.passwordHash)) {
-    return { ok: false, error: 'Incorrect password.', status: 401 }
-  }
-  user.lastLoginAt = Date.now()
-  writeUsers(dataDir, users)
-  return { ok: true, user }
+
+  return mutateUsers(dataDir, async (users) => {
+    const user = users.find((u) => u.email === e)
+    if (!user) {
+      return { ok: false, error: 'No account found for this email. Sign up first.', status: 401 }
+    }
+    if (!verifyPassword(password, user.passwordSalt, user.passwordHash)) {
+      return { ok: false, error: 'Incorrect password.', status: 401 }
+    }
+    user.lastLoginAt = Date.now()
+    return { ok: true, user }
+  })
 }
