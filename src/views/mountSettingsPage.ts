@@ -7,6 +7,7 @@ import {
   writeDefaultChartInterval,
   writeDefaultStrategyId,
 } from '../home/dashboardUserPrefs'
+import { readFullSessionTicks, writeFullSessionTicks } from '../chart/chartTickPrefs'
 import { resolveIntervalPick } from './chartIntervalStore'
 import { listAllStrategies } from '../strategy/strategyCatalog'
 
@@ -77,6 +78,13 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
           <select id="sx-settings-strategy" class="sx-platform-page__select" data-sx-settings-strategy></select>
           <p class="sx-platform-page__hint">Pre-selected in backtest when a session has no saved strategy.</p>
         </div>
+        <div class="sx-platform-page__field">
+          <label class="sx-platform-page__check" for="sx-settings-full-ticks">
+            <input id="sx-settings-full-ticks" type="checkbox" data-sx-settings-full-ticks />
+            <span>Load full session ticks on 1t intervals</span>
+          </label>
+          <p class="sx-platform-page__hint">When off, tick charts load a fast window around the replay cursor. You can still load the full session from the chart notice.</p>
+        </div>
       </section>
       <p class="sx-platform-page__saved" data-sx-settings-saved aria-live="polite"></p>
     </div>
@@ -90,6 +98,7 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
   const localeLabelEl = shell.querySelector('[data-settings-locale-value]') as HTMLElement
   const intervalSelect = shell.querySelector('[data-sx-settings-interval]') as HTMLSelectElement
   const strategySelect = shell.querySelector('[data-sx-settings-strategy]') as HTMLSelectElement
+  const fullTicksCheck = shell.querySelector('[data-sx-settings-full-ticks]') as HTMLInputElement
   const themeBtns = shell.querySelectorAll<HTMLButtonElement>('[data-sx-theme]')
 
   let savedTimer: ReturnType<typeof setTimeout> | null = null
@@ -154,6 +163,8 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
   }).join('')
   intervalSelect.value = readDefaultChartInterval()
 
+  if (fullTicksCheck) fullTicksCheck.checked = readFullSessionTicks()
+
   strategySelect.innerHTML = listAllStrategies()
     .map((s) => `<option value="${s.id}">${s.name}</option>`)
     .join('')
@@ -204,9 +215,14 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
     writeDefaultStrategyId(strategySelect.value)
     flashSaved()
   }
+  const onFullTicksChange = () => {
+    writeFullSessionTicks(fullTicksCheck?.checked === true)
+    flashSaved()
+  }
 
   intervalSelect.addEventListener('change', onIntervalChange)
   strategySelect.addEventListener('change', onStrategyChange)
+  fullTicksCheck?.addEventListener('change', onFullTicksChange)
 
   return () => {
     if (savedTimer) clearTimeout(savedTimer)
@@ -214,5 +230,6 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
     shell.querySelector('[data-sx-settings-back]')?.removeEventListener('click', onBack)
     intervalSelect.removeEventListener('change', onIntervalChange)
     strategySelect.removeEventListener('change', onStrategyChange)
+    fullTicksCheck?.removeEventListener('change', onFullTicksChange)
   }
 }

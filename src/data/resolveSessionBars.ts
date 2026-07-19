@@ -62,7 +62,7 @@ export function isGoldBrowserSymbol(symbol: string): boolean {
 
 /**
  * US-style equity tickers for `/api/market/bars`.
- * Keep filter rules aligned with `appSymbolToTwelveDataSymbol` fall-through in `server/providers/twelveData.mjs`.
+ * Keep filter rules aligned with `appSymbolToTwelveDataSymbol` / `appSymbolToDukascopyInstrument` on the server.
  */
 export function isLikelyUsStockSymbol(symbol: string): boolean {
   const raw = symbol.trim()

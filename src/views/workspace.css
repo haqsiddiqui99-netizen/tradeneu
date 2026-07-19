@@ -8,14 +8,18 @@
   z-index: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: 52px 1fr minmax(272px, 26vw);
+  grid-template-columns: 1fr;
   grid-template-rows: 40px 1fr minmax(48px, auto) minmax(34px, auto);
   grid-template-areas:
-    'top top top'
-    'tools chart rpanel'
-    'tools charttv rpanel'
-    'foot foot foot';
+    'top'
+    'chart'
+    'charttv'
+    'foot';
   animation: rw-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rw-rpanel {
+  display: none !important;
 }
 
 /* ——— Top toolbar ——— */
@@ -737,6 +741,21 @@ button.rw-legend-status-btn:focus-visible {
   display: none !important;
 }
 
+.rw-replay-notice__action {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border: 1px solid #90a4ae;
+  border-radius: 4px;
+  font: 600 12px var(--rw-font);
+  color: #263238;
+  background: #fff;
+  cursor: pointer;
+}
+
+.rw-replay-notice__action:hover {
+  background: #f5f5f5;
+}
+
 .rw-prop-banner {
   grid-column: 1 / -1;
   padding: 10px 12px;
@@ -1265,6 +1284,132 @@ button.rw-legend-status-btn:focus-visible {
   z-index: 1;
 }
 
+.rw-chart-tv {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+/* Tick replay price path — canvas only; 1m candles unchanged underneath. */
+.rw-tick-line-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.rw-tick-line-overlay[hidden] {
+  display: none !important;
+}
+
+.rw-chart-host--tv .rw-chart-lwc,
+.rw-chart-host--tv .rw-chart-shade,
+.rw-chart-host--tv .rw-chart-draw {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.rw-chart-canvas--tv .rw-chart-nav-hoverzone {
+  display: none;
+}
+
+/* TradingView mode: TV supplies header + OHLC; hide Tradeneu duplicate chrome */
+.rw-root--tv .rw-top {
+  display: none !important;
+}
+
+.rw-root--tv .rw-subbar__stack {
+  display: none !important;
+}
+
+.rw-root--tv .rw-subbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  padding: 0 !important;
+  border: none !important;
+  border-bottom: none !important;
+  background: transparent;
+  min-height: 0 !important;
+  pointer-events: none;
+}
+
+.rw-root--tv .rw-replay-notice:not([hidden]),
+.rw-root--tv .rw-data-banner:not([hidden]),
+.rw-root--tv .rw-prop-banner:not([hidden]) {
+  pointer-events: auto;
+  margin: 8px 10px 0;
+}
+
+.rw-root--tv .rw-chart-canvas {
+  grid-row: 1;
+  min-height: 0;
+}
+
+.rw-root--tv .rw-subbar {
+  grid-row: 1;
+}
+
+/* TV mode: range strip (1D/5D/clock) is built into TradingView chart */
+.rw-root--tv .rw-foot__strip--tv {
+  display: none !important;
+}
+
+.rw-root--tv .rw-chart-footer-tv {
+  border-top: none;
+}
+
+/* TradingView mode: full-width chart stage + footer */
+.rw-root--tv {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'stage'
+    'charttv';
+}
+
+.rw-root--tv .rw-chart-wrap {
+  grid-area: stage;
+  grid-column: 1;
+  grid-row: 1;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+}
+
+.rw-root--tv .rw-chart-canvas {
+  grid-row: 1;
+  min-height: 0;
+}
+
+.rw-root--tv .rw-chart-footer-tv {
+  grid-area: charttv;
+  grid-column: 1;
+  grid-row: 2;
+  width: 100%;
+  min-width: 0;
+  border-top: none;
+}
+
+.rw-root--fxr.rw-root--tv {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'stage'
+    'charttv';
+}
+
+.rw-root--fxr.rw-root--tv .rw-pine-dock {
+  grid-area: stage;
+  grid-row: 1;
+  z-index: 30;
+}
+
 /* Bar pick on chart (TradingView-style vertical line + UTC time). */
 .rw-select-bar-overlay {
   position: absolute;
@@ -1283,31 +1428,51 @@ button.rw-legend-status-btn:focus-visible {
   touch-action: none;
 }
 
-/* Fast fade for bars right of scissors — avoids heavy chart setData on every move. */
-.rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in::before {
-  content: '';
+/* Bar-pick: LWC hides future bars via chart data; TV covers them with a solid mask (no chart reload). */
+.rw-select-bar-overlay__blur {
+  display: none;
   position: absolute;
   left: var(--sx, 50%);
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: var(--sb-top, 0);
+  right: var(--sb-right, 56px);
+  bottom: var(--sb-bottom, 0);
   pointer-events: none;
   z-index: 0;
-  background: linear-gradient(
-    to right,
-    transparent 0,
-    rgba(255, 255, 255, 0.06) 3px,
-    rgba(255, 255, 255, 0.58) 20px
-  );
 }
 
-.rw-root[data-chart-theme='dark'] .rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in::before {
-  background: linear-gradient(
-    to right,
-    transparent 0,
-    rgba(19, 23, 34, 0.05) 3px,
-    rgba(19, 23, 34, 0.55) 20px
-  );
+.rw-root--tv .rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in .rw-select-bar-overlay__blur {
+  display: block;
+  background: var(--rw-chart, #131722);
+}
+
+.rw-root--tv[data-chart-theme='light'] .rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in .rw-select-bar-overlay__blur {
+  background: var(--rw-chart, #ffffff);
+}
+
+/* TV replay: full series stays loaded; mask hides unrevealed future bars. */
+.rw-replay-mask-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.rw-replay-mask-overlay[hidden] {
+  display: none !important;
+}
+
+.rw-replay-mask-overlay__blur {
+  position: absolute;
+  left: var(--sx, 50%);
+  top: var(--sb-top, 0);
+  right: var(--sb-right, 56px);
+  bottom: var(--sb-bottom, 0);
+  pointer-events: none;
+  background: var(--rw-chart, #131722);
+}
+
+.rw-root--tv[data-chart-theme='light'] .rw-replay-mask-overlay__blur {
+  background: var(--rw-chart, #ffffff);
 }
 
 .rw-select-bar-overlay--active:not(.rw-select-bar-overlay--pointer-in) .rw-select-bar-overlay__line,
@@ -1376,8 +1541,8 @@ button.rw-legend-status-btn:focus-visible {
 
 .rw-select-bar-overlay__line {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: var(--sb-top, 0);
+  bottom: var(--sb-bottom, 0);
   left: var(--sx, 50%);
   width: 2px;
   transform: translate3d(-50%, 0, 0);
@@ -2980,11 +3145,75 @@ body.rw-replay-dock-dragging * {
   display: none !important;
 }
 
+.rw-chart-loading--boot {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.rw-chart-loading--boot .rw-chart-loading__veil {
+  background: #8d8d8d;
+  backdrop-filter: none;
+}
+
+.rw-chart-loading--boot .rw-chart-loading__panel {
+  gap: 18px;
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.rw-chart-loading__brand {
+  margin: 0;
+  font: 700 2.35rem/1 var(--rw-font);
+  letter-spacing: 0.01em;
+  color: #ffffff;
+  text-transform: lowercase;
+}
+
+.rw-chart-loading__bar {
+  width: min(72vw, 300px);
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.34);
+  overflow: hidden;
+}
+
+.rw-chart-loading__bar-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: #3d7fff;
+  transition: width 0.42s ease;
+}
+
+.rw-chart-loading--boot .rw-chart-loading__text {
+  margin: 0;
+  font: 400 13px/1.35 var(--rw-font);
+  color: rgba(255, 255, 255, 0.88);
+  text-align: center;
+}
+
+.rw-chart-loading--boot .rw-chart-loading__spinner,
+.rw-chart-loading--boot .rw-chart-loading__meta {
+  display: none !important;
+}
+
 .rw-chart-loading__veil {
   position: absolute;
   inset: 0;
   background: rgba(255, 255, 255, 0.42);
   backdrop-filter: blur(2px);
+}
+
+.rw-chart-loading--overlay .rw-chart-loading__brand,
+.rw-chart-loading--overlay .rw-chart-loading__bar {
+  display: none;
 }
 
 .rw-chart-loading__panel {
@@ -3426,21 +3655,21 @@ body.rw-replay-dock-dragging * {
   display: none;
 }
 
-.rw-root.rw-rpanel-collapsed {
-  grid-template-columns: 52px 1fr 54px;
+.rw-root.rw-rpanel-collapsed:not(.rw-root--tv) {
+  grid-template-columns: 1fr 54px;
 }
 
 .rw-root.rw-pine-open {
-  grid-template-columns: 52px 1fr minmax(280px, 34vw) minmax(272px, 26vw);
+  grid-template-columns: 1fr minmax(280px, 34vw);
   grid-template-areas:
-    'top top top top'
-    'tools chart pine rpanel'
-    'tools charttv pine rpanel'
-    'foot foot foot foot';
+    'top top'
+    'chart pine'
+    'charttv pine'
+    'foot foot';
 }
 
 .rw-root.rw-pine-open.rw-rpanel-collapsed {
-  grid-template-columns: 52px 1fr minmax(280px, 34vw) 54px;
+  grid-template-columns: 1fr minmax(280px, 34vw);
 }
 
 .rw-pill-btn.rw-backtest-launch--active {
@@ -4490,13 +4719,13 @@ body.rw-replay-dock-dragging * {
 
 @media (max-width: 1024px) {
   .rw-root {
-    grid-template-columns: 46px 1fr;
+    grid-template-columns: 1fr;
     grid-template-rows: 40px 1fr minmax(48px, auto) minmax(34px, auto);
     grid-template-areas:
-      'top top'
-      'tools chart'
-      'tools charttv'
-      'foot foot';
+      'top'
+      'chart'
+      'charttv'
+      'foot';
   }
 
   .rw-rpanel {
@@ -5915,23 +6144,24 @@ body.rw-replay-dock-dragging * {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-feature-settings: 'tnum' 1;
+  grid-template-columns: 1fr;
   grid-template-rows: 38px 1fr auto;
   grid-template-areas:
-    'top top top'
-    'tools chart rpanel'
-    'tools charttv rpanel';
+    'top'
+    'chart'
+    'charttv';
 }
 
 .rw-root--fxr.rw-pine-open {
-  grid-template-columns: 52px 1fr minmax(280px, 34vw) minmax(272px, 26vw);
+  grid-template-columns: 1fr minmax(280px, 34vw);
   grid-template-areas:
-    'top top top top'
-    'tools chart pine rpanel'
-    'tools charttv pine rpanel';
+    'top top'
+    'chart pine'
+    'charttv pine';
 }
 
 .rw-root--fxr.rw-pine-open.rw-rpanel-collapsed {
-  grid-template-columns: 52px 1fr minmax(280px, 34vw) 54px;
+  grid-template-columns: 1fr minmax(280px, 34vw);
 }
 
 .rw-root--fxr .rw-foot {
@@ -6067,6 +6297,13 @@ body.rw-replay-dock-dragging * {
   padding: 4px 12px 5px;
   border-bottom: 1px solid var(--rw-border);
   min-height: 28px;
+}
+
+/* TV mode: fxr subbar border must not overlay TradingView header */
+.rw-root--fxr.rw-root--tv .rw-subbar {
+  padding: 0 !important;
+  border-bottom: none !important;
+  min-height: 0 !important;
 }
 
 .rw-root--fxr .rw-subbar__tvrow > .rw-legend-title {
@@ -6404,9 +6641,9 @@ body.rw-replay-dock-dragging * {
   .rw-root--fxr {
     grid-template-rows: 38px 1fr auto;
     grid-template-areas:
-      'top top'
-      'tools chart'
-      'tools charttv';
+      'top'
+      'chart'
+      'charttv';
   }
 }
 

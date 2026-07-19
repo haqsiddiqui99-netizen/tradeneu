@@ -1,0 +1,34 @@
+/* Tradeneu custom TradingView header controls */
+.rw-tv-header-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  cursor: pointer !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+  padding: 0 6px !important;
+  box-sizing: border-box !important;
+  border: none !important;
+  background: transparent !important;
+  color: inherit !important;
+  line-height: 0 !important;
+}
+
+.rw-tv-header-btn:hover {
+  opacity: 0.72 !important;
+}
+
+.rw-tv-header-btn--icon {
+  color: inherit;
+}
+
+.rw-tv-header-btn .sx-ico,
+.rw-tv-header-btn svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}

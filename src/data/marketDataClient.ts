@@ -1,8 +1,11 @@
 /**
- * Unified server-side market history (Twelve Data + optional gold CSV upload).
- * Sends `chain=twelvedata` by default so `/api/market/bars` always hits Twelve Data (override with
- * `VITE_MARKET_BAR_CHAIN` or the `chain` argument, e.g. `twelvedata,upload` for gold CSV fallback).
+ * Unified server-side market history (local SQLite + Dukascopy + Twelve Data + optional gold CSV upload).
+ * Sends `chain=local,dukascopy,twelvedata` by default so `/api/market/bars` serves pre-synced
+ * second bars from SQLite before remote providers (override with `VITE_MARKET_BAR_CHAIN` or `chain`).
  */
+
+/** Default provider chain — must match server `MARKET_BAR_CHAIN` (local first for 10s bars). */
+export const DEFAULT_MARKET_BAR_CHAIN = 'local,dukascopy,twelvedata'
 
 import type { Bar } from '../types'
 
@@ -101,7 +104,8 @@ export async function fetchMarketBarsSeries(
   opts?: MarketBarsFetchOpts,
 ): Promise<MarketBarsSeries | null> {
   const chainParam =
-    (chain ?? (import.meta.env.VITE_MARKET_BAR_CHAIN as string | undefined))?.trim() || 'twelvedata'
+    (chain ?? (import.meta.env.VITE_MARKET_BAR_CHAIN as string | undefined))?.trim() ||
+    DEFAULT_MARKET_BAR_CHAIN
   const cacheKey = barsCacheKey(symbol, chainParam, opts)
   if (!opts?.noCache) {
     const hit = seriesCache.get(cacheKey)

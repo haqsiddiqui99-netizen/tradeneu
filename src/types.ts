@@ -8,3 +8,22 @@ export type Bar = {
   close: number
   volume: number
 }
+
+/** Dukascopy quote tick (bid/ask at millisecond resolution). */
+export type QuoteTick = {
+  timeMs: number
+  bid: number
+  ask: number
+  bidVol?: number
+  askVol?: number
+}
+
+/** Server tick series payload metadata. */
+export type TickSeries = {
+  ticks: QuoteTick[]
+  symbol: string
+  source: string
+  count: number
+  nextCursor?: number
+  truncated?: boolean
+}
