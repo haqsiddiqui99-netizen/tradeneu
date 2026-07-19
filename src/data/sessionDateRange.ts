@@ -1,5 +1,15 @@
 import type { Bar } from '../types'
 
+/** Browser IANA timezone (e.g. `Asia/Kolkata`) — matches date pickers and LWC chart axis. */
+export function browserIanaTimezone(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone?.trim()
+    return tz || 'Etc/UTC'
+  } catch {
+    return 'Etc/UTC'
+  }
+}
+
 /** Format unix seconds as local `YYYY-MM-DD` for date inputs. */
 export function localYmdFromSec(sec: number): string {
   const d = new Date(sec * 1000)
@@ -18,13 +28,17 @@ export function localDatetimeToSec(y: number, m0: number, d: number, hh: number,
 }
 
 /** Format unix seconds for chart crosshair / tooltips (local time, matches session dates). */
-export function formatChartCrosshairTime(sec: number): string {
+export function formatChartCrosshairTime(sec: number, withSeconds = false): string {
   const d = new Date(sec * 1000)
   const day = String(d.getDate()).padStart(2, '0')
   const mon = d.toLocaleString(undefined, { month: 'short' })
   const y2 = String(d.getFullYear() % 100).padStart(2, '0')
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
+  if (withSeconds) {
+    const ss = String(d.getSeconds()).padStart(2, '0')
+    return `${day} ${mon} '${y2} ${hh}:${mm}:${ss}`
+  }
   return `${day} ${mon} '${y2} ${hh}:${mm}`
 }
 
@@ -35,6 +49,20 @@ export function formatSessionModalDate(iso?: string): string {
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s
   return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+/** Replay bar-pick pill — UTC to match TradingView time axis. */
+export function formatChartPickLabelUtc(sec: number): string {
+  const d = new Date(sec * 1000)
+  const wk = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()]!
+  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][
+    d.getUTCMonth()
+  ]!
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  const y2 = String(d.getUTCFullYear() % 100).padStart(2, '0')
+  const hh = String(d.getUTCHours()).padStart(2, '0')
+  const mm = String(d.getUTCMinutes()).padStart(2, '0')
+  return `Re: ${wk} ${day} ${mon} '${y2} ${hh}:${mm}`
 }
 
 /** Browser timezone label for chart chrome (e.g. IST, GMT+5:30). */

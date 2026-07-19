@@ -5,9 +5,19 @@
  * same-origin `/api/market/bars` (Twelve Data by default), then bundled static JSON,
  * then synthetic demo data.
  *
+ * Real Dukascopy quote ticks load lazily via `loadSessionTicks` when tick/sub-minute
+ * intervals are selected (`chartWorkspace` Sprint 4).
+ *
  * Swap in additional providers (broker REST, UDF, licensed charting feeds) inside
  * `resolveSessionBars` / `marketDataClient` without changing the chart UI.
  */
 
 export { resolveSessionBars as loadSessionBars, type ResolvedSeries, type SessionBarsOpts } from './resolveSessionBars'
 export { isGoldBrowserSymbol, usesMarketDataSession } from './resolveSessionBars'
+export {
+  canLoadDukascopyTicks,
+  loadSessionTicks,
+  sessionTickRangeSec,
+  type SessionTicksOpts,
+} from './sessionTicks'
+export { fetchMarketTicksSeries, type MarketTicksFetchOpts, type MarketTicksSeries } from './marketTickClient'

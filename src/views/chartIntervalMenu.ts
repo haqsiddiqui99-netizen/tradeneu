@@ -109,7 +109,7 @@ export function createChartIntervalMenu(opts: {
   scroll.className = 'rw-intmenu__scroll'
   root.appendChild(scroll)
 
-  const expandedSections = new Set<string>(['minutes'])
+  const expandedSections = new Set<string>(['seconds', 'minutes'])
   const isCompact = Boolean(opts.items?.length) || opts.variant === 'replay'
 
   const customIntervalDialog =
@@ -323,9 +323,9 @@ export function createChartIntervalMenu(opts: {
       btn.title = enabled
         ? ''
         : pick.kind === 'tick'
-          ? 'Tick intervals need enough 1-minute history to synthesize ticks'
+          ? 'Tick intervals need Dukascopy ticks (session dates) or enough 1-minute history'
           : (pick.stepSec ?? 60) < 60
-            ? 'Sub-minute intervals require second-level history'
+            ? 'Sub-minute intervals need Dukascopy ticks and session start/end dates'
             : 'Not enough 1-minute history to build this interval'
     })
   }

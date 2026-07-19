@@ -42,6 +42,10 @@ export type TradingChart = {
       /** When set with `initialVisibleBarCount`, anchor the window at session start instead of latest bars. */
       initialVisibleAnchor?: 'start' | 'end'
       timeAxisUtcMinutes?: 5 | 10
+      /** Show seconds on the time axis (tick / sub-minute intervals). */
+      timeAxisSecondsVisible?: boolean
+      /** Bucket size in seconds when `timeAxisSecondsVisible` is true. */
+      subMinuteStepSec?: number
     },
   ) => void
   /**
@@ -56,9 +60,13 @@ export type TradingChart = {
       initialVisibleBarCount?: number
       initialVisibleAnchor?: 'start' | 'end'
       timeAxisUtcMinutes?: 5 | 10
+      timeAxisSecondsVisible?: boolean
+      subMinuteStepSec?: number
+      /** Keep the current time-scale window (bar cut / playback from fixed position). */
+      preserveViewport?: boolean
     },
   ) => void
-  /** Bar-replay pick mode: opaque bars through splitIndex, faded bars after. */
+  /** Bar-replay pick mode: solid bars through splitIndex; bars after the cut are hidden. */
   setReplayPickPreview: (splitIndex: number, allBars: Bar[]) => void
   /** Leave pick preview; caller should call setReplayData to restore playback view. */
   clearReplayPickPreview: () => void
@@ -76,6 +84,8 @@ export type TradingChart = {
   resetTimeScaleView: () => void
   /** Pan the viewport so the replay cursor stays in view (during bar replay, not at live end). */
   scrollReplayCursorIntoView: () => void
+  /** Hide/show the blue replay boundary line on the shade canvas. */
+  setReplayCursorVisible: (visible: boolean) => void
   /** Main OHLC/line series — for drawing tools (price ↔ coordinate). */
   getMainSeries: () => ISeriesApi<SeriesType, Time>
   /** Entry/exit markers from backtest engine (merged with replay cursor marker when active). */
@@ -164,29 +174,42 @@ function chartLocale(): string {
   return typeof navigator !== 'undefined' && navigator.language ? navigator.language : 'en-US'
 }
 
-function timeScaleOptions(theme: TradingChartTheme, labelEveryMinutes: 5 | 10) {
+function timeScaleOptions(
+  theme: TradingChartTheme,
+  labelEveryMinutes: 5 | 10,
+  secondsVisible: boolean,
+  subMinuteStepSec: number,
+) {
   const borderColor = theme === 'tradingview-light' ? '#e0e3eb' : '#2a2e39'
   return {
     borderColor,
     timeVisible: true,
-    secondsVisible: false,
+    secondsVisible,
     fontSize: CHART_LAYOUT_FONT_PX,
     tickMarkFormatter: (time: Time, tickMarkType: TickMarkType, locale: string) =>
-      formatTimeAxisLocalGrid(time, tickMarkType, locale, labelEveryMinutes),
+      secondsVisible
+        ? formatTimeAxisSubMinuteGrid(time, tickMarkType, locale, subMinuteStepSec)
+        : formatTimeAxisLocalGrid(time, tickMarkType, locale, labelEveryMinutes),
   }
 }
 
-function chartLocalization() {
+function chartLocalization(showSeconds: boolean) {
   return {
     locale: chartLocale(),
     timeFormatter: (time: Time) => {
       if (typeof time !== 'number') return ''
-      return formatChartCrosshairTime(time)
+      return formatChartCrosshairTime(time, showSeconds)
     },
   }
 }
 
-function chartOptions(container: HTMLElement, theme: TradingChartTheme, labelEveryMinutes: 5 | 10 = 5) {
+function chartOptions(
+  container: HTMLElement,
+  theme: TradingChartTheme,
+  labelEveryMinutes: 5 | 10 = 5,
+  secondsVisible = false,
+  subMinuteStepSec = 1,
+) {
   if (theme === 'tradingview-light') {
     return {
       width: container.clientWidth,
@@ -222,8 +245,8 @@ function chartOptions(container: HTMLElement, theme: TradingChartTheme, labelEve
         textColor: '#131722',
         entireTextOnly: false,
       },
-      timeScale: timeScaleOptions(theme, labelEveryMinutes),
-      localization: chartLocalization(),
+      timeScale: timeScaleOptions(theme, labelEveryMinutes, secondsVisible, subMinuteStepSec),
+      localization: chartLocalization(secondsVisible),
     } as const
   }
   return {
@@ -260,8 +283,8 @@ function chartOptions(container: HTMLElement, theme: TradingChartTheme, labelEve
       textColor: '#d1d4dc',
       entireTextOnly: false,
     },
-    timeScale: timeScaleOptions(theme, labelEveryMinutes),
-    localization: chartLocalization(),
+    timeScale: timeScaleOptions(theme, labelEveryMinutes, secondsVisible, subMinuteStepSec),
+    localization: chartLocalization(secondsVisible),
   } as const
 }
 
@@ -303,6 +326,34 @@ function formatTimeAxisLocalGrid(
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
   return `${hh}:${mm}`
+}
+
+/** X-axis labels on sub-minute boundaries (local wall clock). */
+function formatTimeAxisSubMinuteGrid(
+  time: Time,
+  tickMarkType: TickMarkType,
+  locale: string,
+  stepSec: number,
+): string | null {
+  if (typeof time !== 'number') return null
+  const d = new Date(time * 1000)
+  if (tickMarkType === TickMarkType.DayOfMonth) {
+    return String(d.getDate())
+  }
+  if (tickMarkType === TickMarkType.Month) {
+    return d.toLocaleDateString(locale, { month: 'short' })
+  }
+  if (tickMarkType === TickMarkType.Year) {
+    return String(d.getFullYear())
+  }
+  if (tickMarkType !== TickMarkType.Time && tickMarkType !== TickMarkType.TimeWithSeconds) return null
+  const step = Math.max(1, Math.round(stepSec) || 1)
+  const totalSec = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()
+  if (totalSec % step !== 0) return ''
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const ss = String(d.getSeconds()).padStart(2, '0')
+  return step < 60 ? `${hh}:${mm}:${ss}` : `${hh}:${mm}`
 }
 
 const TEN_MIN_SEC = 600
@@ -397,6 +448,8 @@ export function createTradingChart(
 ): TradingChart {
   let themeNow: TradingChartTheme = opts?.theme ?? 'tradingview-light'
   let timeAxisStep: 5 | 10 = opts?.timeAxisUtcMinutes ?? 5
+  let timeAxisSecondsVisible = false
+  let subMinuteStepSec = 1
   let lastBars: Bar[] = []
 
   const shadeEnabled = opts?.tenMinuteUtcShading ?? false
@@ -689,6 +742,7 @@ export function createTradingChart(
   let lastPastSnapshot: Bar[] | null = null
   let pickPreviewActive = false
   let lastPickPreviewSplit = -1
+  let replayCursorSuppressed = false
   let lastReplayRightOffset = 0
   let seriesDataRevision = 0
   let positionPriceHints: number[] = []
@@ -715,18 +769,35 @@ export function createTradingChart(
   }
 
   function syncReplayCursorLine(pastCount: number, allBars: Bar[]) {
-    replayLineUtc = pastCount > 0 ? allBars[pastCount - 1]!.time : null
+    if (replayCursorSuppressed) {
+      replayLineUtc = null
+    } else {
+      replayLineUtc = pastCount > 0 ? allBars[pastCount - 1]!.time : null
+    }
     scheduleShadePaint()
   }
 
   function syncReplayFutureBars(pastCount: number, allBars: Bar[]) {
-    if (pickPreviewActive) {
-      setFutureDataFromBars(allBars.slice(pastCount))
-    } else {
-      futureSeries.setData([] as never)
-      futureVolume.setData([])
-    }
+    futureSeries.setData([] as never)
+    futureVolume.setData([])
     syncReplayCursorLine(pastCount, allBars)
+  }
+
+  /** Keep the viewport on revealed bars after truncating the series for bar-pick. */
+  function clampPickPreviewViewport(splitIdx: number) {
+    const ts = chart.timeScale()
+    const r = ts.getVisibleLogicalRange()
+    if (!r) return
+    const from = Number(r.from)
+    const to = Number(r.to)
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return
+    const maxLogical = splitIdx
+    if (to <= maxLogical + 0.5) return
+    const span = Math.max(4, to - from)
+    const newTo = maxLogical + 0.5
+    const newFrom = Math.max(0, newTo - span)
+    ts.setVisibleLogicalRange({ from: newFrom, to: newTo })
+    scheduleShadePaint()
   }
 
   function appendBarToMain(b: Bar, volumeContext?: Bar[]) {
@@ -774,7 +845,7 @@ export function createTradingChart(
 
   function replayTimeScaleOptions(rightOffset = lastReplayRightOffset) {
     return {
-      ...timeScaleOptions(themeNow, timeAxisStep),
+      ...timeScaleOptions(themeNow, timeAxisStep, timeAxisSecondsVisible, subMinuteStepSec),
       rightOffset: replayLayoutActive() ? rightOffset : 0,
       barSpacing: replayLayoutActive() ? REPLAY_BAR_SPACING : 6,
       minBarSpacing: 0.5,
@@ -821,34 +892,6 @@ export function createTradingChart(
       value: values[i] ?? 0,
       color: b.close >= b.open ? volUp : volDown,
     }))
-  }
-
-  /** Muted OHLC + volume for bars after the bar-pick / replay cursor. */
-  function setFutureDataFromBars(bars: Bar[]) {
-    if (!bars.length) {
-      futureSeries.setData([] as never)
-      futureVolume.setData([])
-      return
-    }
-    const t = futureSeries.seriesType()
-    if (t === 'Candlestick' || t === 'Bar') {
-      futureSeries.setData(ohlcRows(bars) as never)
-    } else if (t === 'Line') {
-      futureSeries.setData(valueRows(bars, false) as never)
-    } else if (t === 'Area') {
-      futureSeries.setData(valueRows(bars, visualKind === 'hlc_area') as never)
-    } else if (t === 'Baseline') {
-      futureSeries.setData(valueRows(bars, false) as never)
-    }
-    const fp = replayFuturePalette(themeNow)
-    const { values } = resolveHistogramVolumes(bars)
-    futureVolume.setData(
-      bars.map((b, i) => ({
-        time: b.time,
-        value: values[i] ?? 0,
-        color: b.close >= b.open ? fp.volUp : fp.volDown,
-      })),
-    )
   }
 
   /** Normal main-series chrome after replay or theme change. */
@@ -942,12 +985,31 @@ export function createTradingChart(
     initialVisibleBarCount?: number
     initialVisibleAnchor?: 'start' | 'end'
     timeAxisUtcMinutes?: 5 | 10
+    timeAxisSecondsVisible?: boolean
+    subMinuteStepSec?: number
+    preserveViewport?: boolean
   }) {
+    let axisChanged = false
+    if (opts?.timeAxisSecondsVisible != null) {
+      timeAxisSecondsVisible = opts.timeAxisSecondsVisible
+      axisChanged = true
+    }
+    if (opts?.subMinuteStepSec != null) {
+      subMinuteStepSec = Math.max(1, Math.round(opts.subMinuteStepSec) || 1)
+      axisChanged = true
+    }
     if (opts?.timeAxisUtcMinutes != null) {
       timeAxisStep = opts.timeAxisUtcMinutes
-      chart.applyOptions({ timeScale: replayTimeScaleOptions() })
+      axisChanged = true
+    }
+    if (axisChanged) {
+      chart.applyOptions({
+        timeScale: replayTimeScaleOptions(),
+        localization: chartLocalization(timeAxisSecondsVisible),
+      })
     }
     scheduleShadePaint()
+    if (opts?.preserveViewport) return
     if (replayInProgress()) {
       /* Only fit viewport on first paint / explicit seek — not every playback tick. */
       if (opts?.fit || opts?.initialVisibleBarCount != null) {
@@ -1053,6 +1115,8 @@ export function createTradingChart(
         initialVisibleBarCount?: number
         initialVisibleAnchor?: 'start' | 'end'
         timeAxisUtcMinutes?: 5 | 10
+        timeAxisSecondsVisible?: boolean
+        subMinuteStepSec?: number
       },
     ) {
       lastBars = bars
@@ -1082,6 +1146,7 @@ export function createTradingChart(
         initialVisibleBarCount?: number
         initialVisibleAnchor?: 'start' | 'end'
         timeAxisUtcMinutes?: 5 | 10
+        preserveViewport?: boolean
       },
     ) {
       if (!pastBars.length || !allBars.length) return
@@ -1100,12 +1165,14 @@ export function createTradingChart(
         lastPastSnapshot = pastBars
         barCount = pastBars.length
         syncReplayFutureBars(pastBars.length, allBars)
-        const ts = chart.timeScale()
-        const r = ts.getVisibleLogicalRange()
-        const cursor = pastBars.length - 1
-        if (r && cursor > r.to - 3) {
-          const shift = cursor - (r.to - 3)
-          ts.setVisibleLogicalRange({ from: r.from + shift, to: r.to + shift })
+        if (!opts?.preserveViewport) {
+          const ts = chart.timeScale()
+          const r = ts.getVisibleLogicalRange()
+          const cursor = pastBars.length - 1
+          if (r && cursor > r.to - 3) {
+            const shift = cursor - (r.to - 3)
+            ts.setVisibleLogicalRange({ from: r.from + shift, to: r.to + shift })
+          }
         }
         applyTimeAxisAndFit(opts)
         return
@@ -1153,7 +1220,8 @@ export function createTradingChart(
         setMainDataFromBars(past)
         volume.setData(volumeDataFromBars(past))
       }
-      setFutureDataFromBars(allBars.slice(idx + 1))
+      futureSeries.setData([] as never)
+      futureVolume.setData([])
 
       syncReplayCursorLine(past.length, allBars)
 
@@ -1162,7 +1230,7 @@ export function createTradingChart(
         applyMainSeriesForCurrentThemeAndKind()
         refreshFutureReplayStyle()
       }
-      /* Do not touch timeScale here — avoids visible-range feedback loops while picking. */
+      requestAnimationFrame(() => clampPickPreviewViewport(idx))
     },
 
     clearReplayPickPreview() {
@@ -1175,6 +1243,18 @@ export function createTradingChart(
       replayLineUtc = null
       refreshFutureReplayStyle()
       scheduleShadePaint()
+    },
+
+    setReplayCursorVisible(visible: boolean) {
+      replayCursorSuppressed = !visible
+      if (replayCursorSuppressed) {
+        replayLineUtc = null
+        scheduleShadePaint()
+        return
+      }
+      if (lastPastSnapshot !== null && lastBars.length) {
+        syncReplayCursorLine(lastPastSnapshot.length, lastBars)
+      }
     },
 
     clearReplay() {
@@ -1202,7 +1282,9 @@ export function createTradingChart(
     applyTheme(next: TradingChartTheme) {
       themeNow = next
       shadePaintCache.lastKey = ''
-      chart.applyOptions(chartOptions(container, themeNow, timeAxisStep))
+      chart.applyOptions(
+        chartOptions(container, themeNow, timeAxisStep, timeAxisSecondsVisible, subMinuteStepSec),
+      )
       applyMainSeriesForCurrentThemeAndKind()
       refreshFutureReplayStyle()
       syncReplayTimeScaleExtras(0)

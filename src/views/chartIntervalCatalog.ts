@@ -30,8 +30,8 @@ export const SECOND_INTERVALS: IntervalPick[] = [
   { pill: '5s', kind: 'time', stepSec: 5, label: '5 seconds' },
   { pill: '10s', kind: 'time', stepSec: 10, label: '10 seconds' },
   { pill: '15s', kind: 'time', stepSec: 15, label: '15 seconds' },
+  { pill: '20s', kind: 'time', stepSec: 20, label: '20 seconds' },
   { pill: '30s', kind: 'time', stepSec: 30, label: '30 seconds' },
-  { pill: '45s', kind: 'time', stepSec: 45, label: '45 seconds' },
 ]
 
 export const MINUTE_INTERVALS: IntervalPick[] = [
@@ -69,19 +69,61 @@ export const CHART_INTERVAL_SECTIONS: IntervalSection[] = [
   { id: 'days', title: 'DAYS', items: DAY_INTERVALS },
 ]
 
-/** Flat list for replay dock compact menu. */
+/** Flat list for replay dock compact menu (seconds + common minutes). */
 export const REPLAY_DOCK_INTERVALS: IntervalPick[] = [
+  ...SECOND_INTERVALS.map((i) => ({ ...i, label: i.pill })),
   { pill: '1m', kind: 'time', stepSec: 60, label: '1m' },
-  { pill: '2m', kind: 'time', stepSec: 120, label: '2m' },
   { pill: '3m', kind: 'time', stepSec: 180, label: '3m' },
   { pill: '5m', kind: 'time', stepSec: 300, label: '5m' },
   { pill: '10m', kind: 'time', stepSec: 600, label: '10m' },
-  { pill: '15m', kind: 'time', stepSec: 900, label: '15m' },
-  { pill: '30m', kind: 'time', stepSec: 1800, label: '30m' },
-  { pill: '1h', kind: 'time', stepSec: 3600, label: '1h' },
-  { pill: '2h', kind: 'time', stepSec: 7200, label: '2h' },
-  { pill: '5h', kind: 'time', stepSec: 18_000, label: '5h' },
 ]
+
+function findIntervalPickByPill(pill: string): IntervalPick | null {
+  const p = pill.trim()
+  for (const section of CHART_INTERVAL_SECTIONS) {
+    const hit = section.items.find((i) => i.pill === p)
+    if (hit) return hit
+  }
+  return null
+}
+
+/** Map a TradingView resolution string to our interval pick (for TV header interval changes). */
+export function tvResolutionToIntervalPill(resolution: string): IntervalPick | null {
+  const r = resolution.trim()
+  const secMatch = /^(\d+)S$/i.exec(r)
+  if (secMatch) {
+    const pill = `${secMatch[1]}s`
+    return (
+      findIntervalPickByPill(pill) ?? {
+        pill,
+        kind: 'time',
+        stepSec: Number.parseInt(secMatch[1]!, 10),
+        label: `${secMatch[1]} second${secMatch[1] === '1' ? '' : 's'}`,
+      }
+    )
+  }
+  if (r === '1D') return findIntervalPickByPill('1D')
+  if (r === '1W') return findIntervalPickByPill('1W')
+  if (r === '1M') return findIntervalPickByPill('1M')
+  const mins = Number.parseInt(r, 10)
+  if (Number.isFinite(mins) && mins > 0) {
+    return findIntervalPickByPill(`${mins}m`)
+  }
+  return null
+}
+
+/** Bar duration in seconds for replay scissors / TV feed (tick bars use 1s minimum). */
+export function intervalPickBarPeriodSec(pick: IntervalPick): number {
+  if (pick.kind === 'tick') return 1
+  return Math.max(1, pick.stepSec ?? 60)
+}
+
+/** True when the chart time axis should show seconds (tick or sub-minute intervals). */
+export function intervalPickNeedsSecondsAxis(pick: IntervalPick | null | undefined): boolean {
+  if (!pick) return false
+  if (pick.kind === 'tick') return true
+  return (pick.stepSec ?? 60) < 60
+}
 
 export function findIntervalSectionForPill(pill: string): string | null {
   const p = pill.trim()

@@ -31,15 +31,6 @@ function portOpen(port, host = '127.0.0.1') {
   })
 }
 
-async function waitForPort(port, { timeoutMs, intervalMs }) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (await portOpen(port)) return true
-    await new Promise((r) => setTimeout(r, intervalMs))
-  }
-  return false
-}
-
 let historicChild = null
 let viteChild = null
 
@@ -74,10 +65,15 @@ if (alreadyUp) {
   }
   console.log('[dev] 127.0.0.1:3001 — verified Tradeneu historic API. Starting Vite only.')
 } else {
+  console.log('[dev] Starting historic API on 127.0.0.1:3001…')
   historicChild = spawn(process.execPath, [historicScript], {
     cwd: root,
     stdio: 'inherit',
     env: { ...process.env },
+  })
+  historicChild.on('error', (err) => {
+    console.error('[dev] Failed to spawn historic API:', err.message)
+    shutdown(1)
   })
   historicChild.on('exit', (code, signal) => {
     if (signal === 'SIGTERM' || signal === 'SIGINT') return
@@ -86,11 +82,26 @@ if (alreadyUp) {
       shutdown(code ?? 1)
     }
   })
-  const up = await waitForPort(3001, { timeoutMs: 20_000, intervalMs: 120 })
+  const started = Date.now()
+  const timeoutMs = 60_000
+  let up = false
+  while (Date.now() - started < timeoutMs) {
+    if (await portOpen(3001)) {
+      up = true
+      break
+    }
+    const elapsed = Date.now() - started
+    if (elapsed > 0 && elapsed % 10_000 < 200) {
+      console.log(`[dev] Waiting for historic API… (${Math.round(elapsed / 1000)}s)`)
+    }
+    await new Promise((r) => setTimeout(r, 200))
+  }
   if (!up) {
     console.error(
       '[dev] Timed out waiting for historic API on 127.0.0.1:3001.\n' +
-        '  Try: npm run server:historic   (in this folder) and check the terminal for errors.',
+        '  1) In another terminal: npm run server:historic   (check for errors)\n' +
+        '  2) If port is stuck: netstat -ano | findstr :3001   then end that PID\n' +
+        '  3) Or start historic first, then run: npm run dev',
     )
     shutdown(1)
   }

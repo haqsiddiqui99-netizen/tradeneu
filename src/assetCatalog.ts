@@ -1,3 +1,5 @@
+import { defaultMarketDataProviderLabel, isDukascopyPrimarySymbol } from './data/dukascopySymbols'
+
 export type AssetCategory =
   | 'stocks'
   | 'futures'
@@ -48,26 +50,26 @@ export const ASSET_CATALOG: CatalogAsset[] = [
     symbol: 'CL',
     name: 'Crude Oil WTI',
     category: 'energies',
-    badge: { kind: 'broker', label: 'Twelve Data', sub: 'WTI USD (chart)' },
+    badge: { kind: 'broker', label: 'Dukascopy', sub: 'WTI USD (1m) · Twelve Data fallback' },
   },
   { symbol: 'NG', name: 'Natural Gas', category: 'energies' },
   { symbol: 'RB', name: 'RBOB Gasoline', category: 'energies' },
   { symbol: 'HO', name: 'Heating Oil', category: 'energies' },
   { symbol: 'GC', name: 'Gold', category: 'metals', badge: { kind: 'pro', label: 'Pro', sub: 'US Futures' } },
-  { symbol: 'SI', name: 'Silver', category: 'metals', badge: { kind: 'broker', label: 'Twelve Data', sub: 'Silver USD (chart)' } },
+  { symbol: 'SI', name: 'Silver', category: 'metals', badge: { kind: 'broker', label: 'Dukascopy', sub: 'Silver USD (1m) · Twelve Data fallback' } },
   { symbol: 'HG', name: 'Copper', category: 'metals' },
   { symbol: 'PL', name: 'Platinum', category: 'metals' },
   {
     symbol: 'XAUUSD',
     name: 'Gold Spot / US Dollar',
     category: 'metals',
-    badge: { kind: 'broker', label: 'Twelve Data', sub: 'Gold USD (chart)' },
+    badge: { kind: 'broker', label: 'Dukascopy', sub: 'Gold USD (1m) · Twelve Data fallback' },
   },
   {
     symbol: 'XAGUSD',
     name: 'Silver Spot / US Dollar',
     category: 'metals',
-    badge: { kind: 'broker', label: 'Twelve Data', sub: 'Silver USD (chart)' },
+    badge: { kind: 'broker', label: 'Dukascopy', sub: 'Silver USD (1m) · Twelve Data fallback' },
   },
   { symbol: 'ZC', name: 'Corn', category: 'agriculture' },
   { symbol: 'ZS', name: 'Soybeans', category: 'agriculture' },
@@ -108,4 +110,13 @@ export const ASSET_PILLS: { id: 'all' | AssetCategory; label: string }[] = [
 export function findAsset(symbol: string): CatalogAsset | undefined {
   const u = symbol.trim().toUpperCase()
   return ASSET_CATALOG.find((a) => a.symbol.toUpperCase() === u)
+}
+
+/** Session search / TV default exchange before live `source` is known. */
+export function catalogMarketDataLabel(symbol: string): string {
+  return defaultMarketDataProviderLabel(symbol)
+}
+
+export function catalogHasDukascopyPrimary(symbol: string): boolean {
+  return isDukascopyPrimarySymbol(symbol)
 }

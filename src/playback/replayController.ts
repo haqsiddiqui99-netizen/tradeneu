@@ -16,8 +16,8 @@ export type ReplayState = {
 /** Discrete playback speeds (1x–20x per sec) — label as “Nx per sec” in the replay dock. */
 export const REPLAY_BARS_PER_SEC = Array.from({ length: 20 }, (_, i) => i + 1) as readonly number[]
 
-export function replaySpeedLabel(barsPerSec: number): string {
-  return `${barsPerSec}x per sec`
+export function replaySpeedLabel(barsPerSec: number, unit: 'bar' | 'tick' = 'bar'): string {
+  return unit === 'tick' ? `${barsPerSec} ticks/sec` : `${barsPerSec}x per sec`
 }
 
 /** @deprecated Use REPLAY_BARS_PER_SEC */
