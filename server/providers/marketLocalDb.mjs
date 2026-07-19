@@ -5,14 +5,29 @@
 
 import fs from 'fs'
 import path from 'path'
+import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
-import Database from 'better-sqlite3'
 import {
   LOCAL_SECOND_STEPS,
   chartIntervalToSecondStep,
   localTimeframeToInterval,
   secondStepToTimeframe,
 } from './localSecondBars.mjs'
+
+const require = createRequire(import.meta.url)
+
+/** @type {typeof import('better-sqlite3') | null} */
+let BetterSqlite3 = null
+try {
+  BetterSqlite3 = require('better-sqlite3')
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err)
+  console.warn(`[market-local] better-sqlite3 unavailable — local SQLite store disabled (${msg})`)
+}
+
+function sqliteAvailable() {
+  return BetterSqlite3 != null
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DEFAULT_DB_PATH = path.join(__dirname, '..', '..', 'server-data', 'market.db')
@@ -29,6 +44,7 @@ export const BAR_TIMEFRAMES = [
 ]
 
 export function marketLocalEnabled() {
+  if (!sqliteAvailable()) return false
   const v = process.env.MARKET_LOCAL_FIRST?.trim().toLowerCase()
   return v !== '0' && v !== 'false' && v !== 'no'
 }
@@ -132,10 +148,13 @@ CREATE TABLE IF NOT EXISTS sync_manifest (
 `
 
 export function getMarketDb() {
+  if (!BetterSqlite3) {
+    throw new Error('better-sqlite3 is not installed')
+  }
   if (dbInstance) return dbInstance
   const dbPath = marketDbPath()
   fs.mkdirSync(path.dirname(dbPath), { recursive: true })
-  dbInstance = new Database(dbPath)
+  dbInstance = new BetterSqlite3(dbPath)
   dbInstance.pragma('journal_mode = WAL')
   dbInstance.exec(SCHEMA)
   return dbInstance
@@ -485,6 +504,9 @@ export function localChunkSatisfied(symbol, kind, startSec, endSec) {
 /** @param {string} symbol */
 export function getLocalStoreStats(symbol) {
   const sym = normalizeMarketSymbol(symbol)
+  if (!sqliteAvailable()) {
+    return { symbol: sym, tickCount: 0, barCounts: {}, tickRangeMs: null, unavailable: true }
+  }
   const db = getMarketDb()
   const tickCount = db.prepare(`SELECT COUNT(*) AS n FROM ticks WHERE symbol = ?`).get(sym)?.n ?? 0
   const barCounts = {}
