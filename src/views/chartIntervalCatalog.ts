@@ -69,7 +69,7 @@ export const CHART_INTERVAL_SECTIONS: IntervalSection[] = [
   { id: 'days', title: 'DAYS', items: DAY_INTERVALS },
 ]
 
-/** Flat list for replay dock compact menu (seconds + common minutes). */
+/** Flat list for replay dock compact menu (seconds + common minutes). Fallback when dynamic dock is off. */
 export const REPLAY_DOCK_INTERVALS: IntervalPick[] = [
   ...SECOND_INTERVALS.map((i) => ({ ...i, label: i.pill })),
   { pill: '1m', kind: 'time', stepSec: 60, label: '1m' },
@@ -77,6 +77,44 @@ export const REPLAY_DOCK_INTERVALS: IntervalPick[] = [
   { pill: '5m', kind: 'time', stepSec: 300, label: '5m' },
   { pill: '10m', kind: 'time', stepSec: 600, label: '10m' },
 ]
+
+/**
+ * Feature flag — set `false` to restore static `REPLAY_DOCK_INTERVALS` for all charts (easy rollback).
+ * Dynamic matrix currently covers chart 1m / 2m / 3m only.
+ */
+export const USE_DYNAMIC_REPLAY_DOCK_1M_3M = true
+
+/** Seconds shared by the 1m–3m dynamic replay dock. */
+const REPLAY_DOCK_SECONDS_1M_3M = ['1s', '5s', '10s', '15s', '30s'] as const
+
+/** Chart-interval → replay dock pills (phase 1: 1m / 2m / 3m only). */
+const REPLAY_DOCK_BY_CHART_1M_3M: Record<string, readonly string[]> = {
+  '1m': [...REPLAY_DOCK_SECONDS_1M_3M, '1m', '2m', '3m', '5m', '10m'],
+  '2m': [...REPLAY_DOCK_SECONDS_1M_3M, '1m', '2m', '3m', '5m', '10m'],
+  '3m': [...REPLAY_DOCK_SECONDS_1M_3M, '1m', '2m', '3m', '5m', '10m', '15m'],
+}
+
+function replayDockPickFromPill(pill: string): IntervalPick | null {
+  const hit = findIntervalPickByPill(pill)
+  if (!hit) return null
+  return { ...hit, label: hit.pill }
+}
+
+/**
+ * Replay dock rows for the current TV chart interval.
+ * Returns `null` when the static `REPLAY_DOCK_INTERVALS` list should be used.
+ */
+export function replayDockIntervalsForChart(chartPill: string): IntervalPick[] | null {
+  if (!USE_DYNAMIC_REPLAY_DOCK_1M_3M) return null
+  const pills = REPLAY_DOCK_BY_CHART_1M_3M[chartPill.trim()]
+  if (!pills) return null
+  const out: IntervalPick[] = []
+  for (const pill of pills) {
+    const pick = replayDockPickFromPill(pill)
+    if (pick) out.push(pick)
+  }
+  return out.length ? out : null
+}
 
 function findIntervalPickByPill(pill: string): IntervalPick | null {
   const p = pill.trim()

@@ -94,6 +94,8 @@ export function createChartIntervalMenu(opts: {
   onPreferencesChange?: () => void
   /** When set, only these rows are shown (no section headers). */
   items?: IntervalPick[]
+  /** Dynamic compact list — preferred over `items` when both are set (rebuilds on each open). */
+  getItems?: () => IntervalPick[] | null | undefined
   /** `replay` = compact list centered under anchor (FXReplay floating bar). */
   variant?: 'default' | 'replay'
   /** Show “Add custom interval…” row (TradingView-style). */
@@ -110,10 +112,11 @@ export function createChartIntervalMenu(opts: {
   root.appendChild(scroll)
 
   const expandedSections = new Set<string>(['seconds', 'minutes'])
-  const isCompact = Boolean(opts.items?.length) || opts.variant === 'replay'
+  const isCompact =
+    Boolean(opts.getItems) || Boolean(opts.items?.length) || opts.variant === 'replay'
 
   const customIntervalDialog =
-    opts.showCustomInterval !== false && !opts.items?.length
+    opts.showCustomInterval !== false && !opts.items?.length && !opts.getItems
       ? createCustomIntervalDialog({
           onAdd: (pick) => {
             addCustomInterval(pick)
@@ -123,6 +126,15 @@ export function createChartIntervalMenu(opts: {
           },
         })
       : null
+
+  function resolveCompactItems(): IntervalPick[] | null {
+    if (opts.getItems) {
+      const dyn = opts.getItems()
+      if (dyn != null && dyn.length) return dyn
+    }
+    if (opts.items?.length) return opts.items
+    return null
+  }
 
   function ensureExpandedForSelection() {
     const pill = opts.getSelectedPill().trim()
@@ -268,8 +280,9 @@ export function createChartIntervalMenu(opts: {
   function rebuildMenuContent() {
     scroll.innerHTML = ''
 
-    if (opts.items?.length) {
-      addButtons(opts.items, scroll, false)
+    const compact = resolveCompactItems()
+    if (compact?.length) {
+      addButtons(compact, scroll, false)
       return
     }
 

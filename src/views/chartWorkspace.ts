@@ -78,6 +78,7 @@ import {
   intervalPickBarPeriodSec,
   intervalPickNeedsSecondsAxis,
   REPLAY_DOCK_INTERVALS,
+  replayDockIntervalsForChart,
   tvResolutionToIntervalPill,
 } from './chartIntervalCatalog'
 import { getFavoriteIntervals, removeFavoriteInterval, resolveIntervalPick } from './chartIntervalStore'
@@ -5002,6 +5003,7 @@ export function mountChartWorkspace(
           canUseTicks: () => canUseTickIntervals(),
           canUseSubMinute: () => canUseSubMinuteIntervals(),
           items: REPLAY_DOCK_INTERVALS,
+          getItems: () => replayDockIntervalsForChart(chartTimeframe) ?? REPLAY_DOCK_INTERVALS,
           variant: 'replay',
           showCustomInterval: false,
           onSelect: (p) => {
