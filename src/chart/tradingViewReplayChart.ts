@@ -1042,6 +1042,19 @@ export function createTvReplayChartController(opts: {
       }
       if (holdViewport) applyHeldViewportAfterBar()
       else if (!opts2?.playing && !cursorSuppressed) scheduleCursorLine(pastBars)
+    } else if (
+      (opts2?.decoupledStepOnly || opts2?.stepPreserveView) &&
+      !opts2?.pickPreview
+    ) {
+      // Replay step interval change — feed-only update + restore pan/zoom (no resetData).
+      opts.replayFeed.setRevealCountIfChanged(pastCount)
+      const lastBar = pastBars[pastCount - 1]
+      if (lastBar) {
+        opts.replayFeed.patchBarAtIndex(pastCount - 1, lastBar)
+        if (streamBars) opts.replayFeed.emitRealtimeBar(barToTv(lastBar))
+      }
+      if (holdViewport) restoreViewportAfterIncrementalBar(holdViewport)
+      else if (!opts2?.playing && !cursorSuppressed) scheduleCursorLine(pastBars)
     } else if (holdViewport) {
       refreshWithLockedViewport()
       if (!opts2?.playing && !opts2?.pickPreview && !cursorSuppressed) scheduleCursorLine(pastBars)
@@ -1053,11 +1066,6 @@ export function createTvReplayChartController(opts: {
     } else {
       if (holdViewport) {
         refreshWithLockedViewport()
-      } else if (opts2?.decoupledStepOnly || opts2?.stepPreserveView) {
-        opts.replayFeed.setRevealCountIfChanged(pastCount)
-        const lastBar = pastBars[pastCount - 1]
-        if (lastBar) opts.replayFeed.patchBarAtIndex(pastCount - 1, lastBar)
-        if (!opts2?.playing && !opts2?.pickPreview && !cursorSuppressed) scheduleCursorLine(pastBars)
       } else {
         scheduleFullRefresh(
           opts2?.fit === true ||
@@ -1248,15 +1256,16 @@ export function createTvReplayChartController(opts: {
     const xCur = timeSecToPlotX(openSec)
     if (xCur == null) return null
 
-    const revealed =
-      opts.replayFeed.getRevealedCount() < bars.length
-        ? opts.replayFeed.getRevealedCount()
-        : bars.length
-    const next = barIndex + 1 < revealed ? bars[barIndex + 1] : null
+    // Use the next session bar (even if unrevealed) so 2m+ splits land between candles.
+    const next = barIndex + 1 < bars.length ? bars[barIndex + 1] : null
     if (next) {
       const xNext = timeSecToPlotX(Math.floor(next.time / 1000))
       if (xNext != null) return (xCur + xNext) / 2
     }
+
+    const periodSec = Math.max(1, opts.replayFeed.getBarPeriodSec())
+    const xEnd = timeSecToPlotX(openSec + periodSec)
+    if (xEnd != null) return (xCur + xEnd) / 2
 
     const spacing = timeScale()?.barSpacing?.() ?? REPLAY_BAR_SPACING
     return xCur + spacing / 2
@@ -1313,7 +1322,9 @@ export function createTvReplayChartController(opts: {
       return pickNearestBarIndexByPlotX(pointerPlotX, cap)
     }
 
-    if (plotPickSplitsReady(cap)) {
+    const minutePlusChart =
+      opts.replayFeed.getBarPeriodSec() >= 60 && splitPlotXAfterBar(0) != null
+    if (minutePlusChart || plotPickSplitsReady(cap)) {
       return pickNearestBarIndexByPlotX(pointerPlotX, cap)
     }
 
@@ -1378,6 +1389,15 @@ export function createTvReplayChartController(opts: {
       const prevCount = lastPastCount
 
       if (pastCount < prevCount) return false
+
+      // Feed just primed (lastPastCount reset) — patch forming bar only; do not flood realtime emits.
+      if (prevCount < 0) {
+        const last = displayBars[pastCount - 1]!
+        opts.replayFeed.patchBarAtIndex(pastCount - 1, last)
+        opts.replayFeed.emitRealtimeBar(barToTv(last))
+        lastPastCount = pastCount
+        return true
+      }
 
       if (pastCount === prevCount && prevCount > 0) {
         const last = displayBars[pastCount - 1]!

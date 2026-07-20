@@ -209,9 +209,12 @@ export function decoupledChartReplayDisplay(opts: {
     sourceFineBars.length > 0 &&
     fineStepSec != null &&
     fineStepSec < chartStepSec
-  const forming = useFine
-    ? formingChartBarFromFineSource(sourceFineBars!, fineStepSec!, chartStepSec, effectiveCursor)
-    : formingChartBarFrom1m(source1mBars, chartStepSec, effectiveCursor)
+  const formingFromFine =
+    useFine
+      ? formingChartBarFromFineSource(sourceFineBars!, fineStepSec!, chartStepSec, effectiveCursor)
+      : null
+  const forming =
+    formingFromFine ?? formingChartBarFrom1m(source1mBars, chartStepSec, effectiveCursor)
 
   let display: Bar[]
   if (forming) {

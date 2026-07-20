@@ -426,6 +426,16 @@ function notifyWidgetResize(): void {
   }, 32)
 }
 
+/** True when the synced TV static bundle is present (skipped on Vercel without submodule). */
+export async function tradingViewLibraryAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch(chartingLibraryScriptUrl(), { method: 'HEAD', cache: 'no-store' })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 /** Start downloading the TV charting library early (e.g. while session bars load). */
 export function preloadTradingViewScript(): Promise<void> {
   return loadTradingViewScript()
