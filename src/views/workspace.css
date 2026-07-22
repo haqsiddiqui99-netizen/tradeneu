@@ -2111,6 +2111,12 @@ body.rw-replay-dock-dragging * {
   width: 11px;
   height: 11px;
   opacity: 1;
+  transition: transform 0.15s ease;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open svg {
+  transform: rotate(180deg);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-ico {
