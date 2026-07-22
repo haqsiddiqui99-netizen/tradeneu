@@ -1475,13 +1475,15 @@ button.rw-legend-status-btn:focus-visible {
   background: var(--rw-chart, #ffffff);
 }
 
-.rw-select-bar-overlay--active:not(.rw-select-bar-overlay--pointer-in) .rw-select-bar-overlay__line,
-.rw-select-bar-overlay--active:not(.rw-select-bar-overlay--pointer-in) .rw-select-bar-overlay__scissors {
-  visibility: hidden;
+/* TradingView-style: the selection line, scissors and date pill stay anchored at the
+   chosen bar for the whole Select-bar session (visible even when the pointer leaves). */
+.rw-select-bar-overlay--active .rw-select-bar-overlay__line,
+.rw-select-bar-overlay--active .rw-select-bar-overlay__scissors {
+  visibility: visible;
 }
 
-.rw-select-bar-time-flyout:not(.rw-select-bar-overlay--pointer-in) .rw-select-bar-overlay__time {
-  visibility: hidden;
+.rw-select-bar-time-flyout .rw-select-bar-overlay__time {
+  visibility: visible;
 }
 
 /* TradingView-style scissors on the blue bar line — blades up, follows pointer Y. */
@@ -1567,8 +1569,10 @@ button.rw-legend-status-btn:focus-visible {
 .rw-select-bar-time-flyout .rw-select-bar-overlay__time {
   position: absolute;
   left: var(--rw-sb-sx, 50%);
-  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-  transform: translate3d(-50%, 0, 0);
+  /* Straddle the plot bottom / time-axis line, directly under the selection line (TV-style). */
+  top: calc(100% - var(--sb-bottom, 22px));
+  bottom: auto;
+  transform: translate3d(-50%, -50%, 0);
   padding: 4px 10px;
   border-radius: 4px;
   background: #2962ff;

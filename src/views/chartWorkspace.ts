@@ -1225,18 +1225,27 @@ export function mountChartWorkspace(
   const replaySelectLabel = host.querySelector('[data-rw-replay-select-label]') as HTMLElement | null
   const replaySelectIco = host.querySelector('[data-rw-replay-select-ico]') as HTMLElement | null
 
-  function positionReplayDockCenterTop() {
+  /**
+   * Dock the replay bar at the bottom-center of the chart (TradingView-style),
+   * pinned just above the trade dock / footer. Fixed placement — no drift on resize.
+   */
+  function positionReplayDockBottomCenter() {
     if (!replayDock) return
     replayDock.style.position = 'fixed'
     replayDock.style.bottom = 'auto'
     const wrapRect = chartWrapEl?.getBoundingClientRect()
     const dockW = replayDock.offsetWidth || 360
+    const dockH = replayDock.offsetHeight || 44
     const left = wrapRect
       ? wrapRect.left + Math.max(0, (wrapRect.width - dockW) / 2)
       : Math.max(8, (window.innerWidth - dockW) / 2)
-    const top = wrapRect ? wrapRect.top + 14 : 56
+    // Sit above the trade dock row (Buy/Sell footer) if present, else near the chart bottom.
+    const tradeRow = host.querySelector('[data-rw-trade-dock-row]') as HTMLElement | null
+    const tradeTop = tradeRow && tradeRow.offsetHeight > 0 ? tradeRow.getBoundingClientRect().top : null
+    const bottomBoundary = tradeTop ?? (wrapRect ? wrapRect.bottom : window.innerHeight)
+    const top = bottomBoundary - dockH - 18
     replayDock.style.left = `${Math.round(Math.max(8, Math.min(window.innerWidth - dockW - 8, left)))}px`
-    replayDock.style.top = `${Math.round(Math.max(48, top))}px`
+    replayDock.style.top = `${Math.round(Math.max(48, Math.min(window.innerHeight - dockH - 8, top)))}px`
   }
 
   function clampReplayDockToViewport() {
@@ -1336,7 +1345,11 @@ export function mountChartWorkspace(
 
   mountReplayDockDrag()
   const onWindowResizeDock = () => {
-    clampReplayDockToViewport()
+    // Keep the footer dock pinned bottom-center unless the user manually dragged it.
+    if (replayDock && !replayDock.hidden) {
+      if (replayDockDragged) clampReplayDockToViewport()
+      else positionReplayDockBottomCenter()
+    }
     syncReplayStartMenuPlacement()
   }
   window.addEventListener('resize', onWindowResizeDock)
@@ -1505,8 +1518,9 @@ export function mountChartWorkspace(
     }
     rwRoot.classList.toggle('rw-replay-dock-open', open)
     if (open) {
-      if (opts?.centerTop || !replayDockDragged) positionReplayDockCenterTop()
-      else clampReplayDockToViewport()
+      // TradingView-style: dock at bottom-center footer. Honor a prior manual drag.
+      if (replayDockDragged && !opts?.centerTop) clampReplayDockToViewport()
+      else positionReplayDockBottomCenter()
     }
   }
 
@@ -5254,9 +5268,8 @@ export function mountChartWorkspace(
     function setSelectBarPointerInChart(inChart: boolean) {
       selectBarOverlay?.classList.toggle('rw-select-bar-overlay--pointer-in', inChart)
       selectBarTimeFlyout?.classList.toggle('rw-select-bar-overlay--pointer-in', inChart)
-      if (!inChart) {
-        chartCanvas.style.removeProperty('--rw-sb-sx')
-      }
+      // Keep --rw-sb-sx (pill/line X) when the pointer leaves so the selection line and
+      // date pill stay anchored at the chosen bar (TradingView-style), not just on hover.
     }
 
     /** Drag-session cache — avoid rebuilding decoupled paint / layout on every pointer move. */
@@ -5565,6 +5578,8 @@ export function mountChartWorkspace(
       const clip = state.tvChart ? state.tvChart.getPlotClipInsets(chartHost) : null
       applyPlotClipVars(selectBarOverlay, clip)
       applyPlotClipVars(replayMaskOverlay, clip)
+      // Flyout carries the same plot-bottom inset so the date pill can sit on the time axis.
+      applyPlotClipVars(selectBarTimeFlyout, clip)
     }
 
     function paintSelectBarCursor(lineX: number, offsetY: number) {
