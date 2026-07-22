@@ -2200,6 +2200,30 @@ body.rw-replay-dock-dragging * {
   background: transparent;
 }
 
+/* Bordered-rectangle transport buttons (play/pause, skip, last bar, first bar) —
+   matches the interval / select-bar box look. Excludes clear-filter and close. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'],
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'],
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='end'],
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start'] {
+  border: 1px solid var(--rw-border);
+  border-radius: var(--rw-radius-md);
+  background: var(--rw-control-bg, var(--rw-panel));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play']:hover:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:hover:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='end']:hover:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start']:hover:not(:disabled) {
+  background: var(--rw-hover);
+  border-color: var(--rw-border-strong);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'].rw-replay-dock__play--active {
+  background: var(--rw-control-bg, var(--rw-panel));
+}
+
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-txt {
   min-width: 1.85em;
   height: 32px;
