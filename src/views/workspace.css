@@ -1990,6 +1990,8 @@ body.rw-replay-dock-dragging * {
   --rw-replay-ink-muted: #434651;
   --rw-replay-sep: #e0e3eb;
   --rw-replay-hover: #f0f3fa;
+  --rw-replay-chip: #f0f3fa;
+  --rw-replay-chip-hover: #e3e7f0;
   --rw-replay-bar-bg: #ffffff;
 }
 
@@ -1998,6 +2000,8 @@ body.rw-replay-dock-dragging * {
   --rw-replay-ink-muted: #787b86;
   --rw-replay-sep: #2a2e39;
   --rw-replay-hover: #2a2e39;
+  --rw-replay-chip: #2a2e39;
+  --rw-replay-chip-hover: #363a45;
   --rw-replay-bar-bg: #131722;
 }
 
@@ -2061,6 +2065,7 @@ body.rw-replay-dock-dragging * {
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-split {
   display: inline-flex;
   align-items: stretch;
+  gap: 4px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -2071,10 +2076,10 @@ body.rw-replay-dock-dragging * {
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main {
   gap: 6px;
   min-height: 32px;
-  padding: 0 2px 0 2px;
+  padding: 0 10px;
   border: none;
-  border-radius: 0;
-  background: transparent;
+  border-radius: 6px;
+  background: var(--rw-replay-chip);
   color: var(--rw-replay-ink);
   font: 500 13px/32px var(--rw-font);
   letter-spacing: -0.015em;
@@ -2082,7 +2087,7 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main:hover {
-  background: var(--rw-replay-hover);
+  background: var(--rw-replay-chip-hover);
   border-color: transparent;
 }
 
@@ -2092,18 +2097,22 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev {
-  width: 24px;
+  width: 26px;
   min-height: 32px;
   margin: 0;
   padding: 0;
   border: none;
-  border-radius: 0;
-  background: transparent;
+  border-radius: 6px;
+  background: var(--rw-replay-chip);
   color: var(--rw-replay-ink);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev:hover {
-  background: var(--rw-replay-hover);
+  background: var(--rw-replay-chip-hover);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open {
+  background: var(--rw-replay-chip-hover);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev .sx-ico,

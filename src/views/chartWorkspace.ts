@@ -1544,6 +1544,18 @@ export function mountChartWorkspace(
   document.addEventListener('pointerdown', onDocPointerCloseStartMenu, true)
   cleanupFns.push(() => document.removeEventListener('pointerdown', onDocPointerCloseStartMenu, true))
 
+  // Clicking inside the TradingView chart iframe doesn't emit a parent pointerdown;
+  // it blurs the parent window and focuses the iframe. Close the start menu on that.
+  const onWindowBlurCloseStartMenu = () => {
+    if (state.disposed) return
+    if (!replayStartMenu || replayStartMenu.hidden) return
+    window.setTimeout(() => {
+      if (document.activeElement instanceof HTMLIFrameElement) closeStartMenu()
+    }, 0)
+  }
+  window.addEventListener('blur', onWindowBlurCloseStartMenu)
+  cleanupFns.push(() => window.removeEventListener('blur', onWindowBlurCloseStartMenu))
+
   beginBootLoading()
   if (tvChartMode) {
     void preloadTradingViewScript().catch(() => {
