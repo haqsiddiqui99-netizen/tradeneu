@@ -124,10 +124,8 @@ export const icons = {
     18,
   ),
   /** Bar Replay “select bar” — vertical mark + left arrow (TradingView-style). */
-  replayBarSelect: svg(
-    '<path d="M9 5v14M13 8l-4-4 4-4" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>',
-    18,
-    18,
+  replayBarSelect: svgReplayTv(
+    '<path d="M4.5 3.75v10.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M13.25 9H7.25M9.75 6.25 7 9l2.75 2.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
   ),
   replayFlag: svg(
     '<path d="M5 3v18M5 5.5h9.5l-2 3.2 2 3.3H5" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"/>',
@@ -143,7 +141,7 @@ export const icons = {
   scissorsSelectBar: scissorsSelectBarImg(),
   /** Bar Replay toolbar — jump to first bar (|◄||, mirror of jump end ||►). */
   replayTvJumpStart: svgReplayTv(
-    '<rect x="2.25" y="4.75" width="1.25" height="8.5" rx="0.3" fill="currentColor"/><path d="M9.25 4.75 4.25 9 9.25 13.25Z" fill="currentColor"/><path d="M11.75 5.5v7M14.25 5.5v7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
+    '<path d="M4 4.75v8.5M7 4.75v8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M14.5 4.5 9.25 9 14.5 13.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none" vector-effect="non-scaling-stroke"/>',
   ),
   /** Bar Replay — circular goto arrow (FXReplay-style). */
   replayGoto: svg(
@@ -171,20 +169,20 @@ export const icons = {
   replaySelectDate: svgReplayTv(
     '<rect x="2.5" y="4.25" width="10.5" height="9.25" rx="1" stroke="currentColor" stroke-width="1.25" vector-effect="non-scaling-stroke"/><path d="M2.5 7h10.5M5 2.75v2M10.5 2.75v2" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M7.75 10.25 6 9.25l1.75-1" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
   ),
-  /** Bar Replay toolbar — play (filled triangle, TV dock). */
+  /** Bar Replay toolbar — play (outline triangle, TV dock). */
   replayTvPlay: svgReplayTv(
-    '<path d="M6.75 4.75 13.5 9 6.75 13.25Z" fill="currentColor"/>',
+    '<path d="M6.5 4.5 13.75 9 6.5 13.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none" vector-effect="non-scaling-stroke"/>',
   ),
   replayTvPause: svgReplayTv(
-    '<rect x="5.75" y="4.75" width="2.5" height="8.5" rx="0.4" fill="currentColor"/><rect x="10.75" y="4.75" width="2.5" height="8.5" rx="0.4" fill="currentColor"/>',
+    '<path d="M6.75 4.5v9M11.25 4.5v9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
   ),
-  /** Next bar — filled triangle + vertical bar (skip one candle). */
+  /** Next bar — outline triangle + vertical bar (skip one candle). */
   replayTvStepFwd: svgReplayTv(
-    '<path d="M5.5 4.75 10.75 9 5.5 13.25Z" fill="currentColor"/><rect x="12.75" y="4.75" width="1.75" height="8.5" rx="0.35" fill="currentColor"/>',
+    '<path d="M5.25 4.5 11 9 5.25 13.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none" vector-effect="non-scaling-stroke"/><path d="M13 4.75v8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
   ),
-  /** Previous bar — vertical bar + filled triangle. */
+  /** Previous bar — vertical bar + outline triangle. */
   replayTvStepBack: svgReplayTv(
-    '<rect x="3.5" y="4.75" width="1.75" height="8.5" rx="0.35" fill="currentColor"/><path d="M7.25 4.75 12.5 9 7.25 13.25Z" fill="currentColor"/>',
+    '<path d="M5 4.75v8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M12.75 4.5 7 9l5.75 4.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none" vector-effect="non-scaling-stroke"/>',
   ),
   /** Floating replay bar — drag grip (2×3 dots). */
   replayDragGrip: svg(
@@ -200,9 +198,9 @@ export const icons = {
   replayTvSpeedUp: svgReplayTv(
     '<path d="M9 5.25v7.5M5.25 9h7.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
   ),
-  /** Jump to latest — two bars + outline triangle (TV dock). */
+  /** Jump to latest — outline triangle + two bars (TV dock). */
   replayTvJumpEnd: svgReplayTv(
-    '<path d="M3.75 5.5v7M6.25 5.5v7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M10.25 6.25v5.5l4.75-2.75L10.25 6.25z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
+    '<path d="M3.5 4.5 8.75 9 3.5 13.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none" vector-effect="non-scaling-stroke"/><path d="M11 4.75v8.5M14 4.75v8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
   ),
   /** Bar Replay dock — clear filter (circular arrow + center dot). */
   replayClearFilter: svgReplayTv(
