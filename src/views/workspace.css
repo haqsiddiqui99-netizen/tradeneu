@@ -1744,22 +1744,21 @@ button.rw-legend-status-btn:focus-visible {
   z-index: 40;
 }
 
-/* TradingView-style compact replay bar (Select · Play · Step · 1x · 1m · End). */
+/* TradingView-style compact replay bar (Select · Play · Step · 1x · 1m · End).
+   Flat / integrated into the chart's bottom toolbar — no floating card (no bg/border/shadow). */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__bar {
-  height: 40px;
-  padding: 0 6px 0 4px;
-  border-radius: 8px;
-  background: #f0f3fa;
-  border: 1px solid rgba(120, 123, 134, 0.22);
-  box-shadow:
-    0 0 0 1px rgba(19, 23, 34, 0.03),
-    0 4px 16px rgba(19, 23, 34, 0.12);
+  height: 34px;
+  padding: 0 2px;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
   gap: 2px;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__bar {
-  background: #2a2e39;
-  border-color: rgba(120, 123, 134, 0.35);
+  background: transparent;
+  border-color: transparent;
 }
 
 /* Fixed footer dock — no drag handle, no grab cursor. */
