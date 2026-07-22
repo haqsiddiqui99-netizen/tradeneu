@@ -1073,7 +1073,6 @@ export function mountChartWorkspace(
     return out
   }
   const replayDock = host.querySelector('[data-rw-replay-dock]') as HTMLElement | null
-  const replayDockDrag = host.querySelector('[data-rw-replay-drag]') as HTMLButtonElement | null
   const replaySpeed = host.querySelector('[data-rw-replay-speed]') as HTMLInputElement | null
   const replaySpeedBtn = host.querySelector('[data-rw-replay-speed-btn]') as HTMLButtonElement | null
   const replaySpeedLabelEl = host.querySelector('[data-rw-replay-speed-label]') as HTMLElement | null
@@ -1083,7 +1082,6 @@ export function mountChartWorkspace(
   const replaySpeedUp = host.querySelector('[data-rw-replay-speed-up]') as HTMLButtonElement | null
   const replayClearFilterBtn = host.querySelector('[data-rw-replay-clear-filter]') as HTMLButtonElement | null
   const chartWrapEl = host.querySelector('.rw-chart-wrap') as HTMLElement | null
-  let replayDockDragged = false
   const replayStartMenu = host.querySelector('[data-rw-replay-start-menu]') as HTMLElement | null
   const replayHubDialog = host.querySelector('[data-rw-replay-hub-dialog]') as HTMLDialogElement | null
   const btnReplayHubClose = host.querySelector('[data-rw-replay-hub-close]') as HTMLButtonElement | null
@@ -1252,85 +1250,6 @@ export function mountChartWorkspace(
     replayDock.style.top = `${Math.round(Math.max(48, Math.min(window.innerHeight - dockH - 8, top)))}px`
   }
 
-  function clampReplayDockToViewport() {
-    if (!replayDock || replayDock.hidden) return
-    const rect = replayDock.getBoundingClientRect()
-    const w = rect.width
-    const h = rect.height
-    let left = rect.left
-    let top = rect.top
-    left = Math.max(8, Math.min(window.innerWidth - w - 8, left))
-    top = Math.max(48, Math.min(window.innerHeight - h - 8, top))
-    replayDock.style.left = `${Math.round(left)}px`
-    replayDock.style.top = `${Math.round(top)}px`
-    replayDock.style.bottom = 'auto'
-  }
-
-  function mountReplayDockDrag() {
-    if (!replayDock || !replayDockDrag) return
-    let dragging = false
-    let startX = 0
-    let startY = 0
-    let originLeft = 0
-    let originTop = 0
-
-    const onMove = (e: PointerEvent) => {
-      if (!dragging || !replayDock) return
-      const dx = e.clientX - startX
-      const dy = e.clientY - startY
-      const w = replayDock.offsetWidth
-      const h = replayDock.offsetHeight
-      const left = Math.max(8, Math.min(window.innerWidth - w - 8, originLeft + dx))
-      const top = Math.max(48, Math.min(window.innerHeight - h - 8, originTop + dy))
-      replayDock.style.left = `${Math.round(left)}px`
-      replayDock.style.top = `${Math.round(top)}px`
-    }
-
-    const endDrag = (e: PointerEvent) => {
-      if (!dragging) return
-      dragging = false
-      replayDockDrag.releasePointerCapture(e.pointerId)
-      replayDock?.classList.remove('rw-replay-dock--dragging')
-      document.body.classList.remove('rw-replay-dock-dragging')
-      replayDockDragged = true
-      syncReplayStartMenuPlacement()
-    }
-
-    const onUp = (e: PointerEvent) => endDrag(e)
-
-    replayDockDrag.addEventListener('pointerdown', (e) => {
-      if (!replayDock) return
-      e.preventDefault()
-      dragging = true
-      replayDock.classList.add('rw-replay-dock--dragging')
-      document.body.classList.add('rw-replay-dock-dragging')
-      replayDockDrag.setPointerCapture(e.pointerId)
-      replayDock.style.position = 'fixed'
-      replayDock.style.bottom = 'auto'
-      const rect = replayDock.getBoundingClientRect()
-      startX = e.clientX
-      startY = e.clientY
-      originLeft = rect.left
-      originTop = rect.top
-      replayDock.style.left = `${Math.round(originLeft)}px`
-      replayDock.style.top = `${Math.round(originTop)}px`
-    })
-    replayDockDrag.addEventListener('pointermove', onMove)
-    replayDockDrag.addEventListener('pointerup', onUp)
-    replayDockDrag.addEventListener('pointercancel', onUp)
-    window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onUp)
-    cleanupFns.push(() => {
-      replayDockDrag.removeEventListener('pointermove', onMove)
-      replayDockDrag.removeEventListener('pointerup', onUp)
-      replayDockDrag.removeEventListener('pointercancel', onUp)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-      document.body.classList.remove('rw-replay-dock-dragging')
-      replayDock?.classList.remove('rw-replay-dock--dragging')
-    })
-  }
-
   const state = {
     disposed: false,
     trading: null as ReturnType<typeof createTradingChart> | null,
@@ -1347,13 +1266,9 @@ export function mountChartWorkspace(
 
   const cleanupFns: Array<() => void> = []
 
-  mountReplayDockDrag()
   const onWindowResizeDock = () => {
-    // Keep the footer dock pinned bottom-center unless the user manually dragged it.
-    if (replayDock && !replayDock.hidden) {
-      if (replayDockDragged) clampReplayDockToViewport()
-      else positionReplayDockBottomCenter()
-    }
+    // Dock is fixed in the footer — always re-pin bottom-center on resize.
+    if (replayDock && !replayDock.hidden) positionReplayDockBottomCenter()
     syncReplayStartMenuPlacement()
   }
   window.addEventListener('resize', onWindowResizeDock)
@@ -1532,9 +1447,8 @@ export function mountChartWorkspace(
     }
     rwRoot.classList.toggle('rw-replay-dock-open', open)
     if (open) {
-      // TradingView-style: dock at bottom-center footer. Honor a prior manual drag.
-      if (replayDockDragged && !opts?.centerTop) clampReplayDockToViewport()
-      else positionReplayDockBottomCenter()
+      // TradingView-style: dock is fixed at the bottom-center footer (not draggable).
+      positionReplayDockBottomCenter()
     }
   }
 

@@ -1750,9 +1750,14 @@ button.rw-legend-status-btn:focus-visible {
   border-color: rgba(120, 123, 134, 0.35);
 }
 
+/* Fixed footer dock — no drag handle, no grab cursor. */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__drag {
-  width: 18px;
-  opacity: 0.45;
+  display: none;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__bar {
+  cursor: default;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn {
