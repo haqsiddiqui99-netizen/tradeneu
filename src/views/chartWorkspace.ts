@@ -644,7 +644,7 @@ export function mountChartWorkspace(
           </div>
           <div
             id="rw-chart-replay-dock"
-            class="rw-chart-replay-dock rw-replay-dock--floating"
+            class="rw-chart-replay-dock rw-replay-dock--floating rw-replay-dock--tv"
             data-rw-replay-dock
             hidden
             role="toolbar"
@@ -662,8 +662,8 @@ export function mountChartWorkspace(
                     aria-pressed="false"
                     title="Select replay starting point"
                   >
-                    <span class="rw-replay-dock__select-ico" data-rw-replay-select-ico aria-hidden="true">${icons.replaySelectDate}</span>
-                    <span data-rw-replay-select-label>Select date</span>
+                    <span class="rw-replay-dock__select-ico" data-rw-replay-select-ico aria-hidden="true">${icons.replayBarSelect}</span>
+                    <span data-rw-replay-select-label>Select bar</span>
                   </button>
                   <button
                     type="button"
@@ -680,7 +680,7 @@ export function mountChartWorkspace(
                     <span class="rw-replay-start-menu__ico" aria-hidden="true">${icons.replayBarSelect}</span>
                     <span>Bar</span>
                   </button>
-                  <button type="button" class="rw-replay-start-menu__item rw-replay-start-menu__item--active" data-rw-replay-start="date" role="menuitem">
+                  <button type="button" class="rw-replay-start-menu__item" data-rw-replay-start="date" role="menuitem">
                     <span class="rw-replay-start-menu__ico" aria-hidden="true">${icons.calendar}</span>
                     <span>Date…</span>
                   </button>
@@ -695,35 +695,35 @@ export function mountChartWorkspace(
                 </div>
               </div>
               <span class="rw-replay-dock__vsep rw-replay-dock__vsep--fx" aria-hidden="true"></span>
-              <button type="button" class="rw-replay-dock__tico" data-rw="start" title="First bar">${icons.replayTvJumpStart}</button>
-              <div class="rw-replay-dock__speed-cluster" data-rw-replay-speed-cluster>
-                <button type="button" class="rw-replay-dock__tico rw-replay-dock__speed-step" data-rw-replay-speed-down title="Decrease speed" aria-label="Decrease speed">${icons.replayTvSpeedDown}</button>
-                <div class="rw-replay-dock__speed-wrap" data-rw-replay-speed-wrap>
-                  <span class="rw-replay-dock__speed-bubble" data-rw-replay-speed-bubble aria-hidden="true">1x per sec</span>
-                  <input
-                    type="range"
-                    class="rw-replay-dock__speed"
-                    data-rw-replay-speed
-                    min="0"
-                    max="${REPLAY_BARS_PER_SEC.length - 1}"
-                    value="0"
-                    step="1"
-                    aria-label="Playback speed"
-                    aria-valuetext="1x per sec"
-                  />
-                </div>
-                <button type="button" class="rw-replay-dock__tico rw-replay-dock__speed-step" data-rw-replay-speed-up title="Increase speed" aria-label="Increase speed">${icons.replayTvSpeedUp}</button>
-              </div>
-              <span class="rw-replay-dock__vsep rw-replay-dock__vsep--fx" aria-hidden="true"></span>
               <button type="button" class="rw-replay-dock__tico rw-replay-dock__play" data-rw="play" title="Play / Pause" aria-pressed="false"><span class="rw-replay-dock__play-ico rw-replay-dock__play-ico--play" aria-hidden="true">${icons.replayTvPlay}</span><span class="rw-replay-dock__play-ico rw-replay-dock__play-ico--pause" aria-hidden="true" hidden>${icons.replayTvPause}</span></button>
               <button type="button" class="rw-replay-dock__tico" data-rw="fwd" title="Skip one candle">${icons.replayTvStepFwd}</button>
+              <button
+                type="button"
+                class="rw-replay-dock__speed-btn"
+                data-rw-replay-speed-btn
+                title="Playback speed"
+                aria-label="Playback speed"
+              ><span data-rw-replay-speed-label>1x</span></button>
+              <!-- Hidden range keeps existing speed wiring; TV UI uses the 1x button above. -->
+              <input
+                type="range"
+                class="rw-replay-dock__speed"
+                data-rw-replay-speed
+                hidden
+                min="0"
+                max="${REPLAY_BARS_PER_SEC.length - 1}"
+                value="0"
+                step="1"
+                aria-hidden="true"
+                tabindex="-1"
+              />
               <button
                 type="button"
                 class="rw-replay-dock__interval"
                 data-rw-replay-interval-toggle
                 aria-haspopup="listbox"
                 aria-expanded="false"
-                title="Chart interval"
+                title="Replay interval"
               >
                 <span data-rw-replay-dock-tf>1m</span>
                 <span class="rw-replay-dock__interval-chev" aria-hidden="true">${icons.chevronDown}</span>
@@ -731,6 +731,8 @@ export function mountChartWorkspace(
               <button type="button" class="rw-replay-dock__tico rw-replay-dock__tico--end" data-rw="end" title="Last Bar">${icons.replayTvJumpEnd}</button>
               <button type="button" class="rw-replay-dock__clear-filter" data-rw-replay-clear-filter title="Clear filter" aria-label="Clear filter">${icons.replayClearFilter}</button>
               <button type="button" class="rw-replay-dock__tico rw-replay-dock__close" data-rw-replay-dock-close title="Close replay" aria-label="Close replay">${icons.replayTvClose}</button>
+              <!-- Keep jump-to-start available for keyboard / legacy callers; not shown in TV layout. -->
+              <button type="button" class="rw-replay-dock__tico rw-replay-dock__tico--start-hidden" data-rw="start" title="First bar" hidden tabindex="-1" aria-hidden="true">${icons.replayTvJumpStart}</button>
             </div>
           </div>
         </div>
@@ -1073,6 +1075,8 @@ export function mountChartWorkspace(
   const replayDock = host.querySelector('[data-rw-replay-dock]') as HTMLElement | null
   const replayDockDrag = host.querySelector('[data-rw-replay-drag]') as HTMLButtonElement | null
   const replaySpeed = host.querySelector('[data-rw-replay-speed]') as HTMLInputElement | null
+  const replaySpeedBtn = host.querySelector('[data-rw-replay-speed-btn]') as HTMLButtonElement | null
+  const replaySpeedLabelEl = host.querySelector('[data-rw-replay-speed-label]') as HTMLElement | null
   const replaySpeedWrap = host.querySelector('[data-rw-replay-speed-wrap]') as HTMLElement | null
   const replaySpeedBubble = host.querySelector('[data-rw-replay-speed-bubble]') as HTMLElement | null
   const replaySpeedDown = host.querySelector('[data-rw-replay-speed-down]') as HTMLButtonElement | null
@@ -1453,9 +1457,15 @@ export function mountChartWorkspace(
     const clamped = Math.max(0, Math.min(REPLAY_BARS_PER_SEC.length - 1, Math.round(idx)))
     const bps = REPLAY_BARS_PER_SEC[clamped] ?? 1
     const label = replaySpeedLabel(bps, state.tickReplayUnit)
+    const compact = state.tickReplayUnit === 'tick' ? `${bps}t` : `${bps}x`
     replaySpeed.value = String(clamped)
     replaySpeed.setAttribute('aria-valuetext', label)
     if (replaySpeedBubble) replaySpeedBubble.textContent = label
+    if (replaySpeedLabelEl) replaySpeedLabelEl.textContent = compact
+    if (replaySpeedBtn) {
+      replaySpeedBtn.title = `Playback speed · ${label}`
+      replaySpeedBtn.setAttribute('aria-label', `Playback speed ${label}`)
+    }
     syncReplaySpeedBubblePosition(clamped)
     if (replaySpeedDown) replaySpeedDown.disabled = clamped <= 0
     if (replaySpeedUp) replaySpeedUp.disabled = clamped >= REPLAY_BARS_PER_SEC.length - 1
@@ -1464,7 +1474,11 @@ export function mountChartWorkspace(
   function bumpReplaySpeed(delta: number) {
     if (!replaySpeed || !state.replay) return
     const cur = Number(replaySpeed.value)
-    const next = Math.max(0, Math.min(REPLAY_BARS_PER_SEC.length - 1, cur + delta))
+    const max = REPLAY_BARS_PER_SEC.length - 1
+    // TV-style: clicking the 1x button cycles through speeds (wraps).
+    let next = cur + delta
+    if (next > max) next = 0
+    if (next < 0) next = max
     if (next === cur) return
     replaySpeed.value = String(next)
     state.replay.setSpeedIndex(next)
@@ -5756,7 +5770,7 @@ export function mountChartWorkspace(
       })
     }
 
-    setReplaySelectUi('date')
+    setReplaySelectUi('bar')
 
     function closeSelectBarChartMode(apply: boolean) {
       if (!selectBarChartActive) return
@@ -6230,6 +6244,12 @@ export function mountChartWorkspace(
     }
 
     syncReplaySpeedUi(0)
+
+    if (replaySpeedBtn) {
+      const onSpeedBtn = () => bumpReplaySpeed(1)
+      replaySpeedBtn.addEventListener('click', onSpeedBtn)
+      cleanupFns.push(() => replaySpeedBtn.removeEventListener('click', onSpeedBtn))
+    }
 
     if (replaySpeed && replaySpeedWrap) {
       const onSpeedInput = () => {

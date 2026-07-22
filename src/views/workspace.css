@@ -1732,6 +1732,75 @@ button.rw-legend-status-btn:focus-visible {
   overflow: visible;
 }
 
+/* TradingView-style compact replay bar (Select · Play · Step · 1x · 1m · End). */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__bar {
+  height: 40px;
+  padding: 0 6px 0 4px;
+  border-radius: 8px;
+  background: #f0f3fa;
+  border: 1px solid rgba(120, 123, 134, 0.22);
+  box-shadow:
+    0 0 0 1px rgba(19, 23, 34, 0.03),
+    0 4px 16px rgba(19, 23, 34, 0.12);
+  gap: 2px;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__bar {
+  background: #2a2e39;
+  border-color: rgba(120, 123, 134, 0.35);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__drag {
+  width: 18px;
+  opacity: 0.45;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 28px;
+  margin: 0 2px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #131722;
+  font: 600 13px/1 var(--rw-font, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover {
+  background: rgba(41, 98, 255, 0.1);
+  color: #2962ff;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn {
+  color: #d1d4dc;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover {
+  background: rgba(41, 98, 255, 0.18);
+  color: #5b9cff;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main {
+  background: transparent;
+  font-weight: 600;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval {
+  background: transparent;
+  font-weight: 600;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__clear-filter,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__close {
+  opacity: 0.7;
+}
+
 .rw-replay-dock--dragging .rw-replay-dock__bar {
   box-shadow:
     0 0 0 1px rgba(19, 23, 34, 0.06),
