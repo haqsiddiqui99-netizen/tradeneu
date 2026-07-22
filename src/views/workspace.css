@@ -1745,20 +1745,20 @@ button.rw-legend-status-btn:focus-visible {
 }
 
 /* TradingView-style compact replay bar (Select · Play · Step · 1x · 1m · End).
-   Flat / integrated into the chart's bottom toolbar — no floating card (no bg/border/shadow). */
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__bar {
+   Flat / integrated into the chart's bottom toolbar — no floating card (no bg/border/shadow).
+   High-specificity (floating.tv + theme) to beat the generic --tv bar theme rules. */
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar,
+.rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar {
   height: 34px;
   padding: 0 2px;
+  border: none;
+  border-bottom: none;
   border-radius: 0;
   background: transparent;
-  border: none;
   box-shadow: none;
   gap: 2px;
-}
-
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__bar {
-  background: transparent;
-  border-color: transparent;
 }
 
 /* Fixed footer dock — no drag handle, no grab cursor. */
