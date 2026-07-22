@@ -1732,6 +1732,18 @@ button.rw-legend-status-btn:focus-visible {
   overflow: visible;
 }
 
+/* TradingView-style: dock lives INSIDE the chart pane, anchored bottom-center
+   (absolute within .rw-chart-canvas), not viewport-fixed. */
+.rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--tv {
+  position: absolute;
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 40;
+}
+
 /* TradingView-style compact replay bar (Select · Play · Step · 1x · 1m · End). */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__bar {
   height: 40px;

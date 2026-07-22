@@ -1081,7 +1081,6 @@ export function mountChartWorkspace(
   const replaySpeedDown = host.querySelector('[data-rw-replay-speed-down]') as HTMLButtonElement | null
   const replaySpeedUp = host.querySelector('[data-rw-replay-speed-up]') as HTMLButtonElement | null
   const replayClearFilterBtn = host.querySelector('[data-rw-replay-clear-filter]') as HTMLButtonElement | null
-  const chartWrapEl = host.querySelector('.rw-chart-wrap') as HTMLElement | null
   const replayStartMenu = host.querySelector('[data-rw-replay-start-menu]') as HTMLElement | null
   const replayHubDialog = host.querySelector('[data-rw-replay-hub-dialog]') as HTMLDialogElement | null
   const btnReplayHubClose = host.querySelector('[data-rw-replay-hub-close]') as HTMLButtonElement | null
@@ -1228,26 +1227,17 @@ export function mountChartWorkspace(
   const replaySelectIco = host.querySelector('[data-rw-replay-select-ico]') as HTMLElement | null
 
   /**
-   * Dock the replay bar at the bottom-center of the chart (TradingView-style),
-   * pinned just above the trade dock / footer. Fixed placement — no drift on resize.
+   * The TV dock lives *inside* the chart pane, anchored bottom-center via CSS
+   * (`position: absolute` within `.rw-chart-canvas`). Clear any stale inline
+   * positioning so the stylesheet stays in control — no viewport-fixed drift.
    */
   function positionReplayDockBottomCenter() {
     if (!replayDock) return
-    replayDock.style.position = 'fixed'
-    replayDock.style.bottom = 'auto'
-    const wrapRect = chartWrapEl?.getBoundingClientRect()
-    const dockW = replayDock.offsetWidth || 360
-    const dockH = replayDock.offsetHeight || 44
-    const left = wrapRect
-      ? wrapRect.left + Math.max(0, (wrapRect.width - dockW) / 2)
-      : Math.max(8, (window.innerWidth - dockW) / 2)
-    // Sit above the trade dock row (Buy/Sell footer) if present, else near the chart bottom.
-    const tradeRow = host.querySelector('[data-rw-trade-dock-row]') as HTMLElement | null
-    const tradeTop = tradeRow && tradeRow.offsetHeight > 0 ? tradeRow.getBoundingClientRect().top : null
-    const bottomBoundary = tradeTop ?? (wrapRect ? wrapRect.bottom : window.innerHeight)
-    const top = bottomBoundary - dockH - 18
-    replayDock.style.left = `${Math.round(Math.max(8, Math.min(window.innerWidth - dockW - 8, left)))}px`
-    replayDock.style.top = `${Math.round(Math.max(48, Math.min(window.innerHeight - dockH - 8, top)))}px`
+    replayDock.style.removeProperty('position')
+    replayDock.style.removeProperty('left')
+    replayDock.style.removeProperty('top')
+    replayDock.style.removeProperty('bottom')
+    replayDock.style.removeProperty('transform')
   }
 
   const state = {
