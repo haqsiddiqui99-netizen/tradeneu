@@ -3117,6 +3117,81 @@ body.rw-replay-dock-dragging * {
   height: 18px;
 }
 
+/* Replay speed dropdown (10x … 0.1x), opens upward above the speed button. */
+.rw-replay-dock__speed-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.rw-replay-speed-menu {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  z-index: 40;
+  min-width: 244px;
+  padding: 0 0 4px;
+  background: #fff;
+  border: 1px solid var(--rw-border);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(19, 23, 34, 0.2);
+}
+
+.rw-replay-speed-menu[hidden] {
+  display: none !important;
+}
+
+.rw-replay-speed-menu__head {
+  padding: 9px 14px 7px;
+  font: 600 10px var(--rw-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rw-text);
+}
+
+.rw-replay-speed-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  padding: 9px 14px;
+  border: none;
+  background: transparent;
+  color: var(--rw-bright);
+  font: 500 13px var(--rw-font);
+  text-align: left;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.rw-replay-speed-menu__item:hover {
+  background: var(--rw-hover);
+}
+
+.rw-replay-speed-menu__item--active {
+  background: #363a45;
+  color: #fff;
+}
+
+.rw-replay-speed-menu__item--active:hover {
+  background: #434651;
+  color: #fff;
+}
+
+.rw-replay-speed-menu__x {
+  font-weight: 600;
+}
+
+.rw-replay-speed-menu__detail {
+  color: var(--rw-text-mid);
+}
+
+.rw-replay-speed-menu__item--active .rw-replay-speed-menu__detail {
+  color: rgba(255, 255, 255, 0.82);
+}
+
 /* Centered replay hub — frosted modal when Replay is opened */
 .rw-replay-hub-dlg {
   padding: 0;
@@ -5214,6 +5289,26 @@ body.rw-replay-dock-dragging * {
 
 .rw-root[data-chart-theme='dark'] .rw-replay-start-menu__item--active:hover {
   background: #3d71ff;
+  color: #fff;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-replay-speed-menu {
+  background: #1e222d;
+  border-color: var(--rw-border-strong);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-replay-speed-menu__item {
+  color: var(--rw-bright);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-replay-speed-menu__item:hover {
+  background: #2a2e39;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-replay-speed-menu__item--active,
+.rw-root[data-chart-theme='dark'] .rw-replay-speed-menu__item--active:hover {
+  background: #2962ff;
   color: #fff;
 }
 

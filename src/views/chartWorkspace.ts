@@ -94,7 +94,14 @@ import {
 } from '../chart/chartSnapshot'
 import { createSymbolSearchModal } from './symbolSearchModal'
 import { createIndicatorsModal } from './indicatorsModal'
-import { REPLAY_BARS_PER_SEC, ReplayController, replaySpeedLabel } from '../playback/replayController'
+import {
+  REPLAY_BARS_PER_SEC,
+  REPLAY_DEFAULT_SPEED_INDEX,
+  ReplayController,
+  replaySpeedDetail,
+  replaySpeedLabel,
+  replaySpeedX,
+} from '../playback/replayController'
 import { createReplayAccount, defaultTpSl, longOrderCost, positionUnrealized, shortOrderMargin } from '../replay/replayPositions'
 import {
   renderReplayJournal,
@@ -697,13 +704,26 @@ export function mountChartWorkspace(
               <span class="rw-replay-dock__vsep rw-replay-dock__vsep--fx" aria-hidden="true"></span>
               <button type="button" class="rw-replay-dock__tico rw-replay-dock__play" data-rw="play" title="Play / Pause" aria-pressed="false"><span class="rw-replay-dock__play-ico rw-replay-dock__play-ico--play" aria-hidden="true">${icons.replayTvPlay}</span><span class="rw-replay-dock__play-ico rw-replay-dock__play-ico--pause" aria-hidden="true" hidden>${icons.replayTvPause}</span></button>
               <button type="button" class="rw-replay-dock__tico" data-rw="fwd" title="Skip one candle">${icons.replayTvStepFwd}</button>
-              <button
-                type="button"
-                class="rw-replay-dock__speed-btn"
-                data-rw-replay-speed-btn
-                title="Playback speed"
-                aria-label="Playback speed"
-              ><span data-rw-replay-speed-label>1x</span></button>
+              <div class="rw-replay-dock__speed-wrap" data-rw-replay-speed-wrap>
+                <button
+                  type="button"
+                  class="rw-replay-dock__speed-btn"
+                  data-rw-replay-speed-btn
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                  title="Playback speed"
+                  aria-label="Playback speed"
+                ><span data-rw-replay-speed-label>1x</span></button>
+                <div class="rw-replay-speed-menu" data-rw-replay-speed-menu hidden role="menu" aria-label="Replay speed">
+                  <div class="rw-replay-speed-menu__head">Replay speed</div>
+                  ${REPLAY_BARS_PER_SEC.map(
+                    (bps, i) =>
+                      `<button type="button" class="rw-replay-speed-menu__item" data-rw-replay-speed-index="${i}" role="menuitemradio" aria-checked="false"><span class="rw-replay-speed-menu__x">${replaySpeedX(bps)}</span><span class="rw-replay-speed-menu__detail">${replaySpeedDetail(bps)}</span></button>`,
+                  )
+                    .reverse()
+                    .join('')}
+                </div>
+              </div>
               <!-- Hidden range keeps existing speed wiring; TV UI uses the 1x button above. -->
               <input
                 type="range"
@@ -730,10 +750,7 @@ export function mountChartWorkspace(
               </button>
               <span class="rw-replay-dock__vsep rw-replay-dock__vsep--right" aria-hidden="true"></span>
               <button type="button" class="rw-replay-dock__tico rw-replay-dock__tico--end" data-rw="end" title="Last Bar">${icons.replayTvJumpEnd}</button>
-              <button type="button" class="rw-replay-dock__clear-filter" data-rw-replay-clear-filter title="Clear filter" aria-label="Clear filter">${icons.replayClearFilter}</button>
               <button type="button" class="rw-replay-dock__tico rw-replay-dock__close" data-rw-replay-dock-close title="Close replay" aria-label="Close replay">${icons.replayTvClose}</button>
-              <!-- Keep jump-to-start available for keyboard / legacy callers; not shown in TV layout. -->
-              <button type="button" class="rw-replay-dock__tico rw-replay-dock__tico--start-hidden" data-rw="start" title="First bar" hidden tabindex="-1" aria-hidden="true">${icons.replayTvJumpStart}</button>
             </div>
           </div>
         </div>
@@ -1078,6 +1095,7 @@ export function mountChartWorkspace(
   const replaySpeedBtn = host.querySelector('[data-rw-replay-speed-btn]') as HTMLButtonElement | null
   const replaySpeedLabelEl = host.querySelector('[data-rw-replay-speed-label]') as HTMLElement | null
   const replaySpeedWrap = host.querySelector('[data-rw-replay-speed-wrap]') as HTMLElement | null
+  const replaySpeedMenu = host.querySelector('[data-rw-replay-speed-menu]') as HTMLElement | null
   const replaySpeedBubble = host.querySelector('[data-rw-replay-speed-bubble]') as HTMLElement | null
   const replaySpeedDown = host.querySelector('[data-rw-replay-speed-down]') as HTMLButtonElement | null
   const replaySpeedUp = host.querySelector('[data-rw-replay-speed-up]') as HTMLButtonElement | null
@@ -1363,7 +1381,7 @@ export function mountChartWorkspace(
     const clamped = Math.max(0, Math.min(REPLAY_BARS_PER_SEC.length - 1, Math.round(idx)))
     const bps = REPLAY_BARS_PER_SEC[clamped] ?? 1
     const label = replaySpeedLabel(bps, state.tickReplayUnit)
-    const compact = state.tickReplayUnit === 'tick' ? `${bps}t` : `${bps}x`
+    const compact = state.tickReplayUnit === 'tick' ? `${bps}t` : replaySpeedX(bps)
     replaySpeed.value = String(clamped)
     replaySpeed.setAttribute('aria-valuetext', label)
     if (replaySpeedBubble) replaySpeedBubble.textContent = label
@@ -1372,9 +1390,42 @@ export function mountChartWorkspace(
       replaySpeedBtn.title = `Playback speed · ${label}`
       replaySpeedBtn.setAttribute('aria-label', `Playback speed ${label}`)
     }
+    if (replaySpeedMenu) {
+      replaySpeedMenu.querySelectorAll<HTMLButtonElement>('[data-rw-replay-speed-index]').forEach((btn) => {
+        const active = Number(btn.dataset.rwReplaySpeedIndex) === clamped
+        btn.classList.toggle('rw-replay-speed-menu__item--active', active)
+        btn.setAttribute('aria-checked', active ? 'true' : 'false')
+      })
+    }
     syncReplaySpeedBubblePosition(clamped)
     if (replaySpeedDown) replaySpeedDown.disabled = clamped <= 0
     if (replaySpeedUp) replaySpeedUp.disabled = clamped >= REPLAY_BARS_PER_SEC.length - 1
+  }
+
+  function openSpeedMenu() {
+    if (!replaySpeedMenu) return
+    closeStartMenu()
+    replaySpeedMenu.hidden = false
+    replaySpeedBtn?.setAttribute('aria-expanded', 'true')
+  }
+
+  function closeSpeedMenu() {
+    if (!replaySpeedMenu) return
+    replaySpeedMenu.hidden = true
+    replaySpeedBtn?.setAttribute('aria-expanded', 'false')
+  }
+
+  function toggleSpeedMenu() {
+    if (!replaySpeedMenu) return
+    if (replaySpeedMenu.hidden) openSpeedMenu()
+    else closeSpeedMenu()
+  }
+
+  function selectReplaySpeedIndex(idx: number) {
+    if (!state.replay) return
+    const clamped = Math.max(0, Math.min(REPLAY_BARS_PER_SEC.length - 1, Math.round(idx)))
+    state.replay.setSpeedIndex(clamped)
+    syncReplaySpeedUi(clamped)
   }
 
   function bumpReplaySpeed(delta: number) {
@@ -1463,6 +1514,7 @@ export function mountChartWorkspace(
   const onDocPointerCloseStartMenu = (e: PointerEvent) => {
     if (state.disposed) return
     const t = e.target as Node
+    if (!replaySpeedWrap?.contains(t)) closeSpeedMenu()
     if (replayStartMenu?.contains(t) || btnReplayStartMenuToggle?.contains(t)) return
     if (btnReplayLaunch?.contains(t)) return
     if (selectBarOverlay?.contains(t) || selectBarTimeFlyout?.contains(t)) return
@@ -1549,9 +1601,14 @@ export function mountChartWorkspace(
   // it blurs the parent window and focuses the iframe. Close the start menu on that.
   const onWindowBlurCloseStartMenu = () => {
     if (state.disposed) return
-    if (!replayStartMenu || replayStartMenu.hidden) return
+    const startOpen = replayStartMenu && !replayStartMenu.hidden
+    const speedOpen = replaySpeedMenu && !replaySpeedMenu.hidden
+    if (!startOpen && !speedOpen) return
     window.setTimeout(() => {
-      if (document.activeElement instanceof HTMLIFrameElement) closeStartMenu()
+      if (document.activeElement instanceof HTMLIFrameElement) {
+        closeStartMenu()
+        closeSpeedMenu()
+      }
     }, 0)
   }
   window.addEventListener('blur', onWindowBlurCloseStartMenu)
@@ -6160,12 +6217,26 @@ export function mountChartWorkspace(
       await seekReplayToIndex(index, 'Jumping…')
     }
 
-    syncReplaySpeedUi(0)
+    syncReplaySpeedUi(REPLAY_DEFAULT_SPEED_INDEX)
 
     if (replaySpeedBtn) {
-      const onSpeedBtn = () => bumpReplaySpeed(1)
+      const onSpeedBtn = (e: MouseEvent) => {
+        e.stopPropagation()
+        toggleSpeedMenu()
+      }
       replaySpeedBtn.addEventListener('click', onSpeedBtn)
       cleanupFns.push(() => replaySpeedBtn.removeEventListener('click', onSpeedBtn))
+    }
+
+    if (replaySpeedMenu) {
+      const onSpeedMenuClick = (e: MouseEvent) => {
+        const item = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-rw-replay-speed-index]')
+        if (!item) return
+        selectReplaySpeedIndex(Number(item.dataset.rwReplaySpeedIndex))
+        closeSpeedMenu()
+      }
+      replaySpeedMenu.addEventListener('click', onSpeedMenuClick)
+      cleanupFns.push(() => replaySpeedMenu.removeEventListener('click', onSpeedMenuClick))
     }
 
     if (replaySpeed && replaySpeedWrap) {
@@ -6224,9 +6295,9 @@ export function mountChartWorkspace(
       replay.pause()
       syncPlayBtnPaused()
       replay.setLoop(false)
-      replay.setSpeedIndex(0)
-      syncReplaySpeedUi(0)
-      if (replaySpeed) replaySpeed.value = '0'
+      replay.setSpeedIndex(REPLAY_DEFAULT_SPEED_INDEX)
+      syncReplaySpeedUi(REPLAY_DEFAULT_SPEED_INDEX)
+      if (replaySpeed) replaySpeed.value = String(REPLAY_DEFAULT_SPEED_INDEX)
       setReplaySelectUi('date')
 
       state.trading?.clearReplayPickPreview()

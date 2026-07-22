@@ -13,11 +13,30 @@ export type ReplayState = {
   loopStartIndex: number
 }
 
-/** Discrete playback speeds (1x–20x per sec) — label as “Nx per sec” in the replay dock. */
-export const REPLAY_BARS_PER_SEC = Array.from({ length: 20 }, (_, i) => i + 1) as readonly number[]
+/**
+ * TradingView-style discrete playback speeds, ascending (slowest → fastest).
+ * Values are “updates per second”: <1 means one update every N seconds.
+ * Displayed in the dock menu as 10x … 0.1x.
+ */
+export const REPLAY_BARS_PER_SEC = [0.1, 0.2, 1 / 3, 0.5, 1, 3, 5, 7, 10] as readonly number[]
+
+/** Index of the neutral 1x speed (used as the default / reset speed). */
+export const REPLAY_DEFAULT_SPEED_INDEX = 4
+
+/** Compact multiplier label, e.g. 10x, 1x, 0.5x, 0.3x. */
+export function replaySpeedX(barsPerSec: number): string {
+  const x = barsPerSec >= 1 ? Math.round(barsPerSec) : Math.round(barsPerSec * 10) / 10
+  return `${x}x`
+}
+
+/** Descriptive rate label, e.g. “10 upd per 1 sec”, “1 upd per 2 sec”. */
+export function replaySpeedDetail(barsPerSec: number): string {
+  if (barsPerSec >= 1) return `${Math.round(barsPerSec)} upd per 1 sec`
+  return `1 upd per ${Math.round(1 / barsPerSec)} sec`
+}
 
 export function replaySpeedLabel(barsPerSec: number, unit: 'bar' | 'tick' = 'bar'): string {
-  return unit === 'tick' ? `${barsPerSec} ticks/sec` : `${barsPerSec}x per sec`
+  return unit === 'tick' ? `${barsPerSec} ticks/sec` : replaySpeedDetail(barsPerSec)
 }
 
 /** @deprecated Use REPLAY_BARS_PER_SEC */
@@ -44,8 +63,8 @@ export class ReplayController {
       playing: false,
       /* Last bar = “live” end so legend / watchlist / ticket match the chart’s latest candles. */
       index: Math.max(1, bars.length),
-      barsPerSec: REPLAY_BARS_PER_SEC[0],
-      speedMs: Math.round(1000 / REPLAY_BARS_PER_SEC[0]),
+      barsPerSec: REPLAY_BARS_PER_SEC[REPLAY_DEFAULT_SPEED_INDEX]!,
+      speedMs: Math.round(1000 / REPLAY_BARS_PER_SEC[REPLAY_DEFAULT_SPEED_INDEX]!),
       loop: false,
       loopStartIndex: 1,
     }
