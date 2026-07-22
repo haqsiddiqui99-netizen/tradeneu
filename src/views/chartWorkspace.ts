@@ -1073,15 +1073,6 @@ export function mountChartWorkspace(
     return out
   }
   const replayDock = host.querySelector('[data-rw-replay-dock]') as HTMLElement | null
-  // TradingView-style: relocate the replay bar into the chart footer (a centered row above
-  // the trade bar) so it's part of the footer flow, not floating over the chart candles.
-  {
-    const chartFooterEl = host.querySelector('.rw-chart-footer-tv') as HTMLElement | null
-    const tradeDockRowEl = host.querySelector('[data-rw-trade-dock-row]') as HTMLElement | null
-    if (replayDock && chartFooterEl) {
-      chartFooterEl.insertBefore(replayDock, tradeDockRowEl)
-    }
-  }
   const replaySpeed = host.querySelector('[data-rw-replay-speed]') as HTMLInputElement | null
   const replaySpeedBtn = host.querySelector('[data-rw-replay-speed-btn]') as HTMLButtonElement | null
   const replaySpeedLabelEl = host.querySelector('[data-rw-replay-speed-label]') as HTMLElement | null

@@ -1732,19 +1732,16 @@ button.rw-legend-status-btn:focus-visible {
   overflow: visible;
 }
 
-/* TradingView-style: dock lives in the chart FOOTER (its own centered row above the
-   trade bar), part of the footer flow — never overlapping the chart candles. */
-.rw-chart-footer-tv > .rw-chart-replay-dock.rw-replay-dock--tv {
-  position: relative;
-  left: auto;
+/* TradingView-style: dock sits in the chart's bottom toolbar band (the range / UTC
+   strip), anchored bottom-center inside the chart pane. Fixed — not draggable. */
+.rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--tv {
+  position: absolute;
+  left: 50%;
   right: auto;
   top: auto;
-  bottom: auto;
-  transform: none;
-  align-self: center;
-  margin: 6px auto 4px;
+  bottom: 4px;
+  transform: translateX(-50%);
   z-index: 40;
-  pointer-events: auto;
 }
 
 /* TradingView-style compact replay bar (Select · Play · Step · 1x · 1m · End). */
