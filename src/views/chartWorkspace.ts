@@ -3627,6 +3627,7 @@ export function mountChartWorkspace(
     function syncDecoupledTvFeed(
       index: number,
       mode: 'prime' | 'paint' = 'prime',
+      restoreVisibleRange?: TvLockedViewport | null,
     ): boolean {
       if (!state.tvChart || !isDecoupledReplay()) return false
       const chartPick = resolveIntervalPick(chartTimeframe)
@@ -3645,23 +3646,28 @@ export function mountChartWorkspace(
           barPeriodSec,
         )
         const subMinute = isSubMinuteReplayPick(replayPick)
-        if (subMinute) {
-          // Prefer incremental forming-candle update — avoids full TV reset jank during scissors.
+        const chartStepSec = chartPick.stepSec ?? 60
+        const viewOpts = {
+          decoupled: true as const,
+          preserveViewport: true as const,
+          fit: false as const,
+          ...(restoreVisibleRange ? { restoreVisibleRange } : {}),
+        }
+        // 1m chart: always force chart paint on scissors sync. tickDecoupledReplay after prime
+        // only patches the feed and leaves TV on a stale scale (scissors stuck left).
+        // Multi-minute + sub-minute: prefer incremental tick to avoid 2–3s lag.
+        if (subMinute && chartStepSec > 60) {
           if (!state.tvChart.tickDecoupledReplay(paint.display)) {
             state.tvChart.setReplayData(paint.display, paint.all, {
-              decoupled: true,
+              ...viewOpts,
               force: false,
-              preserveViewport: true,
-              fit: false,
             })
             state.tvChart.flushPendingRefresh()
           }
         } else {
           state.tvChart.setReplayData(paint.display, paint.all, {
-            decoupled: true,
+            ...viewOpts,
             force: true,
-            preserveViewport: true,
-            fit: false,
           })
           state.tvChart.flushPendingRefresh()
         }
@@ -5283,10 +5289,15 @@ export function mountChartWorkspace(
         maxIdx = Math.max(0, visible.length - 1)
       }
       const layout = state.tvChart?.getPlotLayout(chartHost)
+      // Prefer measured plot canvas offset; iframe-only fallback when plot not ready.
+      const plotOffsetX =
+        layout && layout.width > 0
+          ? layout.plotOffsetX
+          : (layout?.iframeOffsetX ?? layout?.plotOffsetX ?? 0)
       scissorsPickCache = {
         visible,
         maxIdx,
-        plotOffsetX: layout?.plotOffsetX ?? layout?.iframeOffsetX ?? 0,
+        plotOffsetX,
         chartStepSec,
         lineXByIdx: new Map(),
       }
@@ -5295,6 +5306,45 @@ export function mountChartWorkspace(
     function ensureScissorsPickCache() {
       if (!scissorsPickCache) refreshScissorsPickCache()
       return scissorsPickCache!
+    }
+
+    /**
+     * Initial scissors index at the current replay cursor (chart candle), not always the live edge.
+     * Second-step decoupled used maxPick → line jumped to the far-right / end of chart.
+     */
+    function scissorsPickIndexAtReplayCursor(): number {
+      const maxIdx = maxPickBarIndex()
+      if (maxIdx <= 0) return 0
+
+      if (!isDecoupledReplay()) {
+        return Math.max(0, Math.min(maxIdx, replay.getState().index - 1))
+      }
+
+      const chartPick = resolveIntervalPick(chartTimeframe)
+      const replayPick = resolveIntervalPick(replayTimeframe)
+      const stepBars = replay.getBars()
+      if (!chartPick || !replayPick || !stepBars.length) return maxIdx
+
+      const replayStepSec = effectiveReplayStepSec(stepBars, replayPick.stepSec ?? 60)
+      const cursorEnd = cursorEndSecForStepIndex(
+        stepBars,
+        replayStepSec,
+        replay.getState().index,
+      )
+      if (cursorEnd <= 0) return maxIdx
+
+      const chartStepSec = chartPick.stepSec ?? 60
+      const visible = scissorsVisibleChartBars()
+      if (!visible.length) return 0
+
+      // Candle that contains cursorEnd, else last fully closed candle before it.
+      for (let i = 0; i < visible.length; i++) {
+        const open = Number(visible[i]!.time)
+        const close = open + chartStepSec
+        if (cursorEnd > open && cursorEnd <= close) return Math.min(maxIdx, i)
+        if (cursorEnd <= open) return Math.min(maxIdx, Math.max(0, i - 1))
+      }
+      return maxIdx
     }
 
     /** Chart candles visible for scissors pick (decoupled: 2m display; coupled: replay slice). */
@@ -5339,23 +5389,29 @@ export function mountChartWorkspace(
       if (!state.tvChart) return
       const chartPick = resolveIntervalPick(chartTimeframe)
       if (!chartPick) return
-      // Sub-minute decoupled: chart is already painted by onReplayTick. Re-priming the full
-      // session here caused 2–3s lag (setSessionBars + realtime flood). Pick uses in-memory bars.
+      const chartStepSec = chartPick.stepSec ?? 60
       const replayPick = resolveIntervalPick(replayTimeframe)
+      const index = replay.getState().index
+      // Capture pan/zoom BEFORE force paint — without restore, second-step scissors jumps to chart end.
+      const savedView = state.tvChart.captureLockedViewport()
+
+      // Multi-minute chart + sub-minute replay: skip full re-prime (2–3s lag). Pick uses in-memory bars.
+      // 1m chart must still light-sync — otherwise the line sticks left after second-step / coupled picks.
       if (
+        chartStepSec > 60 &&
         isDecoupledReplay() &&
         replayPick != null &&
         isSubMinuteReplayPick(replayPick)
       ) {
         return
       }
-      const index = replay.getState().index
+
       if (isDecoupledReplay()) {
-        syncDecoupledTvFeed(index, 'paint')
+        syncDecoupledTvFeed(index, 'paint', savedView)
         return
       }
-      const chartStepSec = chartPick.stepSec ?? 60
-      if (chartStepSec <= 60) return
+
+      // Coupled chart (1m vs 1m, etc.): force paint so TV scale matches candles (tick-only leaves stale chart).
       const slice = replay.slice()
       const reveal = Math.max(1, slice.length)
       const tvRes = intervalPillToTvResolution(chartTimeframe)
@@ -5370,11 +5426,12 @@ export function mountChartWorkspace(
         force: true,
         preserveViewport: true,
         fit: false,
+        ...(savedView ? { restoreVisibleRange: savedView } : {}),
       })
       state.tvChart.flushPendingRefresh()
     }
 
-    /** TV scissors pick — snap to visible chart candle times (stable on 2m+/3m + seconds). */
+    /** TV scissors pick — snap to visible chart candle times (1m+ / decoupled). */
     function pickScissorsBarIndexAtClientX(clientX: number): number {
       const cache = ensureScissorsPickCache()
       const maxIdx = cache.maxIdx
@@ -5385,10 +5442,10 @@ export function mountChartWorkspace(
       const chartStepSec = cache.chartStepSec
       const visible = cache.visible
 
-      // Same light path for minute and sub-minute decoupled — feed is primed before scissors open.
-      if (chartStepSec > 60 || isDecoupledReplay()) {
+      // Time-bucket snap for all minute+ charts (coupled 1m and decoupled) — avoids tick-remapped feed pick.
+      if (chartStepSec >= 60 && visible.length) {
         const sec = state.tvChart.timeSecAtClientX(clientX, hostRect.left, offset)
-        if (sec != null && visible.length) {
+        if (sec != null) {
           for (let i = 0; i <= maxIdx && i < visible.length; i++) {
             const open = Number(visible[i]!.time)
             const nextOpen =
@@ -5449,15 +5506,20 @@ export function mountChartWorkspace(
           if (cached != null) return cached
         }
         const offset = tvPlotOffsetX()
-        let x = state.tvChart.lineXAtBarIndex(idx, 0, offset)
+        const visible = scissorsVisibleChartBars()
+        const bar = visible[idx]
+        const chartStepSec =
+          scissorsPickCache?.chartStepSec ?? resolveIntervalPick(chartTimeframe)?.stepSec ?? 60
+        // Prefer bar-open time when scissors is active (1m feed can still be tick-remapped after seconds).
+        let x: number | null = null
+        if (selectBarChartActive && bar && chartStepSec >= 60) {
+          x = state.tvChart.lineXAtBarTimeSec(Number(bar.time), offset)
+        }
         if (x == null) {
-          const visible = scissorsVisibleChartBars()
-          const bar = visible[idx]
-          const chartStepSec =
-            scissorsPickCache?.chartStepSec ?? resolveIntervalPick(chartTimeframe)?.stepSec ?? 60
-          if (bar && chartStepSec > 60) {
-            x = state.tvChart.lineXAtBarTimeSec(Number(bar.time), offset)
-          }
+          x = state.tvChart.lineXAtBarIndex(idx, 0, offset)
+        }
+        if (x == null && bar && chartStepSec >= 60) {
+          x = state.tvChart.lineXAtBarTimeSec(Number(bar.time), offset)
         }
         if (x != null && selectBarChartActive && scissorsPickCache) {
           scissorsPickCache.lineXByIdx.set(idx, x)
@@ -5815,9 +5877,7 @@ export function mountChartWorkspace(
       state.tvChart?.setReplayCursorVisible(false)
       syncTickLineOverlayActive()
       refreshScissorsPickCache()
-      pickStableIdx = isDecoupledReplay()
-        ? maxPickBarIndex()
-        : Math.max(0, Math.min(maxPickBarIndex(), replay.getState().index - 1))
+      pickStableIdx = scissorsPickIndexAtReplayCursor()
       lastSnappedSliceIndex = pickStableIdx
       lastPickPreviewIdx = -1
       setSelectBarPointerInChart(false)
@@ -5832,17 +5892,20 @@ export function mountChartWorkspace(
       if (syncSelectBarLineAtIndex(pickStableIdx, hostRect.height * 0.42)) {
         setSelectBarPointerInChart(true)
       }
-      // One light layout refresh after overlay mounts — avoid double full cache rebuild.
+      // After force paint, TV coordinates settle a frame later — refresh offset + line at cursor.
       if (state.tvChart) {
         requestAnimationFrame(() => {
-          if (!selectBarChartActive) return
-          if (scissorsPickCache) {
-            const layout = state.tvChart?.getPlotLayout(chartHost)
-            scissorsPickCache.plotOffsetX =
-              layout?.plotOffsetX ?? layout?.iframeOffsetX ?? scissorsPickCache.plotOffsetX
-            scissorsPickCache.lineXByIdx.clear()
-          }
-          resyncSelectBarOverlay()
+          requestAnimationFrame(() => {
+            if (!selectBarChartActive) return
+            refreshScissorsPickCache()
+            pickStableIdx = scissorsPickIndexAtReplayCursor()
+            lastSnappedSliceIndex = pickStableIdx
+            const y =
+              lastPointerClientY != null
+                ? lastPointerClientY - chartHost.getBoundingClientRect().top
+                : chartHost.getBoundingClientRect().height * 0.42
+            if (syncSelectBarLineAtIndex(pickStableIdx, y)) setSelectBarPointerInChart(true)
+          })
         })
       }
       chartCursorUi?.refresh()

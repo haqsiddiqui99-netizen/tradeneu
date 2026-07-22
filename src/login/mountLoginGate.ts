@@ -420,10 +420,10 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
       offlineHintEl.textContent = status.storageMessage
     } else if (status.reason === 'outdated_api') {
       offlineHintEl.textContent =
-        'Account API is outdated. Stop the old server on port 3001, then run npm run dev and try again.'
+        'Account API is outdated. Stop the old historic API server, then run npm run dev and try again.'
     } else {
       offlineHintEl.textContent =
-        'Account server is offline. Run npm run dev (starts API on port 3001) before creating an account.'
+        'Account server is offline. Run npm run dev (starts API on port 3100) before creating an account.'
     }
   })
 }

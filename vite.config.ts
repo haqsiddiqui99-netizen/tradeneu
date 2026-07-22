@@ -5,14 +5,16 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import { historicApiIdentityOk } from './scripts/historicIdentityProbe.mjs'
+import { resolveHistoricApiPort } from './scripts/historicApiPort.mjs'
 import { CHART_PAGE_PATH, HOME_PAGE_PATH, LOGIN_PAGE_PATH } from './src/appPaths'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const historicTarget = 'http://127.0.0.1:3001'
+const historicPort = resolveHistoricApiPort()
+const historicTarget = `http://127.0.0.1:${historicPort}`
 const mlTarget = 'http://127.0.0.1:8001'
 
-/** Log once in a while when the browser hits /api but nothing listens on 3001. */
+/** Log once in a while when the browser hits /api but nothing listens on the historic port. */
 function historicProxyOnError(proxy: import('http-proxy').Server) {
   let lastLogMs = 0
   proxy.on('error', (err: NodeJS.ErrnoException) => {
@@ -21,9 +23,9 @@ function historicProxyOnError(proxy: import('http-proxy').Server) {
     if (now - lastLogMs < 25_000) return
     lastLogMs = now
     console.error(
-      '[vite] /api proxy → 127.0.0.1:3001 refused (historic API not running).\n' +
+      `[vite] /api proxy → 127.0.0.1:${historicPort} refused (historic API not running).\n` +
         '  Run in another terminal: npm run server:historic\n' +
-        '  Or use: npm run dev   (starts historic + Vite). "npm run dev:vite" alone does not start port 3001.',
+        `  Or use: npm run dev   (starts historic + Vite). "npm run dev:vite" alone does not start port ${historicPort}.`,
     )
   })
 }
@@ -93,17 +95,17 @@ function historicApiSidecar(): Plugin {
         console.log('[historic-api] VITE_SKIP_HISTORIC_API=1 — sidecar disabled.')
         return
       }
-      if (await portHasListener(3001)) {
-        const ours = await historicApiIdentityOk(3001)
+      if (await portHasListener(historicPort)) {
+        const ours = await historicApiIdentityOk(historicPort)
         if (ours) {
           console.log(
-            '[historic-api] 127.0.0.1:3001 responds as this repo’s historic API (`npm run server:historic`) — sidecar skipped.',
+            `[historic-api] 127.0.0.1:${historicPort} responds as this repo’s historic API (\`npm run server:historic\`) — sidecar skipped.`,
           )
           return
         }
         console.error(
-          '[historic-api] 127.0.0.1:3001 is in use but is NOT `server/historicGoldApi.mjs`.\n' +
-            '  Stop the other process on 3001, then run from this repo: npm run server:historic\n' +
+          `[historic-api] 127.0.0.1:${historicPort} is in use but is NOT \`server/historicGoldApi.mjs\`.\n` +
+            `  Stop the other process on ${historicPort}, then run from this repo: npm run server:historic\n` +
             '  (or use npm run dev, which starts historic + Vite). Vite will not start a second historic server while the port is taken.',
         )
         return
@@ -112,7 +114,7 @@ function historicApiSidecar(): Plugin {
       child = spawn(process.execPath, [script], {
         cwd: __dirname,
         stdio: 'inherit',
-        env: { ...process.env },
+        env: { ...process.env, HISTORIC_API_PORT: String(historicPort) },
       })
       child.on('error', (err) => {
         console.error('[historic-api] spawn error:', err)
@@ -123,14 +125,14 @@ function historicApiSidecar(): Plugin {
         }
       })
 
-      const up = await waitForPort(3001, { timeoutMs: 15_000, intervalMs: 120 })
+      const up = await waitForPort(historicPort, { timeoutMs: 15_000, intervalMs: 120 })
       if (up) {
-        console.log('[historic-api] 127.0.0.1:3001 ready (Vite → /api/market/bars).')
+        console.log(`[historic-api] 127.0.0.1:${historicPort} ready (Vite → /api/market/bars).`)
       } else {
         console.warn(
-          '[historic-api] Timed out waiting for 127.0.0.1:3001 — browser requests to /api/market/bars will show 502 until the server is up.\n' +
-            '  Fix: run `npm run server:historic` in another terminal, or free port 3001 and restart Vite. ' +
-            'If something else already uses 3001, stop it or set HISTORIC_API_PORT to another port and point Vite proxy at it.',
+          `[historic-api] Timed out waiting for 127.0.0.1:${historicPort} — browser requests to /api/market/bars will show 502 until the server is up.\n` +
+            `  Fix: run \`npm run server:historic\` in another terminal, or free port ${historicPort} and restart Vite. ` +
+            'If something else already uses the port, stop it or set HISTORIC_API_PORT to another port.',
         )
       }
 

@@ -43,7 +43,7 @@ async function readResponsePayload(res: Response): Promise<{ json: unknown | nul
 function formatNonJsonError(res: Response, text: string): string {
   const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 120)
   if (res.status === 502 || res.status === 503 || snippet.includes('ECONNREFUSED')) {
-    return 'Account server is offline. Stop any old process on port 3001, then run: npm run dev'
+    return 'Account server is offline. Stop any old process on the historic API port (default 3100), then run: npm run dev'
   }
   if (res.status === 404 || snippet.includes('Cannot POST') || snippet.includes('<!DOCTYPE')) {
     return 'Account API not found. Restart with npm run dev so /api/auth/register is available.'

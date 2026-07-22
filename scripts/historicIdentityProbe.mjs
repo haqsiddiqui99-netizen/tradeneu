@@ -5,7 +5,7 @@ import http from 'node:http'
 
 export const HISTORIC_IDENTITY_APP = 'suplexity-historic-api'
 
-export function historicApiIdentityOk(port = 3001, host = '127.0.0.1') {
+export function historicApiIdentityOk(port = 3100, host = '127.0.0.1') {
   return new Promise((resolve) => {
     const req = http.get(`http://${host}:${port}/api/historic/identity`, (res) => {
       let buf = ''

@@ -16,7 +16,7 @@
  * Optional: TWELVE_DATA_OUTPUT_SIZE, MARKET_CHART_RANGE / MARKET_CHART_INTERVAL (or legacy MARKET_YAHOO_*).
  * Optional cache: MARKET_BARS_CACHE_TTL_MS (default 120000), MARKET_BARS_CACHE_HISTORICAL_TTL_MS (default 600000).
  *
- * Port: HISTORIC_API_PORT or 3001. Dev: Vite proxies /api → this server.
+ * Port: HISTORIC_API_PORT or 3100 (avoids Windows Hyper-V reserved 2921–3020). Dev: Vite proxies /api → this server.
  */
 
 import express from 'express'
@@ -25,6 +25,7 @@ import multer from 'multer'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { parseXauCsvText } from '../scripts/xauCsvParse.mjs'
+import { resolveHistoricApiPort } from '../scripts/historicApiPort.mjs'
 import { resolveMarketBars } from './providers/resolveChain.mjs'
 import { getCachedMarketBars, invalidateMarketBarsCache, marketBarsCacheKey } from './providers/marketBarsCache.mjs'
 import { getCachedMarketTicks, marketTicksCacheKey } from './providers/marketTicksCache.mjs'
@@ -70,7 +71,7 @@ loadEnvLocal()
 
 const app = express()
 
-/** Lets Vite / dev scripts confirm 3001 is this server, not some other process. */
+/** Lets Vite / dev scripts confirm this port is our historic server, not some other process. */
 app.get('/api/historic/identity', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store')
   res.json({ ok: true, app: 'suplexity-historic-api' })
@@ -372,7 +373,7 @@ export default app
 
 /** Standalone dev / `npm run server:historic` — skipped on Vercel (see `api/index.mjs`). */
 if (!process.env.VERCEL) {
-  const PORT = Number(process.env.HISTORIC_API_PORT || 3001)
+  const PORT = resolveHistoricApiPort()
   const HOST = process.env.HISTORIC_API_HOST?.trim() || '127.0.0.1'
   const server = app.listen(PORT, HOST, () => {
     const keyOk = Boolean(process.env.TWELVE_DATA_API_KEY?.trim())
@@ -398,6 +399,15 @@ if (!process.env.VERCEL) {
     if (err && typeof err === 'object' && 'code' in err && err.code === 'EADDRINUSE') {
       console.error(
         `[market-data] Port ${PORT} is already in use. Stop the other process or set HISTORIC_API_PORT.`,
+      )
+      process.exit(1)
+    }
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'EACCES') {
+      console.error(
+        `[market-data] Permission denied binding ${HOST}:${PORT} (EACCES).\n` +
+          '  On Windows this often means the port is in a Hyper-V / WinNAT excluded range.\n' +
+          '  Check: netsh interface ipv4 show excludedportrange protocol=tcp\n' +
+          '  Fix: set HISTORIC_API_PORT to a free port outside those ranges (default is now 3100).',
       )
       process.exit(1)
     }

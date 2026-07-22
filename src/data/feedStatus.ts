@@ -80,7 +80,7 @@ function buildDemoBannerMessage(opts: {
     lines.push(
       opts.isProd
         ? 'The market API is unreachable. Confirm Vercel serverless routes are deployed.'
-        : 'Start the historic API (npm run dev or npm run server:historic on port 3001).',
+        : 'Start the historic API (npm run dev or npm run server:historic on port 3100).',
     )
   } else if (opts.health && opts.health.twelveDataKeyConfigured === false) {
     lines.push(

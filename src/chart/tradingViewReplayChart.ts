@@ -863,6 +863,9 @@ export function createTvReplayChartController(opts: {
       (opts2?.decoupledStepOnly === true ||
         opts2?.stepPreserveView === true ||
         (opts2?.playing && opts2?.preserveViewport) ||
+        // Scissors / seek: caller passed an explicit range — honor it (second-step force paint
+        // otherwise drops hold via viewportCoversReveal and jumps the line to the chart end).
+        (opts2?.preserveViewport === true && opts2?.restoreVisibleRange != null) ||
         viewportCoversReveal(holdViewportRaw, pastBars))
         ? holdViewportRaw
         : null
@@ -1583,7 +1586,22 @@ export function createTvReplayChartController(opts: {
     },
 
     lineXAtBarTimeSec(openSec, plotOffsetX = 0) {
-      const idx = opts.replayFeed.findBarIndexAtOrBeforeTimeSec(Math.floor(openSec))
+      const open = Math.floor(openSec)
+      const xCur = timeSecToPlotX(open)
+      if (xCur != null) {
+        const bars = opts.replayFeed.getAllBars()
+        const idx = opts.replayFeed.findBarIndexAtOrBeforeTimeSec(open)
+        const next = idx >= 0 && idx + 1 < bars.length ? bars[idx + 1] : null
+        if (next) {
+          const xNext = timeSecToPlotX(Math.floor(next.time / 1000))
+          if (xNext != null) return plotXToHostX((xCur + xNext) / 2, plotOffsetX)
+        }
+        const periodSec = Math.max(1, opts.replayFeed.getBarPeriodSec())
+        const xEnd = timeSecToPlotX(open + periodSec)
+        if (xEnd != null) return plotXToHostX((xCur + xEnd) / 2, plotOffsetX)
+        return plotXToHostX(xCur, plotOffsetX)
+      }
+      const idx = opts.replayFeed.findBarIndexAtOrBeforeTimeSec(open)
       const split = splitPlotXAfterBar(idx)
       return split == null ? null : plotXToHostX(split, plotOffsetX)
     },
