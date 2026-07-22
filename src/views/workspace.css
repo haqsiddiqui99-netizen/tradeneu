@@ -1988,7 +1988,7 @@ body.rw-replay-dock-dragging * {
   pointer-events: auto;
   --rw-replay-ink: #131722;
   --rw-replay-ink-muted: #434651;
-  --rw-replay-sep: #e0e3eb;
+  --rw-replay-sep: #c4c9d2;
   --rw-replay-hover: #f0f3fa;
   --rw-replay-chip: #f0f3fa;
   --rw-replay-chip-hover: #e3e7f0;
@@ -1998,7 +1998,7 @@ body.rw-replay-dock-dragging * {
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv {
   --rw-replay-ink: #d1d4dc;
   --rw-replay-ink-muted: #787b86;
-  --rw-replay-sep: #2a2e39;
+  --rw-replay-sep: #3a3f4b;
   --rw-replay-hover: #2a2e39;
   --rw-replay-chip: #2a2e39;
   --rw-replay-chip-hover: #363a45;
@@ -2146,9 +2146,11 @@ body.rw-replay-dock-dragging * {
   shape-rendering: geometricPrecision;
 }
 
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep {
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__vsep--fx {
+  align-self: center;
   width: 1px;
-  height: 20px;
+  height: 24px;
   margin: 0 8px 0 0;
   background: var(--rw-replay-sep);
   opacity: 1;
