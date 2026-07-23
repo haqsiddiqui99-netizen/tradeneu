@@ -2124,22 +2124,30 @@ body.rw-replay-dock-dragging * {
   padding: 0 10px;
   border: 1px solid var(--rw-border);
   border-radius: var(--rw-radius-md);
-  background: var(--rw-control-bg, var(--rw-panel));
+  background: transparent;
   color: var(--rw-replay-ink);
   font: 500 13px/32px var(--rw-font);
   letter-spacing: -0.015em;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  box-shadow: none;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main:hover {
-  background: var(--rw-hover);
+  background: transparent;
   border-color: var(--rw-border-strong);
 }
 
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking {
-  background: rgba(41, 98, 255, 0.1);
-  border-color: rgba(41, 98, 255, 0.35);
-  color: #2962ff;
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true'] {
+  background: #f0f3fa;
+  border-color: var(--rw-border-strong);
+  color: var(--rw-replay-ink);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true'] {
+  background: #2a2e39;
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #d1d4dc;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev {
@@ -5608,6 +5616,28 @@ body.rw-replay-dock-dragging * {
 
 .rw-root[data-chart-theme='light'] .rw-replay-dock__select--main.rw-replay-dock__select--picking {
   background: rgba(41, 98, 255, 0.12);
+}
+
+/* TV dock: no grey fill by default; grey only when Select bar is active. */
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main {
+  background: transparent;
+  color: var(--rw-replay-ink, #131722);
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select:hover,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main:hover {
+  background: transparent;
+  color: var(--rw-replay-ink, #131722);
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-split {
+  background: transparent;
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true'] {
+  background: #f0f3fa;
 }
 
 .rw-root[data-chart-theme='light'] .rw-replay-dock__select-chev {
