@@ -190,20 +190,23 @@
 }
 
 /* Top “Replay” — dark pill when bar replay is active (TradingView-style) */
-.rw-root.rw-replay-dock-open .rw-replay-launch {
-  background: #131722;
-  color: #f0f3fa;
+.rw-root.rw-replay-dock-open .rw-replay-launch,
+.rw-pill-btn.rw-replay-launch.rw-tv-header-btn--active {
+  background: #131722 !important;
+  color: #f0f3fa !important;
   font-weight: 600;
 }
 
-.rw-root.rw-replay-dock-open .rw-replay-launch:hover {
-  background: #1e222d;
-  color: #fff;
+.rw-root.rw-replay-dock-open .rw-replay-launch:hover,
+.rw-pill-btn.rw-replay-launch.rw-tv-header-btn--active:hover {
+  background: #1e222d !important;
+  color: #fff !important;
 }
 
 .rw-root.rw-replay-dock-open .rw-replay-launch .sx-ico,
 .rw-root.rw-replay-dock-open .rw-replay-launch svg {
   opacity: 0.95;
+  color: #f0f3fa;
 }
 
 .rw-replay-launch {
@@ -1428,7 +1431,7 @@ button.rw-legend-status-btn:focus-visible {
   touch-action: none;
 }
 
-/* Bar-pick: LWC hides future bars via chart data; TV covers them with a solid mask (no chart reload). */
+/* Bar-pick: future candles stay visible but blurred/washed (not hidden). */
 .rw-select-bar-overlay__blur {
   display: none;
   position: absolute;
@@ -1440,16 +1443,21 @@ button.rw-legend-status-btn:focus-visible {
   z-index: 0;
 }
 
-.rw-root--tv .rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in .rw-select-bar-overlay__blur {
+.rw-select-bar-overlay--active .rw-select-bar-overlay__blur {
   display: block;
-  background: var(--rw-chart, #131722);
+  background: rgba(19, 23, 34, 0.28);
+  -webkit-backdrop-filter: blur(2.5px);
+  backdrop-filter: blur(2.5px);
 }
 
-.rw-root--tv[data-chart-theme='light'] .rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in .rw-select-bar-overlay__blur {
-  background: var(--rw-chart, #ffffff);
+.rw-root[data-chart-theme='light'] .rw-select-bar-overlay--active .rw-select-bar-overlay__blur,
+.rw-root--tv[data-chart-theme='light'] .rw-select-bar-overlay--active .rw-select-bar-overlay__blur {
+  background: rgba(255, 255, 255, 0.42);
+  -webkit-backdrop-filter: blur(2.5px);
+  backdrop-filter: blur(2.5px);
 }
 
-/* TV replay: full series stays loaded; mask hides unrevealed future bars. */
+/* TV replay playback mask — keep solid hide for unrevealed bars during play. */
 .rw-replay-mask-overlay {
   position: absolute;
   inset: 0;

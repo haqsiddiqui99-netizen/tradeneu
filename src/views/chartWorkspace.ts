@@ -5316,11 +5316,8 @@ export function mountChartWorkspace(
     function applySelectBarPickPreview(idx: number) {
       if (idx === lastPickPreviewIdx) return
       lastPickPreviewIdx = idx
-      const allBars = replay.getBars()
-      if (!allBars.length) return
-      // TV: keep the series static during pick — CSS mask hides future bars (smooth overlay).
-      if (state.tvChart) return
-      state.trading?.setReplayPickPreview(idx, allBars)
+      // Keep full series visible during pick — CSS blur wash covers candles to the right
+      // of the scissors line (do not truncate / hide future bars).
     }
 
     function captureLockedChartViewport(): {

@@ -21,8 +21,12 @@
   opacity: 0.72 !important;
 }
 
-.rw-tv-header-btn--icon {
-  color: inherit;
+.rw-tv-header-btn--text {
+  line-height: 1.2 !important;
+  font: 600 13px/1.2 -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif !important;
+  gap: 6px !important;
+  padding: 0 10px !important;
+  min-width: auto !important;
 }
 
 .rw-tv-header-btn .sx-ico,
@@ -31,4 +35,29 @@
   width: 18px;
   height: 18px;
   pointer-events: none;
+}
+
+/* TradingView-style: Replay tab turns black when bar replay is active. */
+.rw-tv-header-btn--active,
+button.rw-tv-header-btn--active,
+[data-rw-tv-btn='replay'].rw-tv-header-btn--active {
+  background: #131722 !important;
+  color: #f0f3fa !important;
+  border-radius: 4px !important;
+  opacity: 1 !important;
+  padding: 0 10px !important;
+  gap: 6px !important;
+}
+
+.rw-tv-header-btn--active:hover,
+button.rw-tv-header-btn--active:hover {
+  background: #1e222d !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+.rw-tv-header-btn--active .sx-ico,
+.rw-tv-header-btn--active svg {
+  color: #f0f3fa !important;
+  stroke: #f0f3fa !important;
 }

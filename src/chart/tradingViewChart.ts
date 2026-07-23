@@ -643,6 +643,13 @@ export async function createTradingViewChart(
         else headerButtonElements.set(def.id, buttonId)
         headerButtonTitles.set(def.id, def.title)
         if (def.insertAfterIndicatorTemplate) afterTemplateLabels.push(def.text)
+        // Tag for active styling (Replay black pill when dock is open).
+        requestAnimationFrame(() => {
+          const el = resolveHeaderButtonEl(def.id)
+          if (!el) return
+          el.dataset.rwTvBtn = def.id
+          el.classList.add('rw-tv-header-btn', 'rw-tv-header-btn--text')
+        })
       } catch (err) {
         console.error('[TradingView] createButton failed:', def.id, err)
       }
