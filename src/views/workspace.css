@@ -1957,11 +1957,15 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__vsep--fx {
-  width: 1px;
-  height: 20px;
-  margin: 0 6px 0 2px;
-  background: #e0e3eb;
+  display: inline-block;
+  width: 0;
+  min-width: 0;
+  height: 16px;
+  margin: 0 10px;
+  border-left: 1px solid #b2b5be;
+  background: transparent;
   flex-shrink: 0;
+  align-self: center;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__close {
@@ -2046,7 +2050,7 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep--right {
-  margin: 0 4px 0 8px;
+  margin: 0 10px;
 }
 
 .rw-replay-dock__zone--right {
@@ -2146,15 +2150,29 @@ body.rw-replay-dock-dragging * {
   shape-rendering: geometricPrecision;
 }
 
+/* TV hairline group dividers — after Select bar, and after 1m (before last-bar).
+   Use border-left (not 1px background) so the line stays crisp on white. */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep,
-.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__vsep--fx {
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__vsep--fx,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep--right {
+  display: inline-block;
   align-self: center;
-  width: 1px;
-  height: 24px;
-  margin: 0 8px 0 0;
-  background: var(--rw-replay-sep);
+  width: 0;
+  min-width: 0;
+  height: 16px;
+  margin: 0 10px;
+  border: none;
+  border-left: 1px solid #b2b5be;
+  background: transparent;
   opacity: 1;
   flex-shrink: 0;
+  pointer-events: none;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__vsep--fx,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep--right {
+  border-left-color: #4c525e;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__playback {
