@@ -1492,11 +1492,6 @@ export function mountChartWorkspace(
       // TradingView-style: dock is fixed at the bottom-center footer (not draggable).
       positionReplayDockBottomCenter()
     }
-    /* Host bottom inset changes when dock opens — force TV/LWC to relayout. */
-    requestAnimationFrame(() => {
-      state.tvChart?.resize()
-      window.dispatchEvent(new Event('resize'))
-    })
   }
 
   const onReplayLaunchClick = () => {
@@ -1786,8 +1781,13 @@ export function mountChartWorkspace(
     if (rwRoot.classList.contains('rw-symbol-search-open')) return
     const hide = tvIframeHasOverlay()
     if (!replayDock || replayDock.hidden) return
-    if (hide) replayDock.style.setProperty('visibility', 'hidden', 'important')
-    else replayDock.style.removeProperty('visibility')
+    if (hide) {
+      replayDock.style.setProperty('display', 'none', 'important')
+      selectBarTimeFlyout?.style.setProperty('display', 'none', 'important')
+    } else {
+      replayDock.style.removeProperty('display')
+      selectBarTimeFlyout?.style.removeProperty('display')
+    }
   }
   function bindTvOverlayObserver() {
     tvOverlayObserver?.disconnect()
