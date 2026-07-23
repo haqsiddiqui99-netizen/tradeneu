@@ -1776,12 +1776,13 @@ button.rw-legend-status-btn:focus-visible {
   align-items: center;
   justify-content: center;
   min-width: 36px;
-  height: 28px;
+  height: 32px;
   margin: 0;
-  padding: 0 6px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
+  padding: 0 8px;
+  border: 1px solid var(--rw-border);
+  border-radius: var(--rw-radius-md);
+  background: var(--rw-control-bg, var(--rw-panel));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
   color: var(--rw-replay-ink, #131722);
   font: 600 13px/1 var(--rw-font, system-ui, sans-serif);
   font-variant-numeric: tabular-nums;
@@ -1793,6 +1794,7 @@ button.rw-legend-status-btn:focus-visible {
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus-visible {
   background: var(--rw-hover, #f0f3fa);
+  border-color: var(--rw-border-strong);
   color: var(--rw-replay-ink, #131722);
   outline: none;
 }
@@ -1806,7 +1808,19 @@ button.rw-legend-status-btn:focus-visible {
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus,
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus-visible {
   background: #2a2e39;
+  border-color: rgba(255, 255, 255, 0.18);
   color: #d1d4dc;
+}
+
+/* Collapse the legacy 72px speed-slider slot so skip / 1x / 1m sit flush. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  width: auto;
+  height: auto;
+  margin: 0;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main {
@@ -1816,7 +1830,8 @@ button.rw-legend-status-btn:focus-visible {
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval {
   margin: 0;
-  background: transparent;
+  height: 32px;
+  background: var(--rw-control-bg, var(--rw-panel));
   font-weight: 600;
 }
 
@@ -1875,6 +1890,13 @@ body.rw-replay-dock-dragging * {
   margin: 0 2px;
   padding: 0 8px 0 9px;
   border-radius: 7px;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval {
+  height: 32px;
+  margin: 0;
+  padding: 0 8px 0 9px;
+  border-radius: var(--rw-radius-md);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__interval-chev .sx-ico,
