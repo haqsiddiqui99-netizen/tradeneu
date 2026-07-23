@@ -1713,10 +1713,29 @@ export function mountChartWorkspace(
       })
     : null
 
+  function setSymbolSearchChromeHidden(hidden: boolean) {
+    rwRoot.classList.toggle('rw-symbol-search-open', hidden)
+  }
+
   function openSymbolSearch() {
-    if (state.disposed || !symbolSearch) return
+    if (state.disposed || !symbolSearch || !symbolSearchDlg) return
+    setSymbolSearchChromeHidden(true)
+    /* Reparent to body so the modal top-layer isn't trapped under chart chrome. */
+    if (symbolSearchDlg.parentElement !== document.body) {
+      document.body.appendChild(symbolSearchDlg)
+    }
     symbolSearch.open()
   }
+
+  const onSymbolSearchDialogClose = () => {
+    setSymbolSearchChromeHidden(false)
+    /* Restore dialog next to chart workspace host for disposal / remount. */
+    if (symbolSearchDlg && symbolSearchDlg.parentElement === document.body && host.isConnected) {
+      host.querySelector('.rw-root')?.appendChild(symbolSearchDlg)
+    }
+  }
+  symbolSearchDlg?.addEventListener('close', onSymbolSearchDialogClose)
+  cleanupFns.push(() => symbolSearchDlg?.removeEventListener('close', onSymbolSearchDialogClose))
 
   const btnSymbolSearch = host.querySelector('#rw-symbol-toolbar-search') as HTMLButtonElement | null
   const onSymbolSearchClick = (e: MouseEvent) => {
@@ -1727,7 +1746,13 @@ export function mountChartWorkspace(
   btnSymbolSearch?.addEventListener('click', onSymbolSearchClick, true)
   cleanupFns.push(() => btnSymbolSearch?.removeEventListener('click', onSymbolSearchClick, true))
 
-  cleanupFns.push(() => symbolSearch?.dispose())
+  cleanupFns.push(() => {
+    setSymbolSearchChromeHidden(false)
+    if (symbolSearchDlg && symbolSearchDlg.parentElement === document.body && host.isConnected) {
+      host.querySelector('.rw-root')?.appendChild(symbolSearchDlg)
+    }
+    symbolSearch?.dispose()
+  })
 
   let indicatorMgr: ReturnType<typeof createChartIndicatorManager> | null = null
   let activeChartIndicators: ChartIndicatorId[] = (opts?.activeChartIndicators ?? []).filter(isChartIndicatorId)
