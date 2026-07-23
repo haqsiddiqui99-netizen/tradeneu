@@ -1758,7 +1758,7 @@ button.rw-legend-status-btn:focus-visible {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  gap: 2px;
+  gap: 0;
 }
 
 /* Fixed footer dock — no drag handle, no grab cursor. */
@@ -1777,29 +1777,36 @@ button.rw-legend-status-btn:focus-visible {
   justify-content: center;
   min-width: 36px;
   height: 28px;
-  margin: 0 2px;
-  padding: 0 8px;
+  margin: 0;
+  padding: 0 6px;
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #131722;
+  color: var(--rw-replay-ink, #131722);
   font: 600 13px/1 var(--rw-font, system-ui, sans-serif);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
 
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover {
-  background: rgba(41, 98, 255, 0.1);
-  color: #2962ff;
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true'],
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus-visible {
+  background: var(--rw-hover, #f0f3fa);
+  color: var(--rw-replay-ink, #131722);
+  outline: none;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn {
   color: #d1d4dc;
 }
 
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover {
-  background: rgba(41, 98, 255, 0.18);
-  color: #5b9cff;
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true'],
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus-visible {
+  background: #2a2e39;
+  color: #d1d4dc;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main {
@@ -1808,6 +1815,7 @@ button.rw-legend-status-btn:focus-visible {
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval {
+  margin: 0;
   background: transparent;
   font-weight: 600;
 }
@@ -1961,7 +1969,7 @@ body.rw-replay-dock-dragging * {
   width: 0;
   min-width: 0;
   height: 16px;
-  margin: 0 10px;
+  margin: 0 4px;
   border-left: 1px solid #b2b5be;
   background: transparent;
   flex-shrink: 0;
@@ -2050,7 +2058,7 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep--right {
-  margin: 0 10px;
+  margin: 0 4px;
 }
 
 .rw-replay-dock__zone--right {
@@ -2160,7 +2168,7 @@ body.rw-replay-dock-dragging * {
   width: 0;
   min-width: 0;
   height: 16px;
-  margin: 0 10px;
+  margin: 0 4px;
   border: none;
   border-left: 1px solid #b2b5be;
   background: transparent;
