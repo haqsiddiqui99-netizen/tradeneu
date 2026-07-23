@@ -1290,6 +1290,19 @@ button.rw-legend-status-btn:focus-visible {
   z-index: 2;
 }
 
+/* When bar replay is open, pull the TV/LWC host up so the dock sits in a
+   reserved footer band — never as an overlay on top of the chart iframe.
+   That way TradingView symbol-search / dialogs inside the iframe are never
+   covered by the replay controls. */
+.rw-root--tv.rw-replay-dock-open .rw-chart-host {
+  bottom: 40px;
+}
+
+.rw-root--tv.rw-replay-dock-open .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--tv,
+.rw-root--tv.rw-replay-dock-open .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv {
+  z-index: 1;
+}
+
 /* Tick replay price path — canvas only; 1m candles unchanged underneath. */
 .rw-tick-line-overlay {
   position: absolute;
@@ -1733,18 +1746,17 @@ button.rw-legend-status-btn:focus-visible {
 }
 
 /* TradingView-style: dock sits in the chart's bottom toolbar band (the range / UTC
-   strip), anchored bottom-center inside the chart pane. Fixed — not draggable.
-   Keep z-index below modal overlays (symbol search uses native <dialog> top-layer;
-   also beat the legacy floating z-index:1200 when both --floating and --tv apply). */
+   strip), anchored bottom-center inside the chart pane. Never position:fixed —
+   that stacks above the TV iframe and covers TradingView symbol-search / dialogs. */
 .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--tv,
 .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv {
-  position: absolute;
-  left: 50%;
-  right: auto;
-  top: auto;
-  bottom: 4px;
-  transform: translateX(-50%);
-  z-index: 5;
+  position: absolute !important;
+  left: 50% !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: 4px !important;
+  transform: translateX(-50%) !important;
+  z-index: 1 !important;
 }
 
 /* While Symbol search is open (class toggled from JS), never paint bar replay over it. */

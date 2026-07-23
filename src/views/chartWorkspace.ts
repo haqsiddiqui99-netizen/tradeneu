@@ -1492,6 +1492,11 @@ export function mountChartWorkspace(
       // TradingView-style: dock is fixed at the bottom-center footer (not draggable).
       positionReplayDockBottomCenter()
     }
+    /* Host bottom inset changes when dock opens — force TV/LWC to relayout. */
+    requestAnimationFrame(() => {
+      state.tvChart?.resize()
+      window.dispatchEvent(new Event('resize'))
+    })
   }
 
   const onReplayLaunchClick = () => {
@@ -1715,6 +1720,15 @@ export function mountChartWorkspace(
 
   function setSymbolSearchChromeHidden(hidden: boolean) {
     rwRoot.classList.toggle('rw-symbol-search-open', hidden)
+    /* Inline !important in case stylesheet/cache lags — dock must not cover the modal. */
+    if (replayDock) {
+      if (hidden) replayDock.style.setProperty('display', 'none', 'important')
+      else replayDock.style.removeProperty('display')
+    }
+    if (selectBarTimeFlyout) {
+      if (hidden) selectBarTimeFlyout.style.setProperty('display', 'none', 'important')
+      else selectBarTimeFlyout.style.removeProperty('display')
+    }
   }
 
   function openSymbolSearch() {
@@ -1752,6 +1766,53 @@ export function mountChartWorkspace(
       host.querySelector('.rw-root')?.appendChild(symbolSearchDlg)
     }
     symbolSearch?.dispose()
+  })
+
+  /** Hide our dock while TradingView's in-iframe symbol search / dialogs are open. */
+  let tvOverlayObserver: MutationObserver | null = null
+  let tvOverlayPoll: ReturnType<typeof setInterval> | null = null
+  function tvIframeHasOverlay(): boolean {
+    const iframe = chartTv?.querySelector('iframe') as HTMLIFrameElement | null
+    const doc = iframe?.contentDocument
+    if (!doc) return false
+    return Boolean(
+      doc.querySelector(
+        '[data-name="symbol-search-items-dialog"], .tv-dialog, .js-dialog, [class*="dialog"][aria-modal="true"], [role="dialog"]',
+      ),
+    )
+  }
+  function syncTvOverlayDockVisibility() {
+    if (state.disposed) return
+    if (rwRoot.classList.contains('rw-symbol-search-open')) return
+    const hide = tvIframeHasOverlay()
+    if (!replayDock || replayDock.hidden) return
+    if (hide) replayDock.style.setProperty('visibility', 'hidden', 'important')
+    else replayDock.style.removeProperty('visibility')
+  }
+  function bindTvOverlayObserver() {
+    tvOverlayObserver?.disconnect()
+    tvOverlayObserver = null
+    if (tvOverlayPoll) {
+      clearInterval(tvOverlayPoll)
+      tvOverlayPoll = null
+    }
+    const iframe = chartTv?.querySelector('iframe') as HTMLIFrameElement | null
+    const doc = iframe?.contentDocument
+    if (!doc) return
+    tvOverlayObserver = new MutationObserver(() => syncTvOverlayDockVisibility())
+    tvOverlayObserver.observe(doc.body ?? doc.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style', 'hidden', 'aria-hidden'],
+    })
+    tvOverlayPoll = setInterval(syncTvOverlayDockVisibility, 500)
+  }
+  cleanupFns.push(() => {
+    tvOverlayObserver?.disconnect()
+    tvOverlayObserver = null
+    if (tvOverlayPoll) clearInterval(tvOverlayPoll)
+    tvOverlayPoll = null
   })
 
   let indicatorMgr: ReturnType<typeof createChartIndicatorManager> | null = null
@@ -3368,6 +3429,17 @@ export function mountChartWorkspace(
         chartCanvas.classList.remove('rw-chart-canvas--tv')
         rwRoot.classList.remove('rw-root--tv')
       })
+      void state.tvChart?.whenChartReady().then(() => {
+        if (state.disposed) return
+        bindTvOverlayObserver()
+      })
+      /* Iframe may appear slightly after ready — retry bind a few times. */
+      window.setTimeout(() => {
+        if (!state.disposed) bindTvOverlayObserver()
+      }, 800)
+      window.setTimeout(() => {
+        if (!state.disposed) bindTvOverlayObserver()
+      }, 2000)
     } else {
     trading = createTradingChart(chartLwc, {
       theme: tradingThemeFromUi(uiChartTheme),
