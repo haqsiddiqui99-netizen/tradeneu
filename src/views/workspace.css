@@ -1733,15 +1733,26 @@ button.rw-legend-status-btn:focus-visible {
 }
 
 /* TradingView-style: dock sits in the chart's bottom toolbar band (the range / UTC
-   strip), anchored bottom-center inside the chart pane. Fixed — not draggable. */
-.rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--tv {
+   strip), anchored bottom-center inside the chart pane. Fixed — not draggable.
+   Keep z-index below modal overlays (symbol search uses native <dialog> top-layer;
+   also beat the legacy floating z-index:1200 when both --floating and --tv apply). */
+.rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--tv,
+.rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv {
   position: absolute;
   left: 50%;
   right: auto;
   top: auto;
   bottom: 4px;
   transform: translateX(-50%);
-  z-index: 40;
+  z-index: 5;
+}
+
+/* While Symbol search (or any rw-symsearch dialog) is open, keep bar replay fully
+   behind the popup — never paint over the modal panel. */
+.rw-root:has(.rw-symsearch-dlg[open]) .rw-chart-replay-dock,
+.rw-root:has(.rw-symsearch-dlg[open]) .rw-select-bar-time-flyout {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* TradingView-style compact replay bar (Select · Play · Step · 1x · 1m · End).
