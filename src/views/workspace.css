@@ -1443,7 +1443,8 @@ button.rw-legend-status-btn:focus-visible {
   cursor: none;
 }
 
-/* Plot layout guide — below OHLC. Never captures input so chart pan/zoom still works. */
+/* Plot layout guide — below OHLC. Never captures input so chart pan/zoom still works
+ * and TV iframe pointer events reach bindSelectBarPointerTracking (8bc812a). */
 .rw-select-bar-overlay__hit {
   display: none;
   position: absolute;
@@ -1474,9 +1475,13 @@ button.rw-legend-status-btn:focus-visible {
 }
 
 .rw-select-bar-overlay--active .rw-select-bar-overlay__blur {
-  display: block;
+  display: none;
   /* Near-opaque wash so future candles (incl. high wicks) read as covered */
   background: rgba(19, 23, 34, 0.88);
+}
+
+.rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in .rw-select-bar-overlay__blur {
+  display: block;
 }
 
 .rw-root[data-chart-theme='light'] .rw-select-bar-overlay--active .rw-select-bar-overlay__blur,
@@ -1510,8 +1515,14 @@ button.rw-legend-status-btn:focus-visible {
   background: var(--rw-chart, #ffffff);
 }
 
-/* Scissors chrome stays visible for the whole pick session (incl. after pan). */
-.rw-select-bar-overlay--active .rw-select-bar-overlay__line {
+/* Scissors chrome only while the pointer is over the plot — hide on leave, show on re-enter. */
+.rw-select-bar-overlay--active .rw-select-bar-overlay__line,
+.rw-select-bar-overlay--active .rw-select-bar-overlay__scissors {
+  visibility: hidden;
+}
+
+.rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in .rw-select-bar-overlay__line,
+.rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in .rw-select-bar-overlay__scissors {
   visibility: visible;
 }
 
@@ -1534,15 +1545,11 @@ button.rw-legend-status-btn:focus-visible {
   z-index: 1;
 }
 
-.rw-select-bar-overlay--active .rw-select-bar-overlay__scissors {
-  visibility: visible;
-}
-
 .rw-select-bar-time-flyout .rw-select-bar-overlay__time {
   visibility: hidden;
 }
 
-.rw-select-bar-time-flyout:not([hidden]) .rw-select-bar-overlay__time {
+.rw-select-bar-time-flyout:not([hidden]).rw-select-bar-overlay--pointer-in .rw-select-bar-overlay__time {
   visibility: visible;
 }
 
@@ -2102,9 +2109,15 @@ body.rw-replay-dock-dragging * {
 
 .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__interval-chev .sx-ico,
 .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__interval-chev svg {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   display: block;
+  color: inherit;
+  stroke: currentColor;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__interval-chev svg path {
+  stroke-width: 2.35;
 }
 
 .rw-root.overflow-hidden {
@@ -2576,11 +2589,14 @@ body.rw-replay-dock-dragging * {
   cursor: default;
 }
 
-/* Inner transport buttons — group outline owns the chrome. */
+/* Inner transport buttons — group outline owns the chrome.
+ * Keep border-right so play|skip get the same divider as speed|play. */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'],
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'],
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start'] {
-  border: none;
+  border-top: none;
+  border-bottom: none;
+  border-left: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -2591,7 +2607,6 @@ body.rw-replay-dock-dragging * {
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:hover:not(:disabled),
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start']:hover:not(:disabled) {
   background: var(--rw-tv-ctrl-fill-hover);
-  border-color: transparent;
   color: var(--rw-tv-ctrl-fg);
 }
 
@@ -2608,12 +2623,31 @@ body.rw-replay-dock-dragging * {
   color: #ffffff;
 }
 
+/* Skip / Last bar — same black press chrome as play/pause. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:active:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'].rw-replay-dock__tico--pressed,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:active:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end.rw-replay-dock__tico--pressed {
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  border-color: var(--rw-tv-ctrl-active-fill, #131722);
+  color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
+}
+
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play']:hover:not(:disabled),
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:hover:not(:disabled),
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start']:hover:not(:disabled),
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:hover:not(:disabled) {
   background: var(--rw-tv-ctrl-fill-hover);
   color: var(--rw-tv-ctrl-fg);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:active:not(:disabled),
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'].rw-replay-dock__tico--pressed,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:active:not(:disabled),
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end.rw-replay-dock__tico--pressed {
+  background: var(--rw-tv-ctrl-active-fill, #2962ff);
+  border-color: var(--rw-tv-ctrl-active-fill, #2962ff);
+  color: var(--rw-tv-ctrl-active-fg, #ffffff);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-txt {
@@ -3141,10 +3175,18 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-replay-dock__interval-chev {
-  font-size: 8px;
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
-  color: #787b86;
+  /* Inherit button ink so open (dark) state stays readable — not muted gray. */
+  color: inherit;
+  opacity: 0.92;
   transform: translateY(0.5px);
+}
+
+.rw-replay-dock__interval--open .rw-replay-dock__interval-chev,
+.rw-replay-dock__interval[aria-expanded='true'] .rw-replay-dock__interval-chev {
+  opacity: 1;
 }
 
 .rw-replay-dock__step {
@@ -6024,7 +6066,11 @@ body.rw-replay-dock-dragging * {
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:focus,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:focus-visible,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'].rw-replay-dock__play--active,
-.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'][aria-pressed='true'] {
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'][aria-pressed='true'],
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:active:not(:disabled),
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'].rw-replay-dock__tico--pressed,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:active:not(:disabled),
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end.rw-replay-dock__tico--pressed {
   background: var(--rw-tv-ctrl-active-fill, #131722);
   color: #f0f3fa;
   border-color: var(--rw-tv-ctrl-border, #131722);

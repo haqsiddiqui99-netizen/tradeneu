@@ -368,6 +368,8 @@ function measureTvPlotLayout(
   let bestArea = 0
   /** Highest short-canvas top in the bottom band (= time-axis top / hairline). */
   let hairlineFromHostBottom: number | null = null
+  const hostW = Math.max(1, hostRect.width)
+  const maxPlotLeft = hostRect.left + hostW * 0.35
 
   for (const canvas of doc.querySelectorAll('canvas')) {
     const r = canvas.getBoundingClientRect()
@@ -387,6 +389,9 @@ function measureTvPlotLayout(
       }
     }
     if (r.height < 80) continue
+    // Skip canvases that start too far right — they are not the main price pane and
+    // produce a huge plotOffsetX that pins scissors picks to the leftmost candle.
+    if (r.left > maxPlotLeft) continue
     const area = r.width * r.height
     if (area > bestArea) {
       bestArea = area

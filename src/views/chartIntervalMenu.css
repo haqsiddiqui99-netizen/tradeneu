@@ -382,11 +382,23 @@
   color: #d1d4dc;
 }
 
-.rw-replay-dock__interval--open .rw-replay-dock__interval-chev {
-  transform: rotate(180deg);
+.rw-replay-dock__interval--open .rw-replay-dock__interval-chev,
+.rw-replay-dock__interval[aria-expanded='true'] .rw-replay-dock__interval-chev {
+  transform: translateY(0.5px) rotate(180deg);
 }
 
 .rw-replay-dock__interval-chev {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   transition: transform var(--rw-transition-slow);
+}
+
+.rw-replay-dock__interval-chev .sx-ico,
+.rw-replay-dock__interval-chev svg {
+  color: inherit;
+  stroke: currentColor;
+}
+
+.rw-replay-dock__interval-chev svg path {
+  stroke-width: 2.35;
 }

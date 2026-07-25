@@ -385,7 +385,7 @@ export function createChartIntervalMenu(opts: {
         : pick.kind === 'tick'
           ? 'Tick intervals need Dukascopy ticks (session dates) or enough 1-minute history'
           : (pick.stepSec ?? 60) < 60
-            ? 'Sub-minute intervals need Dukascopy ticks and session start/end dates'
+            ? 'Sub-minute intervals need session dates + ticks, synced second bars, or enough 1-minute history'
             : 'Not enough 1-minute history to build this interval'
     })
   }

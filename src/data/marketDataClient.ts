@@ -98,6 +98,12 @@ function pruneSeriesCache() {
   }
 }
 
+/** Abort hung Dukascopy / historic API fetches so saved-session chart boot can fall back. */
+const BARS_FETCH_TIMEOUT_MS = Math.max(
+  5_000,
+  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_FETCH_TIMEOUT_MS ?? '15000'), 10) || 15_000,
+)
+
 export async function fetchMarketBarsSeries(
   symbol: string,
   chain?: string,
@@ -113,9 +119,12 @@ export async function fetchMarketBarsSeries(
       return hit.data
     }
   }
+  const ac = new AbortController()
+  const timer = window.setTimeout(() => ac.abort(), BARS_FETCH_TIMEOUT_MS)
   try {
     const res = await fetch(marketBarsUrl(symbol, chainParam, opts), {
       credentials: 'same-origin',
+      signal: ac.signal,
     })
     if (!res.ok) return null
     const json: unknown = await res.json()
@@ -138,6 +147,8 @@ export async function fetchMarketBarsSeries(
     return data
   } catch {
     return null
+  } finally {
+    window.clearTimeout(timer)
   }
 }
 
