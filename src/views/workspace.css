@@ -1315,6 +1315,18 @@ button.rw-legend-status-btn:focus-visible {
   pointer-events: none;
 }
 
+/* Kill leftover white axis-cover strips from earlier hairline experiments. */
+.rw-chart-axis-hairline-cover,
+#rw-tv-axis-hairline-cover,
+[data-rw-axis-hairline-cover] {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .rw-chart-canvas--tv .rw-chart-nav-hoverzone {
   display: none;
 }
@@ -1426,17 +1438,35 @@ button.rw-legend-status-btn:focus-visible {
 }
 
 .rw-select-bar-overlay--active {
-  pointer-events: auto;
-  cursor: none;
+  pointer-events: none;
   touch-action: none;
+  cursor: none;
 }
 
-/* Bar-pick: future candles stay visible but blurred/washed (not hidden). */
+/* Plot layout guide — below OHLC. Never captures input so chart pan/zoom still works. */
+.rw-select-bar-overlay__hit {
+  display: none;
+  position: absolute;
+  top: var(--sb-hit-top, var(--sb-top, 0));
+  left: var(--sb-left, 0);
+  right: var(--sb-right, 56px);
+  bottom: var(--sb-bottom, 0);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.rw-select-bar-overlay--active .rw-select-bar-overlay__hit {
+  display: block;
+  pointer-events: none;
+}
+
+/* Bar-pick: future candles stay half-visible (opacity wash — not blur).
+   Cover full plot height to the time axis so wicks are not left undimmed. */
 .rw-select-bar-overlay__blur {
   display: none;
   position: absolute;
   left: var(--sx, 50%);
-  top: var(--sb-top, 0);
+  top: var(--sb-blur-top, var(--sb-top, 0));
   right: var(--sb-right, 56px);
   bottom: var(--sb-bottom, 0);
   pointer-events: none;
@@ -1445,16 +1475,13 @@ button.rw-legend-status-btn:focus-visible {
 
 .rw-select-bar-overlay--active .rw-select-bar-overlay__blur {
   display: block;
-  background: rgba(19, 23, 34, 0.28);
-  -webkit-backdrop-filter: blur(2.5px);
-  backdrop-filter: blur(2.5px);
+  /* Near-opaque wash so future candles (incl. high wicks) read as covered */
+  background: rgba(19, 23, 34, 0.88);
 }
 
 .rw-root[data-chart-theme='light'] .rw-select-bar-overlay--active .rw-select-bar-overlay__blur,
 .rw-root--tv[data-chart-theme='light'] .rw-select-bar-overlay--active .rw-select-bar-overlay__blur {
-  background: rgba(255, 255, 255, 0.42);
-  -webkit-backdrop-filter: blur(2.5px);
-  backdrop-filter: blur(2.5px);
+  background: rgba(255, 255, 255, 0.88);
 }
 
 /* TV replay playback mask — keep solid hide for unrevealed bars during play. */
@@ -1483,19 +1510,20 @@ button.rw-legend-status-btn:focus-visible {
   background: var(--rw-chart, #ffffff);
 }
 
-/* TradingView-style: the selection line, scissors and date pill stay anchored at the
-   chosen bar for the whole Select-bar session (visible even when the pointer leaves). */
-.rw-select-bar-overlay--active .rw-select-bar-overlay__line,
-.rw-select-bar-overlay--active .rw-select-bar-overlay__scissors {
+/* Scissors chrome stays visible for the whole pick session (incl. after pan). */
+.rw-select-bar-overlay--active .rw-select-bar-overlay__line {
   visibility: visible;
 }
 
-.rw-select-bar-time-flyout .rw-select-bar-overlay__time {
-  visibility: visible;
+/* Hide scissors icon only when pointer is in the OHLC legend band. */
+.rw-select-bar-overlay--active.rw-select-bar-overlay--over-legend
+  .rw-select-bar-overlay__scissors {
+  visibility: hidden;
 }
 
 /* TradingView-style scissors on the blue bar line — blades up, follows pointer Y. */
 .rw-select-bar-overlay__scissors {
+  visibility: hidden;
   position: absolute;
   left: var(--sx, 50%);
   top: var(--sy, 42%);
@@ -1504,6 +1532,18 @@ button.rw-legend-status-btn:focus-visible {
   width: 18px;
   height: 22px;
   z-index: 1;
+}
+
+.rw-select-bar-overlay--active .rw-select-bar-overlay__scissors {
+  visibility: visible;
+}
+
+.rw-select-bar-time-flyout .rw-select-bar-overlay__time {
+  visibility: hidden;
+}
+
+.rw-select-bar-time-flyout:not([hidden]) .rw-select-bar-overlay__time {
+  visibility: visible;
 }
 
 .rw-select-bar-overlay__scissors img,
@@ -1551,7 +1591,8 @@ button.rw-legend-status-btn:focus-visible {
 
 .rw-select-bar-overlay__line {
   position: absolute;
-  top: var(--sb-top, 0);
+  /* Full plot height: plot top → time axis (no masks / cuts). */
+  top: var(--sb-line-top, var(--sb-top, 0));
   bottom: var(--sb-bottom, 0);
   left: var(--sx, 50%);
   width: 2px;
@@ -1625,6 +1666,11 @@ button.rw-legend-status-btn:focus-visible {
   user-select: none;
 }
 
+/* TV chart already shows “Chart by TradingView” — hide our watermark so it doesn’t clip that badge. */
+.rw-root--tv .rw-watermark {
+  display: none !important;
+}
+
 /* Chart bottom nav — hidden until hover (TradingView-style floating tiles) */
 .rw-chart-nav-hoverzone {
   position: absolute;
@@ -1660,6 +1706,17 @@ button.rw-legend-status-btn:focus-visible {
 
 .rw-chart-nav-hoverzone:hover .rw-chart-float--nav,
 .rw-chart-nav-hoverzone:focus-within .rw-chart-float--nav {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Keep zoom/pan above the scissors wash / hit layer while picking a bar. */
+.rw-chart-canvas:has(.rw-select-bar-overlay--active) .rw-chart-nav-hoverzone {
+  z-index: 16;
+}
+
+.rw-chart-canvas:has(.rw-select-bar-overlay--active) .rw-chart-nav-hoverzone .rw-chart-float--nav {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -1748,9 +1805,15 @@ button.rw-legend-status-btn:focus-visible {
   left: 50% !important;
   right: auto !important;
   top: auto !important;
-  bottom: 4px !important;
+  bottom: 0 !important;
+  height: 40px !important;
   transform: translateX(-50%) !important;
   z-index: 40 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  overflow: visible !important;
+  pointer-events: none;
 }
 
 /* While Symbol search is open (class toggled from JS), never paint bar replay over it. */
@@ -1770,14 +1833,17 @@ button.rw-legend-status-btn:focus-visible {
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar,
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar,
 .rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar {
-  height: 34px;
-  padding: 0 2px;
+  height: 32px;
+  padding: 0 4px;
   border: none;
   border-bottom: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  gap: 0;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+  overflow: visible;
 }
 
 /* Fixed footer dock — no drag handle, no grab cursor. */
@@ -1790,73 +1856,189 @@ button.rw-legend-status-btn:focus-visible {
   cursor: default;
 }
 
+/* TV dock control chrome — outlined chips (black stroke, light fill, dark ink). */
+.rw-chart-replay-dock.rw-replay-dock--tv {
+  --rw-tv-ctrl-h: 32px;
+  --rw-tv-ctrl-border: #131722;
+  --rw-tv-ctrl-border-w: 1.5px;
+  --rw-tv-ctrl-radius: 6px;
+  --rw-tv-ctrl-fill: #ffffff;
+  --rw-tv-ctrl-fg: #131722;
+  --rw-tv-ctrl-fill-hover: #f0f3fa;
+  --rw-tv-ctrl-muted: #787b86;
+  --rw-tv-ctrl-active-fill: #131722;
+  --rw-tv-ctrl-active-fg: #f0f3fa;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv {
+  --rw-tv-ctrl-border: #d1d4dc;
+  --rw-tv-ctrl-fill: #1e222d;
+  --rw-tv-ctrl-fg: #d1d4dc;
+  --rw-tv-ctrl-fill-hover: #2a2e39;
+  --rw-tv-ctrl-muted: #787b86;
+  --rw-tv-ctrl-active-fill: #2962ff;
+  --rw-tv-ctrl-active-fg: #ffffff;
+}
+
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   min-width: 36px;
-  height: 32px;
+  height: 100%;
   margin: 0;
   padding: 0 8px;
-  border: 1px solid var(--rw-border);
-  border-radius: var(--rw-radius-md);
-  background: var(--rw-control-bg, var(--rw-panel));
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
-  color: var(--rw-replay-ink, #131722);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--rw-tv-ctrl-fg);
   font: 600 13px/1 var(--rw-font, system-ui, sans-serif);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
 
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover,
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true'],
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus,
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus-visible {
-  background: var(--rw-hover, #f0f3fa);
-  border-color: var(--rw-border-strong);
-  color: var(--rw-replay-ink, #131722);
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover:not([aria-expanded='true']),
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus:not([aria-expanded='true']),
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus-visible:not([aria-expanded='true']) {
+  background: var(--rw-tv-ctrl-fill-hover);
+  color: var(--rw-tv-ctrl-fg);
   outline: none;
 }
 
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true'],
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:hover,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:focus,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:focus-visible {
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
+  outline: none;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true'] [data-rw-replay-speed-label] {
+  color: inherit;
+}
+
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn {
-  color: #d1d4dc;
+  color: var(--rw-tv-ctrl-fg);
 }
 
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover:not([aria-expanded='true']),
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus:not([aria-expanded='true']),
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus-visible:not([aria-expanded='true']) {
+  background: var(--rw-tv-ctrl-fill-hover);
+  color: var(--rw-tv-ctrl-fg);
+}
+
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true'],
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus,
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus-visible {
-  background: #2a2e39;
-  border-color: rgba(255, 255, 255, 0.18);
-  color: #d1d4dc;
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:hover,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:focus,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:focus-visible {
+  background: var(--rw-tv-ctrl-active-fill, #2962ff);
+  color: var(--rw-tv-ctrl-active-fg, #ffffff);
 }
 
-/* Collapse the legacy 72px speed-slider slot so skip / 1x / 1m sit flush. */
+/* Speed wrap stretches inside the chip; menu lives on the outer anchor. */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-wrap {
   position: relative;
   display: inline-flex;
   align-items: stretch;
+  align-self: stretch;
   flex: 0 0 auto;
   width: auto;
   height: auto;
+  min-height: 0;
   margin: 0;
+  overflow: hidden;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main {
   background: transparent;
+  color: var(--rw-tv-ctrl-fg, #131722);
   font-weight: 600;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval {
+  box-sizing: border-box;
   margin: 0;
-  height: 32px;
-  background: var(--rw-control-bg, var(--rw-panel));
+  height: var(--rw-tv-ctrl-h);
+  min-height: var(--rw-tv-ctrl-h);
+  border: var(--rw-tv-ctrl-border-w) solid var(--rw-tv-ctrl-border);
+  border-radius: var(--rw-tv-ctrl-radius);
+  background: var(--rw-tv-ctrl-fill);
+  box-shadow: none;
   font-weight: 600;
+  color: var(--rw-tv-ctrl-fg);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval:hover {
+  background: var(--rw-tv-ctrl-fill-hover);
+  border-color: var(--rw-tv-ctrl-border);
+  color: var(--rw-tv-ctrl-fg);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval--open,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval[aria-expanded='true'] {
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  border-color: var(--rw-tv-ctrl-border);
+  color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval {
+  border-color: var(--rw-tv-ctrl-border);
+  color: var(--rw-tv-ctrl-fg);
+  background: var(--rw-tv-ctrl-fill);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval:hover {
+  background: var(--rw-tv-ctrl-fill-hover);
+  border-color: var(--rw-tv-ctrl-border);
+  color: var(--rw-tv-ctrl-fg);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval--open,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval[aria-expanded='true'] {
+  background: var(--rw-tv-ctrl-active-fill, #2962ff);
+  border-color: var(--rw-tv-ctrl-active-fill, #2962ff);
+  color: var(--rw-tv-ctrl-active-fg, #ffffff);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__clear-filter,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__close {
-  opacity: 0.7;
+  display: none !important;
+}
+
+/* Pinned TV footer dock — always visible, vertically centered in the time-axis strip. */
+.rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--pinned,
+.rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--pinned {
+  position: absolute !important;
+  left: 50% !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: 0 !important;
+  height: 40px !important;
+  transform: translateX(-50%) !important;
+  z-index: 40 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  visibility: visible !important;
+  overflow: visible !important;
+  pointer-events: none;
+}
+
+.rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--pinned .rw-replay-dock__bar {
+  pointer-events: auto;
+  overflow: visible;
 }
 
 .rw-replay-dock--dragging .rw-replay-dock__bar {
@@ -1912,10 +2094,10 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval {
-  height: 32px;
+  height: var(--rw-tv-ctrl-h, 32px);
   margin: 0;
-  padding: 0 8px 0 9px;
-  border-radius: var(--rw-radius-md);
+  padding: 0 10px 0 11px;
+  border-radius: var(--rw-tv-ctrl-radius);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__interval-chev .sx-ico,
@@ -1965,8 +2147,9 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__select--main.rw-replay-dock__select--picking {
-  background: rgba(41, 98, 255, 0.1);
-  color: #2962ff;
+  background: #131722;
+  color: #f0f3fa;
+  border-color: #131722;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__select-ico .sx-ico,
@@ -2113,71 +2296,133 @@ body.rw-replay-dock-dragging * {
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-wrap {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: var(--rw-tv-ctrl-h);
 }
 
+/* Select + chevron share one outlined shell (aligned, no gap sliver). */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-split {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: stretch;
-  gap: 4px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
+  height: var(--rw-tv-ctrl-h);
+  gap: 0;
+  border: var(--rw-tv-ctrl-border-w) solid var(--rw-tv-ctrl-border);
+  border-radius: var(--rw-tv-ctrl-radius);
+  background: var(--rw-tv-ctrl-fill);
   box-shadow: none;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main {
+  box-sizing: border-box;
   gap: 6px;
-  min-height: 32px;
+  height: 100%;
+  min-height: 0;
   padding: 0 10px;
-  border: 1px solid var(--rw-border);
-  border-radius: var(--rw-radius-md);
+  border: none;
+  border-radius: 0;
   background: transparent;
-  color: var(--rw-replay-ink);
-  font: 500 13px/32px var(--rw-font);
-  letter-spacing: -0.015em;
+  color: var(--rw-tv-ctrl-fg);
+  font: 600 13px/1 var(--rw-font);
+  letter-spacing: -0.01em;
   box-shadow: none;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main:hover {
+  background: var(--rw-tv-ctrl-fill-hover);
+  border-color: transparent;
+  color: var(--rw-tv-ctrl-fg);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main {
+  border-color: transparent;
   background: transparent;
-  border-color: var(--rw-border-strong);
+  color: var(--rw-tv-ctrl-fg);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main:hover {
+  border-color: transparent;
+  background: var(--rw-tv-ctrl-fill-hover);
+  color: var(--rw-tv-ctrl-fg);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true'] {
-  background: #f0f3fa;
-  border-color: var(--rw-border-strong);
-  color: var(--rw-replay-ink);
+  background: var(--rw-tv-ctrl-active-fill);
+  border-color: transparent;
+  color: var(--rw-tv-ctrl-active-fg);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking:hover,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected:hover,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true']:hover {
+  background: #1e222d;
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main svg,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true'] .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking svg,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected svg,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true'] svg {
+  color: inherit;
+  stroke: currentColor;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected,
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true'] {
-  background: #2a2e39;
-  border-color: rgba(255, 255, 255, 0.18);
-  color: #d1d4dc;
+  background: var(--rw-tv-ctrl-active-fill);
+  border-color: transparent;
+  color: var(--rw-tv-ctrl-active-fg);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev {
-  width: 26px;
-  min-height: 32px;
+  box-sizing: border-box;
+  width: 28px;
+  min-height: 0;
+  height: 100%;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--rw-border);
-  border-radius: var(--rw-radius-md);
-  background: var(--rw-control-bg, var(--rw-panel));
-  color: var(--rw-replay-ink);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  border: none;
+  border-left: 1px solid var(--rw-tv-ctrl-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--rw-tv-ctrl-fg);
+  box-shadow: none;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev:hover {
-  background: var(--rw-hover);
-  border-color: var(--rw-border-strong);
+  background: var(--rw-tv-ctrl-fill-hover);
+  border-color: var(--rw-tv-ctrl-border);
+  color: var(--rw-tv-ctrl-fg);
 }
 
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open {
-  background: var(--rw-hover);
-  border-color: var(--rw-border-strong);
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev[aria-expanded='true'] {
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  border-left-color: rgba(240, 243, 250, 0.25);
+  color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev {
+  border-left-color: var(--rw-tv-ctrl-border);
+  background: transparent;
+  color: var(--rw-tv-ctrl-fg);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev:hover,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open {
+  border-left-color: var(--rw-tv-ctrl-border);
+  background: var(--rw-tv-ctrl-fill-hover);
+  color: var(--rw-tv-ctrl-fg);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev .sx-ico,
@@ -2185,6 +2430,8 @@ body.rw-replay-dock-dragging * {
   width: 11px;
   height: 11px;
   opacity: 1;
+  color: inherit;
+  stroke: currentColor;
   transition: transform 0.15s ease;
 }
 
@@ -2202,53 +2449,95 @@ body.rw-replay-dock-dragging * {
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-ico .sx-ico,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-ico svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   shape-rendering: geometricPrecision;
 }
 
-/* TV hairline group dividers — after Select bar, and after 1m (before last-bar).
-   Use border-left (not 1px background) so the line stays crisp on white. */
+/* Hide legacy vertical hairline separators — TV uses gaps between control groups. */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep,
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__vsep--fx,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep--right {
-  display: inline-block;
-  align-self: center;
-  width: 0;
-  min-width: 0;
-  height: 16px;
-  margin: 0 4px;
-  border: none;
-  border-left: 1px solid #b2b5be;
-  background: transparent;
-  opacity: 1;
-  flex-shrink: 0;
-  pointer-events: none;
-}
-
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep,
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__vsep--fx,
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__vsep--right {
-  border-left-color: #4c525e;
+  display: none !important;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__playback {
-  gap: 0;
-  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--rw-tv-ctrl-h);
+  height: var(--rw-tv-ctrl-h);
+}
+
+/* Speed + play + skip share one outlined chip — clip hover fill inside the border. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: stretch;
+  height: var(--rw-tv-ctrl-h);
+  margin: 0;
+  border: var(--rw-tv-ctrl-border-w) solid var(--rw-tv-ctrl-border);
+  border-radius: var(--rw-tv-ctrl-radius);
+  background: var(--rw-tv-ctrl-fill);
+  overflow: hidden;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__tico,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__speed-wrap {
+  border-right: 1px solid rgba(19, 23, 34, 0.12);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__tico,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__speed-wrap {
+  border-right-color: rgba(209, 212, 220, 0.18);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > :last-child {
+  border-right: none;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > :first-child .rw-replay-dock__speed-btn {
+  border-radius: calc(var(--rw-tv-ctrl-radius) - 1px) 0 0 calc(var(--rw-tv-ctrl-radius) - 1px);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > :last-child {
+  border-radius: 0 calc(var(--rw-tv-ctrl-radius) - 1px) calc(var(--rw-tv-ctrl-radius) - 1px) 0;
+}
+
+/* Speed menu sits on the anchor (outside overflow:hidden transport). */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport-anchor > .rw-replay-speed-menu {
+  left: 0;
+  transform: none;
+  z-index: 80;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__bar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico {
+  box-sizing: border-box;
   width: 32px;
-  height: 32px;
+  height: auto;
+  align-self: stretch;
+  min-height: 0;
   border-radius: 0;
-  color: var(--rw-replay-ink);
-  transition: background 0.1s ease;
+  color: var(--rw-tv-ctrl-fg);
+  transition: background 0.1s ease, color 0.1s ease;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico .sx-ico,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
+  color: inherit;
+  stroke: currentColor;
   shape-rendering: geometricPrecision;
 }
 
@@ -2258,69 +2547,95 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico:hover:not(:disabled) {
-  background: var(--rw-replay-hover);
-  color: var(--rw-replay-ink);
+  background: var(--rw-tv-ctrl-fill-hover);
+  color: var(--rw-tv-ctrl-fg);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end {
-  color: var(--rw-replay-ink);
+  box-sizing: border-box;
+  color: var(--rw-tv-ctrl-fg);
+  width: var(--rw-tv-ctrl-h);
+  height: var(--rw-tv-ctrl-h);
+  min-height: var(--rw-tv-ctrl-h);
+  border: var(--rw-tv-ctrl-border-w) solid var(--rw-tv-ctrl-border);
+  border-radius: var(--rw-tv-ctrl-radius);
+  background: var(--rw-tv-ctrl-fill);
+  box-shadow: none;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:hover:not(:disabled) {
+  background: var(--rw-tv-ctrl-fill-hover);
+  border-color: var(--rw-tv-ctrl-border);
+  color: var(--rw-tv-ctrl-fg);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico:disabled,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:disabled {
-  color: var(--rw-replay-ink-muted);
-  opacity: 0.55;
+  color: var(--rw-tv-ctrl-muted);
+  opacity: 1;
+  cursor: default;
 }
 
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play--active {
-  color: var(--rw-replay-ink);
-  background: transparent;
-}
-
-/* Bordered-rectangle transport buttons (play/pause, skip, last bar, first bar) —
-   matches the interval / select-bar box look. Excludes clear-filter and close. */
+/* Inner transport buttons — group outline owns the chrome. */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'],
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'],
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='end'],
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start'] {
-  border: 1px solid var(--rw-border);
-  border-radius: var(--rw-radius-md);
-  background: var(--rw-control-bg, var(--rw-panel));
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--rw-tv-ctrl-fg);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play']:hover:not(:disabled),
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:hover:not(:disabled),
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='end']:hover:not(:disabled),
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start']:hover:not(:disabled) {
-  background: var(--rw-hover);
-  border-color: var(--rw-border-strong);
+  background: var(--rw-tv-ctrl-fill-hover);
+  border-color: transparent;
+  color: var(--rw-tv-ctrl-fg);
 }
 
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'].rw-replay-dock__play--active {
-  background: var(--rw-control-bg, var(--rw-panel));
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play--active,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'].rw-replay-dock__play--active,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'][aria-pressed='true'] {
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'].rw-replay-dock__play--active:hover:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'][aria-pressed='true']:hover:not(:disabled) {
+  background: #1e222d;
+  color: #ffffff;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play']:hover:not(:disabled),
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:hover:not(:disabled),
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start']:hover:not(:disabled),
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:hover:not(:disabled) {
+  background: var(--rw-tv-ctrl-fill-hover);
+  color: var(--rw-tv-ctrl-fg);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-txt {
   min-width: 1.85em;
-  height: 32px;
-  padding: 0 5px;
+  height: 100%;
+  padding: 0 8px;
   margin: 0;
-  color: var(--rw-replay-ink);
-  font: 600 13px/32px var(--rw-font);
+  color: var(--rw-tv-ctrl-fg);
+  font: 600 13px/var(--rw-tv-ctrl-h) var(--rw-font);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-txt:hover {
-  background: var(--rw-replay-hover);
-  color: var(--rw-replay-ink);
+  background: var(--rw-tv-ctrl-fill-hover);
+  color: var(--rw-tv-ctrl-fg);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tf {
-  padding: 0 8px 0 2px;
-  font: 400 13px/32px var(--rw-font);
-  color: var(--rw-replay-ink);
+  padding: 0 2px 0 0;
+  font: 600 13px/1 var(--rw-font);
+  color: var(--rw-tv-ctrl-fg);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
@@ -3029,7 +3344,8 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-replay-dock__select--main.rw-replay-dock__select--picking {
-  background: #e3edff;
+  background: #131722;
+  color: #f0f3fa;
 }
 
 .rw-replay-dock__select-chev {
@@ -5313,7 +5629,8 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-root[data-chart-theme='dark'] .rw-replay-dock__select--main.rw-replay-dock__select--picking {
-  background: #1e3a5f;
+  background: #131722;
+  color: #f0f3fa;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-replay-dock__select-chev {
@@ -5623,29 +5940,98 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-root[data-chart-theme='light'] .rw-replay-dock__select--main.rw-replay-dock__select--picking {
-  background: rgba(41, 98, 255, 0.12);
+  background: #131722;
+  color: #f0f3fa;
 }
 
-/* TV dock: no grey fill by default; grey only when Select bar is active. */
+/* TV dock: outlined by default; black fill only while Select bar picking is active. */
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main {
   background: transparent;
-  color: var(--rw-replay-ink, #131722);
+  color: var(--rw-tv-ctrl-fg, #131722);
 }
 
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select:hover,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main:hover {
-  background: transparent;
-  color: var(--rw-replay-ink, #131722);
+  background: var(--rw-tv-ctrl-fill-hover, #f0f3fa);
+  color: var(--rw-tv-ctrl-fg, #131722);
 }
 
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-split {
-  background: transparent;
+  background: var(--rw-tv-ctrl-fill, #ffffff);
+  border-color: var(--rw-tv-ctrl-border, #131722);
 }
 
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true'] {
-  background: #f0f3fa;
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  border-color: transparent;
+  color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking:hover,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected:hover,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true']:hover {
+  background: #1e222d;
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end {
+  background: var(--rw-tv-ctrl-fill, #ffffff);
+  color: var(--rw-tv-ctrl-fg, #131722);
+  border-color: var(--rw-tv-ctrl-border, #131722);
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev {
+  background: transparent;
+  color: var(--rw-tv-ctrl-fg, #131722);
+  border-left-color: var(--rw-tv-ctrl-border, #131722);
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev:hover,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval:hover,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:hover:not(:disabled) {
+  background: var(--rw-tv-ctrl-fill-hover, #f0f3fa);
+  color: var(--rw-tv-ctrl-fg, #131722);
+  border-color: var(--rw-tv-ctrl-border, #131722);
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-txt,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tf {
+  color: var(--rw-tv-ctrl-fg, #131722);
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico:hover:not(:disabled),
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-txt:hover,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover:not([aria-expanded='true']) {
+  background: var(--rw-tv-ctrl-fill-hover, #f0f3fa);
+  color: var(--rw-tv-ctrl-fg, #131722);
+}
+
+/* Open/active fills after default ink so light text wins over the rules above. */
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev[aria-expanded='true'],
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval--open,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval[aria-expanded='true'],
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true'],
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:hover,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:focus,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:focus-visible,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'].rw-replay-dock__play--active,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'][aria-pressed='true'] {
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  color: #f0f3fa;
+  border-color: var(--rw-tv-ctrl-border, #131722);
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true'] [data-rw-replay-speed-label] {
+  color: #f0f3fa;
 }
 
 .rw-root[data-chart-theme='light'] .rw-replay-dock__select-chev {

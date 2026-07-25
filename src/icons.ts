@@ -117,12 +117,8 @@ export const icons = {
   clock: svg(
     '<circle cx="12" cy="12" r="8.25" stroke="currentColor" stroke-width="1.65"/><path d="M12 8.25V12l3.5 2" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>',
   ),
-  /** Top toolbar — Bar Replay launch (double chevron left). */
-  replayLaunch: svg(
-    '<path d="M14 7.5 9 12l5 4.5M19 7.5 14 12l5 4.5" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>',
-    18,
-    18,
-  ),
+  /** Top toolbar — Bar Replay (hollow rewind ◄◄, matches TV header). */
+  replayLaunch: `<svg class="sx-ico" width="22" height="14" viewBox="0 0 22 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.25 1.6 1.75 7l7.5 5.4V1.6Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M19.75 1.6 12.25 7l7.5 5.4V1.6Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/></svg>`,
   /** Bar Replay “select bar” — vertical mark + left arrow (TradingView-style). */
   replayBarSelect: svgReplayTv(
     '<path d="M4.5 3.75v10.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M13.25 9H7.25M9.75 6.25 7 9l2.75 2.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',

@@ -2,12 +2,6 @@ import { ASSET_CATALOG, findAsset, catalogMarketDataLabel, type AssetCategory, t
 import { fetchMarketBarsSeries } from '../data/marketDataClient'
 import type { Bar } from '../types'
 import {
-  disposeTvQuoteListeners,
-  fetchTvQuotes,
-  subscribeTvQuotes,
-  unsubscribeTvQuotes,
-} from './tradingViewQuotes'
-import {
   TvReplayFeedController,
   baseTicker,
   isFutureTicker,
@@ -87,6 +81,7 @@ export function intervalPillToTvResolution(pill: string): string {
   if (p === '5m') return '5'
   if (p === '10m') return '10'
   if (p === '15m') return '15'
+  if (p === '20m') return '20'
   if (p === '30m') return '30'
   if (p === '45m') return '45'
   if (p === '1h') return '60'
@@ -288,8 +283,9 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
       void loadBars(symbolInfo.ticker, resolution, periodParams, opts, replayFeed)
         .then((bars) => {
           if (!bars.length) {
-            const swapping = opts.isIntervalSwapInProgress?.() ?? false
-            onResult([], { noData: !swapping })
+            // Always noData when empty — returning noData:false during swaps left TV
+            // spinning forever waiting for bars that never arrived.
+            onResult([], { noData: true })
             return
           }
           onResult(bars, { noData: false })
@@ -308,19 +304,9 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
       replayFeed.removeBarListener(listenerGuid)
     },
 
-    getQuotes(symbols, onData, onError) {
-      void fetchTvQuotes(symbols)
-        .then(onData)
-        .catch((err) => onError(err instanceof Error ? err.message : 'Failed to load quotes'))
-    },
-
-    subscribeQuotes(symbols, fastSymbols, onRealtimeCallback, listenerGUID) {
-      subscribeTvQuotes(symbols, fastSymbols, onRealtimeCallback, listenerGUID)
-    },
-
-    unsubscribeQuotes(listenerGUID) {
-      unsubscribeTvQuotes(listenerGUID)
-    },
+    // Intentionally no getQuotes / subscribeQuotes: quote bid/ask values make
+    // TradingView paint a pink+teal horizontal across the plot. Chart replay
+    // uses bars only; the host order ticket computes bid/ask locally.
   }
 
   return {
@@ -332,7 +318,7 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
 }
 
 export function disposeTradeneuTvDatafeed(): void {
-  disposeTvQuoteListeners()
+  /* Quote listeners removed with getQuotes/subscribeQuotes. */
 }
 
 async function loadBars(
@@ -344,12 +330,10 @@ async function loadBars(
 ): Promise<TvBar[]> {
   if (replayFeed.hasSessionBars()) {
     const feedRes = replayFeed.getResolution()
+    // Never hand denser bars (e.g. 1m) to a coarser TV resolution (4h/240).
+    // That freezes the charting library on the main thread ("Page Unresponsive").
     if (!tvResolutionMatches(resolution, feedRes)) {
-      // During interval swap, defer until feed catches up; otherwise serve feed bars
-      // so the chart never stays blank on a resolution string mismatch.
-      if (opts.isIntervalSwapInProgress?.()) {
-        return []
-      }
+      return []
     }
     return replayFeed.getBarsForRequest(symbol, periodParams)
   }

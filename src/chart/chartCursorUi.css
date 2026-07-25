@@ -11,3 +11,20 @@
 .rw-chart-host.rw-chart-cursor--grabbing .rw-chart-lwc * {
   cursor: grabbing !important;
 }
+
+/* Scissors pick: system cursor hidden — scissors icon is the cursor. */
+.rw-chart-host.rw-chart-cursor--none,
+.rw-chart-host.rw-chart-cursor--none .rw-chart-lwc,
+.rw-chart-host.rw-chart-cursor--none .rw-chart-lwc *,
+.rw-chart-host.rw-chart-cursor--none .rw-chart-tv,
+.rw-chart-host.rw-chart-cursor--none .rw-chart-tv iframe,
+.rw-chart-host.rw-chart-host--scissors-pick,
+.rw-chart-host.rw-chart-host--scissors-pick .rw-chart-lwc,
+.rw-chart-host.rw-chart-host--scissors-pick .rw-chart-lwc *,
+.rw-chart-host.rw-chart-host--scissors-pick .rw-chart-tv,
+.rw-chart-host.rw-chart-host--scissors-pick .rw-chart-tv iframe,
+.rw-chart-canvas:has(.rw-select-bar-overlay--active) .rw-chart-host,
+.rw-chart-canvas:has(.rw-select-bar-overlay--active) .rw-chart-host .rw-chart-lwc,
+.rw-chart-canvas:has(.rw-select-bar-overlay--active) .rw-chart-host .rw-chart-lwc * {
+  cursor: none !important;
+}

@@ -40,7 +40,7 @@ function positionPanel(anchor: HTMLElement, panel: HTMLElement, variant: 'defaul
   const r = anchor.getBoundingClientRect()
   const pad = 4
   const toolbarClearance = 48
-  const panelW = panel.offsetWidth || (variant === 'replay' ? 50 : 154)
+  const panelW = panel.offsetWidth || (variant === 'replay' ? 220 : 154)
   const panelH = panel.offsetHeight || 120
   const left =
     variant === 'replay'
@@ -96,20 +96,67 @@ export function createChartIntervalMenu(opts: {
   items?: IntervalPick[]
   /** Dynamic compact list — preferred over `items` when both are set (rebuilds on each open). */
   getItems?: () => IntervalPick[] | null | undefined
-  /** `replay` = compact list centered under anchor (FXReplay floating bar). */
+  /** `replay` = TradingView-style UPDATE INTERVAL popover under the replay dock pill. */
   variant?: 'default' | 'replay'
   /** Show “Add custom interval…” row (TradingView-style). */
   showCustomInterval?: boolean
+  /** TradingView “Auto select interval” (replay variant). */
+  getAutoSelectInterval?: () => boolean
+  setAutoSelectInterval?: (on: boolean) => void
+  /** Extra documents/elements that should dismiss the menu (e.g. TV iframe / chart). */
+  getDismissTargets?: () => Array<Document | EventTarget | null | undefined>
 }): ChartIntervalMenuApi {
   const root = document.createElement('div')
   root.className = 'rw-intmenu'
   if (opts.variant === 'replay') root.classList.add('rw-intmenu--replay')
   root.setAttribute('role', 'listbox')
-  root.setAttribute('aria-label', 'Chart interval')
+  root.setAttribute('aria-label', opts.variant === 'replay' ? 'Update interval' : 'Chart interval')
+
+  let footEl: HTMLElement | null = null
+  if (opts.variant === 'replay') {
+    const head = document.createElement('div')
+    head.className = 'rw-intmenu__tv-head'
+    head.innerHTML =
+      '<span class="rw-intmenu__tv-title">Update interval</span>' +
+      '<button type="button" class="rw-intmenu__tv-help" title="Replay step interval. When Auto select is on, this follows the chart interval." aria-label="About update interval">?</button>'
+    root.appendChild(head)
+  }
 
   const scroll = document.createElement('div')
   scroll.className = 'rw-intmenu__scroll'
   root.appendChild(scroll)
+
+  if (opts.variant === 'replay' && opts.getAutoSelectInterval && opts.setAutoSelectInterval) {
+    footEl = document.createElement('div')
+    footEl.className = 'rw-intmenu__tv-foot'
+    const label = document.createElement('span')
+    label.className = 'rw-intmenu__tv-auto-label'
+    label.textContent = 'Auto select interval'
+    const toggle = document.createElement('button')
+    toggle.type = 'button'
+    toggle.className = 'rw-intmenu__tv-toggle'
+    toggle.setAttribute('role', 'switch')
+    const syncToggle = () => {
+      const on = opts.getAutoSelectInterval!()
+      toggle.classList.toggle('rw-intmenu__tv-toggle--on', on)
+      toggle.setAttribute('aria-checked', on ? 'true' : 'false')
+      toggle.title = on
+        ? 'Auto select on — replay follows the chart interval'
+        : 'Auto select off — pick a replay step manually'
+    }
+    syncToggle()
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const next = !opts.getAutoSelectInterval!()
+      opts.setAutoSelectInterval!(next)
+      syncToggle()
+    })
+    footEl.appendChild(label)
+    footEl.appendChild(toggle)
+    root.appendChild(footEl)
+    // Keep syncToggle reachable when rebuilding is not needed for foot.
+    ;(footEl as HTMLElement & { __syncToggle?: () => void }).__syncToggle = syncToggle
+  }
 
   const expandedSections = new Set<string>(['seconds', 'minutes'])
   const isCompact =
@@ -347,6 +394,41 @@ export function createChartIntervalMenu(opts: {
   let onDocMouseDown: ((e: MouseEvent) => void) | null = null
   let onDocKeyDown: ((e: KeyboardEvent) => void) | null = null
   let onWinResize: (() => void) | null = null
+  let onWinBlur: (() => void) | null = null
+  const dismissCleanups: Array<() => void> = []
+
+  function clearDismissTargets() {
+    while (dismissCleanups.length) dismissCleanups.pop()?.()
+  }
+
+  function bindDismissTargets() {
+    clearDismissTargets()
+    const targets = opts.getDismissTargets?.() ?? []
+    for (const target of targets) {
+      if (!target) continue
+      const onPtr = (e: Event) => {
+        const t = e.target as Node | null
+        // Anchor lives inside chartCanvas/dock — don't treat toggle clicks as "outside".
+        if (t && (root.contains(t) || opts.anchor.contains(t))) return
+        close()
+      }
+      target.addEventListener('pointerdown', onPtr, true)
+      dismissCleanups.push(() => target.removeEventListener('pointerdown', onPtr, true))
+    }
+    // Focus entering the TV iframe does not bubble to the host document.
+    onWinBlur = () => {
+      window.setTimeout(() => {
+        if (!menuOpen) return
+        const ae = document.activeElement
+        if (ae instanceof HTMLIFrameElement) close()
+      }, 0)
+    }
+    window.addEventListener('blur', onWinBlur)
+    dismissCleanups.push(() => {
+      if (onWinBlur) window.removeEventListener('blur', onWinBlur)
+      onWinBlur = null
+    })
+  }
 
   function close() {
     if (!menuOpen) return
@@ -354,6 +436,7 @@ export function createChartIntervalMenu(opts: {
     opts.onOpenChange?.(false)
     root.classList.remove('rw-intmenu--open')
     if (root.parentNode) root.parentNode.removeChild(root)
+    clearDismissTargets()
     if (onDocMouseDown) {
       document.removeEventListener('mousedown', onDocMouseDown, true)
       onDocMouseDown = null
@@ -376,6 +459,10 @@ export function createChartIntervalMenu(opts: {
     ensureExpandedForSelection()
     syncSectionOpenState()
     syncDisabledAndActive()
+    const footSync = footEl
+      ? (footEl as HTMLElement & { __syncToggle?: () => void }).__syncToggle
+      : undefined
+    footSync?.()
     syncChartThemeToElement(root)
     document.body.appendChild(root)
     root.classList.add('rw-intmenu--open')
@@ -404,6 +491,7 @@ export function createChartIntervalMenu(opts: {
         close()
       }
       document.addEventListener('mousedown', onDocMouseDown, true)
+      bindDismissTargets()
     }, 0)
   }
 

@@ -41,6 +41,7 @@ export const MINUTE_INTERVALS: IntervalPick[] = [
   { pill: '5m', kind: 'time', stepSec: 300, label: '5 minutes' },
   { pill: '10m', kind: 'time', stepSec: 600, label: '10 minutes' },
   { pill: '15m', kind: 'time', stepSec: 900, label: '15 minutes' },
+  { pill: '20m', kind: 'time', stepSec: 1200, label: '20 minutes' },
   { pill: '30m', kind: 'time', stepSec: 1800, label: '30 minutes' },
   { pill: '45m', kind: 'time', stepSec: 2700, label: '45 minutes' },
 ]
@@ -71,33 +72,59 @@ export const CHART_INTERVAL_SECTIONS: IntervalSection[] = [
 
 /** Flat list for replay dock compact menu (seconds + common minutes). Fallback when dynamic dock is off. */
 export const REPLAY_DOCK_INTERVALS: IntervalPick[] = [
-  ...SECOND_INTERVALS.map((i) => ({ ...i, label: i.pill })),
-  { pill: '1m', kind: 'time', stepSec: 60, label: '1m' },
-  { pill: '3m', kind: 'time', stepSec: 180, label: '3m' },
-  { pill: '5m', kind: 'time', stepSec: 300, label: '5m' },
-  { pill: '10m', kind: 'time', stepSec: 600, label: '10m' },
+  ...SECOND_INTERVALS,
+  { pill: '1m', kind: 'time', stepSec: 60, label: '1 minute' },
+  { pill: '3m', kind: 'time', stepSec: 180, label: '3 minutes' },
+  { pill: '5m', kind: 'time', stepSec: 300, label: '5 minutes' },
+  { pill: '10m', kind: 'time', stepSec: 600, label: '10 minutes' },
 ]
 
 /**
  * Feature flag — set `false` to restore static `REPLAY_DOCK_INTERVALS` for all charts (easy rollback).
- * Dynamic matrix currently covers chart 1m / 2m / 3m only.
  */
-export const USE_DYNAMIC_REPLAY_DOCK_1M_3M = true
+export const USE_DYNAMIC_REPLAY_DOCK = true
+/** @deprecated Use {@link USE_DYNAMIC_REPLAY_DOCK}. */
+export const USE_DYNAMIC_REPLAY_DOCK_1M_3M = USE_DYNAMIC_REPLAY_DOCK
 
-/** Seconds shared by the 1m–3m dynamic replay dock. */
-const REPLAY_DOCK_SECONDS_1M_3M = ['1s', '5s', '10s', '15s', '30s'] as const
+/** Seconds shared by minute-band charts that expose sub-minute replay steps. */
+const REPLAY_DOCK_SECONDS = ['1s', '5s', '10s', '15s', '30s'] as const
 
-/** Chart-interval → replay dock pills (phase 1: 1m / 2m / 3m only). */
-const REPLAY_DOCK_BY_CHART_1M_3M: Record<string, readonly string[]> = {
-  '1m': [...REPLAY_DOCK_SECONDS_1M_3M, '1m', '2m', '3m', '5m', '10m'],
-  '2m': [...REPLAY_DOCK_SECONDS_1M_3M, '1m', '2m', '3m', '5m', '10m'],
-  '3m': [...REPLAY_DOCK_SECONDS_1M_3M, '1m', '2m', '3m', '5m', '10m', '15m'],
+/**
+ * Chart interval (TV header) → replay dock pills.
+ * Keys use catalog pills (`1D` / `1W` / `1M`); aliases like `1d` / `1month` are normalized.
+ */
+const REPLAY_DOCK_BY_CHART: Record<string, readonly string[]> = {
+  '1m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m'],
+  '2m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m'],
+  '3m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '15m'],
+  '5m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '15m'],
+  '10m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '20m'],
+  '15m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '15m', '30m'],
+  '30m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h'],
+  '45m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '15m', '30m', '45m'],
+  '1h': ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h'],
+  '2h': ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '2h'],
+  '4h': ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '2h', '4h'],
+  '1D': ['1h', '4h', '1D'],
+  '1W': ['1D', '1W'],
+  '1M': ['1D', '1W', '1M'],
+}
+
+/** Normalize chart / user aliases to catalog pills used as matrix keys. */
+export function normalizeChartPillForReplayDock(chartPill: string): string {
+  const p = chartPill.trim()
+  const lower = p.toLowerCase()
+  if (lower === '1d') return '1D'
+  if (lower === '1w') return '1W'
+  if (lower === '1month' || lower === '1mo' || lower === '1mth') return '1M'
+  return p
 }
 
 function replayDockPickFromPill(pill: string): IntervalPick | null {
-  const hit = findIntervalPickByPill(pill)
+  const hit = findIntervalPickByPill(normalizeChartPillForReplayDock(pill))
   if (!hit) return null
-  return { ...hit, label: hit.pill }
+  // Full labels for TV-style “UPDATE INTERVAL” menu (dock button still shows pill).
+  return { ...hit, label: hit.label }
 }
 
 /**
@@ -105,8 +132,9 @@ function replayDockPickFromPill(pill: string): IntervalPick | null {
  * Returns `null` when the static `REPLAY_DOCK_INTERVALS` list should be used.
  */
 export function replayDockIntervalsForChart(chartPill: string): IntervalPick[] | null {
-  if (!USE_DYNAMIC_REPLAY_DOCK_1M_3M) return null
-  const pills = REPLAY_DOCK_BY_CHART_1M_3M[chartPill.trim()]
+  if (!USE_DYNAMIC_REPLAY_DOCK) return null
+  const key = normalizeChartPillForReplayDock(chartPill)
+  const pills = REPLAY_DOCK_BY_CHART[key]
   if (!pills) return null
   const out: IntervalPick[] = []
   for (const pill of pills) {
@@ -114,6 +142,39 @@ export function replayDockIntervalsForChart(chartPill: string): IntervalPick[] |
     if (pick) out.push(pick)
   }
   return out.length ? out : null
+}
+
+/**
+ * Keep the current replay step if still allowed for the chart; otherwise clamp to the chart pill
+ * (or the last dock option).
+ */
+export function clampReplayPillForChart(chartPill: string, replayPill: string): string {
+  const allowed = replayDockIntervalsForChart(chartPill)
+  if (!allowed?.length) return replayPill
+  if (allowed.some((a) => a.pill === replayPill)) return replayPill
+  const chartKey = normalizeChartPillForReplayDock(chartPill)
+  return allowed.find((a) => a.pill === chartKey)?.pill ?? allowed[allowed.length - 1]!.pill
+}
+
+const REPLAY_AUTO_INTERVAL_KEY = 'rw-replay-auto-select-interval'
+
+/** TradingView “Auto select interval” — default on. */
+export function readReplayAutoSelectInterval(): boolean {
+  try {
+    const v = localStorage.getItem(REPLAY_AUTO_INTERVAL_KEY)
+    if (v == null) return true
+    return v === '1' || v === 'true'
+  } catch {
+    return true
+  }
+}
+
+export function writeReplayAutoSelectInterval(on: boolean): void {
+  try {
+    localStorage.setItem(REPLAY_AUTO_INTERVAL_KEY, on ? '1' : '0')
+  } catch {
+    /* ignore quota / private mode */
+  }
 }
 
 function findIntervalPickByPill(pill: string): IntervalPick | null {
@@ -140,11 +201,17 @@ export function tvResolutionToIntervalPill(resolution: string): IntervalPick | n
       }
     )
   }
-  if (r === '1D') return findIntervalPickByPill('1D')
-  if (r === '1W') return findIntervalPickByPill('1W')
+  if (r === '1D' || r.toLowerCase() === '1d') return findIntervalPickByPill('1D')
+  if (r === '1W' || r.toLowerCase() === '1w') return findIntervalPickByPill('1W')
   if (r === '1M') return findIntervalPickByPill('1M')
   const mins = Number.parseInt(r, 10)
   if (Number.isFinite(mins) && mins > 0) {
+    // TV encodes hours as minutes (60, 120, 240…).
+    if (mins >= 60 && mins % 60 === 0) {
+      const hours = mins / 60
+      const hourPick = findIntervalPickByPill(`${hours}h`)
+      if (hourPick) return hourPick
+    }
     return findIntervalPickByPill(`${mins}m`)
   }
   return null

@@ -27,6 +27,8 @@
   display: flex !important;
   align-items: flex-start;
   justify-content: center;
+  /* Stay above chart chrome (replay dock legacy z-index was 1200). */
+  z-index: 10000;
 }
 
 .rw-symsearch__panel {

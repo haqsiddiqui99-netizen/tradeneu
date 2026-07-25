@@ -20,12 +20,19 @@ export function mountChartCursorUi(opts: {
   let activePointerId: number | null = null
 
   function clearClasses() {
-    chartHost.classList.remove('rw-chart-cursor--cross', 'rw-chart-cursor--grabbing')
+    chartHost.classList.remove(
+      'rw-chart-cursor--cross',
+      'rw-chart-cursor--grabbing',
+      'rw-chart-cursor--none',
+    )
   }
 
   function apply() {
     clearClasses()
-    if (isBlocked?.()) return
+    if (isBlocked?.()) {
+      chartHost.classList.add('rw-chart-cursor--none')
+      return
+    }
     if (dragging) {
       chartHost.classList.add('rw-chart-cursor--grabbing')
     } else if (pointerIn) {

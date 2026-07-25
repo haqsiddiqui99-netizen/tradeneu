@@ -13,6 +13,8 @@ export type TvHeaderButtonDef = {
   id: string
   title: string
   text?: string
+  /** Leading icon before text (TradingView Replay << + label). */
+  leadingIconHtml?: string
   /** SVG/icon markup — renders an icon-only TV-styled header control. */
   iconHtml?: string
   align?: 'left' | 'right'
@@ -36,6 +38,12 @@ export type TradingViewChartHandle = {
   whenChartReady: () => Promise<void>
   getHeaderButton: (id: string) => HTMLElement | null
   setHeaderButtonIcon: (id: string, iconHtml: string) => void
+  /** Black active pill + optional leading icon (TradingView Replay selected look). */
+  setHeaderButtonActive: (
+    id: string,
+    active: boolean,
+    opts?: { iconHtml?: string; label?: string },
+  ) => void
   setSessionBars: (bars: Bar[], resolution: string, barPeriodSec?: number, opts?: { deferRefresh?: boolean }) => void
   /** Update replay feed for a pending interval swap without resetData (TV header path). */
   primeIntervalFeed: (bars: Bar[], resolution: string, pastCount: number, barPeriodSec?: number) => void
@@ -83,6 +91,8 @@ export type TradingViewChartHandle = {
     iframeOffsetX: number
   } | null
   setReplayCursorVisible: (visible: boolean) => void
+  /** Hide/show the TV pane crosshair (dashed lines) — e.g. during scissors pick. */
+  setCrosshairVisible: (visible: boolean) => void
   setViewportFreeze: (viewport: TvLockedViewport | null) => void
   setReplayLockedViewport: (viewport: TvLockedViewport | null) => void
   /** Apply a deferred resetCache/resetData after TV finishes initializing. */
@@ -130,6 +140,9 @@ type TvChartApi = {
   resolution?: () => string
   setResolution?: (resolution: string, callback?: () => void) => void
   onSymbolChanged: () => TvSubscription
+  applyOverrides?: (overrides: Record<string, unknown>) => void
+  getAllShapes?: () => Array<{ id: string; name: string }>
+  removeEntity?: (entityId: string) => void
 }
 
 type TvStyledButtonOptions = {
@@ -153,6 +166,7 @@ type TvWidgetApi = {
   setSymbol: (symbol: string, interval: string, callback?: () => void) => void
   changeTheme: (theme: TvTheme) => void
   onChartReady: (cb: () => void) => void
+  applyOverrides: (overrides: Record<string, unknown>) => void
   activeChart: () => TvChartApi
   headerReady: () => Promise<void>
   createButton: (options?: TvCreateButtonOptions) => string | HTMLElement
@@ -197,10 +211,142 @@ function tvIframeDocument(mount: HTMLElement): Document | null {
   return mount.querySelector('iframe')?.contentDocument ?? null
 }
 
+/**
+ * Distance from chart-host bottom to the plot/time-axis hairline.
+ * TV layout (bottom → up): bottom toolbar (~38px) → time axis (~25–60px) → hairline.
+ * Screenshots put the hairline ~100–120px above the host bottom (toolbar + time axis).
+ */
+const TV_HAIRLINE_FALLBACK_FROM_BOTTOM_PX = 100
+const TV_HAIRLINE_SEARCH_MAX_FROM_BOTTOM_PX = 160
+
+/** Locate plot/time-axis hairline via time-label DOM (e.g. "22:55"). */
+function detectHairlineViaTimeLabels(
+  doc: Document,
+  hostBottom: number,
+): number | null {
+  const timeRe = /^\d{1,2}:\d{2}(:\d{2})?$/
+  let best: number | null = null
+  const walk = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
+  let node: Node | null = walk.nextNode()
+  let checked = 0
+  while (node && checked < 400) {
+    checked++
+    const text = (node.textContent || '').trim()
+    if (!timeRe.test(text)) {
+      node = walk.nextNode()
+      continue
+    }
+    let el: HTMLElement | null = node.parentElement
+    // Climb to the wide time-axis strip — its top edge is the hairline.
+    for (let i = 0; el && i < 8; i++) {
+      const r = el.getBoundingClientRect()
+      const fromBottom = Math.round(hostBottom - r.top)
+      if (
+        r.width >= 200 &&
+        r.height >= 18 &&
+        r.height <= 90 &&
+        fromBottom >= 40 &&
+        fromBottom <= TV_HAIRLINE_SEARCH_MAX_FROM_BOTTOM_PX
+      ) {
+        if (best == null || fromBottom > best) best = fromBottom
+      }
+      el = el.parentElement
+    }
+    node = walk.nextNode()
+  }
+  return best
+}
+
+/** Sample a canvas row for a near-continuous non-background horizontal (axis border). */
+function canvasRowLooksLikeHairline(
+  ctx: CanvasRenderingContext2D,
+  y: number,
+  width: number,
+  theme: 'light' | 'dark',
+): boolean {
+  const w = Math.min(width, 640)
+  const step = Math.max(1, Math.floor(w / 160))
+  let hits = 0
+  const samples = Math.floor(w / step)
+  try {
+    const data = ctx.getImageData(0, y, w, 1).data
+    for (let i = 0; i < samples; i++) {
+      const x = i * step
+      const o = x * 4
+      const r = data[o] ?? 0
+      const g = data[o + 1] ?? 0
+      const b = data[o + 2] ?? 0
+      const a = data[o + 3] ?? 0
+      if (a < 20) continue
+      if (theme === 'light') {
+        // Not near-white — gray / ClearType pink-cyan fringe
+        if (r < 248 || g < 248 || b < 248) hits++
+      } else {
+        // Not near pane bg #131722
+        if (r > 30 || g > 35 || b > 45) hits++
+      }
+    }
+  } catch {
+    return false
+  }
+  return hits >= samples * 0.55
+}
+
+let hairlineCache: { at: number; fromBottom: number; key: string } | null = null
+
+/** Find hairline Y as distance from host bottom by scanning large 2D TV canvases. */
+function detectHairlineFromHostBottom(
+  doc: Document,
+  hostRect: DOMRect,
+  theme: 'light' | 'dark',
+): number | null {
+  const key = `${Math.round(hostRect.width)}x${Math.round(hostRect.height)}:${theme}`
+  if (hairlineCache && hairlineCache.key === key && Date.now() - hairlineCache.at < 2000) {
+    return hairlineCache.fromBottom
+  }
+  let bestFromBottom: number | null = null
+  for (const canvas of doc.querySelectorAll('canvas')) {
+    const r = canvas.getBoundingClientRect()
+    if (r.width < 200 || r.height < 100) continue
+    // Need a canvas that reaches near the host bottom (plot+axis combined).
+    if (hostRect.bottom - r.bottom > 8) continue
+    // WebGL canvases have no 2d context — skip quietly.
+    let ctx: CanvasRenderingContext2D | null = null
+    try {
+      ctx = canvas.getContext('2d', { willReadFrequently: true })
+    } catch {
+      ctx = null
+    }
+    if (!ctx) continue
+    const scaleY = canvas.height / r.height
+    const scaleX = canvas.width / r.width
+    if (!Number.isFinite(scaleY) || scaleY <= 0) continue
+    // Scan upward from bottom ~12px through ~120px of CSS pixels.
+    const yCssMin = 8
+    const yCssMax = Math.min(Math.floor(r.height * 0.35), TV_HAIRLINE_SEARCH_MAX_FROM_BOTTOM_PX)
+    for (let yCss = yCssMin; yCss <= yCssMax; yCss++) {
+      const yPx = Math.min(canvas.height - 1, Math.max(0, Math.round((r.height - yCss) * scaleY)))
+      const bitW = Math.min(canvas.width, Math.round(r.width * scaleX))
+      if (!canvasRowLooksLikeHairline(ctx, yPx, bitW, theme)) continue
+      const fromBottom = Math.round(hostRect.bottom - (r.bottom - yCss))
+      if (fromBottom < 20 || fromBottom > TV_HAIRLINE_SEARCH_MAX_FROM_BOTTOM_PX) continue
+      if (bestFromBottom == null || fromBottom > bestFromBottom) {
+        bestFromBottom = fromBottom
+      }
+      break
+    }
+  }
+  if (bestFromBottom != null) {
+    hairlineCache = { at: Date.now(), fromBottom: bestFromBottom, key }
+  }
+  return bestFromBottom
+}
+
 /** Main plot clip insets + iframe horizontal offset for time-scale coordinates. */
 function measureTvPlotLayout(
   mount: HTMLElement,
   hostEl: HTMLElement,
+  theme: TvTheme = 'light',
 ): {
   top: number
   bottom: number
@@ -217,21 +363,51 @@ function measureTvPlotLayout(
   const iframe = mount.querySelector('iframe')
   const iframeRect = iframe?.getBoundingClientRect()
   const iframeOffsetX = iframeRect ? Math.round(iframeRect.left - hostRect.left) : 0
+
   let best: DOMRect | null = null
   let bestArea = 0
+  /** Highest short-canvas top in the bottom band (= time-axis top / hairline). */
+  let hairlineFromHostBottom: number | null = null
+
   for (const canvas of doc.querySelectorAll('canvas')) {
     const r = canvas.getBoundingClientRect()
+    if (r.width < 120) continue
+    const fromBottom = hostRect.bottom - r.top
+    // Short strips in the bottom toolbar/time-axis zone.
+    if (
+      r.height >= 14 &&
+      r.height <= 90 &&
+      fromBottom >= 20 &&
+      fromBottom <= TV_HAIRLINE_SEARCH_MAX_FROM_BOTTOM_PX
+    ) {
+      const topInset = Math.round(fromBottom)
+      // Prefer the *largest* inset (time-axis top sits above the bottom toolbar).
+      if (hairlineFromHostBottom == null || topInset > hairlineFromHostBottom) {
+        hairlineFromHostBottom = topInset
+      }
+    }
+    if (r.height < 80) continue
     const area = r.width * r.height
-    if (r.width < 120 || r.height < 80) continue
     if (area > bestArea) {
       bestArea = area
       best = r
     }
   }
+
+  // Prefer DOM time-axis strip (label climb) — most reliable vs WebGL canvases.
+  const viaLabels = detectHairlineViaTimeLabels(doc, hostRect.bottom)
+  if (viaLabels != null) {
+    hairlineFromHostBottom = viaLabels
+  } else {
+    const scanned = detectHairlineFromHostBottom(doc, hostRect, theme)
+    if (scanned != null) hairlineFromHostBottom = scanned
+  }
+
   if (!best) {
+    const fallbackBottom = hairlineFromHostBottom ?? TV_HAIRLINE_FALLBACK_FROM_BOTTOM_PX
     return {
       top: 0,
-      bottom: 0,
+      bottom: fallbackBottom,
       left: iframeOffsetX,
       right: 56,
       width: 0,
@@ -242,9 +418,16 @@ function measureTvPlotLayout(
   const plotOffsetX = Math.round(best.left - hostRect.left)
   const plotWidth = Math.round(best.width)
   const right = Math.max(0, Math.round(hostRect.width - plotOffsetX - plotWidth))
+  const canvasBottom = Math.max(0, Math.round(hostRect.bottom - best.bottom))
+  const bottom =
+    hairlineFromHostBottom != null
+      ? hairlineFromHostBottom
+      : canvasBottom >= 40
+        ? canvasBottom
+        : TV_HAIRLINE_FALLBACK_FROM_BOTTOM_PX
   return {
     top: Math.max(0, Math.round(best.top - hostRect.top)),
-    bottom: Math.max(0, Math.round(hostRect.bottom - best.bottom)),
+    bottom,
     left: plotOffsetX,
     right,
     width: plotWidth,
@@ -340,6 +523,248 @@ function applyIconHeaderButton(el: HTMLElement, iconHtml: string, title: string,
   slot.setAttribute('aria-label', title)
 }
 
+/** Paint target for TV text header buttons (the clickable node, not an empty wrapper). */
+function resolveHeaderButtonPaintTarget(el: HTMLElement): HTMLElement {
+  if (el.matches('button, [role="button"]')) return el
+  const innerBtn = el.querySelector<HTMLElement>('button, [role="button"]')
+  if (innerBtn) return innerBtn
+  if (el.classList.contains('apply-common-tooltip')) return el
+  const tip = el.querySelector<HTMLElement>('.apply-common-tooltip')
+  if (tip) return tip
+  for (const node of el.querySelectorAll<HTMLElement>('div, span, a')) {
+    const t = node.textContent?.trim()
+    if (t === 'Replay' || t === '◁◁ Replay' || t === '<< Replay' || t.endsWith('Replay') || t === 'Backtest') {
+      return (node.closest('button, [role="button"], .apply-common-tooltip') as HTMLElement | null) ?? node
+    }
+  }
+  return el
+}
+
+const headerButtonActiveState = new Map<string, boolean>()
+const headerButtonFaceWatchers = new Map<string, MutationObserver>()
+
+const REPLAY_HEADER_CSS_ID = 'rw-tv-replay-header-css'
+const AXIS_HAIRLINE_KILL_CSS_ID = 'rw-tv-axis-hairline-kill-css'
+
+/** Purge leftover white axis-cover strips (clipped “Chart by TradingView” / “Keep drawing”). */
+function removeStaleAxisHairlineCovers(mount?: HTMLElement | null) {
+  try {
+    document.querySelectorAll('[data-rw-axis-hairline-cover], #rw-tv-axis-hairline-cover').forEach((el) => {
+      el.remove()
+    })
+  } catch {
+    /* ignore */
+  }
+  if (!mount) return
+  try {
+    const doc = tvIframeDocument(mount)
+    if (!doc) return
+    doc.querySelectorAll('#rw-tv-axis-hairline-cover, [data-rw-axis-hairline-cover]').forEach((el) => {
+      el.remove()
+    })
+    let style = doc.getElementById(AXIS_HAIRLINE_KILL_CSS_ID) as HTMLStyleElement | null
+    if (!style) {
+      style = doc.createElement('style')
+      style.id = AXIS_HAIRLINE_KILL_CSS_ID
+      ;(doc.head ?? doc.documentElement).appendChild(style)
+    }
+    style.textContent = `
+#rw-tv-axis-hairline-cover,
+[data-rw-axis-hairline-cover],
+[id*="axis-hairline-cover"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  pointer-events: none !important;
+}
+`
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Inject Replay header CSS into the TV iframe (custom_css_url can lag / miss). */
+function ensureReplayHeaderCss(doc: Document) {
+  let style = doc.getElementById(REPLAY_HEADER_CSS_ID) as HTMLStyleElement | null
+  if (!style) {
+    style = doc.createElement('style')
+    style.id = REPLAY_HEADER_CSS_ID
+    ;(doc.head ?? doc.documentElement).appendChild(style)
+  }
+  style.textContent = `
+.rw-tv-header-btn--replay.rw-tv-header-btn--text:not(.rw-tv-header-btn--active),
+[data-rw-tv-btn="replay"].rw-tv-header-btn--text:not(.rw-tv-header-btn--active) {
+  background: #f0f3fa !important;
+  background-color: #f0f3fa !important;
+  color: #131722 !important;
+  border-radius: 8px !important;
+}
+.rw-tv-header-btn--replay.rw-tv-header-btn--active,
+[data-rw-tv-btn="replay"].rw-tv-header-btn--active,
+[data-rw-tv-btn="replay"].rw-tv-header-btn.rw-tv-header-btn--active {
+  background: #131722 !important;
+  background-color: #131722 !important;
+  color: #ffffff !important;
+  border-radius: 8px !important;
+  opacity: 1 !important;
+}
+.rw-tv-header-btn--replay.rw-tv-header-btn--active .rw-tv-header-btn__label,
+[data-rw-tv-btn="replay"].rw-tv-header-btn--active .rw-tv-header-btn__label {
+  color: #ffffff !important;
+}
+/* Label already includes ◁◁ — do not draw a second CSS icon. */
+.rw-tv-header-btn--replay.rw-tv-header-btn--text::before,
+[data-rw-tv-btn="replay"].rw-tv-header-btn--text::before {
+  content: none !important;
+  display: none !important;
+}
+`
+}
+
+function applyReplayActiveChrome(el: HTMLElement, active: boolean) {
+  const targets = new Set<HTMLElement>([el, headerToolbarSlot(el), resolveHeaderButtonPaintTarget(el)])
+  for (const node of targets) {
+    node.dataset.rwTvBtn = 'replay'
+    node.classList.add('rw-tv-header-btn', 'rw-tv-header-btn--text', 'rw-tv-header-btn--replay')
+    node.classList.toggle('rw-tv-header-btn--active', active)
+    node.setAttribute('aria-pressed', active ? 'true' : 'false')
+    const fg = active ? '#ffffff' : '#131722'
+    const bg = active ? '#131722' : '#f0f3fa'
+    node.style.setProperty('background', bg, 'important')
+    node.style.setProperty('background-color', bg, 'important')
+    node.style.setProperty('color', fg, 'important')
+    node.style.setProperty('border-radius', '8px', 'important')
+    node.style.setProperty('opacity', '1', 'important')
+    node.querySelectorAll<HTMLElement>('.rw-tv-header-btn__label').forEach((label) => {
+      label.style.setProperty('color', fg, 'important')
+    })
+  }
+}
+
+/**
+ * TradingView Replay face (attached reference):
+ * idle  — light-gray rounded chip, rewind icon + “Replay”, tooltip “Bar replay”
+ * active — black pill, white icon + “Replay”
+ * Prefer painting the toolbar slot we own (custom createButton). SVG must live in the DOM.
+ */
+function paintTextHeaderButtonFace(
+  el: HTMLElement,
+  opts: {
+    id: string
+    active: boolean
+    label: string
+    iconHtml?: string
+    title?: string
+  },
+) {
+  const isReplay = opts.id === 'replay'
+  // Prefer the clickable TV face; Replay text (incl. ◁◁) lives in the label.
+  const paint = resolveHeaderButtonPaintTarget(el)
+  if (paint.dataset.rwFacePainting === '1') return
+  paint.dataset.rwFacePainting = '1'
+  try {
+    if (isReplay && paint.ownerDocument) ensureReplayHeaderCss(paint.ownerDocument)
+    paint.dataset.rwTvBtn = opts.id
+    paint.classList.add('rw-tv-header-btn', 'rw-tv-header-btn--text')
+    if (isReplay) paint.classList.add('rw-tv-header-btn--replay')
+    paint.classList.toggle('rw-tv-header-btn--active', opts.active)
+    paint.setAttribute('aria-pressed', opts.active ? 'true' : 'false')
+    const tip = opts.title ?? (isReplay ? 'Bar replay' : opts.label)
+    paint.setAttribute('title', tip)
+    paint.setAttribute('aria-label', tip)
+    paint.setAttribute('data-tooltip', tip)
+
+    // Do not inject leading SVG for Replay — TV wipes it / custom slots go blank.
+    // Rewind mark is part of `opts.label` (e.g. "◁◁ Replay").
+    if (isReplay || !opts.iconHtml?.trim()) {
+      paint.innerHTML = `<span class="rw-tv-header-btn__label">${opts.label}</span>`
+    } else {
+      paint.innerHTML = `<span class="rw-tv-header-btn__ico" aria-hidden="true">${opts.iconHtml}</span><span class="rw-tv-header-btn__label">${opts.label}</span>`
+    }
+
+    const active = opts.active
+    const fg = active ? '#ffffff' : '#131722'
+    const bg = active ? '#131722' : isReplay ? '#f0f3fa' : 'transparent'
+    const radius = isReplay ? '8px' : '4px'
+    paint.style.setProperty('display', 'inline-flex', 'important')
+    paint.style.setProperty('align-items', 'center', 'important')
+    paint.style.setProperty('justify-content', 'center', 'important')
+    paint.style.setProperty('flex-direction', 'row', 'important')
+    paint.style.setProperty('gap', '6px', 'important')
+    paint.style.setProperty('height', '28px', 'important')
+    paint.style.setProperty('min-height', '28px', 'important')
+    paint.style.removeProperty('min-width')
+    paint.style.setProperty('padding', active ? '0 11px' : '0 10px', 'important')
+    paint.style.setProperty('margin', '0 2px', 'important')
+    paint.style.setProperty('border', 'none', 'important')
+    paint.style.setProperty('border-radius', radius, 'important')
+    paint.style.setProperty('background', bg, 'important')
+    paint.style.setProperty('background-color', bg, 'important')
+    paint.style.setProperty('color', fg, 'important')
+    paint.style.setProperty(
+      'font',
+      "400 13px/16px -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif",
+      'important',
+    )
+    paint.style.setProperty('cursor', 'pointer', 'important')
+    paint.style.setProperty('opacity', '1', 'important')
+    paint.style.setProperty('visibility', 'visible', 'important')
+    paint.style.setProperty('box-sizing', 'border-box', 'important')
+    paint.style.setProperty('line-height', '16px', 'important')
+    paint.style.setProperty('white-space', 'nowrap', 'important')
+
+    paint.querySelectorAll<HTMLElement>('.rw-tv-header-btn__ico, .rw-tv-header-btn__label, svg, .sx-ico').forEach((child) => {
+      child.style.setProperty('color', fg, 'important')
+      child.style.setProperty('stroke', fg, 'important')
+      child.style.setProperty('fill', 'none', 'important')
+      child.style.setProperty('background', 'transparent', 'important')
+      child.style.setProperty('opacity', '1', 'important')
+    })
+
+    if (isReplay) applyReplayActiveChrome(paint, active)
+
+    let parent: HTMLElement | null = paint.parentElement
+    for (let i = 0; i < 4 && parent; i++) {
+      // Keep wrappers clear so the pill background on the face is what you see.
+      if (!parent.classList.contains('rw-tv-header-btn--replay')) {
+        parent.style.setProperty('background', 'transparent', 'important')
+        parent.style.setProperty('background-color', 'transparent', 'important')
+      }
+      parent = parent.parentElement
+    }
+  } finally {
+    queueMicrotask(() => {
+      paint.dataset.rwFacePainting = '0'
+    })
+  }
+}
+
+function watchTextHeaderButtonFace(
+  el: HTMLElement,
+  getOpts: () => {
+    id: string
+    active: boolean
+    label: string
+    iconHtml?: string
+    title?: string
+  },
+) {
+  const id = getOpts().id
+  headerButtonFaceWatchers.get(id)?.disconnect()
+  const paint = resolveHeaderButtonPaintTarget(el)
+  const obs = new MutationObserver(() => {
+    if (paint.dataset.rwFacePainting === '1') return
+    const opts = getOpts()
+    const needsLabel = !paint.querySelector('.rw-tv-header-btn__label')
+    const needsIcon = Boolean(opts.iconHtml?.trim()) && !opts.id.startsWith('replay') && !paint.querySelector('.rw-tv-header-btn__ico')
+    if (needsLabel || needsIcon) paintTextHeaderButtonFace(paint, opts)
+  })
+  obs.observe(paint, { childList: true, subtree: true, characterData: true })
+  headerButtonFaceWatchers.set(id, obs)
+}
+
 function resolveCreateButtonElement(
   mount: HTMLElement,
   result: string | HTMLElement,
@@ -376,14 +801,18 @@ function insertSlotsAfterAnchor(anchor: HTMLElement, slots: HTMLElement[]): void
   }
 }
 
-function repositionAfterIndicatorTemplate(mount: HTMLElement, labels: string[]): void {
+function repositionAfterIndicatorTemplate(
+  mount: HTMLElement,
+  items: Array<string | HTMLElement>,
+): void {
   const doc = tvIframeDocument(mount)
   if (!doc) return
   const anchor = findIndicatorTemplateAnchor(doc)
   if (!anchor) return
   const slots: HTMLElement[] = []
-  for (const label of labels) {
-    const slot = findHeaderButtonByText(doc, label)
+  for (const item of items) {
+    const slot =
+      typeof item === 'string' ? findHeaderButtonByText(doc, item) : headerToolbarSlot(item)
     if (!slot) return
     slots.push(slot)
   }
@@ -497,9 +926,22 @@ export async function createTradingViewChart(
   mount.style.width = '100%'
   mount.style.height = '100%'
   container.appendChild(mount)
+  removeStaleAxisHairlineCovers(mount)
+
+  // Drop stale TV chart settings that can re-enable bid/ask even when overrides say false.
+  try {
+    for (const key of [...Object.keys(localStorage)]) {
+      if (/tradingview|tvlanding|chartproperties/i.test(key)) {
+        localStorage.removeItem(key)
+      }
+    }
+  } catch {
+    /* private mode / blocked storage */
+  }
 
   let currentSymbol = opts.symbol.trim().toUpperCase()
   let currentResolution = opts.resolution
+  let currentTheme: TvTheme = opts.theme
   let suppressIntervalChange = false
   const sessionStartSec = opts.sessionStartSec
   const sessionEndSec = opts.sessionEndSec
@@ -531,6 +973,24 @@ export async function createTradingViewChart(
 
   let replayCtrl: TvReplayChartController | null = null
 
+  const chartChromeOverrides: Record<string, unknown> = {
+    // Last price (green/red dashed + axis label) stays on — that is normal TV.
+    // Bid/ask lines (blue #2962FF / pink #F7525F) are optional and often look like a
+    // ClearType “glitch” hairline under the last price — keep them off.
+    'mainSeriesProperties.bidAsk.visible': false,
+    'mainSeriesProperties.bidAsk.lineWidth': 0,
+    'mainSeriesProperties.bidAsk.lineStyle': 2,
+    'mainSeriesProperties.bidAsk.bidLineColor': 'rgba(0,0,0,0)',
+    'mainSeriesProperties.bidAsk.askLineColor': 'rgba(0,0,0,0)',
+    'scalesProperties.showBidAskLabels': false,
+    'mainSeriesProperties.highLowAvgPrice.highLowPriceLinesVisible': false,
+    'mainSeriesProperties.highLowAvgPrice.averageClosePriceLineVisible': false,
+    'mainSeriesProperties.showPrevClosePriceLine': false,
+    // Axis border / pane separator (not a price line).
+    'scalesProperties.lineColor': opts.theme === 'dark' ? '#131722' : '#ffffff',
+    'paneProperties.separatorColor': opts.theme === 'dark' ? '#131722' : '#ffffff',
+  }
+
   const widget = new Widget({
     symbol: currentSymbol,
     interval: currentResolution,
@@ -549,10 +1009,12 @@ export async function createTradingViewChart(
       'hide_right_toolbar',
       'seconds_resolution',
     ],
-    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css`,
+    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css?v=kill-axis-cover-1`,
     loading_screen: { backgroundColor: opts.theme === 'dark' ? '#131722' : '#ffffff' },
-    overrides:
-      opts.theme === 'dark'
+    // settings_overrides wins over any saved chart settings; plain overrides do not.
+    settings_overrides: { ...chartChromeOverrides },
+    overrides: {
+      ...(opts.theme === 'dark'
         ? {
             'paneProperties.background': '#131722',
             'paneProperties.backgroundType': 'solid',
@@ -560,7 +1022,9 @@ export async function createTradingViewChart(
         : {
             'paneProperties.background': '#ffffff',
             'paneProperties.backgroundType': 'solid',
-          },
+          }),
+      ...chartChromeOverrides,
+    },
   })
 
   refreshProviderHeader = () => {
@@ -599,7 +1063,7 @@ export async function createTradingViewChart(
   }
 
   const mountHeaderButtons = () => {
-    const afterTemplateLabels: string[] = []
+    const afterTemplateItems: Array<string | HTMLElement> = []
     const beforeUtilityButtons: HTMLElement[] = []
 
     for (const def of opts.headerButtons ?? []) {
@@ -631,6 +1095,7 @@ export async function createTradingViewChart(
       }
 
       if (!def.text) continue
+
       try {
         const buttonId = widget.createButton({
           useTradingViewStyle: true,
@@ -642,30 +1107,50 @@ export async function createTradingViewChart(
         if (typeof buttonId === 'string') headerButtonIds.set(def.id, buttonId)
         else headerButtonElements.set(def.id, buttonId)
         headerButtonTitles.set(def.id, def.title)
-        if (def.insertAfterIndicatorTemplate) afterTemplateLabels.push(def.text)
-        // Tag for active styling (Replay black pill when dock is open).
-        requestAnimationFrame(() => {
+        if (def.insertAfterIndicatorTemplate) afterTemplateItems.push(def.text)
+        const applyFace = () => {
           const el = resolveHeaderButtonEl(def.id)
           if (!el) return
-          el.dataset.rwTvBtn = def.id
-          el.classList.add('rw-tv-header-btn', 'rw-tv-header-btn--text')
-        })
+          paintTextHeaderButtonFace(el, {
+            id: def.id,
+            active: headerButtonActiveState.get(def.id) === true,
+            label: def.text!,
+            iconHtml: def.leadingIconHtml,
+            title: def.title || (def.id === 'replay' ? 'Bar replay' : def.text!),
+          })
+        }
+        requestAnimationFrame(applyFace)
+        for (const delay of [100, 400, 1000]) {
+          window.setTimeout(applyFace, delay)
+        }
       } catch (err) {
         console.error('[TradingView] createButton failed:', def.id, err)
       }
     }
 
     const runPlacement = () => {
-      if (afterTemplateLabels.length) {
-        repositionAfterIndicatorTemplate(mount, afterTemplateLabels)
+      if (afterTemplateItems.length) {
+        repositionAfterIndicatorTemplate(mount, afterTemplateItems)
       }
       for (const el of beforeUtilityButtons) {
         repositionBeforeRightUtilities(mount, el)
       }
       for (const def of opts.headerButtons ?? []) {
-        if (!def.iconHtml) continue
         const el = resolveHeaderButtonEl(def.id)
-        if (el) applyIconHeaderButton(el, def.iconHtml, def.title, def.id)
+        if (!el) continue
+        if (def.iconHtml) {
+          applyIconHeaderButton(el, def.iconHtml, def.title, def.id)
+          continue
+        }
+        if (def.text) {
+          paintTextHeaderButtonFace(el, {
+            id: def.id,
+            active: headerButtonActiveState.get(def.id) === true,
+            label: def.text,
+            iconHtml: def.leadingIconHtml,
+            title: def.title,
+          })
+        }
       }
     }
 
@@ -682,10 +1167,76 @@ export async function createTradingViewChart(
     resolveChartReady?.()
     resolveChartReady = null
 
+    // Force-hide bid/ask + other optional price lines that survive theme / settings merges.
+    const hideChartHairlines = () => {
+      try {
+        widget.applyOverrides(chartChromeOverrides)
+      } catch {
+        /* ignore */
+      }
+      try {
+        const chart = widget.activeChart()
+        chart.applyOverrides?.(chartChromeOverrides)
+        // If bid/ask lines were toggled on in chart settings, turn them off.
+        try {
+          const bidAskOn = (
+            chart as { getCheckableActionState?: (id: string) => boolean | null }
+          ).getCheckableActionState?.('Chart.Lines.ToggleBidAskLinesVisibility')
+          if (bidAskOn === true) {
+            ;(
+              chart as { executeActionById?: (id: string) => void }
+            ).executeActionById?.('Chart.Lines.ToggleBidAskLinesVisibility')
+          }
+        } catch {
+          /* action id may not exist in this build */
+        }
+        for (const shape of chart.getAllShapes?.() ?? []) {
+          const name = String(shape.name || '').toLowerCase()
+          if (
+            name === 'horizontal_line' ||
+            name === 'horizontal_ray' ||
+            name === 'horz_line' ||
+            name === 'horz_ray'
+          ) {
+            chart.removeEntity?.(shape.id)
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      removeStaleAxisHairlineCovers(mount)
+    }
+    hideChartHairlines()
+    for (const delay of [0, 100, 200, 800, 2000, 5000]) {
+      window.setTimeout(() => {
+        if (!disposed) hideChartHairlines()
+      }, delay)
+    }
+    // Keep purging stale covers; changeTheme / reloads can leave them behind.
+    const hairlineTimer = window.setInterval(() => {
+      if (disposed) {
+        window.clearInterval(hairlineTimer)
+        return
+      }
+      hideChartHairlines()
+    }, 500)
+    headerButtonCleanups.push(() => window.clearInterval(hairlineTimer))
+
     void widget
       .headerReady()
       .then(mountHeaderButtons)
       .catch((err) => console.error('[TradingView] headerReady failed:', err))
+
+    {
+      const chart = widget.activeChart()
+      const onSym = () => {
+        if (!disposed) hideChartHairlines()
+      }
+      chart.onSymbolChanged().subscribe(null, onSym)
+      headerButtonCleanups.push(() => {
+        chart.onSymbolChanged().unsubscribe(null, onSym)
+      })
+    }
 
     if (opts.onSymbolChange) {
       const chart = widget.activeChart()
@@ -734,6 +1285,9 @@ export async function createTradingViewChart(
         replayCtrl = null
         headerButtonCleanups.forEach((fn) => fn())
         headerButtonCleanups.length = 0
+        for (const obs of headerButtonFaceWatchers.values()) obs.disconnect()
+        headerButtonFaceWatchers.clear()
+        headerButtonActiveState.clear()
         for (const buttonId of headerButtonIds.values()) {
           try {
             widget.removeButton(buttonId)
@@ -761,6 +1315,42 @@ export async function createTradingViewChart(
 
     getHeaderButton(id) {
       return resolveHeaderButtonEl(id)
+    },
+
+    setHeaderButtonActive(id, active, faceOpts) {
+      headerButtonActiveState.set(id, active)
+      const el = resolveHeaderButtonEl(id)
+      const def = opts.headerButtons?.find((b) => b.id === id)
+      const paint = (target: HTMLElement) => {
+        paintTextHeaderButtonFace(target, {
+          id,
+          active,
+          label: faceOpts?.label ?? def?.text ?? '◁◁ Replay',
+          iconHtml: faceOpts?.iconHtml ?? def?.leadingIconHtml,
+          title: def?.title,
+        })
+        if (id === 'replay') {
+          applyReplayActiveChrome(target, active)
+          // Re-assert after TV layout ticks (header can restyle on click).
+          for (const delay of [0, 50, 150, 400]) {
+            window.setTimeout(() => {
+              if (headerButtonActiveState.get(id) !== active) return
+              const again = resolveHeaderButtonEl(id)
+              if (!again) return
+              applyReplayActiveChrome(again, active)
+            }, delay)
+          }
+        }
+      }
+      if (!el) {
+        if (!active) return
+        window.setTimeout(() => {
+          const again = resolveHeaderButtonEl(id)
+          if (again) paint(again)
+        }, 80)
+        return
+      }
+      paint(el)
     },
 
     setHeaderButtonIcon(id, iconHtml) {
@@ -838,7 +1428,26 @@ export async function createTradingViewChart(
     },
 
     applyTheme(theme) {
+      currentTheme = theme
       widget.changeTheme(theme)
+      // Theme swap restores default axis line colors — re-hide optional lines.
+      const bg = theme === 'dark' ? '#131722' : '#ffffff'
+      chartChromeOverrides['scalesProperties.lineColor'] = bg
+      chartChromeOverrides['paneProperties.separatorColor'] = bg
+      try {
+        widget.applyOverrides({
+          ...chartChromeOverrides,
+          'paneProperties.background': bg,
+          'paneProperties.backgroundType': 'solid',
+        })
+      } catch {
+        /* ignore */
+      }
+      try {
+        removeStaleAxisHairlineCovers(mount)
+      } catch {
+        /* ignore */
+      }
     },
 
     whenChartReady() {
@@ -922,17 +1531,31 @@ export async function createTradingViewChart(
     },
 
     getPlotClipInsets(hostEl) {
-      const layout = measureTvPlotLayout(mount, hostEl)
+      const layout = measureTvPlotLayout(mount, hostEl, currentTheme)
       if (!layout) return null
       return { top: layout.top, bottom: layout.bottom, left: layout.left, right: layout.right }
     },
 
     getPlotLayout(hostEl) {
-      return measureTvPlotLayout(mount, hostEl)
+      return measureTvPlotLayout(mount, hostEl, currentTheme)
     },
 
     setReplayCursorVisible(visible) {
       replayCtrl?.setReplayCursorVisible(visible)
+    },
+
+    setCrosshairVisible(visible) {
+      try {
+        const transparency = visible ? 0 : 100
+        widget.applyOverrides({
+          'paneProperties.crossHairProperties.transparency': transparency,
+        })
+        widget.activeChart()?.applyOverrides?.({
+          'paneProperties.crossHairProperties.transparency': transparency,
+        })
+      } catch {
+        /* ignore */
+      }
     },
 
     setViewportFreeze(viewport) {
@@ -1012,8 +1635,9 @@ export async function createTradingViewChart(
           suppressIntervalChange = false
           resolve()
         }
+        // Higher TFs (1h/4h) are in-memory aggregates — don't wait multi-seconds on TV.
         const waitForResolutionThenFinish = () => {
-          const deadline = Date.now() + 5000
+          const deadline = Date.now() + 900
           const poll = () => {
             if (finished || disposed) {
               finishOnce()
@@ -1028,7 +1652,7 @@ export async function createTradingViewChart(
             } catch {
               /* chart may still be switching */
             }
-            pollTimer = window.setTimeout(poll, 50)
+            pollTimer = window.setTimeout(poll, 40)
           }
           poll()
         }
@@ -1049,7 +1673,7 @@ export async function createTradingViewChart(
             finishOnce()
           }
         }
-        finishTimer = window.setTimeout(finishOnce, 6000)
+        finishTimer = window.setTimeout(finishOnce, 1200)
         applyChartResolution()
       })
     },
