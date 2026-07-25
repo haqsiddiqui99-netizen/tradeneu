@@ -1611,18 +1611,20 @@ export async function createTradingViewChart(
       } catch {
         actualRes = undefined
       }
+      // Defer only when the chart widget is not yet on the target resolution.
+      // Do NOT use currentResolution here — noteResolution() can mark us "already
+      // switched" while TV is still on the old interval, which skipped setResolution,
+      // refreshed denser/empty data into the wrong TF, and left the chart stuck loading.
       const alreadyAtTarget = tvResolutionMatches(actualRes, next)
-      const resolutionChanging = !!(next && !tvResolutionMatches(currentResolution, next))
-      const deferRefresh = resolutionChanging && !alreadyAtTarget
+      const deferRefresh = !alreadyAtTarget
 
       replayCtrl?.swapInterval(bars, resolution, pastCount, lockedViewport, {
         ...swapOpts,
         deferRefresh,
       })
 
-      currentResolution = next
-
       if (!deferRefresh) {
+        currentResolution = next
         return Promise.resolve()
       }
 
@@ -1636,6 +1638,7 @@ export async function createTradingViewChart(
           finished = true
           if (finishTimer != null) window.clearTimeout(finishTimer)
           if (pollTimer != null) window.clearTimeout(pollTimer)
+          currentResolution = next
           replayCtrl?.finishIntervalSwap()
           suppressIntervalChange = false
           resolve()

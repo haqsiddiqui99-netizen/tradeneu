@@ -2554,6 +2554,33 @@ body.rw-replay-dock-dragging * {
   shape-rendering: geometricPrecision;
 }
 
+/* Play nests icons in spans — match skip’s direct-SVG centering so glyphs don’t sit low. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'],
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'],
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  font-size: 0;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  line-height: 0;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play-ico .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play-ico svg {
+  display: block;
+  /* Outline play triangle reads optically low vs step-fwd; nudge to match. */
+  transform: translateY(-1px);
+}
+
 .rw-chart-replay-dock.rw-replay-dock--tv .sx-ico--replay-tv {
   display: block;
   shape-rendering: geometricPrecision;
@@ -3119,9 +3146,15 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-replay-dock__play-ico {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
+  line-height: 0;
+}
+
+.rw-replay-dock__play-ico .sx-ico,
+.rw-replay-dock__play-ico svg {
+  display: block;
 }
 
 .rw-replay-dock__play-ico[hidden] {

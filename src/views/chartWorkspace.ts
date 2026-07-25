@@ -3387,6 +3387,9 @@ export function mountChartWorkspace(
     let tvBootBarsApplied = false
     let tvBootPaintDone = false
     const tvIntervalSwap = { inProgress: false }
+    let intervalPickBusy = false
+    /** TV header changed while applyIntervalPick was busy — apply after current swap. */
+    let pendingTvHeaderIntervalPick: IntervalPick | null = null
 
     const setFootRangeActive = (label: string) => {
       host.querySelectorAll('.rw-foot__range').forEach((b) => {
@@ -3433,10 +3436,14 @@ export function mountChartWorkspace(
             }
           },
           onResolutionChange: (tvRes) => {
-            if (intervalPickBusy || tvIntervalSwap.inProgress) return
             const pick = tvResolutionToIntervalPill(tvRes)
             if (!pick || pick.pill === chartTimeframe) return
             state.tvChart?.noteResolution(tvRes)
+            if (intervalPickBusy || tvIntervalSwap.inProgress) {
+              // TV already switched — queue so we don't leave feed on the old TF (blank/stuck).
+              pendingTvHeaderIntervalPick = pick
+              return
+            }
             void applyIntervalPick(pick)
           },
           headerButtons: [
@@ -4604,8 +4611,6 @@ export function mountChartWorkspace(
       })
     }
 
-    let intervalPickBusy = false
-
     function revertTvIntervalPill(pill: string) {
       const pick = resolveIntervalPick(pill)
       const tvRes = intervalPillToTvResolution(pill)
@@ -5008,17 +5013,30 @@ export function mountChartWorkspace(
 
         let decoupledActive = decoupledAfter
         if (decoupledAfter) {
-          const stepBars = await resolveReplayStepBars(replayPickResolved!)
-          if (isSubMinuteReplayPick(replayPickResolved!) && stepBars.length < 2) {
+          // Hour+ chart + sub-minute replay: don't block the interval swap on tick fetch
+          // (ensureDukascopyTickSource can hang and leave the chart stuck loading).
+          const chartStepSec = pick.stepSec ?? 60
+          if (chartStepSec >= 3600 && isSubMinuteReplayPick(replayPickResolved!)) {
             decoupledActive = false
             replayTimeframe = chartTimeframe
             replayStepSourceBars = []
             if (replayDockTf) replayDockTf.textContent = chartTimeframe
             showReplayNotice(
-              'Sub-minute replay step needs tick data — replay reset to match chart interval.',
+              'Replay step reset to match chart interval (hour+ charts skip sub-minute tick load).',
             )
           } else {
-            replayStepSourceBars = isSubMinuteReplayPick(replayPickResolved!) ? stepBars : []
+            const stepBars = await resolveReplayStepBars(replayPickResolved!)
+            if (isSubMinuteReplayPick(replayPickResolved!) && stepBars.length < 2) {
+              decoupledActive = false
+              replayTimeframe = chartTimeframe
+              replayStepSourceBars = []
+              if (replayDockTf) replayDockTf.textContent = chartTimeframe
+              showReplayNotice(
+                'Sub-minute replay step needs tick data — replay reset to match chart interval.',
+              )
+            } else {
+              replayStepSourceBars = isSubMinuteReplayPick(replayPickResolved!) ? stepBars : []
+            }
           }
         }
 
@@ -5145,6 +5163,11 @@ export function mountChartWorkspace(
         if (overlayActive) setChartLoading(false)
         intervalPickBusy = false
         tvIntervalSwap.inProgress = false
+        const queued = pendingTvHeaderIntervalPick
+        pendingTvHeaderIntervalPick = null
+        if (queued && queued.pill !== chartTimeframe && !state.disposed) {
+          void applyIntervalPick(queued)
+        }
       }
     }
 
