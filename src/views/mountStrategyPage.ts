@@ -18,17 +18,19 @@ import { mountStrategyBuilder } from '../strategy/strategyBuilderUi'
 export type MountStrategyPageOptions = {
   onBack?: () => void
   onOpenInChart?: (strategyId: string, opts?: { runBacktest?: boolean }) => void
+  /** Render inside home Strategy tab (no overlay / no back button). */
+  embedded?: boolean
 }
 
 export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOptions): () => void {
   root.replaceChildren()
 
   const shell = document.createElement('div')
-  shell.className = 'sx-strat-page'
+  shell.className = opts?.embedded ? 'sx-strat-page sx-strat-page--embedded' : 'sx-strat-page'
   shell.innerHTML = `
     <header class="sx-strat-page__head">
       <div class="sx-strat-page__head-left">
-        ${opts?.onBack ? `<button type="button" class="sx-strat-page__back" data-sx-strat-back aria-label="Back to dashboard">← Dashboard</button>` : ''}
+        ${opts?.onBack ? `<button type="button" class="sx-strat-page__back" data-sx-strat-back aria-label="Back to dashboard"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>Dashboard</span></button>` : ''}
         <div>
           <h1 class="sx-strat-page__title">Strategy builder</h1>
           <p class="sx-strat-page__subtitle">Create rule-based strategies for backtest and bar replay.</p>

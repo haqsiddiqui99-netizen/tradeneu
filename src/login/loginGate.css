@@ -1,4 +1,4 @@
-/* Full-screen surreal login — isolated from chart workspace */
+/* Login — full-page light UI + Google-style live AI border */
 
 .sx-login .sr-only {
   position: absolute;
@@ -13,191 +13,258 @@
 }
 
 .sx-login {
+  --ln-text: #111827;
+  --ln-muted: #6b7280;
+  --ln-accent: #4f46e5;
+  --ln-field: #f3f4f6;
+  --ln-field-border: #e5e7eb;
+
   position: fixed;
   inset: 0;
   z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  display: grid;
+  place-items: center;
+  padding: clamp(0.75rem, 2.5vh, 1.5rem) 1rem;
   overflow: hidden;
-  font-family:
-    'Inter',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    'Helvetica Neue',
-    Arial,
-    sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-  background: #0a0612;
+  color: var(--ln-text);
+  background: #f5f3ff;
 }
 
-.sx-login__mesh {
-  position: absolute;
-  inset: -40%;
-  background:
-    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(99, 102, 241, 0.35), transparent 55%),
-    radial-gradient(ellipse 60% 45% at 80% 20%, rgba(236, 72, 153, 0.28), transparent 50%),
-    radial-gradient(ellipse 70% 60% at 50% 100%, rgba(56, 189, 248, 0.22), transparent 45%),
-    conic-gradient(from 210deg at 50% 50%, #0f0820, #1a0b2e, #0d1630, #0f0820);
-  animation: sx-login-mesh-drift 28s ease-in-out infinite alternate;
-}
-
-@keyframes sx-login-mesh-drift {
-  0% {
-    transform: translate(0, 0) rotate(0deg) scale(1);
-  }
-  100% {
-    transform: translate(4%, -3%) rotate(8deg) scale(1.08);
-  }
-}
-
-.sx-login__noise {
+.sx-login__bg {
   position: absolute;
   inset: 0;
-  opacity: 0.07;
+  z-index: 0;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 0%, rgba(196, 181, 253, 0.55), transparent 62%),
+    radial-gradient(ellipse 45% 40% at 0% 100%, rgba(165, 180, 252, 0.35), transparent 55%),
+    radial-gradient(ellipse 40% 35% at 100% 85%, rgba(125, 211, 252, 0.3), transparent 50%),
+    linear-gradient(180deg, #ede9fe 0%, #f8fafc 52%, #eff6ff 100%);
 }
 
-.sx-login__orb {
+/* Larger login shell */
+.sx-login__shell {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 34rem);
+  height: auto;
+  max-height: calc(100vh - 1.5rem);
+  max-height: calc(100dvh - 1.5rem);
+  border-radius: 1.5rem;
+  padding: 3px;
+  box-shadow:
+    -14px 0 36px rgba(66, 133, 244, 0.28),
+    10px 0 28px rgba(234, 67, 53, 0.1),
+    0 18px 48px rgba(15, 23, 42, 0.1);
+}
+
+/* Clip spinning ring without clipping dial menus */
+.sx-login__ai-border {
   position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  overflow: hidden;
   pointer-events: none;
-  opacity: 0.55;
 }
 
-.sx-login__orb--a {
-  width: min(420px, 55vw);
-  height: min(420px, 55vw);
-  top: -12%;
-  right: -8%;
-  background: #7c3aed;
-  animation: sx-login-float-a 18s ease-in-out infinite;
+/* Live Google-style AI rainbow ring */
+.sx-login__ai-ring {
+  position: absolute;
+  inset: -45%;
+  background: conic-gradient(
+    from 0deg,
+    #4285f4 0deg,
+    #34a853 72deg,
+    #fbbc05 144deg,
+    #ea4335 216deg,
+    #a855f7 288deg,
+    #4285f4 360deg
+  );
+  animation: sx-login-ai-spin 3.5s linear infinite;
 }
 
-.sx-login__orb--b {
-  width: min(360px, 48vw);
-  height: min(360px, 48vw);
-  bottom: -15%;
-  left: -10%;
-  background: #db2777;
-  animation: sx-login-float-b 22s ease-in-out infinite;
+.sx-login__ai-glow {
+  position: absolute;
+  inset: -6px;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(66, 133, 244, 0.5),
+    rgba(52, 168, 83, 0.25),
+    rgba(251, 188, 5, 0.25),
+    rgba(234, 67, 53, 0.35)
+  );
+  filter: blur(14px);
+  opacity: 0.7;
+  animation: sx-login-ai-pulse 2.8s ease-in-out infinite alternate;
 }
 
-.sx-login__orb--c {
-  width: min(200px, 30vw);
-  height: min(200px, 30vw);
-  top: 42%;
-  left: 38%;
-  background: #22d3ee;
-  opacity: 0.35;
-  animation: sx-login-float-c 14s ease-in-out infinite;
-}
-
-@keyframes sx-login-float-a {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  50% {
-    transform: translate(-24px, 32px);
-  }
-}
-
-@keyframes sx-login-float-b {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(28px, -20px) scale(1.06);
+@keyframes sx-login-ai-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-@keyframes sx-login-float-c {
-  0%,
-  100% {
-    transform: translate(0, 0);
-    opacity: 0.28;
+@keyframes sx-login-ai-pulse {
+  from {
+    opacity: 0.45;
   }
-  50% {
-    transform: translate(-16px, 12px);
-    opacity: 0.42;
+  to {
+    opacity: 0.8;
   }
 }
 
 .sx-login__panel {
   position: relative;
-  z-index: 2;
+  z-index: 1;
   width: 100%;
-  max-width: 420px;
-  max-height: min(92vh, 720px);
-  overflow-y: auto;
-  padding: 2.25rem 2rem 2rem;
-  border-radius: 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(155deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.04) 100%);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
-    0 32px 80px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  height: auto;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  padding: 1.85rem 2rem 1.45rem;
+  border-radius: calc(1.5rem - 2px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: #ffffff;
+}
+
+.sx-login__panel--signup {
+  gap: 0.55rem;
+  padding: 1.5rem 1.75rem 1.2rem;
+}
+
+.sx-login__head {
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .sx-login__brand {
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 1.125rem;
+  margin: 0;
+  font-size: clamp(1.85rem, 3.6vh, 2.25rem);
   font-weight: 800;
   letter-spacing: 0.14em;
-  text-align: center;
   text-transform: uppercase;
-  color: #fafafa;
-  margin: 0 0 0.875rem;
-  line-height: 1.2;
-  text-shadow: 0 0 28px rgba(167, 139, 250, 0.35);
+  color: #4f46e5;
+}
+
+.sx-login__heading {
+  margin: 0.5rem 0 0;
+  font-size: clamp(1.45rem, 2.6vh, 1.75rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ln-text);
 }
 
 .sx-login__signup {
-  margin: 0 0 0.75rem;
-  font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.72);
-  text-align: center;
+  margin: 0.3rem 0 0;
+  font-size: 0.92rem;
+  color: var(--ln-muted);
 }
 
-.sx-login__error {
-  margin: 0 0 0.75rem;
-  padding: 0.5rem 0.65rem;
-  border-radius: 0.5rem;
-  border: 1px solid rgba(248, 113, 113, 0.45);
-  background: rgba(127, 29, 29, 0.35);
-  color: #fecaca;
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  text-align: center;
+.sx-login__google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  width: 100%;
+  flex-shrink: 0;
+  height: 2.85rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #1f2937;
+  font: 600 0.9rem inherit;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.sx-login__google:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.sx-login__google-ico {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+}
+
+.sx-login__divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  margin: 0.05rem 0;
+  color: #9ca3af;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sx-login__divider::before,
+.sx-login__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.sx-login__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  flex: 0 0 auto;
+}
+
+.sx-login__panel--signup .sx-login__fields {
+  gap: 0.4rem;
 }
 
 .sx-login__hint {
-  margin: 0 0 0.75rem;
-  padding: 0.5rem 0.65rem;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sx-login__hint--authed {
+  border-color: rgba(16, 185, 129, 0.28);
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.sx-login__error {
+  margin: 0;
+  padding: 0.4rem 0.55rem;
   border-radius: 0.5rem;
-  border: 1px solid rgba(251, 191, 36, 0.35);
-  background: rgba(120, 53, 15, 0.28);
-  color: #fde68a;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  background: #fff1f2;
+  color: #be123c;
   font-size: 0.75rem;
-  line-height: 1.45;
   text-align: center;
 }
 
-/* Error popup */
 .sx-login__toast {
   position: fixed;
   inset: 0;
@@ -205,7 +272,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.25rem;
+  padding: 1rem;
 }
 
 .sx-login__toast[hidden] {
@@ -215,164 +282,137 @@
 .sx-login__toast-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(2, 6, 23, 0.72);
-  backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(3px);
 }
 
 .sx-login__toast-panel {
   position: relative;
   z-index: 1;
-  width: min(100%, 22rem);
-  padding: 1.35rem 1.25rem 1.15rem;
+  width: min(100%, 20rem);
+  padding: 1.1rem 1rem;
   border-radius: 1rem;
-  border: 1px solid rgba(248, 113, 113, 0.45);
-  background: linear-gradient(165deg, #2a1215 0%, #1a0f12 100%);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
-    0 24px 48px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  background: #fff;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
   text-align: center;
-  animation: sx-login-toast-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-@keyframes sx-login-toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 
 .sx-login__toast-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  margin: 0 auto 0.65rem;
+  width: 2rem;
+  height: 2rem;
+  margin: 0 auto 0.5rem;
   border-radius: 9999px;
-  background: rgba(248, 113, 113, 0.18);
-  border: 1px solid rgba(248, 113, 113, 0.4);
-  color: #fecaca;
-  font: 800 1rem/1 system-ui, sans-serif;
+  background: #fff1f2;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  color: #e11d48;
+  font: 800 0.9rem/1 system-ui, sans-serif;
 }
 
 .sx-login__toast-title {
-  margin: 0 0 0.45rem;
-  font: 700 0.95rem/1.3 system-ui, sans-serif;
-  color: #fff;
+  margin: 0 0 0.35rem;
+  font: 700 0.9rem/1.3 inherit;
+  color: var(--ln-text);
 }
 
 .sx-login__toast-msg {
-  margin: 0 0 1rem;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: #fecaca;
+  margin: 0 0 0.85rem;
+  font-size: 0.78rem;
+  color: #be123c;
 }
 
 .sx-login__toast-btn {
-  min-width: 6.5rem;
-  height: 2.25rem;
-  padding: 0 1.25rem;
+  min-width: 5.5rem;
+  height: 2.1rem;
   border: none;
   border-radius: 9999px;
-  background: linear-gradient(135deg, #fb7185 0%, #f43f5e 100%);
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
   color: #fff;
-  font: 600 0.8125rem system-ui, sans-serif;
+  font: 600 0.78rem inherit;
   cursor: pointer;
 }
 
-.sx-login__toast-btn:hover {
-  filter: brightness(1.06);
-}
-
-.sx-login--toast-open .sx-login__panel {
+.sx-login--toast-open .sx-login__shell {
   filter: blur(1px);
   pointer-events: none;
 }
 
-/* Phone row: country code picker + local number */
+.sx-login__field {
+  margin: 0;
+}
+
+.sx-login__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.sx-login__label-row .sx-login__label {
+  margin: 0;
+}
+
+.sx-login__forgot {
+  font-size: 0.8rem !important;
+}
+
+.sx-login__label {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ln-muted);
+}
+
 .sx-login__phone-row {
   display: grid;
-  grid-template-columns: minmax(6.5rem, 34%) minmax(0, 1fr);
-  gap: 0.5rem;
-  align-items: stretch;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.45rem;
 }
 
 .sx-login__dial-picker {
   position: relative;
-  min-width: 0;
 }
 
 .sx-login__dial-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.25rem;
   width: 100%;
-  height: 2.75rem;
-  padding: 0 0.5rem 0 0.65rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 0.65rem;
-  background: rgba(12, 12, 14, 0.85);
-  color: #f4f4f5;
-  font-family: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  height: 2.85rem;
+  padding: 0 0.45rem 0 0.55rem;
+  border: 1px solid var(--ln-field-border);
+  border-radius: 0.7rem;
+  background: var(--ln-field);
+  color: var(--ln-text);
+  font: 600 0.8rem inherit;
   cursor: pointer;
-  outline: none;
-  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.sx-login__dial-trigger:hover,
+.sx-login__dial-trigger:focus-visible,
 .sx-login__dial-picker--open .sx-login__dial-trigger {
-  border-color: rgba(129, 140, 248, 0.55);
-  background: rgba(18, 18, 24, 0.95);
-}
-
-.sx-login__dial-trigger:focus-visible {
-  border-color: rgba(129, 140, 248, 0.75);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35);
-}
-
-.sx-login__dial-trigger-code {
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.sx-login__dial-chev {
-  flex-shrink: 0;
-  opacity: 0.7;
-  transition: transform 0.15s ease;
-}
-
-.sx-login__dial-picker--open .sx-login__dial-chev {
-  transform: rotate(180deg);
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  background: #fff;
 }
 
 .sx-login__dial-menu {
   position: absolute;
   z-index: 40;
-  top: calc(100% + 0.35rem);
+  top: calc(100% + 0.25rem);
   left: 0;
-  right: 0;
-  min-width: 14rem;
-  max-height: 14rem;
+  min-width: 12rem;
+  max-height: 10rem;
   overflow-y: auto;
-  margin: 0;
-  padding: 0.35rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 0.25rem;
+  border: 1px solid var(--ln-field-border);
   border-radius: 0.65rem;
-  background: #1a1a22;
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
 }
 
 .sx-login__dial-menu[hidden] {
@@ -382,294 +422,82 @@
 .sx-login__dial-option {
   display: block;
   width: 100%;
-  padding: 0.5rem 0.6rem;
+  padding: 0.4rem 0.5rem;
   border: none;
-  border-radius: 0.45rem;
+  border-radius: 0.4rem;
   background: transparent;
-  color: #e4e4e7;
-  font-family: inherit;
-  font-size: 0.8125rem;
-  font-weight: 500;
+  color: var(--ln-text);
+  font: 500 0.78rem inherit;
   text-align: left;
   cursor: pointer;
-  outline: none;
-  white-space: nowrap;
 }
 
-.sx-login__dial-option:hover {
-  background: rgba(99, 102, 241, 0.22);
-  color: #fafafa;
-}
-
+.sx-login__dial-option:hover,
 .sx-login__dial-option--active,
 .sx-login__dial-option[aria-selected='true'] {
-  background: rgba(99, 102, 241, 0.35);
-  color: #ffffff;
-  font-weight: 600;
+  background: #eef2ff;
+  color: #4338ca;
 }
 
-.sx-login__dial-option:focus-visible {
-  background: rgba(99, 102, 241, 0.28);
-  color: #ffffff;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.45);
-}
-
+.sx-login__input-wrap,
 .sx-login__input-wrap--phone {
-  border-radius: 0.65rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(12, 12, 14, 0.85);
-}
-
-.sx-login__input-wrap--phone .sx-login__input {
-  width: 100%;
-  height: 2.75rem;
-  padding: 0 0.75rem;
-  border: none;
-  background: transparent;
-  color: #fafafa;
-  font-family: inherit;
-  font-size: 0.875rem;
-  outline: none;
-}
-
-.sx-login__label {
-  display: block;
-  margin: 0 0 0.35rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: rgba(226, 232, 240, 0.88);
-}
-
-.sx-login__field {
-  margin-bottom: 0.75rem;
-}
-
-.sx-login__select {
-  width: 100%;
-  height: 2.75rem;
-  padding: 0 0.75rem;
-  border: none;
-  border-radius: 0.65rem;
-  background: rgba(12, 12, 14, 0.85);
-  color: #f4f4f5;
-  font-family: inherit;
-  font-size: 0.875rem;
-  outline: none;
-  appearance: none;
-  cursor: pointer;
-}
-
-.sx-login__input-wrap--select {
-  border-radius: 0.65rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(12, 12, 14, 0.85);
-}
-
-.sx-login__submit:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.sx-login__link {
-  border: none;
-  padding: 0;
-  background: none;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: 500;
-  line-height: inherit;
-  letter-spacing: -0.01em;
-  color: #38bdf8;
-  text-decoration: none;
-}
-
-.sx-login__link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  color: #7dd3fc;
-}
-
-.sx-login__link--inline {
-  display: inline;
-}
-
-.sx-login__google {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: center;
-  gap: 0.65rem;
-  padding: 0.8125rem 1rem;
-  margin-bottom: 1rem;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: #0c0c0e;
-  color: #fafafa;
-  font-family: inherit;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.25;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.sx-login__google:hover {
-  background: linear-gradient(180deg, #1a1a1f 0%, #121216 100%);
-  border-color: rgba(147, 197, 253, 0.45);
-  box-shadow:
-    0 0 0 1px rgba(147, 197, 253, 0.35),
-    0 0 0 4px rgba(59, 130, 246, 0.22),
-    0 12px 40px rgba(99, 102, 241, 0.2);
-}
-
-.sx-login__google:focus {
-  outline: none;
-  background: linear-gradient(180deg, #1c1c22 0%, #141418 100%);
-  border-color: rgba(147, 197, 253, 0.65);
-  box-shadow:
-    0 0 0 1px rgba(191, 219, 254, 0.55),
-    0 0 0 4px rgba(59, 130, 246, 0.35),
-    0 14px 44px rgba(99, 102, 241, 0.28);
-}
-
-.sx-login__google:focus-visible {
-  box-shadow:
-    0 0 0 1px rgba(191, 219, 254, 0.65),
-    0 0 0 4px rgba(59, 130, 246, 0.42),
-    0 14px 44px rgba(99, 102, 241, 0.32);
-}
-
-.sx-login__google:active {
-  background: #0f0f12;
-  border-color: rgba(147, 197, 253, 0.5);
-  box-shadow:
-    0 0 0 2px rgba(59, 130, 246, 0.3),
-    inset 0 1px 3px rgba(0, 0, 0, 0.35);
-}
-
-.sx-login__google-ico {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  display: block;
-  shape-rendering: geometricPrecision;
-}
-
-.sx-login__google:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  filter: grayscale(0.35);
-}
-
-.sx-login__google:disabled:hover {
-  background: #121218;
-  border-color: rgba(148, 163, 184, 0.22);
-  box-shadow: none;
-}
-
-.sx-login__or {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0 0 1rem;
-  color: rgba(148, 163, 184, 0.9);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-variant-numeric: tabular-nums;
-}
-
-.sx-login__or::before,
-.sx-login__or::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.sx-login__field {
-  margin-bottom: 1rem;
-}
-
-.sx-login__input-wrap {
   display: flex;
   align-items: stretch;
-  border-radius: 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(15, 23, 42, 0.55);
+  height: 2.85rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--ln-field-border);
+  background: var(--ln-field);
   overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
 }
 
 .sx-login__input-wrap:focus-within {
-  border-color: rgba(167, 139, 250, 0.55);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.22);
+  border-color: #818cf8;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14);
 }
 
 .sx-login__input-prefix {
   display: flex;
   align-items: center;
-  padding: 0 0.55rem 0 0.75rem;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: rgba(148, 163, 184, 0.95);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  user-select: none;
+  padding: 0 0.5rem 0 0.75rem;
+  color: #9ca3af;
+  border-right: 1px solid #e5e7eb;
+  font-size: 0.9rem;
 }
 
 .sx-login__input-prefix--ico {
-  padding: 0 0.5rem 0 0.65rem;
-  color: rgba(148, 163, 184, 0.9);
+  padding: 0 0.45rem 0 0.65rem;
 }
 
 .sx-login__field-ico {
   display: block;
+  width: 16px;
+  height: 16px;
 }
 
 .sx-login__input {
   width: 100%;
-  box-sizing: border-box;
-  padding: 0.6875rem 0.875rem;
-  border-radius: 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(15, 23, 42, 0.55);
-  color: #f8fafc;
-  font-size: 0.9375rem;
-  font-family: inherit;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  line-height: 1.45;
+  height: 100%;
+  padding: 0 0.8rem;
+  border: none;
+  background: transparent;
+  color: var(--ln-text);
+  font: 400 0.9rem/1 inherit;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.sx-login__input::placeholder {
-  color: rgba(148, 163, 184, 0.88);
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  opacity: 1;
-}
-
-.sx-login__input::-webkit-input-placeholder {
-  color: rgba(148, 163, 184, 0.88);
-  font-weight: 400;
-  letter-spacing: 0.02em;
 }
 
 .sx-login__input--inset {
   flex: 1;
   min-width: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
+  padding-left: 0.65rem;
 }
 
-.sx-login__input--inset:focus {
-  box-shadow: none;
+.sx-login__input::placeholder {
+  color: #9ca3af;
 }
 
 .sx-login__eye {
@@ -678,125 +506,129 @@
   justify-content: center;
   padding: 0 0.65rem;
   border: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid #e5e7eb;
   background: transparent;
-  color: rgba(148, 163, 184, 0.95);
+  color: #9ca3af;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
 }
 
 .sx-login__eye:hover {
-  color: #e2e8f0;
-  background: rgba(255, 255, 255, 0.04);
+  color: #4b5563;
+  background: #f9fafb;
 }
 
 .sx-login__eye-svg {
-  display: block;
+  width: 17px;
+  height: 17px;
 }
 
-.sx-login__forgot-wrap {
-  text-align: right;
-  margin: -0.25rem 0 1rem;
+.sx-login__link {
+  border: none;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  font: 600 0.84rem inherit;
+  color: #4f46e5;
 }
 
-.sx-login__forgot-wrap .sx-login__link {
-  font-size: 0.8125rem;
-  font-weight: 500;
+.sx-login__link:hover {
+  color: #7c3aed;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sx-login__link--inline {
+  display: inline;
+  font-size: inherit;
+}
+
+.sx-login__actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.15rem;
 }
 
 .sx-login__submit {
   width: 100%;
-  margin-top: 0.25rem;
-  padding: 0.875rem 1rem;
+  height: 3rem;
   border: none;
-  border-radius: 9999px;
-  font-family: inherit;
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-  text-transform: none;
-  color: #0a0612;
+  border-radius: 999px;
+  font: 700 1rem inherit;
+  color: #fff;
   cursor: pointer;
-  background: linear-gradient(105deg, #e9d5ff, #fbcfe8, #a5f3fc);
-  background-size: 200% 100%;
-  animation: sx-login-shimmer 8s ease infinite;
-  box-shadow: 0 8px 32px rgba(167, 139, 250, 0.35);
-  transition: transform 0.15s, filter 0.15s;
+  background: linear-gradient(105deg, #4f46e5 0%, #6366f1 40%, #a855f7 100%);
+  box-shadow:
+    0 10px 28px rgba(124, 58, 237, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  transition:
+    transform 0.15s,
+    filter 0.15s;
 }
 
 .sx-login__submit:hover {
   transform: translateY(-1px);
-  filter: brightness(1.05);
+  filter: brightness(1.04);
 }
 
-.sx-login__submit:active {
-  transform: translateY(0);
+.sx-login__submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.sx-login__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .sx-login__skip {
-  width: 100%;
-  margin-top: 0.65rem;
-  padding: 0.65rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 9999px;
-  font-family: inherit;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  line-height: 1.35;
-  color: rgba(226, 232, 240, 0.88);
+  border: none;
+  padding: 0.1rem;
+  background: none;
+  font: 600 0.9rem inherit;
+  color: var(--ln-muted);
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.04);
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .sx-login__skip:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.22);
-  color: #f8fafc;
-}
-
-.sx-login__skip:focus-visible {
-  outline: 2px solid rgba(56, 189, 248, 0.45);
-  outline-offset: 2px;
-}
-
-@keyframes sx-login-shimmer {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-.sx-login__submit-arrow {
-  margin-left: 0.35rem;
-  font-weight: 600;
+  color: #374151;
 }
 
 .sx-login__legal {
-  margin: 1.35rem 0 0;
-  font-size: 0.75rem;
-  font-weight: 400;
-  line-height: 1.65;
-  letter-spacing: -0.01em;
+  margin: 0;
+  font-size: 0.8rem;
+  color: #9ca3af;
   text-align: center;
-  color: rgba(203, 213, 225, 0.82);
 }
 
-.sx-login__legal .sx-login__link--inline {
-  font-size: inherit;
-  font-weight: 500;
+@media (max-height: 700px) {
+  .sx-login__heading {
+    margin-top: 0.25rem;
+  }
+
+  .sx-login__fields {
+    gap: 0.4rem;
+  }
+
+  .sx-login__google,
+  .sx-login__input-wrap,
+  .sx-login__input-wrap--phone,
+  .sx-login__dial-trigger {
+    height: 2.35rem;
+  }
+
+  .sx-login__submit {
+    height: 2.4rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sx-login__mesh,
-  .sx-login__orb--a,
-  .sx-login__orb--b,
-  .sx-login__orb--c,
-  .sx-login__submit {
-    animation: none !important;
+  .sx-login__ai-ring,
+  .sx-login__ai-glow {
+    animation: none;
   }
 }

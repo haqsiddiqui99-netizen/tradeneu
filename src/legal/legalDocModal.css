@@ -1,0 +1,144 @@
+.sx-legal {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+.sx-legal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.sx-legal__panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 44rem);
+  max-height: min(88dvh, 52rem);
+  border-radius: 1.15rem;
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+}
+
+.sx-legal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.sx-legal__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #111827;
+}
+
+.sx-legal__close {
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: #f3f4f6;
+  color: #4b5563;
+  font: 600 1.25rem/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.sx-legal__close:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.sx-legal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem 1.25rem 1.25rem;
+  color: #1f2937;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.sx-legal__body h4 {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.sx-legal__body h3:first-of-type {
+  margin-top: 0.35rem;
+}
+
+.sx-legal__body p,
+.sx-legal__body ul {
+  margin: 0 0 0.75rem;
+}
+
+.sx-legal__body ul {
+  padding-left: 1.2rem;
+}
+
+.sx-legal__body li {
+  margin-bottom: 0.35rem;
+}
+
+.sx-legal__body a {
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+.sx-legal__lead {
+  margin-bottom: 1rem !important;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.sx-legal__tldr {
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.55rem;
+  background: #eef2ff;
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  color: #3730a3;
+  font-size: 0.84rem;
+}
+
+.sx-legal__foot {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1.15rem;
+  border-top: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
+.sx-legal__done {
+  min-width: 6rem;
+  height: 2.35rem;
+  padding: 0 1.1rem;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(105deg, #4f46e5 0%, #6366f1 40%, #a855f7 100%);
+  color: #fff;
+  font: 700 0.85rem 'Plus Jakarta Sans', system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.sx-legal__done:hover {
+  filter: brightness(1.04);
+}

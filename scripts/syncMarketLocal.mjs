@@ -1,5 +1,5 @@
 /**
- * Sync Dukascopy market data into local SQLite (Phase 1 — XAUUSD).
+ * Sync Dukascopy market data into local SQLite.
  *
  * Usage:
  *   npm run market:sync
@@ -9,7 +9,9 @@
  *   npm run market:sync:10s
  *   npm run market:sync:seconds
  *   npm run market:sync -- --symbol XAUUSD --missing-only
+ *   npm run market:sync:bars -- --symbol EURUSD
  *
+ * Symbols: MARKET_SYNC_SYMBOLS=XAUUSD,EURUSD,… (all synced unless --symbol set)
  * Env: MARKET_DB_PATH, MARKET_*_RETENTION_DAYS (see .env.local.example)
  */
 
@@ -48,9 +50,22 @@ function loadEnvLocal() {
   }
 }
 
+function parseSymbolsFromEnv() {
+  const raw = process.env.MARKET_SYNC_SYMBOLS?.trim() || 'XAUUSD'
+  return [
+    ...new Set(
+      raw
+        .split(',')
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ]
+}
+
 function parseArgs(argv) {
   const out = {
-    symbol: process.env.MARKET_SYNC_SYMBOLS?.split(',')[0]?.trim() || 'XAUUSD',
+    /** When set, sync only this symbol; otherwise all MARKET_SYNC_SYMBOLS. */
+    symbol: /** @type {string | null} */ (null),
     ticksOnly: false,
     barsOnly: false,
     secondBarsOnly: false,
@@ -59,7 +74,7 @@ function parseArgs(argv) {
   }
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
-    if (a === '--symbol') out.symbol = String(argv[++i] || out.symbol).trim().toUpperCase()
+    if (a === '--symbol') out.symbol = String(argv[++i] || '').trim().toUpperCase() || null
     else if (a === '--ticks-only') out.ticksOnly = true
     else if (a === '--bars-only') out.barsOnly = true
     else if (a === '--second-bars-only') out.secondBarsOnly = true
@@ -89,8 +104,15 @@ function parseArgs(argv) {
 async function main() {
   loadEnvLocal()
   const args = parseArgs(process.argv)
+  const symbols = args.symbol ? [args.symbol] : parseSymbolsFromEnv()
+  if (!symbols.length) {
+    console.error('[market-sync] No symbols to sync (set MARKET_SYNC_SYMBOLS or --symbol)')
+    process.exitCode = 1
+    return
+  }
+
   console.log(`[market-sync] DB: ${marketDbPath()}`)
-  console.log(`[market-sync] Symbol: ${args.symbol}`)
+  console.log(`[market-sync] Symbols: ${symbols.join(', ')}`)
   if (args.missingOnly) console.log('[market-sync] Mode: missing-only (skip chunks already in SQLite)')
   if (args.secondBarsOnly) {
     console.log(
@@ -99,18 +121,33 @@ async function main() {
   }
 
   const started = Date.now()
+  let failed = 0
   try {
-    await syncSymbolLocal({
-      symbol: args.symbol,
-      ticks: !args.barsOnly && !args.secondBarsOnly,
-      bars: !args.ticksOnly && !args.secondBarsOnly,
-      secondBarsOnly: args.secondBarsOnly,
-      secondBars: !args.barsOnly,
-      secondSteps: args.secondSteps ?? undefined,
-      missingOnly: args.missingOnly,
-    })
+    for (const symbol of symbols) {
+      console.log(`[market-sync] ——— ${symbol} ———`)
+      try {
+        await syncSymbolLocal({
+          symbol,
+          ticks: !args.barsOnly && !args.secondBarsOnly,
+          bars: !args.ticksOnly && !args.secondBarsOnly,
+          secondBarsOnly: args.secondBarsOnly,
+          secondBars: !args.barsOnly,
+          secondSteps: args.secondSteps ?? undefined,
+          missingOnly: args.missingOnly,
+        })
+      } catch (err) {
+        failed += 1
+        console.error(
+          `[market-sync] Failed ${symbol}:`,
+          err instanceof Error ? err.message : err,
+        )
+      }
+    }
     const elapsed = Math.round((Date.now() - started) / 1000)
-    console.log(`[market-sync] Completed in ${elapsed}s`)
+    console.log(
+      `[market-sync] Completed in ${elapsed}s (${symbols.length - failed}/${symbols.length} symbols ok)`,
+    )
+    if (failed) process.exitCode = 1
   } catch (err) {
     console.error('[market-sync] Failed:', err instanceof Error ? err.message : err)
     process.exitCode = 1

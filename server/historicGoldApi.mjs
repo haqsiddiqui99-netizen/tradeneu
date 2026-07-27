@@ -32,6 +32,7 @@ import { getCachedMarketTicks, marketTicksCacheKey } from './providers/marketTic
 import { resolveMarketTicks } from './providers/marketLocalResolve.mjs'
 import { getLocalStoreStats, marketDbPath, marketLocalEnabled } from './providers/marketLocalDb.mjs'
 import { mountLocalAuthRoutes } from './auth/localAuth.mjs'
+import { mountGoogleAuthRoutes } from './auth/googleOAuth.mjs'
 import { authStorageStatus } from './auth/userPersistence.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -136,6 +137,7 @@ app.use((req, res, next) => {
 })
 
 mountLocalAuthRoutes(app, { dataDir: DATA_DIR })
+mountGoogleAuthRoutes(app, { dataDir: DATA_DIR })
 const authStorage = authStorageStatus()
 if (authStorage.ready) {
   console.log(`[auth] user storage: ${authStorage.backend}`)
