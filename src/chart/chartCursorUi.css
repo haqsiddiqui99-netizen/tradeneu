@@ -12,19 +12,35 @@
   cursor: grabbing !important;
 }
 
-/* Scissors pick: system cursor hidden — scissors icon is the cursor. */
+/* Scissors pick: hide system cursor over the plot only — not page/dock/TV toolbars. */
 .rw-chart-host.rw-chart-cursor--none,
 .rw-chart-host.rw-chart-cursor--none .rw-chart-lwc,
 .rw-chart-host.rw-chart-cursor--none .rw-chart-lwc *,
-.rw-chart-host.rw-chart-cursor--none .rw-chart-tv,
-.rw-chart-host.rw-chart-cursor--none .rw-chart-tv iframe,
 .rw-chart-host.rw-chart-host--scissors-pick,
 .rw-chart-host.rw-chart-host--scissors-pick .rw-chart-lwc,
 .rw-chart-host.rw-chart-host--scissors-pick .rw-chart-lwc *,
-.rw-chart-host.rw-chart-host--scissors-pick .rw-chart-tv,
-.rw-chart-host.rw-chart-host--scissors-pick .rw-chart-tv iframe,
-.rw-chart-canvas:has(.rw-select-bar-overlay--active) .rw-chart-host,
 .rw-chart-canvas:has(.rw-select-bar-overlay--active) .rw-chart-host .rw-chart-lwc,
 .rw-chart-canvas:has(.rw-select-bar-overlay--active) .rw-chart-host .rw-chart-lwc * {
   cursor: none !important;
+}
+
+/* Keep iframe itself from forcing cursor:none onto parent chrome; plot canvases are
+   handled inside the iframe style injected during scissors pick. */
+.rw-chart-host.rw-chart-host--scissors-pick .rw-chart-tv,
+.rw-chart-host.rw-chart-host--scissors-pick .rw-chart-tv iframe,
+.rw-chart-host.rw-chart-cursor--none .rw-chart-tv,
+.rw-chart-host.rw-chart-cursor--none .rw-chart-tv iframe {
+  cursor: none;
+}
+
+/* Restore normal cursors on chart-page chrome while scissors pick is active. */
+.rw-chart-canvas:has(.rw-select-bar-overlay--active) .rw-chart-float__btn,
+.rw-chart-canvas:has(.rw-select-bar-overlay--active) .rw-replay-dock button,
+.rw-chart-canvas:has(.rw-select-bar-overlay--active) .rw-replay-dock [role='button'],
+.rw-root:has(.rw-select-bar-overlay--active) .rw-toolbar button,
+.rw-root:has(.rw-select-bar-overlay--active) .rw-side button,
+.rw-root:has(.rw-select-bar-overlay--active) .rw-topbar button,
+.rw-root:has(.rw-select-bar-overlay--active) a,
+.rw-root:has(.rw-select-bar-overlay--active) button {
+  cursor: pointer !important;
 }

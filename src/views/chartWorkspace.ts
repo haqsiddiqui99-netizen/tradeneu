@@ -633,6 +633,7 @@ export function mountChartWorkspace(
             <div class="rw-select-bar-overlay" data-rw-select-bar-overlay hidden aria-hidden="true">
               <div class="rw-select-bar-overlay__hit" data-rw-select-bar-hit aria-hidden="true"></div>
               <div class="rw-select-bar-overlay__blur" data-rw-select-bar-blur aria-hidden="true"></div>
+              <div class="rw-select-bar-overlay__past-end" data-rw-select-bar-past-end aria-hidden="true"></div>
               <div class="rw-select-bar-overlay__line" data-rw-select-bar-line></div>
               <div class="rw-select-bar-overlay__scissors" data-rw-select-bar-scissors aria-hidden="true">${icons.scissorsSelectBar}</div>
             </div>
@@ -5775,17 +5776,39 @@ export function mountChartWorkspace(
       return layout?.plotOffsetX ?? layout?.iframeOffsetX ?? 0
     }
 
+    function clampClientXToLastCandle(clientX: number): number {
+      const maxIdx = maxPickBarIndex()
+      const xMax = lineXAtBarIndex(maxIdx)
+      if (xMax == null || !Number.isFinite(xMax)) return clientX
+      const hostRect = chartHost.getBoundingClientRect()
+      const lastClientX = hostRect.left + xMax
+      return Math.min(clientX, lastClientX)
+    }
+
+    function updateSelectBarPastEndCover() {
+      if (!selectBarOverlay) return
+      const maxIdx = maxPickBarIndex()
+      const xMax = lineXAtBarIndex(maxIdx)
+      if (xMax == null || !Number.isFinite(xMax)) {
+        selectBarOverlay.style.setProperty('--sb-past-end-left', '100%')
+        return
+      }
+      // Start just after the last candle center so empty future space cannot drive TV’s cursor.
+      selectBarOverlay.style.setProperty('--sb-past-end-left', `${Math.max(0, xMax + 1)}px`)
+    }
+
     function pickIndexAtClientX(clientX: number): number {
       const allBars = replay.getBars()
       if (allBars.length === 0) return pickStableIdx
       const maxIdx = maxPickBarIndex()
+      const clampedX = clampClientXToLastCandle(clientX)
       if (state.tvChart) {
-        const raw = pickScissorsBarIndexAtClientX(clientX)
-        return stabilizeScissorsPickIndex(clientX, raw, pickStableIdx)
+        const raw = pickScissorsBarIndexAtClientX(clampedX)
+        return Math.max(0, Math.min(maxIdx, stabilizeScissorsPickIndex(clampedX, raw, pickStableIdx)))
       }
       if (!state.trading) return pickStableIdx
       const rect = chartLwc.getBoundingClientRect()
-      const x = clientX - rect.left
+      const x = clampedX - rect.left
       const logical = state.trading.chart.timeScale().coordinateToLogical(x)
       if (logical == null || !Number.isFinite(Number(logical))) return Math.min(pickStableIdx, maxIdx)
       return Math.max(0, Math.min(maxIdx, Math.round(Number(logical))))
@@ -5858,6 +5881,14 @@ export function mountChartWorkspace(
 
     /** Keep scissors clear of the icon half-height at the plot edges. */
     const SELECT_BAR_SCISSORS_PAD_PX = 8
+    /** Wash starts just below OHLC / above Volume so candle tips in that band stay hidden. */
+    const SELECT_BAR_LEGEND_CLEAR_PX = 30
+    /**
+     * Minimum bottom inset so wash never paints over the time-axis label strip.
+     */
+    const SELECT_BAR_WASH_BOTTOM_MIN_PX = 72
+    /** Keep wash off the right price scale (“clock” axis). */
+    const SELECT_BAR_PRICE_AXIS_RIGHT_MIN_PX = 72
     /** Ignore click-to-pick after a drag/pan larger than this. */
     const SELECT_BAR_PAN_SLOP_PX = 8
 
@@ -5901,14 +5932,35 @@ export function mountChartWorkspace(
       applyPlotClipVars(replayMaskOverlay, clip)
       applyPlotClipVars(selectBarTimeFlyout, clip)
       if (selectBarOverlay) {
-        // Full plot: line + wash + hit all from plot top → time axis.
-        selectBarOverlay.style.setProperty('--sb-blur-top', `${clip.top}px`)
+        // Wash just below OHLC (above Volume); keep off time axis + price scales.
+        const washTop = clip.top + SELECT_BAR_LEGEND_CLEAR_PX
+        const washBottom = Math.max(SELECT_BAR_WASH_BOTTOM_MIN_PX, clip.bottom)
+        const axisRight = Math.max(SELECT_BAR_PRICE_AXIS_RIGHT_MIN_PX, clip.right)
+        selectBarOverlay.style.setProperty('--sb-blur-top', `${washTop}px`)
+        selectBarOverlay.style.setProperty('--sb-blur-bottom', `${washBottom}px`)
+        selectBarOverlay.style.setProperty('--sb-right', `${axisRight}px`)
+        selectBarOverlay.style.setProperty('--sb-left', `${Math.max(0, clip.left)}px`)
         selectBarOverlay.style.setProperty('--sb-hit-top', `${clip.top}px`)
         selectBarOverlay.style.setProperty('--sb-line-top', `${clip.top}px`)
         selectBarOverlay.style.removeProperty('--sb-ohlc-cut-h')
         selectBarOverlay.style.removeProperty('--sb-hit-bottom')
         selectBarOverlay.style.removeProperty('--sb-wash-bottom')
+        selectBarOverlay.style.removeProperty('--sb-legend-notch-w')
+        selectBarOverlay.style.removeProperty('--sb-legend-notch-h')
       }
+    }
+
+    /** Park wash/line off-chart until the pointer places a scissors pick. */
+    function parkSelectBarCursorOffChart() {
+      if (!selectBarOverlay) return
+      updateSelectBarPlotClip()
+      const clip = readSelectBarClipInsets()
+      const w = selectBarOverlay.clientWidth || 0
+      const axisRight = Math.max(SELECT_BAR_PRICE_AXIS_RIGHT_MIN_PX, clip.right)
+      const x = Math.max(clip.left, w - axisRight)
+      selectBarOverlay.style.setProperty('--sx', `${x}px`)
+      selectBarOverlay.style.setProperty('--sy', `${clip.top + SELECT_BAR_SCISSORS_PAD_PX}px`)
+      chartCanvas.style.setProperty('--rw-sb-sx', `${x}px`)
     }
 
     function paintSelectBarCursor(lineX: number, offsetY?: number) {
@@ -5917,7 +5969,8 @@ export function mountChartWorkspace(
       const clip = readSelectBarClipInsets()
       const w = selectBarOverlay.clientWidth
       const h = selectBarOverlay.clientHeight
-      const x = Math.max(clip.left, Math.min(w - clip.right, lineX))
+      const axisRight = Math.max(SELECT_BAR_PRICE_AXIS_RIGHT_MIN_PX, clip.right)
+      const x = Math.max(clip.left, Math.min(w - axisRight, lineX))
       // Scissors travel the full plot height.
       const yMin = clip.top + SELECT_BAR_SCISSORS_PAD_PX
       const yMax = Math.max(yMin, h - clip.bottom - SELECT_BAR_SCISSORS_PAD_PX)
@@ -5929,6 +5982,7 @@ export function mountChartWorkspace(
       selectBarOverlay.style.setProperty('--sx', `${x}px`)
       selectBarOverlay.style.setProperty('--sy', `${y}px`)
       setSelectBarOverLegend(false)
+      updateSelectBarPastEndCover()
 
       const canvasRect = chartCanvas.getBoundingClientRect()
       const hostRect = chartHost.getBoundingClientRect()
@@ -5980,11 +6034,12 @@ export function mountChartWorkspace(
     }
 
     function updateSelectBarLabel(clientX: number): number {
-      const idx = pickIndexAtClientX(clientX)
+      const idx = pickIndexAtClientX(clampClientXToLastCandle(clientX))
       pickStableIdx = idx
       lastSnappedSliceIndex = idx
       applySelectBarPickPreview(idx)
       if (selectBarTimeEl) selectBarTimeEl.textContent = formatSelectBarPickLabel(idx)
+      updateSelectBarPastEndCover()
       return idx
     }
 
@@ -6019,13 +6074,17 @@ export function mountChartWorkspace(
       }
       const hostRect = chartHost.getBoundingClientRect()
       const y = clientY - hostRect.top
-      lastPointerClientX = clientX
+      const clampedX = clampClientXToLastCandle(clientX)
+      lastPointerClientX = clampedX
       lastPointerClientY = clientY
-      const idx = pickIndexAtClientX(clientX)
+      const idx = pickIndexAtClientX(clampedX)
       const idxChanged = idx !== pickStableIdx
       pickStableIdx = idx
       lastSnappedSliceIndex = idx
       const lineX = lineXAtBarIndex(idx)
+      updateSelectBarPastEndCover()
+      // Keep TV crosshair suppressed — empty future space must not show a black time badge.
+      state.tvChart?.setCrosshairVisible(false)
       if (lineX != null) {
         paintSelectBarCursor(lineX, y)
         setSelectBarPointerInChart(true)
@@ -6063,6 +6122,8 @@ export function mountChartWorkspace(
         if (selectBarTimeEl) selectBarTimeEl.textContent = formatSelectBarPickLabel(pickStableIdx)
         setSelectBarPointerInChart(true)
       }
+      updateSelectBarPastEndCover()
+      state.tvChart?.setCrosshairVisible(false)
     }
 
     const onSelectBarChartRangeChange = () => {
@@ -6124,7 +6185,7 @@ export function mountChartWorkspace(
 
     const SB_IFRAME_CURSOR_STYLE_ID = 'rw-sb-cursor-none-style'
 
-    /** Hide OS/TV cursor while scissors pick is active — scissors icon is the cursor. */
+    /** Hide OS/TV cursor over the plot only — toolbars / dock / page chrome keep a normal cursor. */
     function setSelectBarScissorsCursor(on: boolean) {
       chartHost.classList.toggle('rw-chart-host--scissors-pick', on)
       chartCursorUi?.refresh()
@@ -6139,8 +6200,12 @@ export function mountChartWorkspace(
           if (!style) {
             style = doc.createElement('style')
             style.id = SB_IFRAME_CURSOR_STYLE_ID
-            style.textContent =
-              'html, body, canvas, table, td, div, span, a, button, * { cursor: none !important; }'
+            // Canvases = price/time panes only. Do not blanket `*` or body — that hides the
+            // cursor on TV drawing tools, top bar, and other chart-page chrome.
+            style.textContent = [
+              'canvas { cursor: none !important; }',
+              '.chart-markup-table { cursor: none !important; }',
+            ].join('\n')
             ;(doc.head ?? doc.documentElement).appendChild(style)
           }
         } else {
@@ -6187,7 +6252,11 @@ export function mountChartWorkspace(
         selectBarOverlay.style.removeProperty('--sb-bottom')
         selectBarOverlay.style.removeProperty('--sb-right')
         selectBarOverlay.style.removeProperty('--sb-wash-bottom')
+        selectBarOverlay.style.removeProperty('--sb-blur-bottom')
         selectBarOverlay.style.removeProperty('--sb-hit-bottom')
+        selectBarOverlay.style.removeProperty('--sb-legend-notch-w')
+        selectBarOverlay.style.removeProperty('--sb-legend-notch-h')
+        selectBarOverlay.style.removeProperty('--sb-past-end-left')
       }
       if (selectBarTimeFlyout) {
         selectBarTimeFlyout.hidden = true
@@ -6296,7 +6365,8 @@ export function mountChartWorkspace(
       lastPointerClientX = null
       lastPointerClientY = null
       setSelectBarPointerInChart(false)
-      updateSelectBarPlotClip()
+      parkSelectBarCursorOffChart()
+      updateSelectBarPastEndCover()
       // Allow chart pan/zoom while scissors are active — do not freeze the viewport.
       state.tvChart?.setViewportFreeze(null)
       unsubscribeTvTimeScaleChange?.()

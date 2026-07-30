@@ -1552,12 +1552,14 @@ export async function createTradingViewChart(
     setCrosshairVisible(visible) {
       try {
         const transparency = visible ? 0 : 100
-        widget.applyOverrides({
+        const overrides: Record<string, unknown> = {
           'paneProperties.crossHairProperties.transparency': transparency,
-        })
-        widget.activeChart()?.applyOverrides?.({
-          'paneProperties.crossHairProperties.transparency': transparency,
-        })
+          // Hide TV's black time/price crosshair pills while scissors use our blue label.
+          'scalesProperties.showTimeScaleCrosshairLabel': visible,
+          'scalesProperties.showPriceScaleCrosshairLabel': visible,
+        }
+        widget.applyOverrides(overrides)
+        widget.activeChart()?.applyOverrides?.(overrides)
       } catch {
         /* ignore */
       }

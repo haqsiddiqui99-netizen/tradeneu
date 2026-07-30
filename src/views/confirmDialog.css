@@ -99,8 +99,8 @@
 }
 
 .sx-confirm-dlg__btn--confirm.sx-confirm-dlg__btn--danger {
-  border-color: rgba(244, 63, 94, 0.45);
-  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+  border-color: rgba(184, 160, 106, 0.45);
+  background: linear-gradient(135deg, #64748b 0%, #334155 100%);
 }
 
 .sx-confirm-dlg__btn:focus-visible {

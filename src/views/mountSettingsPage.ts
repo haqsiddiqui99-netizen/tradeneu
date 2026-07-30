@@ -30,6 +30,7 @@ export type MountSettingsPageOptions = {
   getAuthUser?: () => AuthUser | null
   onOpenSubscription?: () => void
   onDisplayNameChange?: (name: string) => void
+  onAvatarChange?: () => void
   freeSessionLimit?: number
 }
 
@@ -480,6 +481,7 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
       .then((dataUrl) => {
         writeUserAvatar(dataUrl)
         applyAvatar(dataUrl)
+        opts.onAvatarChange?.()
         flashSaved(accountSavedEl, 'Photo updated')
         dpFile.value = ''
       })
@@ -493,6 +495,7 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
   dpRemoveBtn?.addEventListener('click', () => {
     writeUserAvatar(null)
     applyAvatar(null)
+    opts.onAvatarChange?.()
     flashSaved(accountSavedEl, 'Photo removed')
   })
 

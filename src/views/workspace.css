@@ -1461,32 +1461,54 @@ button.rw-legend-status-btn:focus-visible {
   pointer-events: none;
 }
 
-/* Bar-pick: future candles stay half-visible (opacity wash — not blur).
-   Cover full plot height to the time axis so wicks are not left undimmed. */
+/* Bar-pick: wash hides candles right of scissors (pointer-in only).
+   Top inset = just below OHLC (above Volume). Bottom / side insets keep axes clear.
+   Default wash is light — never paint a black slab on light charts. */
 .rw-select-bar-overlay__blur {
   display: none;
   position: absolute;
-  left: var(--sx, 50%);
+  left: max(var(--sx, 100%), var(--sb-left, 0px));
   top: var(--sb-blur-top, var(--sb-top, 0));
-  right: var(--sb-right, 56px);
-  bottom: var(--sb-bottom, 0);
+  right: var(--sb-right, 68px);
+  bottom: var(--sb-blur-bottom, var(--sb-bottom, 0));
   pointer-events: none;
   z-index: 0;
+  background: rgba(255, 255, 255, 0.88);
 }
 
 .rw-select-bar-overlay--active .rw-select-bar-overlay__blur {
   display: none;
-  /* Near-opaque wash so future candles (incl. high wicks) read as covered */
-  background: rgba(19, 23, 34, 0.88);
 }
 
 .rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in .rw-select-bar-overlay__blur {
   display: block;
 }
 
-.rw-root[data-chart-theme='light'] .rw-select-bar-overlay--active .rw-select-bar-overlay__blur,
-.rw-root--tv[data-chart-theme='light'] .rw-select-bar-overlay--active .rw-select-bar-overlay__blur {
-  background: rgba(255, 255, 255, 0.88);
+.rw-root[data-chart-theme='dark'] .rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in .rw-select-bar-overlay__blur,
+.rw-root--tv[data-chart-theme='dark']
+  .rw-select-bar-overlay--active.rw-select-bar-overlay--pointer-in
+  .rw-select-bar-overlay__blur {
+  background: rgba(19, 23, 34, 0.88);
+}
+
+/* Capture hits past the last candle so TV cannot show a black time label in empty space.
+   bottom:0 covers the time-axis strip (where the black time pill draws); right inset
+   keeps the price scale + range controls clear. */
+.rw-select-bar-overlay__past-end {
+  display: none;
+  position: absolute;
+  top: var(--sb-top, 0);
+  bottom: 0;
+  left: var(--sb-past-end-left, 100%);
+  right: var(--sb-right, 68px);
+  z-index: 4;
+  pointer-events: auto;
+  cursor: none;
+  background: transparent;
+}
+
+.rw-select-bar-overlay--active .rw-select-bar-overlay__past-end {
+  display: block;
 }
 
 /* TV replay playback mask — keep solid hide for unrevealed bars during play. */
@@ -1542,7 +1564,7 @@ button.rw-legend-status-btn:focus-visible {
   pointer-events: none;
   width: 18px;
   height: 22px;
-  z-index: 1;
+  z-index: 3;
 }
 
 .rw-select-bar-time-flyout .rw-select-bar-overlay__time {
@@ -1598,7 +1620,7 @@ button.rw-legend-status-btn:focus-visible {
 
 .rw-select-bar-overlay__line {
   position: absolute;
-  /* Full plot height: plot top → time axis (no masks / cuts). */
+  /* Full plot height: plot top → time axis (solid). */
   top: var(--sb-line-top, var(--sb-top, 0));
   bottom: var(--sb-bottom, 0);
   left: var(--sx, 50%);
@@ -1607,7 +1629,7 @@ button.rw-legend-status-btn:focus-visible {
   background: #2962ff;
   pointer-events: none;
   border-radius: 1px;
-  z-index: 1;
+  z-index: 3;
 }
 
 /* Time pill lives outside .rw-chart-host so it can paint above the replay dock (z-index:8). */
@@ -1625,20 +1647,25 @@ button.rw-legend-status-btn:focus-visible {
 .rw-select-bar-time-flyout .rw-select-bar-overlay__time {
   position: absolute;
   left: var(--rw-sb-sx, 50%);
-  /* Straddle the plot bottom / time-axis line, directly under the selection line (TV-style). */
-  top: calc(100% - var(--sb-bottom, 22px));
+  /* Align with time-axis hairline; TV black crosshair time is hidden while picking. */
+  top: calc(100% - var(--sb-bottom, 28px) - 1px);
   bottom: auto;
-  transform: translate3d(-50%, -50%, 0);
-  padding: 4px 10px;
-  border-radius: 4px;
+  transform: translate3d(-50%, 0, 0);
+  padding: 3px 8px;
+  border-radius: 3px;
   background: #2962ff;
   color: #fff;
-  font: 600 12px/1.25 var(--rw-font);
+  font: 600 11px/1.2 var(--rw-font);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 2px 8px rgba(19, 23, 34, 0.18);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 1px 4px rgba(19, 23, 34, 0.16);
+  min-height: 0;
+  min-width: 0;
+  width: max-content;
+  box-sizing: border-box;
+  z-index: 2;
 }
 
 /* TradingView: volume readout — hidden (OHLC lives in subbar, FXReplay-style). */

@@ -5,7 +5,7 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #f8fafc;
+  background: #F1F5F9;
   color: #0f172a;
   font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
 }
@@ -65,7 +65,7 @@
 }
 
 .sx-sub-page__back:hover {
-  background: #f8fafc;
+  background: #F1F5F9;
   border-color: #cbd5e1;
   color: #0f172a;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
@@ -232,12 +232,12 @@
 }
 
 .sx-sub-manage__item:hover {
-  background: #f8fafc;
+  background: #F1F5F9;
 }
 
 .sx-sub-manage__item--danger,
 .sx-sub-manage__item--danger i {
-  color: #be123c;
+  color: #1E293B;
 }
 
 .sx-sub-manage-panel {
@@ -349,7 +349,7 @@
 .sx-sub-manage-danger-btn {
   border-color: #fecaca !important;
   background: #fef2f2 !important;
-  color: #be123c !important;
+  color: #1E293B !important;
 }
 
 .sx-sub-manage-danger-btn:hover:not(:disabled) {
@@ -449,7 +449,7 @@
 .sx-sub-card-shell--current {
   box-shadow:
     -12px 0 32px rgba(66, 133, 244, 0.28),
-    10px 0 26px rgba(168, 85, 247, 0.12),
+    10px 0 26px rgba(15, 23, 42, 0.12),
     0 14px 32px rgba(15, 23, 42, 0.08);
 }
 
@@ -478,7 +478,7 @@
     #34a853 72deg,
     #fbbc05 144deg,
     #ea4335 216deg,
-    #a855f7 288deg,
+    #334155 288deg,
     #4285f4 360deg
   );
   animation: sx-sub-ai-spin 3.5s linear infinite;
@@ -600,34 +600,36 @@
   color: #64748b;
 }
 
-.sx-sub-card__deal {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.15rem;
-  margin-left: 0.15rem;
-  line-height: 1.15;
-}
-
 .sx-sub-card__was {
-  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  margin-left: 0.15rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: #94a3b8;
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
 }
 
-.sx-sub-card__save-badge {
+.sx-sub-card__was-amount {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  color: #94a3b8;
+}
+
+.sx-sub-card__top .sx-sub-card__save-badge {
   display: inline-flex;
   align-items: center;
-  border-radius: 0.45rem;
+  border-radius: 999px;
   background: #e11d48;
   color: #fff;
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  padding: 0.28rem 0.5rem;
+  text-transform: none;
+  padding: 0.2rem 0.5rem;
   white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.28);
 }
 
 .sx-sub-card__tax {
@@ -669,7 +671,7 @@
   content: '∞';
   margin-right: 0.45rem;
   font-weight: 700;
-  color: #e11d48;
+  color: #334155;
 }
 
 .sx-sub-card__cta {
@@ -687,7 +689,7 @@
 }
 
 .sx-sub-card__cta:hover:not(:disabled) {
-  background: #f8fafc;
+  background: #F1F5F9;
 }
 
 .sx-sub-card__cta:disabled {
@@ -697,12 +699,12 @@
 
 .sx-sub-card__cta--primary {
   border-color: transparent;
-  background: #e11d48;
+  background: #334155;
   color: #fff;
 }
 
 .sx-sub-card__cta--primary:hover:not(:disabled) {
-  background: #be123c;
+  background: #1E293B;
 }
 
 .sx-sub-card__cta--ghost {
@@ -840,7 +842,7 @@ body.sx-checkout-open {
   border: 1px solid #e2e8f0;
   border-radius: 1rem;
   background: #fff;
-  box-shadow: 0 28px 64px rgba(15, 23, 42, 0.28);
+  box-shadow: 0 28px 64px rgba(51, 65, 85, 0.28);
 }
 
 .sx-checkout__top {
@@ -866,7 +868,7 @@ body.sx-checkout-open {
   width: 2.15rem;
   height: 2.15rem;
   border-radius: 0.65rem;
-  background: linear-gradient(135deg, #e11d48, #be123c);
+  background: linear-gradient(135deg, #334155, #1E293B);
   color: #fff;
   font-size: 0.7rem;
   font-weight: 800;
@@ -891,14 +893,14 @@ body.sx-checkout-open {
   height: 2rem;
   border: 0;
   border-radius: 999px;
-  background: #f8fafc;
+  background: #F1F5F9;
   color: #64748b;
   cursor: pointer;
 }
 
 .sx-checkout__x:hover {
-  background: #fff1f2;
-  color: #be123c;
+  background: #f1f5f9;
+  color: #1E293B;
 }
 
 .sx-checkout__scroll {
@@ -921,7 +923,7 @@ body.sx-checkout-open {
   padding: 0.85rem 0.95rem;
   border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
-  background: #f8fafc;
+  background: #F1F5F9;
 }
 
 .sx-checkout__order-kicker {
@@ -999,7 +1001,7 @@ body.sx-checkout-open {
 }
 
 .sx-checkout__totals-row--total strong {
-  color: #be123c;
+  color: #1E293B;
   font-size: 1.05rem;
 }
 
@@ -1015,7 +1017,7 @@ body.sx-checkout-open {
 }
 
 .sx-checkout__coupon-icon {
-  color: #e11d48;
+  color: #334155;
   font-size: 0.85rem;
 }
 
@@ -1035,8 +1037,8 @@ body.sx-checkout-open {
   padding: 0 0.8rem;
   border: 0;
   border-radius: 0.5rem;
-  background: #fff1f2;
-  color: #be123c;
+  background: #f1f5f9;
+  color: #1E293B;
   font: inherit;
   font-size: 0.75rem;
   font-weight: 700;
@@ -1051,7 +1053,7 @@ body.sx-checkout-open {
 }
 
 .sx-checkout__coupon-msg.is-error {
-  color: #be123c;
+  color: #1E293B;
 }
 
 .sx-checkout__coupon-msg.is-ok {
@@ -1103,9 +1105,9 @@ body.sx-checkout-open {
 
 .sx-checkout__field input:focus,
 .sx-checkout__field select:focus {
-  outline: 2px solid #fda4af;
+  outline: 2px solid #94a3b8;
   outline-offset: 1px;
-  border-color: #fb7185;
+  border-color: #64748b;
 }
 
 .sx-checkout__field-row {
@@ -1251,7 +1253,7 @@ body.sx-checkout-open {
   margin: 0.75rem 0 0;
   min-height: 1.1rem;
   font-size: 0.75rem;
-  color: #be123c;
+  color: #1E293B;
 }
 
 .sx-checkout__cta {
@@ -1263,17 +1265,17 @@ body.sx-checkout-open {
   height: 2.85rem;
   border: 0;
   border-radius: 0.65rem;
-  background: linear-gradient(135deg, #e11d48, #be123c);
+  background: linear-gradient(135deg, #334155, #1E293B);
   color: #fff;
   font: inherit;
   font-size: 0.9375rem;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(225, 29, 72, 0.25);
+  box-shadow: 0 10px 24px rgba(51, 65, 85, 0.25);
 }
 
 .sx-checkout__cta:hover {
-  background: linear-gradient(135deg, #be123c, #9f1239);
+  background: linear-gradient(135deg, #1E293B, #0f172a);
 }
 
 .sx-checkout__secure {
@@ -1318,7 +1320,7 @@ body.sx-checkout-open {
   margin: 0.45rem 0 0;
   font-size: 0.9375rem;
   font-weight: 700;
-  color: #be123c;
+  color: #1E293B;
 }
 
 .sx-checkout__done-msg {
@@ -1336,5 +1338,94 @@ body.sx-checkout-open {
 
   .sx-checkout__pay-body {
     padding-left: 0.95rem;
+  }
+}
+
+/* Upgrade Pro header — plans popup */
+.sx-sub-upgrade-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.sx-sub-upgrade-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.sx-sub-upgrade-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: min(72rem, calc(100vw - 1.5rem));
+  max-height: min(92vh, 54rem);
+  overflow: auto;
+  border-radius: 1.35rem;
+  background: #fff;
+  box-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.22),
+    0 0 0 1px rgba(226, 232, 240, 0.9);
+}
+
+.sx-sub-upgrade-modal__x {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 5;
+  width: 2.15rem;
+  height: 2.15rem;
+  border: 0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sx-sub-upgrade-modal__x:hover {
+  background: #fff1f2;
+  color: #e11d48;
+}
+
+.sx-sub-upgrade-modal__body {
+  min-height: 12rem;
+}
+
+.sx-sub-upgrade-modal__body .sx-sub-page--embedded {
+  border: 0;
+  border-radius: 1.35rem;
+  box-shadow: none;
+  background: #fff;
+}
+
+.sx-sub-upgrade-modal__body .sx-sub-page--embedded .sx-sub-page__head {
+  border-radius: 1.35rem 1.35rem 0 0;
+  padding-right: 3rem;
+}
+
+.sx-sub-upgrade-modal__body .sx-sub-compare {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .sx-sub-upgrade-modal {
+    padding: 0.5rem;
+    align-items: flex-end;
+  }
+
+  .sx-sub-upgrade-modal__panel {
+    width: 100%;
+    max-height: 94vh;
+    border-radius: 1.15rem 1.15rem 0.5rem 0.5rem;
   }
 }

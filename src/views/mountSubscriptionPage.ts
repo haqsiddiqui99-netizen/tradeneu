@@ -25,14 +25,14 @@ const PRICING = {
       label: '9',
       period: '/month',
       original: '$19',
-      save: 'Save $10',
+      save: 'Save $10/monthly',
     },
     pro: {
       amount: 19,
       label: '19',
       period: '/month',
       original: '$29',
-      save: 'Save $10',
+      save: 'Save $10/monthly',
     },
   },
   yearly: {
@@ -42,7 +42,8 @@ const PRICING = {
       period: '/month',
       original: '$19',
       billed: 'Billed yearly · $84/year',
-      save: 'Save $144/yr',
+      // List $19×12 = $228 − $84 billed = $144
+      save: 'Save $144/yearly',
     },
     pro: {
       amount: 15,
@@ -50,7 +51,8 @@ const PRICING = {
       period: '/month',
       original: '$29',
       billed: 'Billed yearly · $180/year',
-      save: 'Save $168/yr',
+      // List $29×12 = $348 − $180 billed = $168
+      save: 'Save $168/yearly',
     },
   },
 } as const
@@ -217,15 +219,16 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
           <div class="sx-sub-card">
             <div class="sx-sub-card__top">
               <h2 class="sx-sub-card__name">Pro</h2>
-              ${tier === 'intermediate' ? '<span class="sx-sub-card__badge">Current plan</span>' : ''}
+              ${
+                tier === 'intermediate'
+                  ? '<span class="sx-sub-card__badge">Current plan</span>'
+                  : `<span class="sx-sub-card__save-badge" data-sx-save-mid>${PRICING.monthly.intermediate.save}</span>`
+              }
             </div>
             <p class="sx-sub-card__price">
               <span class="sx-sub-card__amount" data-sx-price-mid>9</span>
               <span class="sx-sub-card__unit">$<span data-sx-period-mid>/month</span></span>
-              <span class="sx-sub-card__deal">
-                <span class="sx-sub-card__was" data-sx-was-mid>$19</span>
-                <span class="sx-sub-card__save-badge" data-sx-save-mid>Save $10</span>
-              </span>
+              <span class="sx-sub-card__was">Original Price <span class="sx-sub-card__was-amount" data-sx-was-mid>$19</span></span>
             </p>
             <p class="sx-sub-card__tax">*Taxes may apply</p>
             <p class="sx-sub-card__billed" data-sx-billed-mid hidden></p>
@@ -246,15 +249,16 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
           <div class="sx-sub-card">
             <div class="sx-sub-card__top">
               <h2 class="sx-sub-card__name">Pro Max</h2>
-              ${tier === 'pro' ? '<span class="sx-sub-card__badge">Current plan</span>' : ''}
+              ${
+                tier === 'pro'
+                  ? '<span class="sx-sub-card__badge">Current plan</span>'
+                  : `<span class="sx-sub-card__save-badge" data-sx-save-pro>${PRICING.monthly.pro.save}</span>`
+              }
             </div>
             <p class="sx-sub-card__price">
               <span class="sx-sub-card__amount" data-sx-price-pro>19</span>
               <span class="sx-sub-card__unit">$<span data-sx-period-pro>/month</span></span>
-              <span class="sx-sub-card__deal">
-                <span class="sx-sub-card__was" data-sx-was-pro>$29</span>
-                <span class="sx-sub-card__save-badge" data-sx-save-pro>Save $10</span>
-              </span>
+              <span class="sx-sub-card__was">Original Price <span class="sx-sub-card__was-amount" data-sx-was-pro>$29</span></span>
             </p>
             <p class="sx-sub-card__tax">*Taxes may apply</p>
             <p class="sx-sub-card__billed" data-sx-billed-pro hidden></p>

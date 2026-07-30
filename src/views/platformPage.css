@@ -415,7 +415,7 @@
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #e11d48;
+  color: #334155;
 }
 
 .sx-settings-hero {
@@ -425,12 +425,12 @@
   align-items: center;
   margin-bottom: 0.75rem;
   padding: 0.95rem 1.05rem;
-  border: 1px solid rgba(225, 29, 72, 0.12);
+  border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 1.15rem;
   background:
-    radial-gradient(ellipse 55% 80% at 0% 0%, rgba(225, 29, 72, 0.08), transparent 55%),
+    radial-gradient(ellipse 55% 80% at 0% 0%, rgba(15, 23, 42, 0.08), transparent 55%),
     radial-gradient(ellipse 45% 70% at 100% 100%, rgba(59, 130, 246, 0.08), transparent 50%),
-    linear-gradient(135deg, #fff 0%, #f8fafc 100%);
+    linear-gradient(135deg, #fff 0%, #F1F5F9 100%);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
 }
 
@@ -448,12 +448,12 @@
   height: 3.4rem;
   border-radius: 1rem;
   overflow: hidden;
-  background: linear-gradient(135deg, #e11d48, #be123c);
+  background: linear-gradient(135deg, #334155, #1E293B);
   color: #fff;
   font-size: 0.95rem;
   font-weight: 800;
   letter-spacing: 0.04em;
-  box-shadow: 0 8px 18px rgba(225, 29, 72, 0.28);
+  box-shadow: 0 8px 18px rgba(51, 65, 85, 0.28);
 }
 
 .sx-settings-hero__name {
@@ -521,7 +521,7 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #fb7185, #e11d48);
+  background: linear-gradient(90deg, #64748b, #334155);
 }
 
 .sx-settings-usage__hint {
@@ -611,9 +611,9 @@
 
 .sx-settings-icon-btn:hover,
 .sx-settings-icon-btn.is-active {
-  border-color: #fda4af;
-  background: #fff1f2;
-  color: #be123c;
+  border-color: #94a3b8;
+  background: #f1f5f9;
+  color: #1E293B;
 }
 
 .sx-settings-dp {
@@ -623,7 +623,7 @@
   padding: 0.55rem 0.7rem;
   border: 1px solid #e2e8f0;
   border-radius: 0.85rem;
-  background: #f8fafc;
+  background: #F1F5F9;
 }
 
 .sx-settings-dp__preview,
@@ -637,7 +637,7 @@
   width: 4.25rem;
   height: 4.25rem;
   border-radius: 1rem;
-  background: linear-gradient(135deg, #e11d48, #be123c);
+  background: linear-gradient(135deg, #334155, #1E293B);
   color: #fff;
   font-size: 1rem;
   font-weight: 800;
@@ -688,7 +688,7 @@
   height: 100%;
   width: 0;
   border-radius: inherit;
-  background: #f43f5e;
+  background: #64748b;
   transition: width 0.2s ease, background 0.2s ease;
 }
 
@@ -765,7 +765,7 @@
 
 .sx-settings-checklist i {
   margin-top: 0.15rem;
-  color: #e11d48;
+  color: #334155;
   font-size: 0.75rem;
 }
 
@@ -787,8 +787,8 @@
   gap: 1rem;
   padding: 0.95rem 1rem;
   border-radius: 0.85rem;
-  background: linear-gradient(180deg, #fff1f2 0%, #fff 100%);
-  border: 1px solid #fecdd3;
+  background: linear-gradient(180deg, #f1f5f9 0%, #fff 100%);
+  border: 1px solid #cbd5e1;
 }
 
 .sx-settings-plan-price {
@@ -823,13 +823,13 @@
   padding: 0.85rem 0.95rem;
   border: 1px solid #e2e8f0;
   border-radius: 0.85rem;
-  background: #f8fafc;
+  background: #F1F5F9;
   cursor: pointer;
 }
 
 .sx-settings-toggle input {
   margin-top: 0.2rem;
-  accent-color: #e11d48;
+  accent-color: #334155;
 }
 
 .sx-settings-toggle strong {
@@ -966,7 +966,7 @@
 
 .sx-platform-page--embedded .sx-platform-page__card {
   border-color: #e2e8f0;
-  background: #f8fafc;
+  background: #F1F5F9;
 }
 
 .sx-platform-page--embedded.sx-platform-page--settings .sx-settings-panel {
@@ -983,7 +983,7 @@
 }
 
 .sx-platform-page--embedded .sx-platform-page__input:disabled {
-  background: #f8fafc;
+  background: #F1F5F9;
   color: #64748b;
 }
 
@@ -994,17 +994,17 @@
 }
 
 .sx-platform-page--embedded .sx-platform-page__btn:hover:not(:disabled) {
-  background: #f8fafc;
+  background: #F1F5F9;
 }
 
 .sx-platform-page--embedded .sx-platform-page__btn--primary {
   border-color: transparent;
-  background: #e11d48;
+  background: #334155;
   color: #fff;
 }
 
 .sx-platform-page--embedded .sx-platform-page__btn--primary:hover:not(:disabled) {
-  background: #be123c;
+  background: #1E293B;
 }
 
 .sx-platform-page--embedded .sx-platform-page__badge--free {

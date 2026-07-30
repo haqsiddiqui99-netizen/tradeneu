@@ -22,10 +22,8 @@ import {
   type StoredSession,
 } from '../data/sessionStore'
 import { propStatusLabel } from '../prop/propChallengeUi'
-import { clearAllAuthSessions } from '../auth/authSession'
+import { clearAllAuthSessions, getAuthUser, GUEST_AUTH_EMAIL } from '../auth/authSession'
 import { mountAiChatPanel } from '../ai/aiChatPanel'
-import { openBattleCompareDialog } from '../views/battleCompareDialog'
-import { getAuthUser } from '../auth/authSession'
 import { primarySessionSymbol } from '../sessionTypes'
 import { fetchMlHealth } from '../ml/mlApi'
 import { createSessionModal } from '../sessionModal'
@@ -39,12 +37,20 @@ import { mountSettingsPage } from '../views/mountSettingsPage'
 import { mountSubscriptionPage } from '../views/mountSubscriptionPage'
 import { mountProfilePage, type ProfileSessionStats } from '../views/mountProfilePage'
 import { DASH_LOCALES, dashLocaleMenuLabel, isDashLocaleCode } from './dashboardLocales'
-import { readDisplayName } from './dashboardUserPrefs'
+import { readDisplayName, readUserAvatar } from './dashboardUserPrefs'
 import {
   buildDashboardPerfChartSvg,
+  buildPulseActivityChartSvg,
+  buildPulsePracticeRowsHtml,
+  buildPulsePracticeSplitHtml,
+  buildPulseSymbolRowsHtml,
+  buildPulseWinRingSvg,
   computeDashboardPerfTotals,
+  computeSessionPulseStats,
   formatDashboardPerfMoney,
   formatDashboardWinRate,
+  formatPulseDuration,
+  type DashboardPerfRange,
 } from './dashboardPerfStats'
 import { openSessionSummaryDialog } from '../views/sessionSummaryDialog'
 
@@ -53,8 +59,7 @@ const LS_SESSION_FILTER = 'suplexity-dash-session-filter'
 const LS_SESSION_SORT = 'suplexity-dash-session-sort'
 const LS_THEME = 'suplexity-dash-theme'
 const LS_ACCOUNT_TIER = 'suplexity-account-tier'
-const LS_PERF_MODE = 'suplexity-dash-perf-mode'
-const LS_PERF_RANGE = 'suplexity-dash-perf-range'
+const LS_PULSE_RANGE = 'suplexity-dash-pulse-range'
 const LS_TIME_CHART_VIEW = 'suplexity-dash-time-chart-view'
 const LS_TESTING_TAB = 'suplexity-dash-testing-tab'
 
@@ -64,15 +69,7 @@ type TestingTab = (typeof TESTING_TABS)[number]
 const TIME_CHART_VIEWS = ['daily', 'monthly'] as const
 type TimeChartView = (typeof TIME_CHART_VIEWS)[number]
 
-const PERF_MODE_VALUES = ['backtest', 'battles', 'prop', 'all'] as const
 const PERF_RANGE_VALUES = ['week', 'month', 'lifetime'] as const
-
-const PERF_MODE_LABELS: Record<(typeof PERF_MODE_VALUES)[number], string> = {
-  backtest: 'Backtesting',
-  battles: 'Battles',
-  prop: 'Prop Firm',
-  all: 'All',
-}
 
 const PERF_RANGE_LABELS: Record<(typeof PERF_RANGE_VALUES)[number], string> = {
   week: 'Last week',
@@ -161,51 +158,19 @@ function writeSessionSort(sort: SessionSortValue) {
   }
 }
 
-function buildPerfModePanelHtml(): string {
-  return PERF_MODE_VALUES.map(
-    (v) =>
-      `<button type="button" role="option" class="sx-dash-perf-option" data-perf-mode-option="${v}">${PERF_MODE_LABELS[v]}</button>`,
-  ).join('')
-}
-
-function buildPerfRangePanelHtml(): string {
-  return PERF_RANGE_VALUES.map(
-    (v) =>
-      `<button type="button" role="option" class="sx-dash-perf-option" data-perf-range-option="${v}">${PERF_RANGE_LABELS[v]}</button>`,
-  ).join('')
-}
-
-function readPerfMode(): (typeof PERF_MODE_VALUES)[number] {
+function readPulseRange(): DashboardPerfRange {
   try {
-    const v = localStorage.getItem(LS_PERF_MODE)
-    if (v && PERF_MODE_VALUES.includes(v as (typeof PERF_MODE_VALUES)[number])) return v as (typeof PERF_MODE_VALUES)[number]
+    const v = localStorage.getItem(LS_PULSE_RANGE)
+    if (v && PERF_RANGE_VALUES.includes(v as DashboardPerfRange)) return v as DashboardPerfRange
   } catch {
     /* noop */
   }
-  return 'backtest'
+  return 'lifetime'
 }
 
-function writePerfMode(mode: (typeof PERF_MODE_VALUES)[number]) {
+function writePulseRange(range: DashboardPerfRange) {
   try {
-    localStorage.setItem(LS_PERF_MODE, mode)
-  } catch {
-    /* noop */
-  }
-}
-
-function readPerfRange(): (typeof PERF_RANGE_VALUES)[number] {
-  try {
-    const v = localStorage.getItem(LS_PERF_RANGE)
-    if (v && PERF_RANGE_VALUES.includes(v as (typeof PERF_RANGE_VALUES)[number])) return v as (typeof PERF_RANGE_VALUES)[number]
-  } catch {
-    /* noop */
-  }
-  return 'month'
-}
-
-function writePerfRange(range: (typeof PERF_RANGE_VALUES)[number]) {
-  try {
-    localStorage.setItem(LS_PERF_RANGE, range)
+    localStorage.setItem(LS_PULSE_RANGE, range)
   } catch {
     /* noop */
   }
@@ -451,7 +416,7 @@ function buildSessionRowHtml(session: StoredSession): string {
   const actions = buildSessionActionsHtml()
   return `<li class="sx-dash-session-row rounded-2xl border border-white/[0.1] bg-white/[0.04] p-4 sm:p-5" data-session-id="${escapeHtml(session.id)}" data-session-name="${escapeHtml(sessionSearchBlob(session))}">
           <div class="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-            <button type="button" data-action="resume-session" class="flex h-12 w-12 shrink-0 items-center justify-center self-start rounded-full bg-[#e11d48] text-white shadow-[0_8px_22px_rgba(225,29,72,0.35)] transition hover:bg-[#be123c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60" title="Resume session" aria-label="Resume session">
+            <button type="button" data-action="resume-session" class="flex h-12 w-12 shrink-0 items-center justify-center self-start rounded-full bg-[#334155] text-white shadow-[0_8px_22px_rgba(51,65,85,0.35)] transition hover:bg-[#1E293B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60" title="Resume session" aria-label="Resume session">
               <i class="fa-solid fa-play ml-0.5 text-sm" aria-hidden="true"></i>
             </button>
             <div class="min-w-0 flex-1">
@@ -672,18 +637,40 @@ export function mountDashboardApp(root: HTMLElement): void {
     <header class="sx-dash-header sx-dash-topbar relative z-[45] w-full shrink-0 border-b border-slate-200/90 bg-white">
       <div class="sx-dash-header__bar relative mx-auto flex w-full max-w-[1440px] items-center gap-3 px-4 py-2.5 sm:gap-5 sm:px-6 sm:py-3 lg:px-8">
         <div class="sx-dash__brand-mark relative z-[1] min-w-0 shrink-0">
-          <button
-            type="button"
-            data-action="profile"
-            class="sx-dash-account-btn"
-            aria-label="Account"
-            title="Account"
-          >
-            <span class="sx-dash-account-btn__icon" aria-hidden="true">
-              <i class="fa-solid fa-user"></i>
+          <div class="sx-dash-account" data-sx-account-menu>
+            <span class="sx-dash-cta-ai sx-dash-account-ai">
+              <span class="sx-dash-cta-ai__glow" aria-hidden="true"></span>
+              <span class="sx-dash-cta-ai__border" aria-hidden="true"><span class="sx-dash-cta-ai__ring" style="animation-delay:-0.8s"></span></span>
+              <button
+                type="button"
+                class="sx-dash-account-btn sx-dash-account-btn--ai"
+                data-sx-account-toggle
+                aria-label="Account menu"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                aria-controls="sx-dash-account-panel"
+                title="Account"
+              >
+                <span class="sx-dash-account-btn__icon" data-sx-account-avatar aria-hidden="true">
+                  <i class="fa-solid fa-user" data-sx-account-avatar-fallback></i>
+                </span>
+                <span class="sx-dash-account-btn__label">Account</span>
+                <span class="sx-dash-account-btn__plan sx-dash-account-btn__plan--free" data-sx-account-plan>Free</span>
+                <i class="fa-solid fa-chevron-down sx-dash-account-btn__chev" aria-hidden="true"></i>
+              </button>
             </span>
-            <span class="sx-dash-account-btn__label">Account</span>
-          </button>
+            <div class="sx-dash-account__menu" id="sx-dash-account-panel" role="menu" hidden>
+              <div class="sx-dash-account__identity">
+                <p class="sx-dash-account__name" data-sx-account-name>${escapeHtml(readDisplayName() || 'Account')}</p>
+                <p class="sx-dash-account__email" data-sx-account-email>—</p>
+              </div>
+              <div class="sx-dash-account__divider" role="separator"></div>
+              <button type="button" role="menuitem" class="sx-dash-account__item sx-dash-account__item--danger" data-nav="logout">
+                <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
+                <span>Sign out</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="sx-dash-wordmark pointer-events-none absolute inset-x-0 top-1/2 z-0 flex -translate-y-1/2 justify-center px-28 sm:px-36">
@@ -710,25 +697,11 @@ export function mountDashboardApp(root: HTMLElement): void {
               <span class="sx-dash-tip">Upgrade Pro</span>
             </span>
             <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" data-action="ai-chat" class="sx-dash-ai-chat-btn inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-sky-300/70 bg-sky-50 px-2.5 text-sky-700 transition hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/55" aria-label="Open AI assistant">
+              <button type="button" data-action="ai-chat" class="sx-dash-ai-chat-btn inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 text-slate-600 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45" aria-label="Open AI assistant">
                 <i class="fa-solid fa-wand-magic-sparkles text-[0.75rem] shrink-0" aria-hidden="true"></i>
                 <span class="text-[11px] font-bold leading-none tracking-tight">AI</span>
               </button>
               <span class="sx-dash-tip">AI Assistant</span>
-            </span>
-            <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" data-action="dash-fullscreen" class="sx-dash-fullscreen-btn relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45" aria-label="Enter fullscreen">
-                <i class="fa-solid fa-expand sx-dash-fs-icon-expand pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.78rem]" aria-hidden="true"></i>
-                <i class="fa-solid fa-compress sx-dash-fs-icon-compress pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.78rem]" aria-hidden="true"></i>
-              </button>
-              <span class="sx-dash-tip">Fullscreen</span>
-            </span>
-            <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" class="sx-dash-theme-icon-btn relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45" aria-label="Switch to light theme">
-                <i class="fa-solid fa-sun sx-dash-theme-icon--when-dark pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.88rem]" aria-hidden="true"></i>
-                <i class="fa-solid fa-moon sx-dash-theme-icon--when-light pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.82rem]" aria-hidden="true"></i>
-              </button>
-              <span class="sx-dash-tip">Change theme</span>
             </span>
             <span class="sx-dash-tip-wrap relative inline-flex h-9 shrink-0">
               <div class="sx-dash-locale-dd relative h-9 shrink-0" data-sx-locale-dropdown>
@@ -747,8 +720,18 @@ export function mountDashboardApp(root: HTMLElement): void {
               <span class="sx-dash-tip">Translate</span>
             </span>
             <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" data-nav="logout" class="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40">Sign out</button>
-              <span class="sx-dash-tip">Sign out</span>
+              <button type="button" class="sx-dash-theme-icon-btn relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45" aria-label="Switch to light theme">
+                <i class="fa-solid fa-sun sx-dash-theme-icon--when-dark pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.88rem]" aria-hidden="true"></i>
+                <i class="fa-solid fa-moon sx-dash-theme-icon--when-light pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.82rem]" aria-hidden="true"></i>
+              </button>
+              <span class="sx-dash-tip">Change theme</span>
+            </span>
+            <span class="sx-dash-tip-wrap inline-flex">
+              <button type="button" data-action="dash-fullscreen" class="sx-dash-fullscreen-btn relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45" aria-label="Enter fullscreen">
+                <i class="fa-solid fa-expand sx-dash-fs-icon-expand pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.78rem]" aria-hidden="true"></i>
+                <i class="fa-solid fa-compress sx-dash-fs-icon-compress pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.78rem]" aria-hidden="true"></i>
+              </button>
+              <span class="sx-dash-tip">Fullscreen</span>
             </span>
             <label
               for="sx-nav-drawer"
@@ -770,9 +753,13 @@ export function mountDashboardApp(root: HTMLElement): void {
         class="sx-dash-hnav-mobile absolute left-0 right-0 top-full z-50 hidden max-h-[min(70vh,28rem)] flex-col gap-1 overflow-y-auto border-b border-slate-200 bg-white px-4 py-3 shadow-lg peer-checked:flex md:!hidden"
         aria-label="Mobile"
       >
-        <button type="button" data-action="profile" class="sx-dash-hnav__link sx-dash-hnav__link--block">
-          <i class="fa-solid fa-user w-5 shrink-0 text-center text-[0.9rem]" aria-hidden="true"></i>
-          Account
+        <div class="sx-dash-account-mobile">
+          <p class="sx-dash-account-mobile__name" data-sx-account-name>${escapeHtml(readDisplayName() || 'Account')}</p>
+          <p class="sx-dash-account-mobile__email" data-sx-account-email>—</p>
+        </div>
+        <button type="button" data-nav="logout" class="sx-dash-hnav__link sx-dash-hnav__link--block sx-dash-hnav__link--logout">
+          <i class="fa-solid fa-arrow-right-from-bracket w-5 shrink-0 text-center text-[0.9rem]" aria-hidden="true"></i>
+          Sign out
         </button>
         <button type="button" data-action="dashboard" class="sx-dash-hnav__link sx-dash-hnav__link--active sx-dash-hnav__link--block">Backtesting</button>
         <button type="button" data-action="strategy" class="sx-dash-hnav__link sx-dash-hnav__link--block">Strategy</button>
@@ -819,7 +806,7 @@ export function mountDashboardApp(root: HTMLElement): void {
                 Trades
               </button>
               <button type="button" role="tab" class="sx-dash-testing-tab" data-testing-tab="analytics" aria-selected="false">
-                <i class="fa-solid fa-chart-column" aria-hidden="true"></i>
+                <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
                 Analytics
               </button>
             </nav>
@@ -846,29 +833,156 @@ export function mountDashboardApp(root: HTMLElement): void {
         </header>
 
         <section class="sx-dash-action-row flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            data-action="backtest"
-            class="sx-dash-cta-session inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#e11d48] px-7 py-3.5 text-sm font-bold tracking-tight text-white shadow-[0_8px_24px_rgba(225,29,72,0.35)] transition hover:-translate-y-0.5 hover:bg-[#be123c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f3ff] active:translate-y-0"
-          >
-            <span class="text-lg font-light leading-none" aria-hidden="true">+</span> Backtesting Session <span aria-hidden="true">→</span>
-          </button>
-          <button
-            type="button"
-            data-action="prop"
-            class="sx-dash-cta-session inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#e11d48] px-7 py-3.5 text-sm font-bold tracking-tight text-white shadow-[0_8px_24px_rgba(225,29,72,0.35)] transition hover:-translate-y-0.5 hover:bg-[#be123c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f3ff] active:translate-y-0"
-          >
-            <i class="fa-solid fa-building-columns text-[0.8rem]" aria-hidden="true"></i>
-            Prop Firm Challenge
-            <span aria-hidden="true">→</span>
-          </button>
+          <span class="sx-dash-cta-ai">
+            <span class="sx-dash-cta-ai__glow" aria-hidden="true"></span>
+            <span class="sx-dash-cta-ai__border" aria-hidden="true"><span class="sx-dash-cta-ai__ring"></span></span>
+            <button
+              type="button"
+              data-action="backtest"
+              class="sx-dash-cta-session sx-dash-cta-session--ai inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#0f172a] px-7 py-3.5 text-sm font-bold tracking-tight text-white transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f3ff] active:translate-y-0"
+            >
+              <span class="text-lg font-light leading-none" aria-hidden="true">+</span> Backtesting Session <span aria-hidden="true">→</span>
+            </button>
+          </span>
+          <span class="sx-dash-cta-ai">
+            <span class="sx-dash-cta-ai__glow" aria-hidden="true"></span>
+            <span class="sx-dash-cta-ai__border" aria-hidden="true"><span class="sx-dash-cta-ai__ring" style="animation-delay:-1.6s"></span></span>
+            <button
+              type="button"
+              data-action="prop"
+              class="sx-dash-cta-session sx-dash-cta-session--ai inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#0f172a] px-7 py-3.5 text-sm font-bold tracking-tight text-white transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f3ff] active:translate-y-0"
+            >
+              <i class="fa-solid fa-building-columns text-[0.8rem]" aria-hidden="true"></i>
+              Prop Firm Challenge
+              <span aria-hidden="true">→</span>
+            </button>
+          </span>
         </section>
+
           </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="sessions" role="tabpanel" hidden></div>
 
           <div class="sx-dash-recent-sessions-host mt-1" data-sx-recent-sessions-host>
         ${buildRecentSessionsSectionHtml()}
+          </div>
+
+          <div class="sx-dash-testing-panel hidden" data-testing-panel="analytics" role="tabpanel" hidden>
+            <section class="sx-dash-pulse sx-dash-pulse--pro" aria-labelledby="sx-dash-pulse-title" data-sx-session-pulse>
+          <div class="sx-dash-pulse__head">
+            <div>
+              <p class="sx-dash-pulse__eyebrow">Replay intelligence</p>
+              <h3 id="sx-dash-pulse-title" class="sx-dash-pulse__title">Session Pulse</h3>
+              <p class="sx-dash-pulse__sub">Your practice desk at a glance — time, edge, and equity path.</p>
+            </div>
+            <div class="sx-dash-pulse__range" role="group" aria-label="Pulse time range">
+              <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="week">7D</button>
+              <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="month">30D</button>
+              <button type="button" class="sx-dash-pulse__range-btn sx-dash-pulse__range-btn--active" data-pulse-range="lifetime" aria-pressed="true">All</button>
+            </div>
+          </div>
+
+          <div class="sx-dash-pulse__kpi" role="group" aria-label="Key pulse metrics">
+            <div class="sx-dash-pulse__kpi-item">
+              <div class="sx-dash-pulse__kpi-top">
+                <span class="sx-dash-pulse__kpi-label">Practice time</span>
+                <button type="button" class="sx-dash-pulse__info" title="Estimated desk time across sessions in this range." aria-label="About practice time">i</button>
+              </div>
+              <p class="sx-dash-pulse__kpi-value" data-sx-pulse="practice">—</p>
+              <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="practice-hint">Across sessions</p>
+            </div>
+            <div class="sx-dash-pulse__kpi-item">
+              <div class="sx-dash-pulse__kpi-top">
+                <span class="sx-dash-pulse__kpi-label">Market tape</span>
+                <button type="button" class="sx-dash-pulse__info" title="Sum of market date ranges you replayed." aria-label="About market tape">i</button>
+              </div>
+              <p class="sx-dash-pulse__kpi-value" data-sx-pulse="historical">—</p>
+              <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="historical-hint">Historical coverage</p>
+            </div>
+            <div class="sx-dash-pulse__kpi-item">
+              <div class="sx-dash-pulse__kpi-top">
+                <span class="sx-dash-pulse__kpi-label">Net P&amp;L</span>
+                <button type="button" class="sx-dash-pulse__info" title="Net profit and loss from backtests in this range." aria-label="About Net P&amp;L">i</button>
+              </div>
+              <p class="sx-dash-pulse__kpi-value" data-sx-pulse="pnl">—</p>
+              <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="pnl-hint">Backtest results</p>
+            </div>
+            <div class="sx-dash-pulse__kpi-item">
+              <div class="sx-dash-pulse__kpi-top">
+                <span class="sx-dash-pulse__kpi-label">Win rate</span>
+                <button type="button" class="sx-dash-pulse__info" title="Share of winning trades over closed trades." aria-label="About win rate">i</button>
+              </div>
+              <p class="sx-dash-pulse__kpi-value" data-sx-pulse="winrate">—</p>
+              <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="winrate-hint">Closed trade edge</p>
+            </div>
+          </div>
+
+          <div class="sx-dash-pulse__workspace">
+            <article class="sx-dash-pulse__panel sx-dash-pulse__panel--desk">
+              <header class="sx-dash-pulse__panel-head">
+                <div>
+                  <h4 class="sx-dash-pulse__panel-title">Desk load</h4>
+                  <p class="sx-dash-pulse__panel-sub" data-sx-pulse="active-session">No active session</p>
+                </div>
+              </header>
+              <div class="sx-dash-pulse__practice-split" data-sx-pulse="practice-split" aria-hidden="true"></div>
+              <div class="sx-dash-pulse-sessions" data-sx-pulse="practice-sessions"></div>
+              <div class="sx-dash-pulse__panel-rule" role="separator"></div>
+              <div class="sx-dash-pulse__panel-head sx-dash-pulse__panel-head--compact">
+                <h4 class="sx-dash-pulse__panel-title">Symbol focus</h4>
+                <button type="button" class="sx-dash-pulse__info" title="Trade count share by session symbol." aria-label="About symbol focus">i</button>
+              </div>
+              <div class="sx-dash-pulse-symbols" data-sx-pulse="symbols"></div>
+            </article>
+
+            <article class="sx-dash-pulse__panel sx-dash-pulse__panel--edge">
+              <header class="sx-dash-pulse__panel-head">
+                <div>
+                  <h4 class="sx-dash-pulse__panel-title">Edge meter</h4>
+                  <p class="sx-dash-pulse__panel-sub">Win quality and directional bias</p>
+                </div>
+                <button type="button" class="sx-dash-pulse__info" title="Win rate from closed journal trades and backtest snapshots." aria-label="About edge meter">i</button>
+              </header>
+              <div class="sx-dash-pulse__edge">
+                <div class="sx-dash-pulse__ring" data-sx-pulse="ring"></div>
+                <div class="sx-dash-pulse__edge-copy">
+                  <p class="sx-dash-pulse__edge-title" data-sx-pulse="trades">0 trades</p>
+                  <div class="sx-dash-pulse__split" aria-hidden="true">
+                    <span class="sx-dash-pulse__split-buy" data-sx-pulse="long-bar" style="width:50%"></span>
+                    <span class="sx-dash-pulse__split-sell" data-sx-pulse="short-bar" style="width:50%"></span>
+                  </div>
+                  <p class="sx-dash-pulse__hint" data-sx-pulse="split-label">Buys / sells appear after journal closes</p>
+                </div>
+              </div>
+            </article>
+
+            <article class="sx-dash-pulse__panel sx-dash-pulse__panel--intense">
+              <header class="sx-dash-pulse__panel-head">
+                <div>
+                  <h4 class="sx-dash-pulse__panel-title">Intense Practice</h4>
+                  <p class="sx-dash-pulse__panel-sub">Hours invested by month</p>
+                </div>
+                <button type="button" class="sx-dash-pulse__info" title="Hours invested practicing across the last 6 months." aria-label="About intense practice">i</button>
+              </header>
+              <div class="sx-dash-pulse-chart sx-dash-pulse-chart--intense" data-sx-pulse="activity" role="img" aria-label="Intense practice hours by month"></div>
+            </article>
+
+            <article class="sx-dash-pulse__panel sx-dash-pulse__panel--pnl">
+              <header class="sx-dash-pulse__panel-head">
+                <div>
+                  <h4 class="sx-dash-pulse__panel-title">Net P&amp;L path</h4>
+                  <p class="sx-dash-pulse__panel-sub">Daily waterfall — green up on profit, red down on loss</p>
+                </div>
+              </header>
+              <div class="sx-dash-pulse-pnl-chart sx-dash-time-chart" role="img" data-sx-time-chart aria-label="Pulse Net P&amp;L chart">
+                <div class="sx-dash-time-chart__frame">
+                  <div class="sx-dash-time-chart__pan" data-sx-time-chart-pan></div>
+                </div>
+              </div>
+            </article>
+          </div>
+
+        </section>
           </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="trades" role="tabpanel" hidden>
@@ -902,148 +1016,6 @@ export function mountDashboardApp(root: HTMLElement): void {
             </section>
           </div>
 
-          <div class="sx-dash-testing-panel hidden" data-testing-panel="analytics" role="tabpanel" hidden>
-        <section>
-          <div>
-            <div class="sx-dash-card-surface rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-8 lg:p-10">
-              <div class="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
-                <h3 class="text-xl font-bold text-white">Performance</h3>
-                <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <button
-                    type="button"
-                    data-action="battle-compare"
-                    class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-500/10 px-3 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/45"
-                    title="Compare two sessions for Battles performance"
-                  >
-                    <i class="fa-solid fa-bolt text-[0.65rem]" aria-hidden="true"></i>
-                    Compare sessions
-                  </button>
-                  <div class="sx-dash-perf-dd relative" data-sx-perf-dd="mode">
-                    <button
-                      type="button"
-                      class="sx-dash-perf-trigger inline-flex h-9 min-w-[9.5rem] shrink-0 items-center gap-2 rounded-full border border-sky-400/25 bg-gradient-to-r from-white/[0.08] to-white/[0.04] py-0 pl-3 pr-3 text-xs font-semibold text-zinc-100 shadow-[0_0_0_1px_rgba(255,255,255,0.06)_inset] outline-none transition hover:border-sky-400/40 hover:from-white/[0.11] hover:to-white/[0.06] focus-visible:ring-2 focus-visible:ring-sky-400/50"
-                      data-perf-mode-trigger
-                      aria-expanded="false"
-                      aria-haspopup="listbox"
-                      aria-label="Performance mode"
-                    >
-                      <i class="fa-solid fa-chart-column text-[0.7rem] text-sky-300/90" aria-hidden="true"></i>
-                      <span class="sx-dash-perf-trigger__label--mode min-w-0 flex-1 truncate text-left">Backtesting</span>
-                      <i class="fa-solid fa-chevron-down sx-dash-perf-trigger__chev text-[0.55rem] text-zinc-400 transition-transform" aria-hidden="true"></i>
-                    </button>
-                    <div class="sx-dash-perf-panel hidden min-w-[10.5rem]" role="listbox" aria-label="Performance mode"></div>
-                  </div>
-                  <div class="sx-dash-perf-dd relative" data-sx-perf-dd="range">
-                    <button
-                      type="button"
-                      class="sx-dash-perf-trigger inline-flex h-9 min-w-[9.5rem] shrink-0 items-center gap-2 rounded-full border border-violet-400/25 bg-gradient-to-r from-white/[0.08] to-white/[0.04] py-0 pl-3 pr-3 text-xs font-semibold text-zinc-100 shadow-[0_0_0_1px_rgba(255,255,255,0.06)_inset] outline-none transition hover:border-violet-400/40 hover:from-white/[0.11] hover:to-white/[0.06] focus-visible:ring-2 focus-visible:ring-violet-400/45"
-                      data-perf-range-trigger
-                      aria-expanded="false"
-                      aria-haspopup="listbox"
-                      aria-label="Time range"
-                    >
-                      <i class="fa-solid fa-calendar-days text-[0.7rem] text-violet-300/90" aria-hidden="true"></i>
-                      <span class="sx-dash-perf-trigger__label--range min-w-0 flex-1 truncate text-left">Last month</span>
-                      <i class="fa-solid fa-chevron-down sx-dash-perf-trigger__chev text-[0.55rem] text-zinc-400 transition-transform" aria-hidden="true"></i>
-                    </button>
-                    <div class="sx-dash-perf-panel hidden min-w-[10.5rem]" role="listbox" aria-label="Time range"></div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-5 lg:items-stretch">
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-6 lg:grid-cols-2 lg:content-start">
-                  <div class="relative rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-sm">
-                    <button type="button" class="absolute right-3 top-3 text-zinc-500 hover:text-zinc-300" title="Total net profit and loss from backtests and paper trades in this mode and range." aria-label="About Net P&amp;L">
-                      <i class="fa-regular fa-circle-question text-sm" aria-hidden="true"></i>
-                    </button>
-                    <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.06] text-amber-400">
-                      <i class="fa-solid fa-chart-column text-[0.95rem]" aria-hidden="true"></i>
-                    </div>
-                    <p class="text-xs font-medium text-zinc-400">Net P&amp;L</p>
-                    <p class="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl" data-sx-perf-stat="pnl">—</p>
-                  </div>
-                  <div class="relative rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-sm">
-                    <button type="button" class="absolute right-3 top-3 text-zinc-500 hover:text-zinc-300" title="Sessions with backtest or journal activity in this period." aria-label="About Sessions active">
-                      <i class="fa-regular fa-circle-question text-sm" aria-hidden="true"></i>
-                    </button>
-                    <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.06] text-sky-400">
-                      <i class="fa-solid fa-clock text-[0.95rem]" aria-hidden="true"></i>
-                    </div>
-                    <p class="text-xs font-medium text-zinc-400">Sessions active</p>
-                    <p class="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl" data-sx-perf-stat="sessions">0</p>
-                  </div>
-                  <div class="relative rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-sm sm:col-span-2 lg:col-span-1">
-                    <button type="button" class="absolute right-3 top-3 text-zinc-500 hover:text-zinc-300" title="Count of completed trades in this period." aria-label="About Trades taken">
-                      <i class="fa-regular fa-circle-question text-sm" aria-hidden="true"></i>
-                    </button>
-                    <p class="text-xs font-medium text-zinc-400">Trades taken</p>
-                    <p class="mt-3 text-sm leading-relaxed text-zinc-500" data-sx-perf-stat="trades">Your trades taken will show up here</p>
-                  </div>
-                  <div class="relative rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-sm sm:col-span-2 lg:col-span-1">
-                    <button type="button" class="absolute right-3 top-3 text-zinc-500 hover:text-zinc-300" title="Share of winning trades over closed trades." aria-label="About Overall win rate">
-                      <i class="fa-regular fa-circle-question text-sm" aria-hidden="true"></i>
-                    </button>
-                    <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.06] text-violet-400">
-                      <i class="fa-solid fa-award text-[0.95rem]" aria-hidden="true"></i>
-                    </div>
-                    <p class="text-xs font-medium text-zinc-400">Overall win rate</p>
-                    <p class="mt-1 text-2xl font-bold tracking-tight text-zinc-500 dark:text-zinc-600 sm:text-3xl" data-sx-perf-stat="winrate">—</p>
-                  </div>
-                </div>
-
-                <div class="relative flex min-h-[220px] flex-col rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-sm sm:min-h-[260px] lg:col-span-6 lg:min-h-0">
-                  <button type="button" class="absolute right-3 top-3 z-[1] text-zinc-500 hover:text-zinc-300" title="Net profit and loss per calendar period." aria-label="About Net P&amp;L chart">
-                    <i class="fa-regular fa-circle-question text-sm" aria-hidden="true"></i>
-                  </button>
-                  <div class="mb-3 flex flex-col gap-3 pr-8 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-sm font-semibold text-slate-900 dark:text-white">Net P&amp;L</p>
-                    <div
-                      class="sx-dash-time-chart-tabs inline-flex shrink-0 rounded-lg border border-white/12 bg-white/[0.04] p-0.5"
-                      role="tablist"
-                      aria-label="Chart period"
-                    >
-                      <button
-                        type="button"
-                        role="tab"
-                        class="sx-dash-time-chart-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-zinc-400 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45"
-                        data-time-chart-tab="daily"
-                        aria-selected="true"
-                      >
-                        Daily
-                      </button>
-                      <button
-                        type="button"
-                        role="tab"
-                        class="sx-dash-time-chart-tab rounded-md px-2.5 py-1 text-[11px] font-semibold text-zinc-400 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45"
-                        data-time-chart-tab="monthly"
-                        aria-selected="false"
-                      >
-                        Monthly
-                      </button>
-                    </div>
-                  </div>
-                  <div class="flex min-h-0 flex-1 flex-col justify-end">
-                    <div
-                      class="sx-dash-time-chart flex h-[12.25rem] flex-col overflow-hidden rounded-xl sm:h-[13.75rem]"
-                      role="img"
-                      data-sx-time-chart
-                      aria-label="Net P&amp;L chart"
-                    >
-                      <div class="sx-dash-time-chart__frame min-h-0 flex-1 px-1 pb-0.5 pt-1">
-                        <div
-                          class="sx-dash-time-chart__pan min-h-0 min-w-0 overflow-x-auto overflow-y-hidden"
-                          id="sx-dash-time-chart-pan"
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-          </div>
           </div>
         </div>
         <div id="sx-dash-subscription-panel" class="sx-dash-subscription-panel hidden" hidden></div>
@@ -1171,9 +1143,48 @@ export function mountDashboardApp(root: HTMLElement): void {
   let sessionModal: ReturnType<typeof createSessionModal>
 
   function syncSidebarProfile() {
-    const name = readDisplayName()
+    const auth = getAuthUser()
+    const name = (readDisplayName() || auth?.name || 'Account').trim() || 'Account'
+    const emailRaw = auth?.email?.trim() || ''
+    const email =
+      !emailRaw
+        ? 'Not signed in'
+        : emailRaw === GUEST_AUTH_EMAIL
+          ? 'Guest account'
+          : emailRaw
+    root.querySelectorAll('[data-sx-account-name]').forEach((el) => {
+      el.textContent = name
+    })
+    root.querySelectorAll('[data-sx-account-email]').forEach((el) => {
+      el.textContent = email
+    })
     const nameEl = root.querySelector('#sx-dash-display-name')
     if (nameEl) nameEl.textContent = name
+
+    const avatarUrl = readUserAvatar() || auth?.picture || null
+    root.querySelectorAll<HTMLElement>('[data-sx-account-avatar]').forEach((icon) => {
+      const existingImg = icon.querySelector<HTMLImageElement>('[data-sx-account-avatar-img]')
+      const fallback = icon.querySelector<HTMLElement>('[data-sx-account-avatar-fallback]')
+      if (avatarUrl) {
+        if (existingImg) {
+          existingImg.src = avatarUrl
+        } else {
+          const img = document.createElement('img')
+          img.className = 'sx-dash-account-btn__photo'
+          img.setAttribute('data-sx-account-avatar-img', '')
+          img.alt = ''
+          img.src = avatarUrl
+          icon.prepend(img)
+        }
+        icon.classList.add('sx-dash-account-btn__icon--photo')
+        if (fallback) fallback.hidden = true
+      } else {
+        existingImg?.remove()
+        icon.classList.remove('sx-dash-account-btn__icon--photo')
+        if (fallback) fallback.hidden = false
+      }
+    })
+
     applyAccountTierUi()
   }
 
@@ -1402,10 +1413,79 @@ export function mountDashboardApp(root: HTMLElement): void {
       readTier: readAccountTier,
       getSessionStats: getProfileSessionStats,
       getAuthUser: () => getAuthUser(),
-      onOpenSubscription: showSubscriptionPage,
+      onOpenSubscription: openUpgradePlansModal,
       onDisplayNameChange: () => syncSidebarProfile(),
+      onAvatarChange: () => syncSidebarProfile(),
       freeSessionLimit: FREE_SESSION_LIMIT,
     })
+  }
+
+  let disposeUpgradeModal: (() => void) | null = null
+
+  function closeUpgradePlansModal() {
+    disposeUpgradeModal?.()
+    disposeUpgradeModal = null
+  }
+
+  function openUpgradePlansModal() {
+    closeUpgradePlansModal()
+    if (appRoot) setAiChatOpen(appRoot, false)
+
+    const overlay = document.createElement('div')
+    overlay.className = 'sx-sub-upgrade-modal'
+    overlay.setAttribute('role', 'dialog')
+    overlay.setAttribute('aria-modal', 'true')
+    overlay.setAttribute('aria-label', 'Upgrade plan')
+    overlay.innerHTML = `
+      <button type="button" class="sx-sub-upgrade-modal__backdrop" data-sx-sub-modal-close aria-label="Close"></button>
+      <div class="sx-sub-upgrade-modal__panel">
+        <button type="button" class="sx-sub-upgrade-modal__x" data-sx-sub-modal-close aria-label="Close">&times;</button>
+        <div class="sx-sub-upgrade-modal__body" data-sx-sub-modal-body></div>
+      </div>
+    `
+    document.body.append(overlay)
+
+    const body = overlay.querySelector<HTMLElement>('[data-sx-sub-modal-body]')
+    if (!body) {
+      overlay.remove()
+      return
+    }
+
+    const disposePage = mountSubscriptionPage(body, {
+      embedded: true,
+      readTier: readAccountTier,
+      writeTier: writeAccountTier,
+      onCheckoutComplete: () => {
+        applyAccountTierUi()
+        syncSidebarProfile()
+      },
+      onCheckoutDismissed: () => {
+        applyAccountTierUi()
+        syncSidebarProfile()
+        if (document.body.contains(overlay)) {
+          openUpgradePlansModal()
+        }
+      },
+    })
+
+    const close = () => {
+      document.removeEventListener('keydown', onKey)
+      disposePage()
+      overlay.remove()
+      if (disposeUpgradeModal === closeWrapped) disposeUpgradeModal = null
+    }
+    const closeWrapped = () => {
+      close()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeWrapped()
+    }
+
+    overlay.querySelectorAll('[data-sx-sub-modal-close]').forEach((el) => {
+      el.addEventListener('click', closeWrapped)
+    })
+    document.addEventListener('keydown', onKey)
+    disposeUpgradeModal = closeWrapped
   }
 
   function showSubscriptionPage() {
@@ -1474,7 +1554,7 @@ export function mountDashboardApp(root: HTMLElement): void {
     disposeProfile = mountProfilePage(viewProfile, {
       onBack: showDashboard,
       onOpenSettings: showSettingsPage,
-      onProUpgrade: showSubscriptionPage,
+      onProUpgrade: openUpgradePlansModal,
       onDisplayNameChange: () => syncSidebarProfile(),
       readTier: readAccountTier,
       getSessionStats: getProfileSessionStats,
@@ -1572,9 +1652,6 @@ export function mountDashboardApp(root: HTMLElement): void {
       list.innerHTML = `<li class="sx-dash-session-row sx-dash-session-row--empty rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center dark:border-white/10 dark:bg-white/[0.02]" data-session-name="empty new session">
           <p class="text-sm font-medium text-zinc-600 dark:text-zinc-400">No sessions yet</p>
           <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-500">Start a backtest to see it listed here.</p>
-          <button type="button" data-action="backtest" class="sx-dash-cta-session mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-[#e11d48] px-5 py-2.5 text-xs font-bold text-white shadow-[0_8px_20px_rgba(225,29,72,0.3)] transition hover:bg-[#be123c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70">
-            <span aria-hidden="true">+</span> Backtesting Session <span aria-hidden="true">→</span>
-          </button>
         </li>`
     } else if (sessions.length === 0) {
       list.innerHTML = `<li class="sx-dash-session-row sx-dash-session-row--empty rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center dark:border-white/10 dark:bg-white/[0.02]" data-session-name="empty filtered">
@@ -1585,6 +1662,7 @@ export function mountDashboardApp(root: HTMLElement): void {
       list.innerHTML = sessions.map((s) => buildSessionRowHtml(s)).join('')
     }
     syncDashboardPerf()
+    syncSessionPulse()
     syncTradesUi()
   }
 
@@ -1621,8 +1699,11 @@ export function mountDashboardApp(root: HTMLElement): void {
       sessionsHost.classList.toggle('hidden', !showSessions)
     }
     if (tab === 'dashboard' || tab === 'sessions') syncRecentSessionsUi()
+    if (tab === 'analytics') {
+      syncSessionPulse()
+      syncDashboardPerf()
+    }
     if (tab === 'trades') syncTradesUi()
-    if (tab === 'analytics') syncDashboardPerf()
   }
 
   function syncTradesUi() {
@@ -1738,11 +1819,59 @@ export function mountDashboardApp(root: HTMLElement): void {
     })
   })
 
+  function setAccountMenuOpen(open: boolean) {
+    root.querySelectorAll('[data-sx-account-menu]').forEach((wrap) => {
+      const toggle = wrap.querySelector<HTMLButtonElement>('[data-sx-account-toggle]')
+      const panel = wrap.querySelector<HTMLElement>('.sx-dash-account__menu')
+      if (!toggle || !panel) return
+      panel.hidden = !open
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+      toggle.classList.toggle('sx-dash-account-btn--open', open)
+    })
+  }
+
+  root.querySelectorAll('[data-sx-account-toggle]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const wrap = btn.closest('[data-sx-account-menu]')
+      const panel = wrap?.querySelector<HTMLElement>('.sx-dash-account__menu')
+      const next = !!panel?.hidden
+      setAccountMenuOpen(next)
+    })
+  })
+
+  document.addEventListener('click', (e) => {
+    const t = e.target
+    if (!(t instanceof Node)) return
+    if (root.querySelector('[data-sx-account-menu]')?.contains(t)) return
+    setAccountMenuOpen(false)
+  })
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setAccountMenuOpen(false)
+  })
+
   function applyAccountTierUi() {
     const tier = readAccountTier()
     const label = tier === 'pro' ? 'Pro Max user' : tier === 'intermediate' ? 'Pro user' : 'Free user'
+    const planShort = tier === 'pro' ? 'Pro Max' : tier === 'intermediate' ? 'Pro' : 'Free'
     const badge = root.querySelector('#sx-dash-plan-badge')
     if (badge) badge.textContent = label
+    root.querySelectorAll<HTMLElement>('[data-sx-account-plan]').forEach((el) => {
+      el.textContent = planShort
+      el.classList.remove(
+        'sx-dash-account-btn__plan--free',
+        'sx-dash-account-btn__plan--pro',
+        'sx-dash-account-btn__plan--pro-max',
+      )
+      el.classList.add(
+        tier === 'pro'
+          ? 'sx-dash-account-btn__plan--pro-max'
+          : tier === 'intermediate'
+            ? 'sx-dash-account-btn__plan--pro'
+            : 'sx-dash-account-btn__plan--free',
+      )
+    })
     root.querySelectorAll('.sx-dash-pro-upgrade-btn').forEach((el) => {
       el.classList.toggle('hidden', tier === 'pro')
     })
@@ -1831,104 +1960,125 @@ export function mountDashboardApp(root: HTMLElement): void {
     })
   }
 
-  function syncDashboardPerf() {
-    const mode = readPerfMode()
-    const range = readPerfRange()
-    const view = readTimeChartView()
+  function syncSessionPulse() {
+    const range = readPulseRange()
     const sessions = listSessions()
-    const totals = computeDashboardPerfTotals(sessions, mode, range)
+    const pulse = computeSessionPulseStats(sessions, range, Date.now(), getLastSessionId())
+    const pnlTotals = computeDashboardPerfTotals(sessions, 'backtest', range)
+    const directed = pulse.longTrades + pulse.shortTrades
+    const longPct = directed > 0 ? Math.round((pulse.longTrades / directed) * 100) : 50
+    const shortPct = directed > 0 ? 100 - longPct : 50
 
-    const pnlEl = root.querySelector<HTMLElement>('[data-sx-perf-stat="pnl"]')
-    const sessionsEl = root.querySelector<HTMLElement>('[data-sx-perf-stat="sessions"]')
-    const tradesEl = root.querySelector<HTMLElement>('[data-sx-perf-stat="trades"]')
-    const winEl = root.querySelector<HTMLElement>('[data-sx-perf-stat="winrate"]')
+    const practiceEl = root.querySelector<HTMLElement>('[data-sx-pulse="practice"]')
+    const histEl = root.querySelector<HTMLElement>('[data-sx-pulse="historical"]')
+    const practiceHint = root.querySelector<HTMLElement>('[data-sx-pulse="practice-hint"]')
+    const activeSessionEl = root.querySelector<HTMLElement>('[data-sx-pulse="active-session"]')
+    const practiceSplit = root.querySelector<HTMLElement>('[data-sx-pulse="practice-split"]')
+    const practiceSessions = root.querySelector<HTMLElement>('[data-sx-pulse="practice-sessions"]')
+    const histHint = root.querySelector<HTMLElement>('[data-sx-pulse="historical-hint"]')
+    const pnlEl = root.querySelector<HTMLElement>('[data-sx-pulse="pnl"]')
+    const pnlHint = root.querySelector<HTMLElement>('[data-sx-pulse="pnl-hint"]')
+    const winrateEl = root.querySelector<HTMLElement>('[data-sx-pulse="winrate"]')
+    const winrateHint = root.querySelector<HTMLElement>('[data-sx-pulse="winrate-hint"]')
+    const tradesEl = root.querySelector<HTMLElement>('[data-sx-pulse="trades"]')
+    const splitLabel = root.querySelector<HTMLElement>('[data-sx-pulse="split-label"]')
+    const longBar = root.querySelector<HTMLElement>('[data-sx-pulse="long-bar"]')
+    const shortBar = root.querySelector<HTMLElement>('[data-sx-pulse="short-bar"]')
+    const ringHost = root.querySelector<HTMLElement>('[data-sx-pulse="ring"]')
+    const activityHost = root.querySelector<HTMLElement>('[data-sx-pulse="activity"]')
+    const symbolsHost = root.querySelector<HTMLElement>('[data-sx-pulse="symbols"]')
+    const insightsHost = root.querySelector<HTMLElement>('[data-sx-pulse="insights"]')
 
-    if (pnlEl) {
-      pnlEl.textContent = totals.hasData ? formatDashboardPerfMoney(totals.netPnl) : '—'
-      pnlEl.className = `mt-1 text-2xl font-bold tracking-tight sm:text-3xl ${
-        totals.netPnl > 0
-          ? 'text-emerald-400'
-          : totals.netPnl < 0
-            ? 'text-rose-400'
-            : 'text-slate-900 dark:text-white'
-      }`
-    }
-    if (sessionsEl) sessionsEl.textContent = String(totals.sessionsActive)
-    if (tradesEl) {
-      if (totals.tradesTaken > 0) {
-        tradesEl.textContent = String(totals.tradesTaken)
-        tradesEl.className =
-          'mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl'
+    if (practiceEl) practiceEl.textContent = formatPulseDuration(pulse.practiceMs)
+    if (histEl) histEl.textContent = formatPulseDuration(pulse.historicalMs)
+    if (activeSessionEl) {
+      if (pulse.activeSessionName) {
+        activeSessionEl.textContent = `Active · ${pulse.activeSessionName} · ${formatPulseDuration(pulse.activePracticeMs)}`
+        activeSessionEl.title = `${pulse.activeSessionName} — ${formatPulseDuration(pulse.activePracticeMs)} practice`
       } else {
-        tradesEl.textContent =
-          mode === 'battles'
-            ? 'Run Compare sessions to record battles'
-            : totals.hasData
-              ? '0'
-              : 'Your trades taken will show up here'
-        tradesEl.className = totals.hasData
-          ? 'mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl'
-          : 'mt-3 text-sm leading-relaxed text-zinc-500'
+        activeSessionEl.textContent = 'No active session'
+        activeSessionEl.removeAttribute('title')
       }
     }
-    if (winEl) {
-      winEl.textContent = formatDashboardWinRate(totals.winRate)
-      winEl.className = `mt-1 text-2xl font-bold tracking-tight sm:text-3xl ${
-        totals.winRate != null && totals.winRate >= 50
-          ? 'text-emerald-400'
-          : totals.winRate != null
-            ? 'text-slate-900 dark:text-white'
-            : 'text-zinc-500 dark:text-zinc-600'
-      }`
+    if (practiceSplit) practiceSplit.innerHTML = buildPulsePracticeSplitHtml(pulse.sessionPractice)
+    if (practiceSessions) practiceSessions.innerHTML = buildPulsePracticeRowsHtml(pulse.sessionPractice)
+    if (practiceHint) {
+      if (pulse.sessionsTouched) {
+        practiceHint.textContent = `${pulse.sessionsTouched} session${pulse.sessionsTouched === 1 ? '' : 's'} · Active ${formatPulseDuration(pulse.activePracticeMs)}`
+      } else {
+        practiceHint.textContent = 'Across sessions'
+      }
+    }
+    if (histHint) {
+      histHint.textContent =
+        pulse.practiceMs > 0 && pulse.historicalMs > 0
+          ? `${Math.max(1, Math.round(pulse.historicalMs / Math.max(pulse.practiceMs, 1)))}× tape vs practice`
+          : 'Historical coverage'
+    }
+    if (pnlEl) {
+      pnlEl.textContent = pnlTotals.hasData ? formatDashboardPerfMoney(pnlTotals.netPnl) : '—'
+      pnlEl.classList.toggle('sx-dash-pulse__kpi-value--ok', pnlTotals.hasData && pnlTotals.netPnl > 0)
+      pnlEl.classList.toggle('sx-dash-pulse__kpi-value--warn', pnlTotals.hasData && pnlTotals.netPnl < 0)
+    }
+    if (pnlHint) {
+      pnlHint.textContent = pnlTotals.hasData
+        ? `${pnlTotals.sessionsActive} session${pnlTotals.sessionsActive === 1 ? '' : 's'} · ${pnlTotals.tradesTaken} trades`
+        : 'Backtest results'
+    }
+    if (winrateEl) {
+      winrateEl.textContent = formatDashboardWinRate(pulse.winRate)
+      winrateEl.classList.toggle('sx-dash-pulse__kpi-value--ok', pulse.winRate != null && pulse.winRate >= 50)
+      winrateEl.classList.toggle(
+        'sx-dash-pulse__kpi-value--warn',
+        pulse.winRate != null && pulse.winRate < 50 && pulse.tradesTaken > 0,
+      )
+    }
+    if (winrateHint) {
+      winrateHint.textContent =
+        pulse.tradesTaken > 0
+          ? `${pulse.wins}W / ${pulse.losses}L on ${pulse.tradesTaken}`
+          : 'Closed trade edge'
+    }
+    if (tradesEl) {
+      tradesEl.textContent =
+        pulse.tradesTaken > 0
+          ? `${pulse.tradesTaken} trade${pulse.tradesTaken === 1 ? '' : 's'} · ${pulse.wins}W / ${pulse.losses}L`
+          : 'No closed trades yet'
+    }
+    if (splitLabel) {
+      splitLabel.textContent =
+        directed > 0 ? `${longPct}% buys · ${shortPct}% sells` : 'Buys / sells appear after journal closes'
+    }
+    if (longBar) longBar.style.width = `${longPct}%`
+    if (shortBar) shortBar.style.width = `${shortPct}%`
+    if (ringHost) ringHost.innerHTML = buildPulseWinRingSvg(pulse.winRate)
+    if (activityHost) activityHost.innerHTML = buildPulseActivityChartSvg(pulse.practiceMonths)
+    if (symbolsHost) symbolsHost.innerHTML = buildPulseSymbolRowsHtml(pulse.symbols)
+    if (insightsHost) {
+      insightsHost.innerHTML = pulse.insights
+        .map((line) => `<li class="sx-dash-pulse__insight"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i><span>${line}</span></li>`)
+        .join('')
     }
 
-    const pan = root.querySelector('#sx-dash-time-chart-pan')
-    if (pan) {
-      pan.innerHTML = buildDashboardPerfChartSvg(sessions, mode, range, view)
-    }
-
-    const roleImg = root.querySelector('[data-sx-time-chart]')
-    if (roleImg) {
-      const desc =
-        view === 'daily'
-          ? `Net P&L by day this month (${PERF_MODE_LABELS[mode]}, ${PERF_RANGE_LABELS[range]})`
-          : `Net P&L by month this year (${PERF_MODE_LABELS[mode]}, ${PERF_RANGE_LABELS[range]})`
-      roleImg.setAttribute('aria-label', desc)
-    }
-
-    root.querySelectorAll<HTMLButtonElement>('[data-time-chart-tab]').forEach((btn) => {
-      const v = btn.getAttribute('data-time-chart-tab')
-      const on = v === view
-      btn.classList.toggle('sx-dash-time-chart-tab--selected', on)
-      btn.setAttribute('aria-selected', on ? 'true' : 'false')
+    root.querySelectorAll<HTMLButtonElement>('[data-pulse-range]').forEach((btn) => {
+      const on = btn.getAttribute('data-pulse-range') === range
+      btn.classList.toggle('sx-dash-pulse__range-btn--active', on)
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false')
     })
   }
 
-  function syncPerfUi() {
-    const mode = readPerfMode()
-    const range = readPerfRange()
-    root.querySelectorAll('.sx-dash-perf-trigger__label--mode').forEach((el) => {
-      el.textContent = PERF_MODE_LABELS[mode]
+  function syncDashboardPerf() {
+    const range = readPulseRange()
+    const sessions = listSessions()
+
+    root.querySelectorAll<HTMLElement>('[data-sx-time-chart-pan]').forEach((pan) => {
+      pan.innerHTML = buildDashboardPerfChartSvg(sessions, 'backtest', range, 'daily')
     })
-    root.querySelectorAll('.sx-dash-perf-trigger__label--range').forEach((el) => {
-      el.textContent = PERF_RANGE_LABELS[range]
-    })
-    root.querySelectorAll<HTMLButtonElement>('[data-perf-mode-option]').forEach((btn) => {
-      const on = btn.getAttribute('data-perf-mode-option') === mode
-      btn.classList.toggle('sx-dash-perf-option--selected', on)
-      btn.setAttribute('aria-selected', on ? 'true' : 'false')
-    })
-    root.querySelectorAll<HTMLButtonElement>('[data-perf-range-option]').forEach((btn) => {
-      const on = btn.getAttribute('data-perf-range-option') === range
-      btn.classList.toggle('sx-dash-perf-option--selected', on)
-      btn.setAttribute('aria-selected', on ? 'true' : 'false')
+
+    root.querySelectorAll<HTMLElement>('[data-sx-time-chart]').forEach((roleImg) => {
+      roleImg.setAttribute('aria-label', `Net P&L by day this month (${PERF_RANGE_LABELS[range]})`)
     })
   }
-
-  const perfModePanel = root.querySelector<HTMLElement>('[data-sx-perf-dd="mode"] .sx-dash-perf-panel')
-  const perfRangePanel = root.querySelector<HTMLElement>('[data-sx-perf-dd="range"] .sx-dash-perf-panel')
-  if (perfModePanel) perfModePanel.innerHTML = buildPerfModePanelHtml()
-  if (perfRangePanel) perfRangePanel.innerHTML = buildPerfRangePanelHtml()
 
   const sessionFilterPanel = root.querySelector<HTMLElement>('[data-sx-session-dd="filter"] .sx-dash-perf-panel')
   const sessionSortPanel = root.querySelector<HTMLElement>('[data-sx-session-dd="sort"] .sx-dash-perf-panel')
@@ -2008,6 +2158,16 @@ export function mountDashboardApp(root: HTMLElement): void {
       }
       return
     }
+    const pulseRangeBtn = t.closest<HTMLButtonElement>('[data-pulse-range]')
+    if (pulseRangeBtn && root.contains(pulseRangeBtn)) {
+      const v = pulseRangeBtn.getAttribute('data-pulse-range')
+      if (v && PERF_RANGE_VALUES.includes(v as DashboardPerfRange)) {
+        writePulseRange(v as DashboardPerfRange)
+        syncSessionPulse()
+        syncDashboardPerf()
+      }
+      return
+    }
     const sessionFilterOpt = t.closest<HTMLButtonElement>('[data-session-filter-option]')
     if (sessionFilterOpt && root.contains(sessionFilterOpt)) {
       const v = sessionFilterOpt.getAttribute('data-session-filter-option')
@@ -2055,70 +2215,6 @@ export function mountDashboardApp(root: HTMLElement): void {
         const panel = wrap.querySelector('.sx-dash-perf-panel')
         panel?.classList.remove('hidden')
         sessionSortTrigger.setAttribute('aria-expanded', 'true')
-      }
-      return
-    }
-
-    const timeChartTab = t.closest<HTMLButtonElement>('[data-time-chart-tab]')
-    if (timeChartTab && root.contains(timeChartTab)) {
-      const v = timeChartTab.getAttribute('data-time-chart-tab')
-      if (v === 'daily' || v === 'monthly') {
-        writeTimeChartView(v)
-        syncDashboardPerf()
-      }
-      return
-    }
-
-    const perfModeOpt = t.closest<HTMLButtonElement>('[data-perf-mode-option]')
-    if (perfModeOpt && root.contains(perfModeOpt)) {
-      const v = perfModeOpt.getAttribute('data-perf-mode-option')
-      if (v === 'backtest' || v === 'battles' || v === 'prop' || v === 'all') {
-        writePerfMode(v)
-        syncPerfUi()
-        syncDashboardPerf()
-        closeAllPerfDropdowns()
-      }
-      return
-    }
-    const perfModeTrigger = t.closest<HTMLButtonElement>('[data-perf-mode-trigger]')
-    if (perfModeTrigger && root.contains(perfModeTrigger)) {
-      const wrap = perfModeTrigger.closest('[data-sx-perf-dd]')
-      if (!wrap) return
-      const willOpen = !wrap.classList.contains('sx-dash-perf-dd--open')
-      closeAllLocaleDropdowns()
-      closeAllPerfDropdowns()
-      if (willOpen) {
-        wrap.classList.add('sx-dash-perf-dd--open')
-        const panel = wrap.querySelector('.sx-dash-perf-panel')
-        panel?.classList.remove('hidden')
-        perfModeTrigger.setAttribute('aria-expanded', 'true')
-      }
-      return
-    }
-
-    const perfRangeOpt = t.closest<HTMLButtonElement>('[data-perf-range-option]')
-    if (perfRangeOpt && root.contains(perfRangeOpt)) {
-      const v = perfRangeOpt.getAttribute('data-perf-range-option')
-      if (v === 'week' || v === 'month' || v === 'lifetime') {
-        writePerfRange(v)
-        syncPerfUi()
-        syncDashboardPerf()
-        closeAllPerfDropdowns()
-      }
-      return
-    }
-    const perfRangeTrigger = t.closest<HTMLButtonElement>('[data-perf-range-trigger]')
-    if (perfRangeTrigger && root.contains(perfRangeTrigger)) {
-      const wrap = perfRangeTrigger.closest('[data-sx-perf-dd]')
-      if (!wrap) return
-      const willOpen = !wrap.classList.contains('sx-dash-perf-dd--open')
-      closeAllLocaleDropdowns()
-      closeAllPerfDropdowns()
-      if (willOpen) {
-        wrap.classList.add('sx-dash-perf-dd--open')
-        const panel = wrap.querySelector('.sx-dash-perf-panel')
-        panel?.classList.remove('hidden')
-        perfRangeTrigger.setAttribute('aria-expanded', 'true')
       }
       return
     }
@@ -2172,7 +2268,6 @@ export function mountDashboardApp(root: HTMLElement): void {
   writeDashLocale(initialLocale)
   syncDashLocaleUi(initialLocale)
 
-  syncPerfUi()
   syncRecentSessionsUi()
   setTestingTab(readTestingTab())
 
@@ -2242,21 +2337,9 @@ export function mountDashboardApp(root: HTMLElement): void {
     })
   })
 
-  root.querySelectorAll('[data-action="battle-compare"]').forEach((el) => {
-    el.addEventListener('click', () => {
-      openBattleCompareDialog({
-        sessions: listSessions(),
-        onRecorded: () => {
-          if (readPerfMode() !== 'battles') writePerfMode('battles')
-          syncPerfUi()
-          syncDashboardPerf()
-        },
-      })
-    })
-  })
-
   root.querySelectorAll('[data-action="profile"]').forEach((el) => {
     el.addEventListener('click', () => {
+      setAccountMenuOpen(false)
       showProfilePage()
     })
   })
@@ -2275,7 +2358,7 @@ export function mountDashboardApp(root: HTMLElement): void {
 
   root.querySelectorAll('[data-action="pro-upgrade"]').forEach((el) => {
     el.addEventListener('click', () => {
-      showSubscriptionPage()
+      openUpgradePlansModal()
     })
   })
 }

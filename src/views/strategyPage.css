@@ -235,18 +235,18 @@
 }
 
 .sx-strat-page--embedded .sx-strat-page__btn:hover:not(:disabled) {
-  background: #f8fafc;
+  background: #F1F5F9;
   border-color: #cbd5e1;
 }
 
 .sx-strat-page--embedded .sx-strat-page__btn--primary {
   border-color: transparent;
-  background: #e11d48;
+  background: #334155;
   color: #fff;
 }
 
 .sx-strat-page--embedded .sx-strat-page__btn--primary:hover:not(:disabled) {
-  background: #be123c;
+  background: #1E293B;
 }
 
 .sx-strat-page--embedded .sx-strat-page__body {
@@ -255,7 +255,7 @@
 
 .sx-strat-page--embedded .sx-strat-page__list {
   border-right-color: #e8eaed;
-  background: #f8fafc;
+  background: #F1F5F9;
 }
 
 .sx-strat-page--embedded .sx-strat-page__list-label {
@@ -299,7 +299,7 @@
   --sx-strat-text: #0f172a;
   --sx-strat-muted: #64748b;
   --sx-strat-border: #e2e8f0;
-  --sx-strat-bg: #f8fafc;
+  --sx-strat-bg: #F1F5F9;
 }
 
 .sx-strat-page--embedded .sx-strat-page__editor .sx-strat-input,
@@ -320,11 +320,11 @@
 
 .sx-strat-page--embedded .sx-strat-btn--primary {
   border-color: transparent;
-  background: #e11d48;
+  background: #334155;
 }
 
 .sx-strat-page--embedded .sx-strat-btn--primary:hover:not(:disabled) {
-  background: #be123c;
+  background: #1E293B;
 }
 
 @media (max-width: 900px) {

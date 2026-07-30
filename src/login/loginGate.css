@@ -43,7 +43,7 @@
     radial-gradient(ellipse 70% 55% at 50% 0%, rgba(196, 181, 253, 0.55), transparent 62%),
     radial-gradient(ellipse 45% 40% at 0% 100%, rgba(165, 180, 252, 0.35), transparent 55%),
     radial-gradient(ellipse 40% 35% at 100% 85%, rgba(125, 211, 252, 0.3), transparent 50%),
-    linear-gradient(180deg, #ede9fe 0%, #f8fafc 52%, #eff6ff 100%);
+    linear-gradient(180deg, #ede9fe 0%, #F1F5F9 52%, #eff6ff 100%);
 }
 
 /* Larger login shell */
@@ -82,7 +82,7 @@
     #34a853 72deg,
     #fbbc05 144deg,
     #ea4335 216deg,
-    #a855f7 288deg,
+    #334155 288deg,
     #4285f4 360deg
   );
   animation: sx-login-ai-spin 3.5s linear infinite;
@@ -258,9 +258,9 @@
   margin: 0;
   padding: 0.4rem 0.55rem;
   border-radius: 0.5rem;
-  border: 1px solid rgba(244, 63, 94, 0.3);
-  background: #fff1f2;
-  color: #be123c;
+  border: 1px solid rgba(184, 160, 106, 0.3);
+  background: #f1f5f9;
+  color: #1E293B;
   font-size: 0.75rem;
   text-align: center;
 }
@@ -282,7 +282,7 @@
 .sx-login__toast-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(15, 23, 42, 0.28);
+  background: rgba(51, 65, 85, 0.28);
   backdrop-filter: blur(3px);
 }
 
@@ -292,7 +292,7 @@
   width: min(100%, 20rem);
   padding: 1.1rem 1rem;
   border-radius: 1rem;
-  border: 1px solid rgba(244, 63, 94, 0.25);
+  border: 1px solid rgba(184, 160, 106, 0.25);
   background: #fff;
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
   text-align: center;
@@ -306,9 +306,9 @@
   height: 2rem;
   margin: 0 auto 0.5rem;
   border-radius: 9999px;
-  background: #fff1f2;
-  border: 1px solid rgba(244, 63, 94, 0.3);
-  color: #e11d48;
+  background: #f1f5f9;
+  border: 1px solid rgba(184, 160, 106, 0.3);
+  color: #334155;
   font: 800 0.9rem/1 system-ui, sans-serif;
 }
 
@@ -321,7 +321,7 @@
 .sx-login__toast-msg {
   margin: 0 0 0.85rem;
   font-size: 0.78rem;
-  color: #be123c;
+  color: #1E293B;
 }
 
 .sx-login__toast-btn {
@@ -558,7 +558,7 @@
   font: 700 1rem inherit;
   color: #fff;
   cursor: pointer;
-  background: linear-gradient(105deg, #4f46e5 0%, #6366f1 40%, #a855f7 100%);
+  background: linear-gradient(105deg, #4f46e5 0%, #6366f1 40%, #334155 100%);
   box-shadow:
     0 10px 28px rgba(124, 58, 237, 0.35),
     0 0 0 1px rgba(255, 255, 255, 0.2) inset;
