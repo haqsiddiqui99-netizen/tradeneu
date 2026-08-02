@@ -3,7 +3,6 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-ENV NODE_ENV=production
 ENV HISTORIC_API_HOST=0.0.0.0
 ENV SERVE_SPA=1
 
@@ -12,12 +11,15 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# Include devDependencies so `vite` / `tsc` are available for the image build.
+RUN npm ci --include=dev
 
 COPY . .
 RUN npm run build \
   && npm prune --omit=dev \
   && npm cache clean --force
+
+ENV NODE_ENV=production
 
 RUN mkdir -p /data
 
