@@ -8,7 +8,14 @@ import {
   readSessionFromRequest,
   setSessionCookie,
 } from './sessionCookie.mjs'
-import { authStorageStatus, authenticateUser, publicUser, registerUser } from './userStore.mjs'
+import {
+  authStorageStatus,
+  authenticateUser,
+  changeUserPassword,
+  publicUser,
+  registerUser,
+} from './userStore.mjs'
+import { googleConfigured } from './googleOAuth.mjs'
 
 function isSecureRequest(req) {
   const proto = req.get('x-forwarded-proto') || req.protocol || 'http'
@@ -36,6 +43,7 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
     res.json({
       ok: true,
       authMode: 'local',
+      googleEnabled: googleConfigured(),
       storageBackend: storage.backend,
       storageReady: storage.ready,
       storageMessage: storage.message,
@@ -102,5 +110,30 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
     const secure = isSecureRequest(req)
     clearSessionCookie(res, { secure })
     res.json({ ok: true })
+  })
+
+  app.post('/api/auth/change-password', async (req, res) => {
+    try {
+      const session = readSessionFromRequest(req)
+      if (!session?.email) {
+        res.status(401).json({ ok: false, error: 'Sign in to update your password.' })
+        return
+      }
+      if ((session.provider || 'local') === 'guest') {
+        res.status(400).json({ ok: false, error: 'Guest accounts cannot change password.' })
+        return
+      }
+      const currentPassword = req.body?.currentPassword
+      const newPassword = req.body?.newPassword
+      const result = await changeUserPassword(dataDir, session.email, currentPassword, newPassword)
+      if (!result.ok) {
+        res.status(result.status ?? 400).json({ ok: false, error: result.error })
+        return
+      }
+      res.json({ ok: true })
+    } catch (e) {
+      console.error('[auth] change-password error:', e?.message || e)
+      res.status(500).json({ ok: false, error: 'Could not update password. Try again.' })
+    }
   })
 }

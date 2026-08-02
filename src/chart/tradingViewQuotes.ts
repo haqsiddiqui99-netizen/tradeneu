@@ -28,15 +28,13 @@ function quoteValuesFromBars(symbol: string, bars: Bar[]): TvQuoteData['v'] | nu
   const asset = findAsset(symbol)
   const ch = prev ? last.close - prev.close : 0
   const chp = prev && prev.close !== 0 ? (ch / prev.close) * 100 : 0
-  const spread = Math.max(0.02, last.close * 0.00004)
+  // Do not send bid/ask — TV draws a cyan/magenta horizontal from those values
+  // (often at daily close while the series last-price is elsewhere).
   return {
     short_name: symbol,
     description: asset?.name ?? symbol,
     exchange: asset ? catalogExchange(asset) : 'Tradeneu',
     lp: last.close,
-    bid: last.close - spread / 2,
-    ask: last.close + spread / 2,
-    spread,
     open_price: last.open,
     high_price: last.high,
     low_price: last.low,

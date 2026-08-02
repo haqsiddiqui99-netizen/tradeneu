@@ -37,11 +37,7 @@ async function bootstrap(): Promise<void> {
     return
   }
 
-  if (path === '/') {
-    window.location.replace(authed ? HOME_PAGE_PATH : LOGIN_PAGE_PATH)
-    return
-  }
-
+  // `/` and unknown paths → login or dashboard
   window.location.replace(authed ? HOME_PAGE_PATH : LOGIN_PAGE_PATH)
 }
 

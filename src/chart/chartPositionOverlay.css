@@ -2,70 +2,125 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 12;
+  /* Above TradingView iframe (.rw-chart-tv z-index:2) and tick overlay (3) */
+  z-index: 14;
   overflow: hidden;
 }
 
-.rw-pos-row {
+/* Horizontal dashed entry / TP / SL lines (FXReplay-style) */
+.rw-pos-hline {
   position: absolute;
-  left: 55%;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 4px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(224, 227, 235, 0.95);
-  box-shadow: 0 2px 8px rgba(19, 23, 34, 0.14);
-  pointer-events: auto;
+  height: 0;
+  border-top: 1.5px dashed var(--rw-pos-line-color, #2962ff);
+  pointer-events: none;
+  z-index: 1;
+  box-sizing: border-box;
+}
+
+.rw-pos-hline--tp {
+  --rw-pos-line-color: #089981;
+  border-top-style: dashed;
+  opacity: 0.9;
+}
+
+.rw-pos-hline--sl {
+  --rw-pos-line-color: #f7931a;
+  border-top-style: dashed;
+  opacity: 0.9;
+}
+
+.rw-pos-hline__label {
+  position: absolute;
+  left: 8px;
+  top: 0;
   transform: translateY(-50%);
+  padding: 1px 5px;
+  border-radius: 2px;
+  color: #fff;
+  font: 700 9px/1.2 var(--rw-font, sans-serif);
+  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
-.rw-pos-row--long .rw-pos-pnl,
-.rw-pos-row--long .rw-pos-qty {
-  background: #2962ff;
+/* FXReplay-style badge docked on the right of the entry line */
+.rw-pos-row {
+  position: absolute;
+  left: auto;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(19, 23, 34, 0.12);
+  box-shadow: 0 1px 4px rgba(19, 23, 34, 0.16);
+  pointer-events: auto;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  z-index: 2;
+  height: 26px;
 }
 
-.rw-pos-row--short .rw-pos-pnl,
-.rw-pos-row--short .rw-pos-qty {
-  background: #e65100;
+.rw-pos-row__tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 2px;
+  background: #fff;
+  border-right: 1px solid rgba(19, 23, 34, 0.1);
+}
+
+.rw-pos-row__sep {
+  width: 0;
+  height: 14px;
+  border-left: 1px dashed rgba(19, 23, 34, 0.28);
+  margin: 0 1px;
 }
 
 .rw-pos-chip {
-  padding: 4px 8px;
+  padding: 0 7px;
+  height: 100%;
+  min-height: 24px;
   border: none;
-  border-radius: 3px;
-  font: 700 10px/1.2 var(--rw-font, sans-serif);
-  letter-spacing: 0.04em;
+  border-radius: 0;
+  background: transparent;
+  color: #089981;
+  font: 700 10px/1 var(--rw-font, sans-serif);
+  letter-spacing: 0.03em;
   cursor: pointer;
-  transition: opacity 0.12s ease, filter 0.12s ease;
-}
-
-.rw-pos-chip:hover {
-  filter: brightness(1.06);
-}
-
-.rw-pos-chip--off {
-  opacity: 0.38;
-  filter: grayscale(0.35);
-}
-
-.rw-pos-chip--tp {
-  background: #089981;
-  color: #fff;
+  transition: opacity 0.12s ease, color 0.12s ease;
 }
 
 .rw-pos-chip--sl {
-  background: #f7931a;
-  color: #fff;
+  color: #f7931a;
+}
+
+.rw-pos-chip:hover {
+  filter: brightness(0.92);
+}
+
+.rw-pos-chip--off {
+  opacity: 0.35;
+  filter: grayscale(0.4);
+}
+
+.rw-pos-chip--tp {
+  background: transparent;
+  color: #089981;
+}
+
+.rw-pos-chip--sl {
+  background: transparent;
+  color: #f7931a;
 }
 
 .rw-pos-pnl {
-  padding: 4px 10px;
-  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
   color: #fff;
-  font: 600 11px/1.2 var(--rw-font, sans-serif);
+  font: 600 11px/1 var(--rw-font, sans-serif);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -74,34 +129,49 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 6px;
-  border-radius: 3px;
+  min-width: 22px;
+  padding: 0 7px;
   color: #fff;
-  font: 700 11px var(--rw-font, sans-serif);
+  font: 700 11px/1 var(--rw-font, sans-serif);
+  border-left: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+/* Chip fill follows unrealized P&L (not BUY/SELL side). Side is shown in the label text. */
+.rw-pos-row--up .rw-pos-pnl,
+.rw-pos-row--up .rw-pos-qty {
+  background: #2962ff;
+}
+
+.rw-pos-row--down .rw-pos-pnl,
+.rw-pos-row--down .rw-pos-qty {
+  background: #e65100;
+}
+
+.rw-pos-row--flat .rw-pos-pnl,
+.rw-pos-row--flat .rw-pos-qty {
+  background: #787b86;
 }
 
 .rw-pos-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 100%;
   padding: 0;
-  border: 1px solid #e0e3eb;
-  border-radius: 4px;
+  border: none;
+  border-left: 1px solid rgba(19, 23, 34, 0.1);
+  border-radius: 0;
   background: #fff;
   color: #787b86;
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
-  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  transition: background 0.1s, color 0.1s;
 }
 
 .rw-pos-close:hover {
   background: #f23645;
-  border-color: #f23645;
   color: #fff;
 }
 
@@ -282,12 +352,21 @@
 }
 
 .rw-root[data-chart-theme='dark'] .rw-pos-row {
-  background: rgba(30, 34, 45, 0.95);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: #1e222d;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pos-row__tools {
+  background: #1e222d;
+  border-right-color: rgba(255, 255, 255, 0.12);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pos-row__sep {
+  border-left-color: rgba(255, 255, 255, 0.28);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-pos-close {
   background: #2a2e39;
-  border-color: rgba(255, 255, 255, 0.12);
+  border-left-color: rgba(255, 255, 255, 0.12);
   color: #9aa0ab;
 }

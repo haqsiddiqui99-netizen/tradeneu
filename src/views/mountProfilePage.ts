@@ -15,7 +15,7 @@ export type MountProfilePageOptions = {
   onOpenSettings?: () => void
   onProUpgrade?: () => void
   onDisplayNameChange?: (name: string) => void
-  readTier: () => 'free' | 'pro'
+  readTier: () => 'free' | 'intermediate' | 'pro'
   getSessionStats: () => ProfileSessionStats
   getAuthEmail?: () => string | null
 }
@@ -60,7 +60,7 @@ export function mountProfilePage(root: HTMLElement, opts: MountProfilePageOption
         <div>
           <p class="sx-platform-page__profile-name" data-sx-profile-name-display>${escapeHtml(displayName)}</p>
           <p class="sx-platform-page__profile-tier">
-            <span class="sx-platform-page__badge ${tier === 'pro' ? 'sx-platform-page__badge--pro' : 'sx-platform-page__badge--free'}" data-sx-profile-tier-badge>${tier === 'pro' ? 'Pro' : 'Free'}</span>
+            <span class="sx-platform-page__badge ${tier === 'free' ? 'sx-platform-page__badge--free' : 'sx-platform-page__badge--pro'}" data-sx-profile-tier-badge>${tier === 'pro' ? 'Pro Max' : tier === 'intermediate' ? 'Pro' : 'Free'}</span>
             · ${authEmail ? escapeHtml(authEmail) : 'Local account'}
           </p>
         </div>
@@ -98,7 +98,7 @@ export function mountProfilePage(root: HTMLElement, opts: MountProfilePageOption
         <h2 id="sx-profile-plan" class="sx-platform-page__section-title">Plan</h2>
         <div class="sx-platform-page__card">
           <p class="sx-platform-page__hint" style="margin-bottom: 10px">Upgrade for unlimited sessions, advanced metrics, and AI strategy tools when available.</p>
-          <button type="button" class="sx-platform-page__btn sx-platform-page__btn--primary" data-sx-profile-upgrade>Explore Pro</button>
+          <button type="button" class="sx-platform-page__btn sx-platform-page__btn--primary" data-sx-profile-upgrade>Explore Pro Max</button>
         </div>
       </section>`
           : ''

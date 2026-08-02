@@ -220,45 +220,196 @@
   background: var(--rw-menu-active-hover);
 }
 
-/* Compact interval list under FXReplay floating replay bar */
+/* TradingView-style “UPDATE INTERVAL” popover (replay dock) */
 .rw-intmenu--replay {
-  min-width: 40px;
-  max-width: 62px;
-  max-height: min(320px, 50vh);
-  padding: 2px 0;
-  border-radius: var(--rw-radius-lg);
-  box-shadow: var(--rw-menu-shadow);
+  /* Match TV charting library interval dropdown typography */
+  --rw-tv-int-font: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
+  font-family: var(--rw-tv-int-font);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  min-width: 220px;
+  max-width: 260px;
+  /* Hard ceiling; JS caps further to available space above/below the dock. */
+  max-height: min(420px, 60vh);
+  padding: 0;
+  border-radius: 6px;
+  color: #131722;
+  box-shadow:
+    0 0 0 1px rgba(19, 23, 34, 0.08),
+    0 8px 28px rgba(19, 23, 34, 0.14);
+}
+
+.rw-intmenu--replay .rw-intmenu__tv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid rgba(19, 23, 34, 0.08);
+}
+
+.rw-intmenu--replay .rw-intmenu__tv-title {
+  font-family: var(--rw-tv-int-font);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 16px;
+  text-transform: uppercase;
+  color: #787b86;
+}
+
+.rw-intmenu--replay .rw-intmenu__tv-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #787b86;
+  border-radius: 50%;
+  background: transparent;
+  color: #787b86;
+  font: 400 11px/1 var(--rw-tv-int-font);
+  cursor: help;
 }
 
 .rw-intmenu--replay .rw-intmenu__scroll {
-  max-height: min(300px, 48vh);
-  padding: 2px 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(300px, 42vh);
+  padding: 4px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.rw-intmenu--replay .rw-intmenu__tv-head,
+.rw-intmenu--replay .rw-intmenu__tv-foot {
+  flex: 0 0 auto;
 }
 
 .rw-intmenu--replay .rw-intmenu__btn {
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+  padding: 8px 14px;
+  font-family: var(--rw-tv-int-font);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  font-variant-numeric: normal;
+  text-align: left;
+  color: #131722;
 }
 
 .rw-intmenu--replay .rw-intmenu__btn--active {
-  background: var(--rw-menu-hover);
-  color: var(--rw-menu-text);
-  font-weight: 600;
+  background: #2a2e39;
+  color: #ffffff;
+  font-weight: 400;
 }
 
 .rw-intmenu--replay .rw-intmenu__btn--active:hover:not(:disabled) {
-  background: var(--rw-menu-hover);
-  filter: brightness(0.97);
+  background: #363a45;
+  color: #ffffff;
+  filter: none;
 }
 
-.rw-replay-dock__interval--open .rw-replay-dock__interval-chev {
-  transform: rotate(180deg);
+.rw-intmenu--replay .rw-intmenu__tv-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(19, 23, 34, 0.08);
+}
+
+.rw-intmenu--replay .rw-intmenu__tv-auto-label {
+  font-family: var(--rw-tv-int-font);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #131722;
+}
+
+.rw-intmenu--replay .rw-intmenu__tv-toggle {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #b2b5be;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.rw-intmenu--replay .rw-intmenu__tv-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(19, 23, 34, 0.25);
+  transition: transform 0.15s ease;
+}
+
+.rw-intmenu--replay .rw-intmenu__tv-toggle--on {
+  background: #2962ff;
+}
+
+.rw-intmenu--replay .rw-intmenu__tv-toggle--on::after {
+  transform: translateX(16px);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-intmenu--replay {
+  color: #d1d4dc;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__tv-title,
+.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__tv-help {
+  color: #787b86;
+  border-color: #787b86;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__btn {
+  color: #d1d4dc;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__btn--active {
+  background: #2962ff;
+  color: #ffffff;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__btn--active:hover:not(:disabled) {
+  background: #1e53e5;
+  color: #ffffff;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__tv-auto-label {
+  color: #d1d4dc;
+}
+
+.rw-replay-dock__interval--open .rw-replay-dock__interval-chev,
+.rw-replay-dock__interval[aria-expanded='true'] .rw-replay-dock__interval-chev {
+  transform: translateY(0.5px) rotate(180deg);
 }
 
 .rw-replay-dock__interval-chev {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   transition: transform var(--rw-transition-slow);
+}
+
+.rw-replay-dock__interval-chev .sx-ico,
+.rw-replay-dock__interval-chev svg {
+  color: inherit;
+  stroke: currentColor;
+}
+
+.rw-replay-dock__interval-chev svg path {
+  stroke-width: 2.35;
 }

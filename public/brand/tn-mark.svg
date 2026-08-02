@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Tradeneu">
+  <rect width="64" height="64" rx="14" fill="#334155"/>
+  <!-- Fused TN: T crossbar merges into N; narrow gutter between T stem and N left upright -->
+  <path
+    fill="#FFFFFF"
+    d="M11.5 17.5H36V25.5H23.25V46.5h-8V25.5H11.5ZM28 17.5h8v29h-8zm18.5 0H54.5V46.5h-8zM36 17.5 54.5 38.5V46.5h-8L28 25.5Z"
+  />
+</svg>

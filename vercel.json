@@ -6,6 +6,7 @@
   "framework": "vite",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/", "destination": "/index.html" },
     { "source": "/loginPage", "destination": "/index.html" },
     { "source": "/HomePage", "destination": "/index.html" },
     { "source": "/Chart", "destination": "/index.html" },

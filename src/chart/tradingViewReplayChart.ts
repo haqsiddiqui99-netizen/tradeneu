@@ -117,6 +117,8 @@ export type TvReplayChartController = {
     price: number,
     layout: { plotOffsetX: number; top: number; bottom: number; width: number },
   ) => { x: number; y: number } | null
+  /** Pane-local Y for a price (null if scale unavailable). */
+  priceToPlotY: (price: number) => number | null
   subscribeTimeScaleChange: (fn: () => void) => () => void
   setReplayCursorVisible: (visible: boolean) => void
   /** Freeze pan/zoom while scissors pick is active (prevents chart drift / overlay misalignment). */
@@ -863,6 +865,9 @@ export function createTvReplayChartController(opts: {
       (opts2?.decoupledStepOnly === true ||
         opts2?.stepPreserveView === true ||
         (opts2?.playing && opts2?.preserveViewport) ||
+        // Scissors / seek: caller passed an explicit range — honor it (second-step force paint
+        // otherwise drops hold via viewportCoversReveal and jumps the line to the chart end).
+        (opts2?.preserveViewport === true && opts2?.restoreVisibleRange != null) ||
         viewportCoversReveal(holdViewportRaw, pastBars))
         ? holdViewportRaw
         : null
@@ -1217,18 +1222,34 @@ export function createTvReplayChartController(opts: {
   const plotYForPrice = (price: number): number | null => {
     const c = chart() as {
       getPanes?: () => Array<{
-        getMainSourcePriceScale?: () => { priceToCoordinate?: (p: number) => number | null }
-        getRightPriceScales?: () => Array<{ priceToCoordinate?: (p: number) => number | null }>
+        getMainSourcePriceScale?: () => {
+          getVisiblePriceRange?: () => { from: number; to: number } | null
+          isInverted?: () => boolean
+        } | null
+        getRightPriceScales?: () => Array<{
+          getVisiblePriceRange?: () => { from: number; to: number } | null
+          isInverted?: () => boolean
+        }>
+        getHeight?: () => number
       }>
     } | null
-    if (!c) return null
+    if (!c?.getPanes) return null
     try {
-      const panes = c.getPanes?.()
-      const pane = panes?.[0]
+      const pane = c.getPanes()[0]
       if (!pane) return null
-      const scale = pane.getMainSourcePriceScale?.() ?? pane.getRightPriceScales?.()?.[0]
-      const y = scale?.priceToCoordinate?.(price)
-      return y != null && Number.isFinite(y) ? y : null
+      const scale = pane.getMainSourcePriceScale?.() ?? pane.getRightPriceScales?.()?.[0] ?? null
+      const range = scale?.getVisiblePriceRange?.() ?? null
+      const h = pane.getHeight?.()
+      if (!range || h == null || !(h > 8)) return null
+      // Normalize bounds — some builds flip from/to with inversion.
+      const lo = Math.min(range.from, range.to)
+      const hi = Math.max(range.from, range.to)
+      const span = hi - lo
+      if (!Number.isFinite(span) || span < 1e-12) return null
+      let t = (hi - price) / span
+      if (scale?.isInverted?.()) t = 1 - t
+      const y = t * h
+      return Number.isFinite(y) ? y : null
     } catch {
       return null
     }
@@ -1344,7 +1365,9 @@ export function createTvReplayChartController(opts: {
       }
     }
 
-    return 0
+    // Never hard-fallback to bar 0 — that pins scissors to the chart start when the
+    // time scale is briefly stale. Geometric nearest-bar is safer.
+    return pickNearestBarIndexByPlotX(pointerPlotX, cap)
   }
 
   let sessionBarsKey = ''
@@ -1583,7 +1606,22 @@ export function createTvReplayChartController(opts: {
     },
 
     lineXAtBarTimeSec(openSec, plotOffsetX = 0) {
-      const idx = opts.replayFeed.findBarIndexAtOrBeforeTimeSec(Math.floor(openSec))
+      const open = Math.floor(openSec)
+      const xCur = timeSecToPlotX(open)
+      if (xCur != null) {
+        const bars = opts.replayFeed.getAllBars()
+        const idx = opts.replayFeed.findBarIndexAtOrBeforeTimeSec(open)
+        const next = idx >= 0 && idx + 1 < bars.length ? bars[idx + 1] : null
+        if (next) {
+          const xNext = timeSecToPlotX(Math.floor(next.time / 1000))
+          if (xNext != null) return plotXToHostX((xCur + xNext) / 2, plotOffsetX)
+        }
+        const periodSec = Math.max(1, opts.replayFeed.getBarPeriodSec())
+        const xEnd = timeSecToPlotX(open + periodSec)
+        if (xEnd != null) return plotXToHostX((xCur + xEnd) / 2, plotOffsetX)
+        return plotXToHostX(xCur, plotOffsetX)
+      }
+      const idx = opts.replayFeed.findBarIndexAtOrBeforeTimeSec(open)
       const split = splitPlotXAfterBar(idx)
       return split == null ? null : plotXToHostX(split, plotOffsetX)
     },
@@ -1613,6 +1651,10 @@ export function createTvReplayChartController(opts: {
         x: plotXToHostX(plotX, layout.plotOffsetX),
         y: layout.top + plotY,
       }
+    },
+
+    priceToPlotY(price) {
+      return plotYForPrice(price)
     },
 
     dispose() {

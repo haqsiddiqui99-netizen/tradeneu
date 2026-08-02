@@ -119,6 +119,32 @@ function retryCount() {
   return Math.min(8, Math.max(0, Number.parseInt(process.env.DUKASCOPY_RETRY_COUNT || '3', 10) || 3))
 }
 
+function dukascopyFetchTimeoutMs() {
+  return Math.min(
+    120_000,
+    Math.max(8_000, Number.parseInt(process.env.DUKASCOPY_FETCH_TIMEOUT_MS || '25000', 10) || 25_000),
+  )
+}
+
+/**
+ * @template T
+ * @param {Promise<T>} promise
+ * @param {number} ms
+ * @param {string} label
+ * @returns {Promise<T>}
+ */
+function withTimeout(promise, ms, label) {
+  let timer = null
+  return Promise.race([
+    promise.finally(() => {
+      if (timer) clearTimeout(timer)
+    }),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    }),
+  ])
+}
+
 /**
  * @param {string} range
  * @returns {{ from: Date, to: Date }}
@@ -241,42 +267,10 @@ export async function fetchDukascopyBars({
 
   let rows
   try {
-    rows = await getHistoricalRates({
-      instrument,
-      dates,
-      timeframe,
-      priceType: 'bid',
-      format: 'array',
-      utcOffset: 0,
-      volumes: true,
-      volumeUnits: 'millions',
-      ignoreFlats: true,
-      batchSize: batchSize(),
-      pauseBetweenBatchesMs: pauseBetweenBatchesMs(),
-      retryCount: retryCount(),
-      pauseBetweenRetriesMs: 400,
-      useCache: useDukascopyDiskCache(),
-      cacheFolderPath: dukascopyCachePath(),
-    })
-  } catch (e) {
-    return { ok: false, error: `dukascopy network: ${e?.message || e}` }
-  }
-
-  let bars = normalizeDukascopyRows(rows, hasRange ? startSec : undefined, hasRange ? endSec : undefined)
-  if (bars.length < 16) {
-    return { ok: false, error: `dukascopy: parsed too few bars (${bars.length})` }
-  }
-
-  if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
-    const lookbackSec = 7 * 86_400
-    const priorFrom = Math.max(0, sessionStartSec - lookbackSec)
-    try {
-      const priorRows = await getHistoricalRates({
+    rows = await withTimeout(
+      getHistoricalRates({
         instrument,
-        dates: {
-          from: new Date(priorFrom * 1000),
-          to: new Date(sessionStartSec * 1000),
-        },
+        dates,
         timeframe,
         priceType: 'bid',
         format: 'array',
@@ -290,7 +284,47 @@ export async function fetchDukascopyBars({
         pauseBetweenRetriesMs: 400,
         useCache: useDukascopyDiskCache(),
         cacheFolderPath: dukascopyCachePath(),
-      })
+      }),
+      dukascopyFetchTimeoutMs(),
+      'dukascopy',
+    )
+  } catch (e) {
+    return { ok: false, error: `dukascopy network: ${e?.message || e}` }
+  }
+
+  let bars = normalizeDukascopyRows(rows, hasRange ? startSec : undefined, hasRange ? endSec : undefined)
+  if (bars.length < 16) {
+    return { ok: false, error: `dukascopy: parsed too few bars (${bars.length})` }
+  }
+
+  if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
+    const lookbackSec = 7 * 86_400
+    const priorFrom = Math.max(0, sessionStartSec - lookbackSec)
+    try {
+      const priorRows = await withTimeout(
+        getHistoricalRates({
+          instrument,
+          dates: {
+            from: new Date(priorFrom * 1000),
+            to: new Date(sessionStartSec * 1000),
+          },
+          timeframe,
+          priceType: 'bid',
+          format: 'array',
+          utcOffset: 0,
+          volumes: true,
+          volumeUnits: 'millions',
+          ignoreFlats: true,
+          batchSize: batchSize(),
+          pauseBetweenBatchesMs: pauseBetweenBatchesMs(),
+          retryCount: retryCount(),
+          pauseBetweenRetriesMs: 400,
+          useCache: useDukascopyDiskCache(),
+          cacheFolderPath: dukascopyCachePath(),
+        }),
+        Math.min(dukascopyFetchTimeoutMs(), 15_000),
+        'dukascopy-prior',
+      )
       const priorBars = normalizeDukascopyRows(priorRows, priorFrom, sessionStartSec)
       let prior = null
       for (const b of priorBars) {

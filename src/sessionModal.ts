@@ -24,6 +24,7 @@ import {
   buildCoverageFallbackHint,
   buildSessionModalHealthMessage,
 } from './data/sessionModalHealth'
+import { readDefaultSessionBalance } from './home/dashboardUserPrefs'
 
 export type { SessionCreatedPayload } from './sessionTypes'
 
@@ -1128,7 +1129,7 @@ export function createSessionModal(options?: {
     setSeg(seg)
     applyPropRulesToForm(d?.propRules)
     nameInput.value = d?.name?.trim() ?? ''
-    balanceInput.value = d?.balance?.trim() || '100000'
+    balanceInput.value = d?.balance?.trim() || String(readDefaultSessionBalance())
     layoutSelect.value = d?.layout ?? ''
     barCoverage = fallbackBarCoverage()
     applyDateBounds()

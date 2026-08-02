@@ -233,6 +233,7 @@ export function mountGoogleAuthRoutes(app, { dataDir }) {
         name: profile.name,
         picture: profile.picture,
         sub: profile.sub,
+        provider: 'google',
         loggedInAt: Date.now(),
       }
       appendUsersFile(dataDir, user)

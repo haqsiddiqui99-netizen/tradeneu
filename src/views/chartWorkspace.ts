@@ -55,6 +55,7 @@ import { fetchMarketDataHealth, type MarketDataHealth } from '../data/marketData
 import { DEFAULT_MARKET_BAR_CHAIN, fetchMarketBarsSeries } from '../data/marketDataClient'
 import {
   isLocalSecondStep,
+  LOCAL_SECOND_STEPS,
   maxMedianStepForSecondBars,
   secondStepToInterval,
 } from '../data/localSecondBars'
@@ -78,6 +79,10 @@ import {
   intervalPickBarPeriodSec,
   intervalPickNeedsSecondsAxis,
   REPLAY_DOCK_INTERVALS,
+  replayDockIntervalsForChart,
+  clampReplayPillForChart,
+  readReplayAutoSelectInterval,
+  writeReplayAutoSelectInterval,
   tvResolutionToIntervalPill,
 } from './chartIntervalCatalog'
 import { getFavoriteIntervals, removeFavoriteInterval, resolveIntervalPick } from './chartIntervalStore'
@@ -93,13 +98,21 @@ import {
 } from '../chart/chartSnapshot'
 import { createSymbolSearchModal } from './symbolSearchModal'
 import { createIndicatorsModal } from './indicatorsModal'
-import { REPLAY_BARS_PER_SEC, ReplayController, replaySpeedLabel } from '../playback/replayController'
-import { createReplayAccount, defaultTpSl, longOrderCost, positionUnrealized, shortOrderMargin } from '../replay/replayPositions'
+import {
+  REPLAY_BARS_PER_SEC,
+  REPLAY_DEFAULT_SPEED_INDEX,
+  ReplayController,
+  replaySpeedDetail,
+  replaySpeedLabel,
+  replaySpeedX,
+} from '../playback/replayController'
+import { createReplayAccount, defaultTpSl, longOrderCost, positionMarkPrice, positionPoints, positionUnrealized, shortOrderMargin } from '../replay/replayPositions'
 import {
   renderReplayJournal,
   renderReplayJournalStats,
 } from '../replay/replayJournalUi'
 import { confirmDialog } from './confirmDialog'
+import { showBacktestResultDialog } from './backtestResultDialog'
 import { mountChartPositionOverlay } from '../chart/chartPositionOverlay'
 import type { SessionBacktestSnapshot, SessionReplaySnapshot } from '../data/sessionStore'
 import type { PropChallengeConfig, PropChallengeState } from '../prop/propTypes'
@@ -242,9 +255,26 @@ function formatMoney(n: number) {
   return `${sign}$${v}`
 }
 
+/** Bid/ask around a mid price (synthetic spread for replay fills). */
+function bidAskAround(px: number): { bid: number; ask: number; spread: number } {
+  const spread = Math.max(0.02, px * 0.00004)
+  return { bid: px - spread / 2, ask: px + spread / 2, spread }
+}
+
+/**
+ * Current market — bar close = last price on the candle
+ * (top of a green body / bottom of a red body — matches TV's last-price label).
+ */
 function bidAskFromBar(b: Bar): { bid: number; ask: number; spread: number } {
-  const spread = Math.max(0.02, b.close * 0.00004)
-  return { bid: b.close - spread / 2, ask: b.close + spread / 2, spread }
+  return bidAskAround(b.close)
+}
+
+/**
+ * Buy/Sell entry at the candle last price (close), not open/mid and not ask/bid offset.
+ * That keeps the BUY/SELL line on the same level as the teal last-price label.
+ */
+function entryFillPrice(b: Bar): number {
+  return b.close
 }
 
 /** Grid/flex often reports 0×0 for a few frames after the chart mounts; fitting the time scale then leaves a blank chart. */
@@ -544,7 +574,7 @@ export function mountChartWorkspace(
     el(`
     <div class="rw-root rw-root--fxr${tvChartMode ? ' rw-root--tv' : ''} overflow-hidden" role="application" aria-label="Chart workspace" data-chart-theme="${uiChartTheme}">
       <header class="rw-top">
-        <button type="button" class="rw-top__home" title="Back to dashboard" aria-label="Back to dashboard">⌂</button>
+        <button type="button" class="rw-top__home" title="Back to dashboard" aria-label="Back to dashboard">${icons.arrowLeft}</button>
         <div class="rw-top__cluster">
           <button
             type="button"
@@ -566,7 +596,7 @@ export function mountChartWorkspace(
           <button type="button" class="rw-pill-btn">New Layout</button>
           <button type="button" class="rw-pill-btn rw-fxr-hide">Alert</button>
           <button type="button" class="rw-pill-btn rw-replay-launch${tvChartMode ? ' rw-top-btn--tv-header' : ''}" data-rw-replay-launch aria-expanded="false" aria-controls="rw-chart-replay-dock" title="Bar replay">${icons.replayLaunch} Replay</button>
-          <button type="button" class="rw-pill-btn rw-backtest-launch${tvChartMode ? ' rw-top-btn--tv-header' : ''}" title="Run strategy backtest on loaded bars">${icons.bolt} Backtest</button>
+          ${tvChartMode ? '' : `<button type="button" class="rw-pill-btn rw-backtest-launch" title="Run strategy backtest on loaded bars">${icons.bolt} Backtest</button>`}
           <button type="button" class="rw-pill-btn rw-fxr-hide">${icons.layout}</button>
         </div>
         <div class="rw-top__right">
@@ -585,6 +615,13 @@ export function mountChartWorkspace(
         </div>
       </header>
       <section class="rw-chart-wrap">
+        <button
+          type="button"
+          class="rw-chart-back"
+          data-rw-chart-back
+          title="Back to dashboard"
+          aria-label="Back to dashboard"
+        >${icons.arrowLeft}</button>
         <div class="rw-chart-loading" data-rw-chart-loading hidden aria-live="polite" aria-busy="false">
           <div class="rw-chart-loading__veil" aria-hidden="true"></div>
           <div class="rw-chart-loading__panel">
@@ -619,7 +656,9 @@ export function mountChartWorkspace(
             <div class="rw-chart-lwc"></div>
             <div class="rw-chart-tv"${tvChartMode ? '' : ' hidden'}></div>
             <div class="rw-select-bar-overlay" data-rw-select-bar-overlay hidden aria-hidden="true">
+              <div class="rw-select-bar-overlay__hit" data-rw-select-bar-hit aria-hidden="true"></div>
               <div class="rw-select-bar-overlay__blur" data-rw-select-bar-blur aria-hidden="true"></div>
+              <div class="rw-select-bar-overlay__past-end" data-rw-select-bar-past-end aria-hidden="true"></div>
               <div class="rw-select-bar-overlay__line" data-rw-select-bar-line></div>
               <div class="rw-select-bar-overlay__scissors" data-rw-select-bar-scissors aria-hidden="true">${icons.scissorsSelectBar}</div>
             </div>
@@ -643,9 +682,9 @@ export function mountChartWorkspace(
           </div>
           <div
             id="rw-chart-replay-dock"
-            class="rw-chart-replay-dock rw-replay-dock--floating"
+            class="rw-chart-replay-dock rw-replay-dock--floating rw-replay-dock--tv${tvChartMode ? ' rw-replay-dock--visible' : ''}"
             data-rw-replay-dock
-            hidden
+            ${tvChartMode ? '' : 'hidden'}
             role="toolbar"
             aria-label="Replay playback"
             title="Drag to move · Space: play/pause · Arrow keys: step"
@@ -661,8 +700,8 @@ export function mountChartWorkspace(
                     aria-pressed="false"
                     title="Select replay starting point"
                   >
-                    <span class="rw-replay-dock__select-ico" data-rw-replay-select-ico aria-hidden="true">${icons.replaySelectDate}</span>
-                    <span data-rw-replay-select-label>Select date</span>
+                    <span class="rw-replay-dock__select-ico" data-rw-replay-select-ico aria-hidden="true">${icons.replayBarSelect}</span>
+                    <span data-rw-replay-select-label>Select bar</span>
                   </button>
                   <button
                     type="button"
@@ -671,7 +710,7 @@ export function mountChartWorkspace(
                     aria-expanded="false"
                     aria-label="Select starting point"
                     title="Select starting point"
-                  >${icons.chevronDown}</button>
+                  >${icons.replaySelectChevron}</button>
                 </div>
                 <div class="rw-replay-start-menu" data-rw-replay-start-menu hidden role="menu" aria-label="Select starting point">
                   <div class="rw-replay-start-menu__head">Select starting point</div>
@@ -679,56 +718,70 @@ export function mountChartWorkspace(
                     <span class="rw-replay-start-menu__ico" aria-hidden="true">${icons.replayBarSelect}</span>
                     <span>Bar</span>
                   </button>
-                  <button type="button" class="rw-replay-start-menu__item rw-replay-start-menu__item--active" data-rw-replay-start="date" role="menuitem">
+                  <button type="button" class="rw-replay-start-menu__item" data-rw-replay-start="date" role="menuitem">
                     <span class="rw-replay-start-menu__ico" aria-hidden="true">${icons.calendar}</span>
                     <span>Date…</span>
                   </button>
                   <button type="button" class="rw-replay-start-menu__item" data-rw-replay-start="first" role="menuitem">
                     <span class="rw-replay-start-menu__ico" aria-hidden="true">${icons.replayFlag}</span>
-                    <span>First available date</span>
+                    <span>First Available Bar</span>
                   </button>
                   <button type="button" class="rw-replay-start-menu__item" data-rw-replay-start="random" role="menuitem">
                     <span class="rw-replay-start-menu__ico" aria-hidden="true">${icons.replayDice}</span>
-                    <span>Random bar</span>
+                    <span>Random date</span>
                   </button>
                 </div>
               </div>
-              <span class="rw-replay-dock__vsep rw-replay-dock__vsep--fx" aria-hidden="true"></span>
-              <button type="button" class="rw-replay-dock__tico" data-rw="start" title="First bar">${icons.replayTvJumpStart}</button>
-              <div class="rw-replay-dock__speed-cluster" data-rw-replay-speed-cluster>
-                <button type="button" class="rw-replay-dock__tico rw-replay-dock__speed-step" data-rw-replay-speed-down title="Decrease speed" aria-label="Decrease speed">${icons.replayTvSpeedDown}</button>
-                <div class="rw-replay-dock__speed-wrap" data-rw-replay-speed-wrap>
-                  <span class="rw-replay-dock__speed-bubble" data-rw-replay-speed-bubble aria-hidden="true">1x per sec</span>
-                  <input
-                    type="range"
-                    class="rw-replay-dock__speed"
-                    data-rw-replay-speed
-                    min="0"
-                    max="${REPLAY_BARS_PER_SEC.length - 1}"
-                    value="0"
-                    step="1"
-                    aria-label="Playback speed"
-                    aria-valuetext="1x per sec"
-                  />
+              <div class="rw-replay-dock__transport-anchor">
+                <div class="rw-replay-dock__transport" data-rw-replay-transport>
+                  <div class="rw-replay-dock__speed-wrap" data-rw-replay-speed-wrap>
+                    <button
+                      type="button"
+                      class="rw-replay-dock__speed-btn"
+                      data-rw-replay-speed-btn
+                      aria-haspopup="menu"
+                      aria-expanded="false"
+                      title="Playback speed"
+                      aria-label="Playback speed"
+                    ><span data-rw-replay-speed-label>1x</span></button>
+                  </div>
+                  <button type="button" class="rw-replay-dock__tico rw-replay-dock__play" data-rw="play" title="Play / Pause" aria-pressed="false"><span class="rw-replay-dock__play-ico rw-replay-dock__play-ico--play" aria-hidden="true">${icons.replayTvPlay}</span><span class="rw-replay-dock__play-ico rw-replay-dock__play-ico--pause" aria-hidden="true" hidden>${icons.replayTvPause}</span></button>
+                  <button type="button" class="rw-replay-dock__tico" data-rw="fwd" title="Skip one candle">${icons.replayTvStepFwd}</button>
                 </div>
-                <button type="button" class="rw-replay-dock__tico rw-replay-dock__speed-step" data-rw-replay-speed-up title="Increase speed" aria-label="Increase speed">${icons.replayTvSpeedUp}</button>
+                <div class="rw-replay-speed-menu" data-rw-replay-speed-menu hidden role="menu" aria-label="Replay speed">
+                  <div class="rw-replay-speed-menu__head">Replay speed</div>
+                  ${REPLAY_BARS_PER_SEC.map(
+                    (bps, i) =>
+                      `<button type="button" class="rw-replay-speed-menu__item" data-rw-replay-speed-index="${i}" role="menuitemradio" aria-checked="false"><span class="rw-replay-speed-menu__x">${replaySpeedX(bps)}</span><span class="rw-replay-speed-menu__detail">${replaySpeedDetail(bps)}</span></button>`,
+                  )
+                    .reverse()
+                    .join('')}
+                </div>
               </div>
-              <span class="rw-replay-dock__vsep rw-replay-dock__vsep--fx" aria-hidden="true"></span>
-              <button type="button" class="rw-replay-dock__tico rw-replay-dock__play" data-rw="play" title="Play / Pause" aria-pressed="false"><span class="rw-replay-dock__play-ico rw-replay-dock__play-ico--play" aria-hidden="true">${icons.replayTvPlay}</span><span class="rw-replay-dock__play-ico rw-replay-dock__play-ico--pause" aria-hidden="true" hidden>${icons.replayTvPause}</span></button>
-              <button type="button" class="rw-replay-dock__tico" data-rw="fwd" title="Skip one candle">${icons.replayTvStepFwd}</button>
+              <!-- Hidden range keeps existing speed wiring; TV UI uses the 1x button above. -->
+              <input
+                type="range"
+                class="rw-replay-dock__speed"
+                data-rw-replay-speed
+                hidden
+                min="0"
+                max="${REPLAY_BARS_PER_SEC.length - 1}"
+                value="0"
+                step="1"
+                aria-hidden="true"
+                tabindex="-1"
+              />
               <button
                 type="button"
                 class="rw-replay-dock__interval"
                 data-rw-replay-interval-toggle
                 aria-haspopup="listbox"
                 aria-expanded="false"
-                title="Chart interval"
+                title="Replay interval"
               >
                 <span data-rw-replay-dock-tf>1m</span>
-                <span class="rw-replay-dock__interval-chev" aria-hidden="true">${icons.chevronDown}</span>
               </button>
               <button type="button" class="rw-replay-dock__tico rw-replay-dock__tico--end" data-rw="end" title="Last Bar">${icons.replayTvJumpEnd}</button>
-              <button type="button" class="rw-replay-dock__clear-filter" data-rw-replay-clear-filter title="Clear filter" aria-label="Clear filter">${icons.replayClearFilter}</button>
               <button type="button" class="rw-replay-dock__tico rw-replay-dock__close" data-rw-replay-dock-close title="Close replay" aria-label="Close replay">${icons.replayTvClose}</button>
             </div>
           </div>
@@ -756,35 +809,33 @@ export function mountChartWorkspace(
         <div class="rw-foot__trade-dock-row" data-rw-trade-dock-row>
           <div class="rw-foot__trade-dock" data-rw-trade-dock>
             <div class="rw-trade-bar" data-rw-trade-bar role="group" aria-label="Place order">
-              <button type="button" class="rw-trade-btn rw-trade-btn--buy rw-ticket-buy" title="Buy at ask">Buy</button>
-              <button type="button" class="rw-trade-btn rw-trade-btn--sell rw-ticket-sell" title="Sell at bid">Sell</button>
-              <div class="rw-foot__qty rw-qty rw-qty--fxr" role="group" aria-label="Order quantity">
-                <input
-                  id="rw-order-qty"
-                  class="rw-qty__field"
-                  type="number"
-                  min="1"
-                  step="1"
-                  placeholder="Quantity"
-                  inputmode="numeric"
-                  data-rw-order-qty
-                  autocomplete="off"
-                  aria-label="Quantity"
-                />
-                <div class="rw-qty__stepper">
-                  <button type="button" class="rw-qty__btn rw-qty__btn--up" data-rw-qty-up aria-label="Increase quantity">
-                    ${icons.chevronUp}
-                  </button>
-                  <button type="button" class="rw-qty__btn rw-qty__btn--down" data-rw-qty-down aria-label="Decrease quantity">
-                    ${icons.chevronDown}
-                  </button>
+              <div class="rw-trade-ticket" data-rw-trade-ticket role="group" aria-label="Order ticket">
+                <button type="button" class="rw-trade-btn rw-trade-btn--buy rw-ticket-buy" title="Buy at ask">Buy</button>
+                <div class="rw-foot__qty rw-qty rw-qty--fxr" role="group" aria-label="Order quantity">
+                  <input
+                    id="rw-order-qty"
+                    class="rw-qty__field"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value="1"
+                    placeholder="Quantity"
+                    inputmode="numeric"
+                    data-rw-order-qty
+                    autocomplete="off"
+                    aria-label="Quantity"
+                  />
+                  <div class="rw-qty__stepper">
+                    <button type="button" class="rw-qty__btn rw-qty__btn--up" data-rw-qty-up aria-label="Increase quantity">
+                      ${icons.chevronUp}
+                    </button>
+                    <button type="button" class="rw-qty__btn rw-qty__btn--down" data-rw-qty-down aria-label="Decrease quantity">
+                      ${icons.chevronDown}
+                    </button>
+                  </div>
                 </div>
+                <button type="button" class="rw-trade-btn rw-trade-btn--sell rw-ticket-sell" title="Sell at bid">Sell</button>
               </div>
-              <button type="button" class="rw-trade-bar__ico" data-rw-trade-quick title="Quick order" aria-label="Quick order">${icons.tradeRocket}</button>
-              <button type="button" class="rw-trade-dock__drag" data-rw-trade-drag aria-label="Drag trade panel" title="Drag">${icons.replayDragGrip}</button>
-              <button type="button" class="rw-foot__analytics" title="Analytics">
-                ${icons.chart} Analytics
-              </button>
               <span class="rw-trade-bar__spacer" aria-hidden="true"></span>
               <div class="rw-trade-stats" data-rw-trade-stats>
                 <div class="rw-trade-stats__item">
@@ -999,6 +1050,10 @@ export function mountChartWorkspace(
   }
 
   const chartHost = host.querySelector('.rw-chart-host') as HTMLElement
+  // Drop any leftover white axis-cover strips from earlier hairline experiments.
+  host.querySelectorAll('[data-rw-axis-hairline-cover], #rw-tv-axis-hairline-cover').forEach((el) => {
+    el.remove()
+  })
   const chartCanvas = host.querySelector('.rw-chart-canvas') as HTMLElement
   const chartLwc = host.querySelector('.rw-chart-lwc') as HTMLElement
   const chartTv = host.querySelector('.rw-chart-tv') as HTMLElement
@@ -1018,6 +1073,7 @@ export function mountChartWorkspace(
   const sessionPositionEl: HTMLElement | null = null
   const clockEl = host.querySelector('.rw-foot__clock') as HTMLElement | null
   const btnHome = host.querySelector('.rw-top__home') as HTMLButtonElement | null
+  const btnChartBack = host.querySelector('[data-rw-chart-back]') as HTMLButtonElement | null
   const intervalPill = host.querySelector('.rw-interval-pill') as HTMLButtonElement
   const intervalFavsEl = host.querySelector('[data-rw-interval-favs]') as HTMLElement | null
   const btnIndicators = host.querySelector('.rw-indicators-btn') as HTMLButtonElement | null
@@ -1049,7 +1105,6 @@ export function mountChartWorkspace(
   const btnTopSnapshot = host.querySelector('[data-rw-top-snapshot]') as HTMLButtonElement | null
   const btnTopFullscreen = host.querySelector('[data-rw-top-fullscreen]') as HTMLButtonElement | null
   const btnReplayLaunch = host.querySelector('[data-rw-replay-launch]') as HTMLButtonElement | null
-  const tvHeaderActions = { backtest: null as (() => void) | null }
 
   function getReplayLaunchButtons(): HTMLElement[] {
     const out: HTMLElement[] = []
@@ -1065,20 +1120,18 @@ export function mountChartWorkspace(
     const out: HTMLElement[] = []
     const topBtn = host.querySelector('.rw-backtest-launch') as HTMLButtonElement | null
     if (topBtn && !topBtn.classList.contains('rw-top-btn--tv-header')) out.push(topBtn)
-    const tv = state.tvChart?.getHeaderButton('backtest')
-    if (tv) out.push(tv)
     return out
   }
   const replayDock = host.querySelector('[data-rw-replay-dock]') as HTMLElement | null
-  const replayDockDrag = host.querySelector('[data-rw-replay-drag]') as HTMLButtonElement | null
   const replaySpeed = host.querySelector('[data-rw-replay-speed]') as HTMLInputElement | null
+  const replaySpeedBtn = host.querySelector('[data-rw-replay-speed-btn]') as HTMLButtonElement | null
+  const replaySpeedLabelEl = host.querySelector('[data-rw-replay-speed-label]') as HTMLElement | null
   const replaySpeedWrap = host.querySelector('[data-rw-replay-speed-wrap]') as HTMLElement | null
+  const replaySpeedMenu = host.querySelector('[data-rw-replay-speed-menu]') as HTMLElement | null
   const replaySpeedBubble = host.querySelector('[data-rw-replay-speed-bubble]') as HTMLElement | null
   const replaySpeedDown = host.querySelector('[data-rw-replay-speed-down]') as HTMLButtonElement | null
   const replaySpeedUp = host.querySelector('[data-rw-replay-speed-up]') as HTMLButtonElement | null
   const replayClearFilterBtn = host.querySelector('[data-rw-replay-clear-filter]') as HTMLButtonElement | null
-  const chartWrapEl = host.querySelector('.rw-chart-wrap') as HTMLElement | null
-  let replayDockDragged = false
   const replayStartMenu = host.querySelector('[data-rw-replay-start-menu]') as HTMLElement | null
   const replayHubDialog = host.querySelector('[data-rw-replay-hub-dialog]') as HTMLDialogElement | null
   const btnReplayHubClose = host.querySelector('[data-rw-replay-hub-close]') as HTMLButtonElement | null
@@ -1135,7 +1188,7 @@ export function mountChartWorkspace(
     bootLoadingWatchdog = window.setTimeout(() => {
       bootLoadingWatchdog = null
       void endBootLoading(true)
-    }, 12_000)
+    }, 22_000)
   }
 
   async function endBootLoading(force = false) {
@@ -1223,97 +1276,164 @@ export function mountChartWorkspace(
   const btnReplayStartMenuToggle = host.querySelector('[data-rw-replay-select-menu-toggle]') as HTMLButtonElement | null
   const replaySelectLabel = host.querySelector('[data-rw-replay-select-label]') as HTMLElement | null
   const replaySelectIco = host.querySelector('[data-rw-replay-select-ico]') as HTMLElement | null
+  const btnReplayDockDrag = host.querySelector('[data-rw-replay-drag]') as HTMLButtonElement | null
 
-  function positionReplayDockCenterTop() {
+  const REPLAY_DOCK_POS_KEY = 'rw.replayDock.pos'
+
+  type ReplayDockPos = { left: number; top: number }
+
+  function readSavedReplayDockPos(): ReplayDockPos | null {
+    try {
+      const raw = sessionStorage.getItem(REPLAY_DOCK_POS_KEY)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as Partial<ReplayDockPos>
+      if (
+        typeof parsed.left === 'number' &&
+        typeof parsed.top === 'number' &&
+        Number.isFinite(parsed.left) &&
+        Number.isFinite(parsed.top)
+      ) {
+        return { left: parsed.left, top: parsed.top }
+      }
+    } catch {
+      /* ignore */
+    }
+    return null
+  }
+
+  function saveReplayDockPos(pos: ReplayDockPos) {
+    try {
+      sessionStorage.setItem(REPLAY_DOCK_POS_KEY, JSON.stringify(pos))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function clampReplayDockPos(left: number, top: number): ReplayDockPos {
+    const pad = 8
+    const canvasRect = chartCanvas.getBoundingClientRect()
+    const dockRect = replayDock?.getBoundingClientRect()
+    const w = dockRect?.width ?? 320
+    const h = dockRect?.height ?? 44
+    const maxLeft = Math.max(pad, canvasRect.width - w - pad)
+    const maxTop = Math.max(pad, canvasRect.height - h - pad)
+    return {
+      left: Math.min(maxLeft, Math.max(pad, left)),
+      top: Math.min(maxTop, Math.max(pad, top)),
+    }
+  }
+
+  function applyReplayDockPos(pos: ReplayDockPos) {
     if (!replayDock) return
-    replayDock.style.position = 'fixed'
+    const clamped = clampReplayDockPos(pos.left, pos.top)
+    replayDock.classList.add('rw-replay-dock--user-pos')
+    replayDock.style.left = `${clamped.left}px`
+    replayDock.style.top = `${clamped.top}px`
+    replayDock.style.right = 'auto'
     replayDock.style.bottom = 'auto'
-    const wrapRect = chartWrapEl?.getBoundingClientRect()
-    const dockW = replayDock.offsetWidth || 360
-    const left = wrapRect
-      ? wrapRect.left + Math.max(0, (wrapRect.width - dockW) / 2)
-      : Math.max(8, (window.innerWidth - dockW) / 2)
-    const top = wrapRect ? wrapRect.top + 14 : 56
-    replayDock.style.left = `${Math.round(Math.max(8, Math.min(window.innerWidth - dockW - 8, left)))}px`
-    replayDock.style.top = `${Math.round(Math.max(48, top))}px`
+    replayDock.style.transform = 'none'
   }
 
-  function clampReplayDockToViewport() {
-    if (!replayDock || replayDock.hidden) return
-    const rect = replayDock.getBoundingClientRect()
-    const w = rect.width
-    const h = rect.height
-    let left = rect.left
-    let top = rect.top
-    left = Math.max(8, Math.min(window.innerWidth - w - 8, left))
-    top = Math.max(48, Math.min(window.innerHeight - h - 8, top))
-    replayDock.style.left = `${Math.round(left)}px`
-    replayDock.style.top = `${Math.round(top)}px`
-    replayDock.style.bottom = 'auto'
+  /** Default: bottom-center in the chart pane (CSS). Clears user/inline coords. */
+  function positionReplayDockBottomCenter() {
+    if (!replayDock) return
+    const saved = readSavedReplayDockPos()
+    if (saved) {
+      applyReplayDockPos(saved)
+      return
+    }
+    replayDock.classList.remove('rw-replay-dock--user-pos')
+    replayDock.style.removeProperty('position')
+    replayDock.style.removeProperty('left')
+    replayDock.style.removeProperty('top')
+    replayDock.style.removeProperty('right')
+    replayDock.style.removeProperty('bottom')
+    replayDock.style.removeProperty('transform')
   }
 
-  function mountReplayDockDrag() {
-    if (!replayDock || !replayDockDrag) return
+  function bindReplayDockDrag() {
+    if (!replayDock || !btnReplayDockDrag) return
+
     let dragging = false
-    let startX = 0
-    let startY = 0
-    let originLeft = 0
-    let originTop = 0
+    let pointerId: number | null = null
+    let grabOffsetX = 0
+    let grabOffsetY = 0
 
-    const onMove = (e: PointerEvent) => {
-      if (!dragging || !replayDock) return
-      const dx = e.clientX - startX
-      const dy = e.clientY - startY
-      const w = replayDock.offsetWidth
-      const h = replayDock.offsetHeight
-      const left = Math.max(8, Math.min(window.innerWidth - w - 8, originLeft + dx))
-      const top = Math.max(48, Math.min(window.innerHeight - h - 8, originTop + dy))
-      replayDock.style.left = `${Math.round(left)}px`
-      replayDock.style.top = `${Math.round(top)}px`
+    const onPointerMove = (e: PointerEvent) => {
+      if (!dragging || !replayDock || e.pointerId !== pointerId) return
+      const canvasRect = chartCanvas.getBoundingClientRect()
+      const left = e.clientX - canvasRect.left - grabOffsetX
+      const top = e.clientY - canvasRect.top - grabOffsetY
+      applyReplayDockPos({ left, top })
+      syncReplayStartMenuPlacement()
+      syncReplaySpeedMenuPlacement()
+    }
+
+    const clearDockDragChrome = () => {
+      replayDock?.classList.remove('rw-replay-dock--dragging')
+      document.body.classList.remove('rw-replay-dock-dragging')
+      chartCanvas.classList.remove('rw-chart-canvas--dock-dragging')
     }
 
     const endDrag = (e: PointerEvent) => {
-      if (!dragging) return
+      if (!dragging || e.pointerId !== pointerId) return
       dragging = false
-      replayDockDrag.releasePointerCapture(e.pointerId)
-      replayDock?.classList.remove('rw-replay-dock--dragging')
-      document.body.classList.remove('rw-replay-dock-dragging')
-      replayDockDragged = true
-      syncReplayStartMenuPlacement()
+      pointerId = null
+      clearDockDragChrome()
+      try {
+        btnReplayDockDrag.releasePointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', endDrag)
+      window.removeEventListener('pointercancel', endDrag)
+      if (replayDock) {
+        const left = Number.parseFloat(replayDock.style.left)
+        const top = Number.parseFloat(replayDock.style.top)
+        if (Number.isFinite(left) && Number.isFinite(top)) {
+          saveReplayDockPos(clampReplayDockPos(left, top))
+        }
+      }
     }
 
-    const onUp = (e: PointerEvent) => endDrag(e)
-
-    replayDockDrag.addEventListener('pointerdown', (e) => {
-      if (!replayDock) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0 || !replayDock) return
       e.preventDefault()
+      e.stopPropagation()
+      const dockRect = replayDock.getBoundingClientRect()
+      const canvasRect = chartCanvas.getBoundingClientRect()
+      // Promote CSS-centered dock to absolute coords before dragging.
+      if (!replayDock.classList.contains('rw-replay-dock--user-pos')) {
+        applyReplayDockPos({
+          left: dockRect.left - canvasRect.left,
+          top: dockRect.top - canvasRect.top,
+        })
+      }
+      grabOffsetX = e.clientX - dockRect.left
+      grabOffsetY = e.clientY - dockRect.top
       dragging = true
+      pointerId = e.pointerId
       replayDock.classList.add('rw-replay-dock--dragging')
       document.body.classList.add('rw-replay-dock-dragging')
-      replayDockDrag.setPointerCapture(e.pointerId)
-      replayDock.style.position = 'fixed'
-      replayDock.style.bottom = 'auto'
-      const rect = replayDock.getBoundingClientRect()
-      startX = e.clientX
-      startY = e.clientY
-      originLeft = rect.left
-      originTop = rect.top
-      replayDock.style.left = `${Math.round(originLeft)}px`
-      replayDock.style.top = `${Math.round(originTop)}px`
-    })
-    replayDockDrag.addEventListener('pointermove', onMove)
-    replayDockDrag.addEventListener('pointerup', onUp)
-    replayDockDrag.addEventListener('pointercancel', onUp)
-    window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onUp)
+      chartCanvas.classList.add('rw-chart-canvas--dock-dragging')
+      try {
+        btnReplayDockDrag.setPointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+      window.addEventListener('pointermove', onPointerMove)
+      window.addEventListener('pointerup', endDrag)
+      window.addEventListener('pointercancel', endDrag)
+    }
+
+    btnReplayDockDrag.addEventListener('pointerdown', onPointerDown)
     cleanupFns.push(() => {
-      replayDockDrag.removeEventListener('pointermove', onMove)
-      replayDockDrag.removeEventListener('pointerup', onUp)
-      replayDockDrag.removeEventListener('pointercancel', onUp)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-      document.body.classList.remove('rw-replay-dock-dragging')
-      replayDock?.classList.remove('rw-replay-dock--dragging')
+      btnReplayDockDrag.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', endDrag)
+      window.removeEventListener('pointercancel', endDrag)
+      clearDockDragChrome()
     })
   }
 
@@ -1333,10 +1453,20 @@ export function mountChartWorkspace(
 
   const cleanupFns: Array<() => void> = []
 
-  mountReplayDockDrag()
+  bindReplayDockDrag()
+
   const onWindowResizeDock = () => {
-    clampReplayDockToViewport()
+    if (replayDock && !replayDock.hidden) {
+      if (replayDock.classList.contains('rw-replay-dock--user-pos')) {
+        const left = Number.parseFloat(replayDock.style.left)
+        const top = Number.parseFloat(replayDock.style.top)
+        if (Number.isFinite(left) && Number.isFinite(top)) applyReplayDockPos({ left, top })
+      } else {
+        positionReplayDockBottomCenter()
+      }
+    }
     syncReplayStartMenuPlacement()
+    syncReplaySpeedMenuPlacement()
   }
   window.addEventListener('resize', onWindowResizeDock)
   cleanupFns.push(() => window.removeEventListener('resize', onWindowResizeDock))
@@ -1355,6 +1485,29 @@ export function mountChartWorkspace(
       spaceBelow >= menuH + gap && (spaceBelow >= spaceAbove || anchorRect.top < window.innerHeight * 0.45)
     replayStartMenu.classList.toggle('rw-replay-start-menu--below', openBelow)
     replayStartMenu.classList.toggle('rw-replay-start-menu--above', !openBelow)
+  }
+
+  function syncReplaySpeedMenuPlacement() {
+    if (!replaySpeedMenu || replaySpeedMenu.hidden) return
+    const anchor =
+      (replaySpeedMenu.closest('.rw-replay-dock__transport-anchor') as HTMLElement | null) ??
+      (replaySpeedBtn as HTMLElement | null)
+    if (!anchor) return
+    const gap = 8
+    const edgePad = 8
+    const toolbarClearance = 48
+    const minMenuH = 140
+    const anchorRect = anchor.getBoundingClientRect()
+    const spaceAbove = Math.max(0, anchorRect.top - toolbarClearance - gap)
+    const spaceBelow = Math.max(0, window.innerHeight - anchorRect.bottom - gap - edgePad)
+    // Prefer the side with more room; when dock is high, open downward.
+    const openBelow = spaceBelow > spaceAbove || anchorRect.top < window.innerHeight * 0.45
+    const maxH = Math.max(minMenuH, openBelow ? spaceBelow : spaceAbove)
+    replaySpeedMenu.classList.toggle('rw-replay-speed-menu--below', openBelow)
+    replaySpeedMenu.classList.toggle('rw-replay-speed-menu--above', !openBelow)
+    replaySpeedMenu.style.maxHeight = `${maxH}px`
+    // Keep the first (top) speed row visible; user scrolls for the rest.
+    replaySpeedMenu.scrollTop = 0
   }
 
   function closeStartMenu() {
@@ -1439,18 +1592,68 @@ export function mountChartWorkspace(
     const clamped = Math.max(0, Math.min(REPLAY_BARS_PER_SEC.length - 1, Math.round(idx)))
     const bps = REPLAY_BARS_PER_SEC[clamped] ?? 1
     const label = replaySpeedLabel(bps, state.tickReplayUnit)
+    const compact = state.tickReplayUnit === 'tick' ? `${bps}t` : replaySpeedX(bps)
     replaySpeed.value = String(clamped)
     replaySpeed.setAttribute('aria-valuetext', label)
     if (replaySpeedBubble) replaySpeedBubble.textContent = label
+    if (replaySpeedLabelEl) replaySpeedLabelEl.textContent = compact
+    if (replaySpeedBtn) {
+      replaySpeedBtn.title = `Playback speed · ${label}`
+      replaySpeedBtn.setAttribute('aria-label', `Playback speed ${label}`)
+    }
+    if (replaySpeedMenu) {
+      replaySpeedMenu.querySelectorAll<HTMLButtonElement>('[data-rw-replay-speed-index]').forEach((btn) => {
+        const active = Number(btn.dataset.rwReplaySpeedIndex) === clamped
+        btn.classList.toggle('rw-replay-speed-menu__item--active', active)
+        btn.setAttribute('aria-checked', active ? 'true' : 'false')
+      })
+    }
     syncReplaySpeedBubblePosition(clamped)
     if (replaySpeedDown) replaySpeedDown.disabled = clamped <= 0
     if (replaySpeedUp) replaySpeedUp.disabled = clamped >= REPLAY_BARS_PER_SEC.length - 1
   }
 
+  function openSpeedMenu() {
+    if (!replaySpeedMenu) return
+    closeStartMenu()
+    replaySpeedMenu.hidden = false
+    replaySpeedBtn?.setAttribute('aria-expanded', 'true')
+    requestAnimationFrame(() => {
+      syncReplaySpeedMenuPlacement()
+      requestAnimationFrame(() => syncReplaySpeedMenuPlacement())
+    })
+  }
+
+  function closeSpeedMenu() {
+    if (!replaySpeedMenu) return
+    replaySpeedMenu.hidden = true
+    replaySpeedBtn?.setAttribute('aria-expanded', 'false')
+    replaySpeedMenu.classList.remove('rw-replay-speed-menu--below', 'rw-replay-speed-menu--above')
+    replaySpeedMenu.style.removeProperty('max-height')
+    replaySpeedMenu.scrollTop = 0
+  }
+
+  function toggleSpeedMenu() {
+    if (!replaySpeedMenu) return
+    if (replaySpeedMenu.hidden) openSpeedMenu()
+    else closeSpeedMenu()
+  }
+
+  function selectReplaySpeedIndex(idx: number) {
+    if (!state.replay) return
+    const clamped = Math.max(0, Math.min(REPLAY_BARS_PER_SEC.length - 1, Math.round(idx)))
+    state.replay.setSpeedIndex(clamped)
+    syncReplaySpeedUi(clamped)
+  }
+
   function bumpReplaySpeed(delta: number) {
     if (!replaySpeed || !state.replay) return
     const cur = Number(replaySpeed.value)
-    const next = Math.max(0, Math.min(REPLAY_BARS_PER_SEC.length - 1, cur + delta))
+    const max = REPLAY_BARS_PER_SEC.length - 1
+    // TV-style: clicking the 1x button cycles through speeds (wraps).
+    let next = cur + delta
+    if (next > max) next = 0
+    if (next < 0) next = max
     if (next === cur) return
     replaySpeed.value = String(next)
     state.replay.setSpeedIndex(next)
@@ -1478,9 +1681,34 @@ export function mountChartWorkspace(
     /* Trade nav lives in backtest panel; floating replay pill has no trade row. */
   }
 
+  function applyReplayLaunchActiveStyle(btn: HTMLElement, open: boolean) {
+    btn.classList.toggle('rw-tv-header-btn--active', open)
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false')
+    btn.setAttribute('aria-pressed', open ? 'true' : 'false')
+    btn.title = open ? 'Hide bar replay' : 'Bar replay'
+    if (!btn.classList.contains('rw-top-btn--tv-header') && btn.classList.contains('rw-replay-launch')) {
+      // Host-page Replay pill (non-TV)
+      if (open) {
+        btn.style.setProperty('background', '#131722', 'important')
+        btn.style.setProperty('color', '#f0f3fa', 'important')
+      } else {
+        btn.style.removeProperty('background')
+        btn.style.removeProperty('color')
+      }
+    }
+  }
+
+  function syncTvReplayHeaderActive(open: boolean) {
+    state.tvChart?.setHeaderButtonActive('replay', open, {
+      label: '◁◁ Replay',
+    })
+  }
+
   function setReplayDockOpen(open: boolean, opts?: { backtest?: boolean; centerTop?: boolean }) {
     const replayBtns = getReplayLaunchButtons()
-    if (!replayDock || !replayBtns.length) return
+    if (!replayDock) return
+    // TV mode: bar replay bar stays fixed in the chart footer — never dismiss.
+    if (tvChartMode) open = true
     if (!open) {
       state.exitSelectBarChartMode?.()
       closeStartMenu()
@@ -1498,19 +1726,21 @@ export function mountChartWorkspace(
     if (open) replayDock.removeAttribute('hidden')
     else replayDock.setAttribute('hidden', '')
     for (const btn of replayBtns) {
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false')
-      btn.title = open ? 'Hide bar replay' : 'Bar replay'
-      btn.classList.toggle('rw-tv-header-btn--active', open)
+      applyReplayLaunchActiveStyle(btn, open)
     }
+    if (!tvChartMode) syncTvReplayHeaderActive(open)
     rwRoot.classList.toggle('rw-replay-dock-open', open)
     if (open) {
-      if (opts?.centerTop || !replayDockDragged) positionReplayDockCenterTop()
-      else clampReplayDockToViewport()
+      positionReplayDockBottomCenter()
     }
   }
 
   const onReplayLaunchClick = () => {
     if (!replayDock) return
+    if (tvChartMode) {
+      setReplayDockOpen(true)
+      return
+    }
     const opening = replayDock.hidden
     if (opening) setReplayDockOpen(true)
     else setReplayDockOpen(false)
@@ -1529,6 +1759,7 @@ export function mountChartWorkspace(
   const onDocPointerCloseStartMenu = (e: PointerEvent) => {
     if (state.disposed) return
     const t = e.target as Node
+    if (!replaySpeedWrap?.contains(t) && !replaySpeedMenu?.contains(t)) closeSpeedMenu()
     if (replayStartMenu?.contains(t) || btnReplayStartMenuToggle?.contains(t)) return
     if (btnReplayLaunch?.contains(t)) return
     if (selectBarOverlay?.contains(t) || selectBarTimeFlyout?.contains(t)) return
@@ -1549,9 +1780,14 @@ export function mountChartWorkspace(
   cleanupFns.push(() => btnReplayLaunch?.removeEventListener('click', onReplayLaunchClick))
 
   const btnReplayDockClose = host.querySelector('[data-rw-replay-dock-close]') as HTMLButtonElement | null
-  const onReplayDockClose = () => setReplayDockOpen(false)
+  const onReplayDockClose = () => {
+    if (tvChartMode) return
+    setReplayDockOpen(false)
+  }
   btnReplayDockClose?.addEventListener('click', onReplayDockClose)
   cleanupFns.push(() => btnReplayDockClose?.removeEventListener('click', onReplayDockClose))
+
+  if (tvChartMode) setReplayDockOpen(true)
 
   const btnCompare = host.querySelector('.rw-compare-btn') as HTMLButtonElement | null
   const onCompareClick = () => {
@@ -1567,12 +1803,17 @@ export function mountChartWorkspace(
     if (!Number.isFinite(n)) return 1
     return Math.max(1, Math.min(999_999_999, Math.floor(n)))
   }
-  const readOrderQty = (): number => {
-    if (!qtyInput) return 1
+  /** Parsed field value, or null when empty / invalid (do not coerce empty → 1 for steppers). */
+  const readOrderQtyRaw = (): number | null => {
+    if (!qtyInput) return null
     const raw = qtyInput.value.trim()
-    if (!raw) return 1
+    if (!raw) return null
     const n = Number(raw)
-    return Number.isFinite(n) ? clampOrderQty(n) : 1
+    return Number.isFinite(n) ? n : null
+  }
+  const readOrderQty = (): number => {
+    const n = readOrderQtyRaw()
+    return n === null ? 1 : clampOrderQty(n)
   }
   function syncOrderQtyField() {
     if (!qtyInput) return
@@ -1582,11 +1823,22 @@ export function mountChartWorkspace(
   }
   const onQtyStepUp = () => {
     if (!qtyInput) return
-    qtyInput.value = String(clampOrderQty(readOrderQty() + 1))
+    const n = readOrderQtyRaw()
+    // Empty / 0 / invalid → start at 1 (not 1+1 → 2).
+    if (n === null || n < 1) {
+      qtyInput.value = '1'
+      return
+    }
+    qtyInput.value = String(clampOrderQty(n + 1))
   }
   const onQtyStepDown = () => {
     if (!qtyInput) return
-    qtyInput.value = String(clampOrderQty(readOrderQty() - 1))
+    const n = readOrderQtyRaw()
+    if (n === null || n <= 1) {
+      qtyInput.value = '1'
+      return
+    }
+    qtyInput.value = String(clampOrderQty(n - 1))
   }
   const onQtyChange = () => syncOrderQtyField()
   qtyUp?.addEventListener('click', onQtyStepUp)
@@ -1610,6 +1862,23 @@ export function mountChartWorkspace(
 
   document.addEventListener('pointerdown', onDocPointerCloseStartMenu, true)
   cleanupFns.push(() => document.removeEventListener('pointerdown', onDocPointerCloseStartMenu, true))
+
+  // Clicking inside the TradingView chart iframe doesn't emit a parent pointerdown;
+  // it blurs the parent window and focuses the iframe. Close the start menu on that.
+  const onWindowBlurCloseStartMenu = () => {
+    if (state.disposed) return
+    const startOpen = replayStartMenu && !replayStartMenu.hidden
+    const speedOpen = replaySpeedMenu && !replaySpeedMenu.hidden
+    if (!startOpen && !speedOpen) return
+    window.setTimeout(() => {
+      if (document.activeElement instanceof HTMLIFrameElement) {
+        closeStartMenu()
+        closeSpeedMenu()
+      }
+    }, 0)
+  }
+  window.addEventListener('blur', onWindowBlurCloseStartMenu)
+  cleanupFns.push(() => window.removeEventListener('blur', onWindowBlurCloseStartMenu))
 
   beginBootLoading()
   if (tvChartMode) {
@@ -1710,10 +1979,38 @@ export function mountChartWorkspace(
       })
     : null
 
+  function setSymbolSearchChromeHidden(hidden: boolean) {
+    rwRoot.classList.toggle('rw-symbol-search-open', hidden)
+    /* Inline !important in case stylesheet/cache lags — dock must not cover the modal. */
+    if (replayDock) {
+      if (hidden) replayDock.style.setProperty('display', 'none', 'important')
+      else replayDock.style.removeProperty('display')
+    }
+    if (selectBarTimeFlyout) {
+      if (hidden) selectBarTimeFlyout.style.setProperty('display', 'none', 'important')
+      else selectBarTimeFlyout.style.removeProperty('display')
+    }
+  }
+
   function openSymbolSearch() {
-    if (state.disposed || !symbolSearch) return
+    if (state.disposed || !symbolSearch || !symbolSearchDlg) return
+    setSymbolSearchChromeHidden(true)
+    /* Reparent to body so the modal top-layer isn't trapped under chart chrome. */
+    if (symbolSearchDlg.parentElement !== document.body) {
+      document.body.appendChild(symbolSearchDlg)
+    }
     symbolSearch.open()
   }
+
+  const onSymbolSearchDialogClose = () => {
+    setSymbolSearchChromeHidden(false)
+    /* Restore dialog next to chart workspace host for disposal / remount. */
+    if (symbolSearchDlg && symbolSearchDlg.parentElement === document.body && host.isConnected) {
+      host.querySelector('.rw-root')?.appendChild(symbolSearchDlg)
+    }
+  }
+  symbolSearchDlg?.addEventListener('close', onSymbolSearchDialogClose)
+  cleanupFns.push(() => symbolSearchDlg?.removeEventListener('close', onSymbolSearchDialogClose))
 
   const btnSymbolSearch = host.querySelector('#rw-symbol-toolbar-search') as HTMLButtonElement | null
   const onSymbolSearchClick = (e: MouseEvent) => {
@@ -1724,7 +2021,65 @@ export function mountChartWorkspace(
   btnSymbolSearch?.addEventListener('click', onSymbolSearchClick, true)
   cleanupFns.push(() => btnSymbolSearch?.removeEventListener('click', onSymbolSearchClick, true))
 
-  cleanupFns.push(() => symbolSearch?.dispose())
+  cleanupFns.push(() => {
+    setSymbolSearchChromeHidden(false)
+    if (symbolSearchDlg && symbolSearchDlg.parentElement === document.body && host.isConnected) {
+      host.querySelector('.rw-root')?.appendChild(symbolSearchDlg)
+    }
+    symbolSearch?.dispose()
+  })
+
+  /** Hide our dock while TradingView's in-iframe symbol search / dialogs are open. */
+  let tvOverlayObserver: MutationObserver | null = null
+  let tvOverlayPoll: ReturnType<typeof setInterval> | null = null
+  function tvIframeHasOverlay(): boolean {
+    const iframe = chartTv?.querySelector('iframe') as HTMLIFrameElement | null
+    const doc = iframe?.contentDocument
+    if (!doc) return false
+    return Boolean(
+      doc.querySelector(
+        '[data-name="symbol-search-items-dialog"], .tv-dialog, .js-dialog, [class*="dialog"][aria-modal="true"], [role="dialog"]',
+      ),
+    )
+  }
+  function syncTvOverlayDockVisibility() {
+    if (state.disposed) return
+    if (rwRoot.classList.contains('rw-symbol-search-open')) return
+    const hide = tvIframeHasOverlay()
+    if (!replayDock || replayDock.hidden) return
+    if (hide) {
+      replayDock.style.setProperty('display', 'none', 'important')
+      selectBarTimeFlyout?.style.setProperty('display', 'none', 'important')
+    } else {
+      replayDock.style.removeProperty('display')
+      selectBarTimeFlyout?.style.removeProperty('display')
+    }
+  }
+  function bindTvOverlayObserver() {
+    tvOverlayObserver?.disconnect()
+    tvOverlayObserver = null
+    if (tvOverlayPoll) {
+      clearInterval(tvOverlayPoll)
+      tvOverlayPoll = null
+    }
+    const iframe = chartTv?.querySelector('iframe') as HTMLIFrameElement | null
+    const doc = iframe?.contentDocument
+    if (!doc) return
+    tvOverlayObserver = new MutationObserver(() => syncTvOverlayDockVisibility())
+    tvOverlayObserver.observe(doc.body ?? doc.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style', 'hidden', 'aria-hidden'],
+    })
+    tvOverlayPoll = setInterval(syncTvOverlayDockVisibility, 500)
+  }
+  cleanupFns.push(() => {
+    tvOverlayObserver?.disconnect()
+    tvOverlayObserver = null
+    if (tvOverlayPoll) clearInterval(tvOverlayPoll)
+    tvOverlayPoll = null
+  })
 
   let indicatorMgr: ReturnType<typeof createChartIndicatorManager> | null = null
   let activeChartIndicators: ChartIndicatorId[] = (opts?.activeChartIndicators ?? []).filter(isChartIndicatorId)
@@ -1766,7 +2121,7 @@ export function mountChartWorkspace(
   }
 
   const indicatorsModal = createIndicatorsModal({
-    root: document.body,
+    root: rwRoot,
     onOpenChange: (v) => btnIndicators?.setAttribute('aria-expanded', v ? 'true' : 'false'),
     isIndicatorActive: (id) => activeChartIndicators.includes(id),
     onAddIndicator: (id) => addChartIndicator(id),
@@ -1952,7 +2307,9 @@ export function mountChartWorkspace(
 
   const onHome = () => opts?.onExit?.()
   btnHome?.addEventListener('click', onHome)
+  btnChartBack?.addEventListener('click', onHome)
   cleanupFns.push(() => btnHome?.removeEventListener('click', onHome))
+  cleanupFns.push(() => btnChartBack?.removeEventListener('click', onHome))
 
   const onFocusReplayBar = () => {
     setReplayDockOpen(true, { centerTop: true })
@@ -2134,16 +2491,24 @@ export function mountChartWorkspace(
       if (localSecondIntervalPick(pick)) {
         return sourceLocalSecondBars.get(step)!.slice()
       }
-      if (!sessionTicksEligible()) return []
 
-      if (tickChartData.kind !== 'dukascopy') {
-        const ok = await ensureDukascopyTickSource(null, { forceWindowed: false })
-        if (!ok) {
-          ensureSyntheticTickSource()
+      if (sessionTicksEligible()) {
+        if (tickChartData.kind !== 'dukascopy') {
+          const ok = await ensureDukascopyTickSource(null, { forceWindowed: false })
+          if (!ok) {
+            ensureSyntheticTickSource()
+          }
         }
+        const fromTicks = barsForSubMinuteInterval(tickChartData, step)
+        if (fromTicks.length >= 2) return fromTicks
       }
-      const secBars = barsForSubMinuteInterval(tickChartData, step)
-      return secBars.length >= 2 ? secBars : []
+
+      // Fallback: synthetic second bars from 1m history (no Dukascopy session required).
+      if (ensureSyntheticTickSource()) {
+        const synth = barsForSubMinuteInterval(tickChartData, step)
+        if (synth.length >= 2) return synth
+      }
+      return []
     }
 
     function capped1mForSynthetic(): Bar[] {
@@ -3098,7 +3463,8 @@ export function mountChartWorkspace(
 
       const mark = b?.close ?? 0
       const barTime = b ? Number(b.time) : Math.floor(Date.now() / 1000)
-      const equity = replayAccount.summary(mark).equity
+      const ba = b ? bidAskFromBar(b) : undefined
+      const equity = replayAccount.summary(mark, ba).equity
       const prevStatus = propState.status
       const result = evaluatePropChallenge({
         rules: propRules,
@@ -3157,7 +3523,9 @@ export function mountChartWorkspace(
     cleanupFns.push(() => flushPersistReplay())
 
     function renderJournalPanel(markPrice: number) {
-      const sum = replayAccount.summary(markPrice)
+      const b = lastBar(replay.slice())
+      const ba = b ? bidAskFromBar(b) : undefined
+      const sum = replayAccount.summary(markPrice, ba)
       const trades = replayAccount.getClosedTrades()
       if (journalStatsEl) {
         renderReplayJournalStats(journalStatsEl, {
@@ -3185,9 +3553,12 @@ export function mountChartWorkspace(
           '<p class="rw-session-empty">Use <strong>Buy</strong> or <strong>Sell</strong> to open a position.</p>'
         return
       }
+      const b = lastBar(replay.slice())
+      const ba = b ? bidAskFromBar(b) : null
       sessionPositionEl.innerHTML = positions
         .map((p) => {
-          const pnl = positionUnrealized(p, markPrice)
+          const mark = ba ? positionMarkPrice(p.direction, ba.bid, ba.ask) : markPrice
+          const pnl = positionUnrealized(p, mark)
           const up = pnl >= 0
           return `<div class="rw-manual-pos">
             <span class="rw-manual-pos__dir rw-manual-pos__dir--${p.direction}">${p.direction === 'long' ? 'Long' : 'Short'}</span>
@@ -3209,20 +3580,81 @@ export function mountChartWorkspace(
       return hints
     }
 
+    function positionLineColor(
+      pos: { direction: 'long' | 'short'; entryPrice: number; qty: number },
+      mark: number,
+    ) {
+      const pnl =
+        pos.direction === 'long'
+          ? (mark - pos.entryPrice) * pos.qty
+          : (pos.entryPrice - mark) * pos.qty
+      if (!Number.isFinite(pnl) || Math.abs(pnl) < 1e-9) return '#787b86'
+      return pnl > 0 ? '#2962ff' : '#e65100'
+    }
+
     function syncPositionOverlay(recreateLines = true) {
       state.trading?.setPositionPriceHints(positionPriceHints())
-      positionOverlay?.sync({ recreateLines })
+      const positions = replayAccount.getPositions()
+      const b = lastBar(replay.slice())
+      const markMid = b?.close ?? 0
+      const ba = b ? bidAskFromBar(b) : null
+      const usedTvShapes =
+        state.tvChart?.syncReplayPositions(
+          positions.map((p) => {
+            const mark = ba ? positionMarkPrice(p.direction, ba.bid, ba.ask) : markMid
+            return {
+              id: p.id,
+              direction: p.direction,
+              qty: p.qty,
+              entryPrice: p.entryPrice,
+              entryTime: p.entryTime,
+              takeProfit: p.takeProfit,
+              stopLoss: p.stopLoss,
+              lineColor: positionLineColor(p, mark),
+            }
+          }),
+          {
+            onClose: (id) => {
+              const bar = lastBar(replay.slice())
+              if (!bar) return
+              const { bid, ask } = bidAskFromBar(bar)
+              const pos = replayAccount.getPositions().find((x) => x.id === id)
+              if (!pos) return
+              replayAccount.closePosition(id, pos.direction === 'long' ? bid : ask, {
+                exitTime: Number(bar.time),
+                exitReason: 'manual',
+              })
+              schedulePersistReplay()
+              syncTradingUi(bar)
+            },
+            formatPnl: (id) => {
+              const pos = replayAccount.getPositions().find((x) => x.id === id)
+              if (!pos) return ''
+              const mark = ba ? positionMarkPrice(pos.direction, ba.bid, ba.ask) : markMid
+              const pnl = positionUnrealized(pos, mark)
+              const pts = positionPoints(pos, mark)
+              const ptsLabel = String(Math.abs(Math.round(pts))).padStart(3, '0')
+              const pnlSigned = pnl < 0 ? `-${Math.abs(pnl).toFixed(2)}` : Math.abs(pnl).toFixed(2)
+              return `${ptsLabel}→${pnlSigned} USD`
+            },
+          },
+        ) === true
+      // TV shapes own the dashed BUY/SELL lines (candle-accurate). Keep DOM badges only.
+      positionOverlay?.setSkipDomLines(usedTvShapes)
+      positionOverlay?.setSuppressed(false)
+      positionOverlay?.sync({ recreateLines: recreateLines && !usedTvShapes })
     }
 
     function syncTradingUi(b: Bar | null) {
       const mark = b?.close ?? 0
+      const ba = b ? bidAskFromBar(b) : undefined
       let accountChanged = false
       if (b) {
         const { bid, ask } = bidAskFromBar(b)
         const closed = replayAccount.processExits(Number(b.time), mark, bid, ask)
         if (closed.length) accountChanged = true
       }
-      const sum = replayAccount.summary(mark)
+      const sum = replayAccount.summary(mark, ba)
       host.querySelectorAll('.rw-bal').forEach((el) => {
         el.textContent = formatMoney(sum.equity)
       })
@@ -3237,7 +3669,8 @@ export function mountChartWorkspace(
       renderManualPositionPanel(mark)
       renderJournalPanel(mark)
       syncOrderPanelPosition()
-      syncPositionOverlay(true)
+      // Prefer soft sync — full recreate only when chart series revision changes.
+      syncPositionOverlay(false)
       if (accountChanged) schedulePersistReplay()
       evaluatePropIfNeeded(b)
     }
@@ -3247,6 +3680,9 @@ export function mountChartWorkspace(
     let tvBootBarsApplied = false
     let tvBootPaintDone = false
     const tvIntervalSwap = { inProgress: false }
+    let intervalPickBusy = false
+    /** TV header changed while applyIntervalPick was busy — apply after current swap. */
+    let pendingTvHeaderIntervalPick: IntervalPick | null = null
 
     const setFootRangeActive = (label: string) => {
       host.querySelectorAll('.rw-foot__range').forEach((b) => {
@@ -3293,30 +3729,16 @@ export function mountChartWorkspace(
             }
           },
           onResolutionChange: (tvRes) => {
-            if (intervalPickBusy || tvIntervalSwap.inProgress) return
             const pick = tvResolutionToIntervalPill(tvRes)
             if (!pick || pick.pill === chartTimeframe) return
             state.tvChart?.noteResolution(tvRes)
+            if (intervalPickBusy || tvIntervalSwap.inProgress) {
+              // TV already switched — queue so we don't leave feed on the old TF (blank/stuck).
+              pendingTvHeaderIntervalPick = pick
+              return
+            }
             void applyIntervalPick(pick)
           },
-          headerButtons: [
-            {
-              id: 'replay',
-              align: 'left',
-              insertAfterIndicatorTemplate: true,
-              title: 'Bar replay',
-              text: 'Replay',
-              onClick: onReplayLaunchClick,
-            },
-            {
-              id: 'backtest',
-              align: 'left',
-              insertAfterIndicatorTemplate: true,
-              title: 'Run strategy backtest on loaded bars',
-              text: 'Backtest',
-              onClick: () => tvHeaderActions.backtest?.(),
-            },
-          ],
         })
         state.tvChart.setSessionBars(
           tvBarsForChart(chartBars),
@@ -3340,6 +3762,17 @@ export function mountChartWorkspace(
         chartCanvas.classList.remove('rw-chart-canvas--tv')
         rwRoot.classList.remove('rw-root--tv')
       })
+      void state.tvChart?.whenChartReady().then(() => {
+        if (state.disposed) return
+        bindTvOverlayObserver()
+      })
+      /* Iframe may appear slightly after ready — retry bind a few times. */
+      window.setTimeout(() => {
+        if (!state.disposed) bindTvOverlayObserver()
+      }, 800)
+      window.setTimeout(() => {
+        if (!state.disposed) bindTvOverlayObserver()
+      }, 2000)
     } else {
     trading = createTradingChart(chartLwc, {
       theme: tradingThemeFromUi(uiChartTheme),
@@ -3626,6 +4059,8 @@ export function mountChartWorkspace(
     function syncDecoupledTvFeed(
       index: number,
       mode: 'prime' | 'paint' = 'prime',
+      restoreVisibleRange?: TvLockedViewport | null,
+      paintOpts?: { forceFull?: boolean },
     ): boolean {
       if (!state.tvChart || !isDecoupledReplay()) return false
       const chartPick = resolveIntervalPick(chartTimeframe)
@@ -3644,23 +4079,30 @@ export function mountChartWorkspace(
           barPeriodSec,
         )
         const subMinute = isSubMinuteReplayPick(replayPick)
-        if (subMinute) {
-          // Prefer incremental forming-candle update — avoids full TV reset jank during scissors.
+        const chartStepSec = chartPick.stepSec ?? 60
+        const viewOpts = {
+          decoupled: true as const,
+          preserveViewport: true as const,
+          fit: false as const,
+          ...(restoreVisibleRange ? { restoreVisibleRange } : {}),
+        }
+        // 1m chart / scissors: always force chart paint. tickDecoupledReplay after prime
+        // only patches the feed and leaves TV on a stale scale (scissors stuck left).
+        // Multi-minute + sub-minute (normal ticks): prefer incremental to avoid 2–3s lag.
+        const forceFull =
+          paintOpts?.forceFull === true || !(subMinute && chartStepSec > 60)
+        if (!forceFull) {
           if (!state.tvChart.tickDecoupledReplay(paint.display)) {
             state.tvChart.setReplayData(paint.display, paint.all, {
-              decoupled: true,
+              ...viewOpts,
               force: false,
-              preserveViewport: true,
-              fit: false,
             })
             state.tvChart.flushPendingRefresh()
           }
         } else {
           state.tvChart.setReplayData(paint.display, paint.all, {
-            decoupled: true,
+            ...viewOpts,
             force: true,
-            preserveViewport: true,
-            fit: false,
           })
           state.tvChart.flushPendingRefresh()
         }
@@ -3878,6 +4320,9 @@ export function mountChartWorkspace(
           updateLegend(displayBars)
           decoupledLegendStep = index
           decoupledLegendBarCount = displayBars.length
+        } else if (cursorBar) {
+          // Keep account / position badges live even when legend OHLC is throttled.
+          syncTradingUi(cursorBar)
         }
       } else {
         updateLegend(decoupled ? displayBars : slice)
@@ -3886,9 +4331,6 @@ export function mountChartWorkspace(
       chartBarCount = isDecoupledReplay() ? replay.getBars().length : chartBars.length
       syncReplayTransportUi(index)
       syncTradeNavUi(cursorBar ? Number(cursorBar.time) : undefined)
-      if (!replayPlaying) {
-        syncPositionOverlay(true)
-      }
       if (!replayPlaying || !decoupled || index % 15 === 0) {
         syncChartIndicators(allBars, displayBars)
       }
@@ -3971,7 +4413,7 @@ export function mountChartWorkspace(
     state.replay = replay
     syncTickLineOverlayActive()
     syncTickLineOverlay(initialReplayIndex)
-    setReplayDockOpen(false)
+    setReplayDockOpen(tvChartMode)
     if (state.tvChart && !tvBootBarsApplied) {
       state.tvChart.setSessionBars(
           tvBarsForChart(chartBars),
@@ -4075,21 +4517,20 @@ export function mountChartWorkspace(
       tickLineOverlay = null
     })
 
-    if (trading) {
-    positionOverlay = mountChartPositionOverlay({
-      chartHost,
-      chart: trading.chart,
-      getSeries: () => trading.getMainSeries(),
+    const positionOverlayHandlers = {
       getPositions: () => replayAccount.getPositions(),
       getMarkPrice: () => lastBar(replay.slice())?.close ?? 0,
+      getBidAsk: () => {
+        const b = lastBar(replay.slice())
+        return b ? bidAskFromBar(b) : null
+      },
       getAnchorTime: () => {
         const slice = replay.slice()
         const last = slice.length ? slice[slice.length - 1]! : null
         return last ? Number(last.time) : null
       },
-      getSeriesDataRevision: () => trading.getSeriesDataRevision(),
       formatMoney,
-      onClose: (id) => {
+      onClose: (id: string) => {
         const b = lastBar(replay.slice())
         if (!b) return
         const { bid, ask } = bidAskFromBar(b)
@@ -4097,12 +4538,12 @@ export function mountChartWorkspace(
         if (!pos) return
         replayAccount.closePosition(id, pos.direction === 'long' ? bid : ask, {
           exitTime: Number(b.time),
-          exitReason: 'manual',
+          exitReason: 'manual' as const,
         })
         schedulePersistReplay()
         syncTradingUi(b)
       },
-      onToggleTakeProfit: (id) => {
+      onToggleTakeProfit: (id: string) => {
         const pos = replayAccount.getPositions().find((p) => p.id === id)
         if (!pos) return
         if (pos.takeProfit != null) {
@@ -4112,7 +4553,7 @@ export function mountChartWorkspace(
         }
         syncTradingUi(lastBar(replay.slice()))
       },
-      onToggleStopLoss: (id) => {
+      onToggleStopLoss: (id: string) => {
         const pos = replayAccount.getPositions().find((p) => p.id === id)
         if (!pos) return
         if (pos.stopLoss != null) {
@@ -4122,11 +4563,53 @@ export function mountChartWorkspace(
         }
         syncTradingUi(lastBar(replay.slice()))
       },
-    })
-    cleanupFns.push(() => {
-      positionOverlay?.dispose()
-      positionOverlay = null
-    })
+    }
+
+    if (tvChartMode) {
+      positionOverlay = mountChartPositionOverlay({
+        chartHost,
+        ...positionOverlayHandlers,
+        priceToHostY: (price) => state.tvChart?.priceToHostY(price, chartHost) ?? null,
+        getPlotHorizontalInsets: () => {
+          const layout = state.tvChart?.getPlotLayout(chartHost)
+          if (!layout || layout.width < 80) return { left: 0, right: 56 }
+          const right = Math.min(Math.max(layout.right, 48), 120)
+          return { left: layout.plotOffsetX, right }
+        },
+        getMinPlotY: () => {
+          const layout = state.tvChart?.getPlotLayout(chartHost)
+          return layout ? layout.top + 8 : 40
+        },
+        getBottomInset: () => {
+          const layout = state.tvChart?.getPlotLayout(chartHost)
+          return layout?.bottom ?? 48
+        },
+        anchorTimeToHostX: (timeSec) => {
+          const layout = state.tvChart?.getPlotLayout(chartHost)
+          if (!layout) return null
+          return state.tvChart?.lineXAtBarTimeSec(timeSec, layout.plotOffsetX) ?? null
+        },
+        subscribeScaleChange: (cb) => state.tvChart?.subscribeTimeScaleChange(cb) ?? (() => {}),
+      })
+      cleanupFns.push(() => {
+        positionOverlay?.dispose()
+        positionOverlay = null
+      })
+      void state.tvChart?.whenChartReady().then(() => {
+        if (!state.disposed) syncPositionOverlay(true)
+      })
+    } else if (trading) {
+      positionOverlay = mountChartPositionOverlay({
+        chartHost,
+        chart: trading.chart,
+        getSeries: () => trading.getMainSeries(),
+        getSeriesDataRevision: () => trading.getSeriesDataRevision(),
+        ...positionOverlayHandlers,
+      })
+      cleanupFns.push(() => {
+        positionOverlay?.dispose()
+        positionOverlay = null
+      })
     }
     syncTradingUi(lastBar(replay.slice()))
 
@@ -4136,7 +4619,13 @@ export function mountChartWorkspace(
     }
 
     function canUseSubMinuteIntervals() {
-      return sessionTicksEligible()
+      if (sessionTicksEligible()) return true
+      // Local pre-synced second bars unlock the menu even before a tick fetch.
+      for (const step of LOCAL_SECOND_STEPS) {
+        if (hasLocalSecondBars(step)) return true
+      }
+      // Synthetic second bars from 1m history (same fallback as resolveReplayStepBars).
+      return canResample && source1mBars.length >= 8
     }
 
     let symbolSwitchSeq = 0
@@ -4162,6 +4651,7 @@ export function mountChartWorkspace(
         syncOrderPanelPosition()
         syncTradeNavUi()
         state.trading?.setTradeMarkers([])
+        state.tvChart?.setBacktestTradeMarkers([])
         hideReplayNotice()
         applyFeedUi({ symbol: s, loading: true })
 
@@ -4404,13 +4894,24 @@ export function mountChartWorkspace(
         replay.setLoopStartIndex(replayStartBar)
 
         const cursorBar = bars[Math.max(0, replayStartBar - 1)] ?? null
+        const cursorTime = cursorBar ? Number(cursorBar.time) : undefined
+        const tradePayload = result.trades.map((t) => ({
+          direction: t.direction,
+          entryTime: t.entryTime,
+          exitTime: t.exitTime,
+          entryPrice: t.entryPrice,
+          exitPrice: t.exitPrice,
+          pnl: t.pnl,
+        }))
         if (state.trading) {
           state.trading.setTradeMarkers(
-            cursorBar && result.trades.length
-              ? tradeMarkersUpToTime(result, Number(cursorBar.time))
-              : [],
+            cursorTime != null && result.trades.length
+              ? tradeMarkersUpToTime(result, cursorTime)
+              : tradeMarkersUpToTime(result, Number.POSITIVE_INFINITY),
           )
         }
+        // TV: paint all entry/exit markers once (avoid recreating shapes every replay step).
+        state.tvChart?.setBacktestTradeMarkers(tradePayload)
 
         sidePanel?.update({
           result,
@@ -4426,7 +4927,8 @@ export function mountChartWorkspace(
         })
         syncOrderPanelPosition()
         getBacktestLaunchButtons().forEach((b) => b.classList.add('rw-backtest-launch--active'))
-        syncTradeNavUi(cursorBar ? Number(cursorBar.time) : undefined)
+        syncTradeNavUi(cursorTime)
+        void showBacktestResultDialog(result)
       } catch (e) {
         console.error('[BacktestEngine]', e)
         window.alert(e instanceof Error ? e.message : 'Backtest failed.')
@@ -4439,7 +4941,6 @@ export function mountChartWorkspace(
     }
 
     const onBacktestClickHandler = () => onBacktestClick()
-    tvHeaderActions.backtest = onBacktestClickHandler
     btnBacktest?.addEventListener('click', onBacktestClickHandler)
     cleanupFns.push(() => btnBacktest?.removeEventListener('click', onBacktestClickHandler))
 
@@ -4448,8 +4949,6 @@ export function mountChartWorkspace(
         if (!state.disposed && chartBars.length >= 50) runAndShowBacktest()
       })
     }
-
-    let intervalPickBusy = false
 
     function revertTvIntervalPill(pill: string) {
       const pick = resolveIntervalPick(pill)
@@ -4473,9 +4972,13 @@ export function mountChartWorkspace(
       }
     }
 
+    let replayAutoSelectInterval = readReplayAutoSelectInterval()
+
     function syncReplayIntervalBtnTitle() {
       if (!replayIntervalBtn) return
-      replayIntervalBtn.title = 'Replay step interval'
+      replayIntervalBtn.title = replayAutoSelectInterval
+        ? 'Replay step (auto — follows chart interval)'
+        : 'Replay step interval'
     }
 
     /** Replay interval matches chart — use chart bar series and map cursor from step bars if needed. */
@@ -4493,11 +4996,19 @@ export function mountChartWorkspace(
       if (replayDockTf) replayDockTf.textContent = chartTimeframe
       replayStepSourceBars = []
       replay.replaceBarsAt(chartBars, chartIdx)
+      syncReplayIntervalBtnTitle()
     }
 
     async function applyReplayIntervalPick(pick: IntervalPick) {
       const chartPick = resolveIntervalPick(chartTimeframe)
       if (!chartPick) return
+
+      // Manual pick that differs from chart → turn off TV “Auto select interval”.
+      if (pick.pill !== chartTimeframe && replayAutoSelectInterval) {
+        replayAutoSelectInterval = false
+        writeReplayAutoSelectInterval(false)
+        syncReplayIntervalBtnTitle()
+      }
 
       // Coupled replay — chart and replay share the same bar series.
       if (pick.pill === chartTimeframe) {
@@ -4548,7 +5059,7 @@ export function mountChartWorkspace(
         replayTimeframe = chartTimeframe
         if (replayDockTf) replayDockTf.textContent = chartTimeframe
         window.alert(
-          'Sub-minute replay needs local second-bar sync or Dukascopy ticks for this session. Sync market data or load ticks, then try again.',
+          'Sub-minute replay needs second-bar data for this session. Sync market seconds (npm run market:sync:seconds), load Dukascopy ticks with session dates, or use enough 1m history for synthetic seconds.',
         )
         return
       }
@@ -4600,6 +5111,29 @@ export function mountChartWorkspace(
       const slice = replay.slice()
       const cursorTime = slice.length ? slice[slice.length - 1]!.time : null
       let cursorTimeSec = cursorTime != null ? Number(cursorTime) : null
+
+      // Sync prime before any await: TV may already be on 4h/1h and requesting getBars.
+      // Without this, a resolution mismatch returns [] until later prime+resetData.
+      if (
+        state.tvChart &&
+        !enteringTickKind &&
+        !enteringSeconds &&
+        pick.kind === 'time' &&
+        (pick.stepSec ?? 60) >= 60
+      ) {
+        const earlyBars = buildBarsForIntervalPick(pick, cursorTimeSec)
+        if (earlyBars.length >= 2) {
+          const earlyRes = intervalPillToTvResolution(pick.pill)
+          state.tvChart.noteResolution(earlyRes)
+          state.tvChart.primeIntervalFeed(
+            tvBarsForChart(earlyBars),
+            earlyRes,
+            earlyBars.length,
+            intervalPickBarPeriodSec(pick),
+          )
+        }
+      }
+
       let tvVisibleMidSec: number | null = null
       if ((enteringTickKind || enteringSeconds) && state.tvChart) {
         const visible = state.tvChart.captureVisibleRange()
@@ -4706,12 +5240,12 @@ export function mountChartWorkspace(
           await yieldToMain()
           }
         } else if (leavingTickKind || leavingSubMinute) {
-          showOverlay('Updating chart…')
-          await yieldToMain()
-        } else if (prevPick && pick.pill !== prevPick.pill) {
+          // Leaving tick/seconds can be heavy (feed rebuild) — keep a short overlay.
           showOverlay('Updating chart…')
           await yieldToMain()
         }
+        // Minute+ aggregates (1m↔5m↔1h↔4h) use in-memory 1m bars — no host overlay.
+        // Overlay made higher TFs feel slower than 1m even though aggregation is cheap.
 
         if (enteringSeconds) await yieldToMain()
         let nextBars = buildBarsForIntervalPick(pick, cursorTimeSec)
@@ -4744,6 +5278,24 @@ export function mountChartWorkspace(
         chartTimeframe = pick.pill
         intervalPill.textContent = pick.pill
 
+        {
+          // Auto select: replay always follows the TV/chart header interval.
+          // Otherwise only clamp if the current replay step is no longer in the dock matrix.
+          if (replayAutoSelectInterval) {
+            if (replayTimeframe !== chartTimeframe) {
+              replayTimeframe = chartTimeframe
+              if (replayDockTf) replayDockTf.textContent = chartTimeframe
+            }
+          } else {
+            const clampedReplay = clampReplayPillForChart(chartTimeframe, replayTimeframe)
+            if (clampedReplay !== replayTimeframe) {
+              replayTimeframe = clampedReplay
+              if (replayDockTf) replayDockTf.textContent = clampedReplay
+            }
+          }
+          syncReplayIntervalBtnTitle()
+        }
+
         const resolutionChanged = tvRes !== prevTvRes
         const useLocalSecond = enteringSeconds && localSecondIntervalPick(pick)
         const preserveTvViewportOnSubMinuteEnter =
@@ -4762,6 +5314,7 @@ export function mountChartWorkspace(
         paintIntervalFavorites(applyIntervalPick, onIntervalPrefsChange)
         firstChartPaint = false
         state.trading?.setTradeMarkers([])
+        state.tvChart?.setBacktestTradeMarkers([])
         backtestState.result = null
         backtestState.highlightTradeNum = undefined
         sidePanel?.clear()
@@ -4800,17 +5353,30 @@ export function mountChartWorkspace(
 
         let decoupledActive = decoupledAfter
         if (decoupledAfter) {
-          const stepBars = await resolveReplayStepBars(replayPickResolved!)
-          if (isSubMinuteReplayPick(replayPickResolved!) && stepBars.length < 2) {
+          // Hour+ chart + sub-minute replay: don't block the interval swap on tick fetch
+          // (ensureDukascopyTickSource can hang and leave the chart stuck loading).
+          const chartStepSec = pick.stepSec ?? 60
+          if (chartStepSec >= 3600 && isSubMinuteReplayPick(replayPickResolved!)) {
             decoupledActive = false
             replayTimeframe = chartTimeframe
             replayStepSourceBars = []
             if (replayDockTf) replayDockTf.textContent = chartTimeframe
             showReplayNotice(
-              'Sub-minute replay step needs tick data — replay reset to match chart interval.',
+              'Replay step reset to match chart interval (hour+ charts skip sub-minute tick load).',
             )
           } else {
-            replayStepSourceBars = isSubMinuteReplayPick(replayPickResolved!) ? stepBars : []
+            const stepBars = await resolveReplayStepBars(replayPickResolved!)
+            if (isSubMinuteReplayPick(replayPickResolved!) && stepBars.length < 2) {
+              decoupledActive = false
+              replayTimeframe = chartTimeframe
+              replayStepSourceBars = []
+              if (replayDockTf) replayDockTf.textContent = chartTimeframe
+              showReplayNotice(
+                'Sub-minute replay step needs tick data — replay reset to match chart interval.',
+              )
+            } else {
+              replayStepSourceBars = isSubMinuteReplayPick(replayPickResolved!) ? stepBars : []
+            }
           }
         }
 
@@ -4863,15 +5429,15 @@ export function mountChartWorkspace(
               tvPast,
               intervalPickBarPeriodSec(pick),
             )
-            await state.tvChart.swapInterval(tvSeries, tvRes, tvPast, tvViewSnap, {
+            await state.tvChart.swapInterval(tvSeries, tvRes, tvPast, intervalRefit ? null : tvViewSnap, {
               refit: intervalRefit,
               barPeriodSec: intervalPickBarPeriodSec(pick),
             })
-            nextReplayTickForce = true
             replay.replaceBarsAt(resolvedStepBars, stepIndex)
             skipTvReplayPaintOnce = false
             state.tvChart.flushPendingRefresh()
-            if (tvViewSnap) {
+            // Don't re-apply the old (e.g. 1m) viewport onto a refit hour/4h chart — freezes TV.
+            if (tvViewSnap && !intervalRefit) {
               requestAnimationFrame(() => {
                 void state.tvChart?.restoreVisibleRange(tvViewSnap)
               })
@@ -4898,17 +5464,17 @@ export function mountChartWorkspace(
             tvPast,
             pick.kind === 'tick' ? 60 : intervalPickBarPeriodSec(pick),
           )
-          await state.tvChart.swapInterval(tvSeries, tvRes, tvPast, tvViewSnap, {
+          await state.tvChart.swapInterval(tvSeries, tvRes, tvPast, intervalRefit ? null : tvViewSnap, {
             refit: intervalRefit,
             barPeriodSec: pick.kind === 'tick' ? 60 : intervalPickBarPeriodSec(pick),
           })
           if (tickAtLiveEnd || (pick.kind === 'tick' && tvPast >= tvSeries.length)) {
             state.tvChart.clearReplay()
           }
-          nextReplayTickForce = true
           replay.replaceBarsAt(chartBars, nextIndex)
           skipTvReplayPaintOnce = false
-          if (tvViewSnap) {
+          // Don't re-apply the old (e.g. 1m) viewport onto a refit hour/4h chart — freezes TV.
+          if (tvViewSnap && !intervalRefit) {
             requestAnimationFrame(() => {
               void state.tvChart?.restoreVisibleRange(tvViewSnap)
             })
@@ -4937,6 +5503,11 @@ export function mountChartWorkspace(
         if (overlayActive) setChartLoading(false)
         intervalPickBusy = false
         tvIntervalSwap.inProgress = false
+        const queued = pendingTvHeaderIntervalPick
+        pendingTvHeaderIntervalPick = null
+        if (queued && queued.pill !== chartTimeframe && !state.disposed) {
+          void applyIntervalPick(queued)
+        }
       }
     }
 
@@ -5002,8 +5573,19 @@ export function mountChartWorkspace(
           canUseTicks: () => canUseTickIntervals(),
           canUseSubMinute: () => canUseSubMinuteIntervals(),
           items: REPLAY_DOCK_INTERVALS,
+          getItems: () => replayDockIntervalsForChart(chartTimeframe) ?? REPLAY_DOCK_INTERVALS,
           variant: 'replay',
           showCustomInterval: false,
+          getAutoSelectInterval: () => replayAutoSelectInterval,
+          setAutoSelectInterval: (on) => {
+            replayAutoSelectInterval = on
+            writeReplayAutoSelectInterval(on)
+            syncReplayIntervalBtnTitle()
+            if (on && replayTimeframe !== chartTimeframe) {
+              const chartPick = resolveIntervalPick(chartTimeframe)
+              if (chartPick) void applyReplayIntervalPick(chartPick)
+            }
+          },
           onSelect: (p) => {
             void applyReplayIntervalPick(p)
           },
@@ -5011,12 +5593,32 @@ export function mountChartWorkspace(
             replayIntervalBtn.setAttribute('aria-expanded', open ? 'true' : 'false')
             replayIntervalBtn.classList.toggle('rw-replay-dock__interval--open', open)
           },
+          getDismissTargets: () => {
+            const out: Array<Document | EventTarget | null> = [
+              chartHost,
+              chartLwc,
+              chartTv,
+              chartCanvas,
+            ]
+            const iframe =
+              chartTv.querySelector('iframe') ?? chartHost.querySelector('iframe')
+            if (iframe) {
+              out.push(iframe)
+              try {
+                if (iframe.contentDocument) out.push(iframe.contentDocument)
+              } catch {
+                /* cross-origin — blur handler still covers focus into iframe */
+              }
+            }
+            return out
+          },
         })
       : null
     syncReplayIntervalBtnTitle()
 
     const onIntervalPillClick = (e: MouseEvent) => {
       e.stopPropagation()
+      replayIntervalMenu?.close()
       intervalMenu.toggle()
     }
     intervalPill.addEventListener('click', onIntervalPillClick)
@@ -5028,6 +5630,8 @@ export function mountChartWorkspace(
 
     const onReplayIntervalClick = (e: MouseEvent) => {
       e.stopPropagation()
+      e.preventDefault()
+      intervalMenu.close()
       replayIntervalMenu?.toggle()
     }
     replayIntervalBtn?.addEventListener('click', onReplayIntervalClick)
@@ -5173,8 +5777,7 @@ export function mountChartWorkspace(
         } else if (viewSnap && state.tvChart) {
           const slice = replay.slice()
           if (state.tvChart.lockedViewportCoversBars(viewSnap, slice)) {
-            await state.tvChart.restoreVisibleRange(viewSnap)
-            await new Promise((r) => setTimeout(r, 80))
+            // One restore is enough — a delayed second restore blinked the chart.
             await state.tvChart.restoreVisibleRange(viewSnap)
           } else {
             state.tvChart.scrollReplayCursorIntoView()
@@ -5199,7 +5802,8 @@ export function mountChartWorkspace(
       return `Re: ${wk} ${day} ${mon} '${y2} ${hh}:${mm}`
     }
 
-    let replaySelectMode: 'bar' | 'date' = 'date'
+    type ReplaySelectMode = 'bar' | 'date' | 'first' | 'random'
+    let replaySelectMode: ReplaySelectMode = 'bar'
     let lastPointerClientX: number | null = null
     let lastPointerClientY: number | null = null
     let lastSnappedSliceIndex = 0
@@ -5209,11 +5813,8 @@ export function mountChartWorkspace(
     function applySelectBarPickPreview(idx: number) {
       if (idx === lastPickPreviewIdx) return
       lastPickPreviewIdx = idx
-      const allBars = replay.getBars()
-      if (!allBars.length) return
-      // TV: keep the series static during pick — CSS mask hides future bars (smooth overlay).
-      if (state.tvChart) return
-      state.trading?.setReplayPickPreview(idx, allBars)
+      // Keep full series visible during pick — CSS blur wash covers candles to the right
+      // of the scissors line (do not truncate / hide future bars).
     }
 
     function captureLockedChartViewport(): {
@@ -5246,9 +5847,7 @@ export function mountChartWorkspace(
     function setSelectBarPointerInChart(inChart: boolean) {
       selectBarOverlay?.classList.toggle('rw-select-bar-overlay--pointer-in', inChart)
       selectBarTimeFlyout?.classList.toggle('rw-select-bar-overlay--pointer-in', inChart)
-      if (!inChart) {
-        chartCanvas.style.removeProperty('--rw-sb-sx')
-      }
+      if (!inChart) setSelectBarOverLegend(false)
     }
 
     /** Drag-session cache — avoid rebuilding decoupled paint / layout on every pointer move. */
@@ -5281,10 +5880,20 @@ export function mountChartWorkspace(
         maxIdx = Math.max(0, visible.length - 1)
       }
       const layout = state.tvChart?.getPlotLayout(chartHost)
+      // Prefer measured plot canvas offset; iframe-only fallback when plot not ready.
+      let plotOffsetX =
+        layout && layout.width > 0
+          ? layout.plotOffsetX
+          : (layout?.iframeOffsetX ?? layout?.plotOffsetX ?? 0)
+      // Guard against a mis-picked canvas (huge left inset → every pick maps to bar 0).
+      const hostW = Math.max(1, chartHost.clientWidth)
+      if (plotOffsetX > hostW * 0.35) {
+        plotOffsetX = layout?.iframeOffsetX ?? 0
+      }
       scissorsPickCache = {
         visible,
         maxIdx,
-        plotOffsetX: layout?.plotOffsetX ?? layout?.iframeOffsetX ?? 0,
+        plotOffsetX,
         chartStepSec,
         lineXByIdx: new Map(),
       }
@@ -5293,6 +5902,45 @@ export function mountChartWorkspace(
     function ensureScissorsPickCache() {
       if (!scissorsPickCache) refreshScissorsPickCache()
       return scissorsPickCache!
+    }
+
+    /**
+     * Initial scissors index at the current replay cursor (chart candle), not always the live edge.
+     * Second-step decoupled used maxPick → line jumped to the far-right / end of chart.
+     */
+    function scissorsPickIndexAtReplayCursor(): number {
+      const maxIdx = maxPickBarIndex()
+      if (maxIdx <= 0) return 0
+
+      if (!isDecoupledReplay()) {
+        return Math.max(0, Math.min(maxIdx, replay.getState().index - 1))
+      }
+
+      const chartPick = resolveIntervalPick(chartTimeframe)
+      const replayPick = resolveIntervalPick(replayTimeframe)
+      const stepBars = replay.getBars()
+      if (!chartPick || !replayPick || !stepBars.length) return maxIdx
+
+      const replayStepSec = effectiveReplayStepSec(stepBars, replayPick.stepSec ?? 60)
+      const cursorEnd = cursorEndSecForStepIndex(
+        stepBars,
+        replayStepSec,
+        replay.getState().index,
+      )
+      if (cursorEnd <= 0) return maxIdx
+
+      const chartStepSec = chartPick.stepSec ?? 60
+      const visible = scissorsVisibleChartBars()
+      if (!visible.length) return 0
+
+      // Candle that contains cursorEnd, else last fully closed candle before it.
+      for (let i = 0; i < visible.length; i++) {
+        const open = Number(visible[i]!.time)
+        const close = open + chartStepSec
+        if (cursorEnd > open && cursorEnd <= close) return Math.min(maxIdx, i)
+        if (cursorEnd <= open) return Math.min(maxIdx, Math.max(0, i - 1))
+      }
+      return maxIdx
     }
 
     /** Chart candles visible for scissors pick (decoupled: 2m display; coupled: replay slice). */
@@ -5332,73 +5980,101 @@ export function mountChartWorkspace(
       return Math.max(1, stepIndexForCursorEnd(stepBars, replayStepSec, cursorEndSec))
     }
 
+    /** True when first/last candle X are distinct — stale TV scale collapses every pick to bar 0. */
+    function scissorsPlotSplitsReady(): boolean {
+      const maxIdx = scissorsPickCache?.maxIdx ?? maxPickBarIndex()
+      if (maxIdx < 1) return true
+      const x0 = lineXAtBarIndex(0)
+      const xMax = lineXAtBarIndex(maxIdx)
+      return x0 != null && xMax != null && Math.abs(xMax - x0) > 2
+    }
+
     /** Align TV series with chart candles before scissors pick (2m+ / decoupled). */
     function primeTvFeedForScissorsPick(): void {
       if (!state.tvChart) return
       const chartPick = resolveIntervalPick(chartTimeframe)
       if (!chartPick) return
-      // Sub-minute decoupled: chart is already painted by onReplayTick. Re-priming the full
-      // session here caused 2–3s lag (setSessionBars + realtime flood). Pick uses in-memory bars.
-      const replayPick = resolveIntervalPick(replayTimeframe)
-      if (
-        isDecoupledReplay() &&
-        replayPick != null &&
-        isSubMinuteReplayPick(replayPick)
-      ) {
-        return
-      }
       const index = replay.getState().index
+      // Capture pan/zoom BEFORE any paint — without restore, second-step scissors can jump.
+      const savedView = state.tvChart.captureLockedViewport()
+
       if (isDecoupledReplay()) {
-        syncDecoupledTvFeed(index, 'paint')
+        // Always force a full paint so the time scale has distinct X per bar.
+        // Incremental tickDecoupledReplay (or skipping paint) leaves a stale scale →
+        // scissors stuck on the leftmost candle.
+        syncDecoupledTvFeed(index, 'paint', savedView, { forceFull: true })
+        state.tvChart.flushPendingRefresh()
         return
       }
-      const chartStepSec = chartPick.stepSec ?? 60
-      if (chartStepSec <= 60) return
-      const slice = replay.slice()
-      const reveal = Math.max(1, slice.length)
-      const tvRes = intervalPillToTvResolution(chartTimeframe)
-      const barPeriodSec = intervalPickBarPeriodSec(chartPick)
-      state.tvChart.primeIntervalFeed(
-        tvBarsForChart(chartBars),
-        tvRes,
-        reveal,
-        barPeriodSec,
-      )
-      state.tvChart.setReplayData(slice, chartBars, {
-        force: true,
-        preserveViewport: true,
-        fit: false,
-      })
+
+      // Coupled: ensure pending TV layout is flushed before we cache plot offsets.
       state.tvChart.flushPendingRefresh()
     }
 
-    /** TV scissors pick — snap to visible chart candle times (stable on 2m+/3m + seconds). */
+    /** Workspace / display bars may be sec or ms — scissors compare against TV unix seconds. */
+    function scissorsBarOpenSec(bar: Bar): number {
+      const t = Number(bar.time)
+      if (!Number.isFinite(t)) return 0
+      return t > 1e12 ? Math.floor(t / 1000) : Math.floor(t)
+    }
+
+    /**
+     * Snap scissors to the candle under the pointer.
+     * Prefer geometry (same X space as the overlay line) so a bad plotOffsetX cannot
+     * pin every pick to index 0 / leftmost candle.
+     */
     function pickScissorsBarIndexAtClientX(clientX: number): number {
       const cache = ensureScissorsPickCache()
       const maxIdx = cache.maxIdx
       if (!state.tvChart) return Math.max(0, Math.min(maxIdx, pickStableIdx))
 
       const hostRect = chartHost.getBoundingClientRect()
-      const offset = cache.plotOffsetX
+      const offset = tvPlotOffsetX()
       const chartStepSec = cache.chartStepSec
       const visible = cache.visible
+      const px = clientX - hostRect.left
 
-      // Same light path for minute and sub-minute decoupled — feed is primed before scissors open.
-      if (chartStepSec > 60 || isDecoupledReplay()) {
+      // 1) Geometric snap — line X and pick share one coordinate system.
+      if (maxIdx >= 1) {
+        const x0 = lineXAtBarIndex(0)
+        const xMax = lineXAtBarIndex(maxIdx)
+        if (x0 != null && xMax != null && Math.abs(xMax - x0) > 2) {
+          let lo = 0
+          let hi = maxIdx
+          while (lo < hi) {
+            const mid = (lo + hi) >> 1
+            const xMid = lineXAtBarIndex(mid)
+            if (xMid == null) break
+            if (px > xMid) lo = mid + 1
+            else hi = mid
+          }
+          let candidate = Math.max(0, Math.min(maxIdx, lo))
+          if (candidate > 0) {
+            const xPrev = lineXAtBarIndex(candidate - 1)
+            const xCur = lineXAtBarIndex(candidate)
+            if (xPrev != null && xCur != null && px < (xPrev + xCur) / 2) candidate -= 1
+          }
+          return candidate
+        }
+      }
+
+      // 2) Time-bucket snap (minute+ / decoupled display bars) — normalize sec vs ms.
+      if (chartStepSec >= 60 && visible.length) {
         const sec = state.tvChart.timeSecAtClientX(clientX, hostRect.left, offset)
-        if (sec != null && visible.length) {
+        if (sec != null) {
           for (let i = 0; i <= maxIdx && i < visible.length; i++) {
-            const open = Number(visible[i]!.time)
+            const open = scissorsBarOpenSec(visible[i]!)
             const nextOpen =
-              i + 1 < visible.length ? Number(visible[i + 1]!.time) : open + chartStepSec
+              i + 1 < visible.length ? scissorsBarOpenSec(visible[i + 1]!) : open + chartStepSec
             if (sec >= open && sec < nextOpen) return i
           }
-          const firstOpen = Number(visible[0]!.time)
+          const firstOpen = scissorsBarOpenSec(visible[0]!)
           if (sec < firstOpen) return 0
           return maxIdx
         }
       }
 
+      // 3) Feed / split pick (tick-remapped and fallback).
       return state.tvChart.pickIndexAtClientX(clientX, hostRect.left, maxIdx, offset)
     }
 
@@ -5418,22 +6094,46 @@ export function mountChartWorkspace(
     }
 
     function tvPlotOffsetX(): number {
+      // Stable offset for the scissors session — remasuring every move can overshoot and
+      // pin timeSecAtClientX to range.from (leftmost candle). Refresh on open / range change.
       if (selectBarChartActive && scissorsPickCache) return scissorsPickCache.plotOffsetX
       const layout = state.tvChart?.getPlotLayout(chartHost)
       return layout?.plotOffsetX ?? layout?.iframeOffsetX ?? 0
+    }
+
+    function clampClientXToLastCandle(clientX: number): number {
+      const maxIdx = maxPickBarIndex()
+      const xMax = lineXAtBarIndex(maxIdx)
+      if (xMax == null || !Number.isFinite(xMax)) return clientX
+      const hostRect = chartHost.getBoundingClientRect()
+      const lastClientX = hostRect.left + xMax
+      return Math.min(clientX, lastClientX)
+    }
+
+    function updateSelectBarPastEndCover() {
+      if (!selectBarOverlay) return
+      const maxIdx = maxPickBarIndex()
+      const xMax = lineXAtBarIndex(maxIdx)
+      if (xMax == null || !Number.isFinite(xMax)) {
+        selectBarOverlay.style.setProperty('--sb-past-end-left', '100%')
+        return
+      }
+      // Start just after the last candle center so empty future space cannot drive TV’s cursor.
+      selectBarOverlay.style.setProperty('--sb-past-end-left', `${Math.max(0, xMax + 1)}px`)
     }
 
     function pickIndexAtClientX(clientX: number): number {
       const allBars = replay.getBars()
       if (allBars.length === 0) return pickStableIdx
       const maxIdx = maxPickBarIndex()
+      const clampedX = clampClientXToLastCandle(clientX)
       if (state.tvChart) {
-        const raw = pickScissorsBarIndexAtClientX(clientX)
-        return stabilizeScissorsPickIndex(clientX, raw, pickStableIdx)
+        const raw = pickScissorsBarIndexAtClientX(clampedX)
+        return Math.max(0, Math.min(maxIdx, stabilizeScissorsPickIndex(clampedX, raw, pickStableIdx)))
       }
       if (!state.trading) return pickStableIdx
       const rect = chartLwc.getBoundingClientRect()
-      const x = clientX - rect.left
+      const x = clampedX - rect.left
       const logical = state.trading.chart.timeScale().coordinateToLogical(x)
       if (logical == null || !Number.isFinite(Number(logical))) return Math.min(pickStableIdx, maxIdx)
       return Math.max(0, Math.min(maxIdx, Math.round(Number(logical))))
@@ -5447,15 +6147,20 @@ export function mountChartWorkspace(
           if (cached != null) return cached
         }
         const offset = tvPlotOffsetX()
-        let x = state.tvChart.lineXAtBarIndex(idx, 0, offset)
+        const visible = scissorsVisibleChartBars()
+        const bar = visible[idx]
+        const chartStepSec =
+          scissorsPickCache?.chartStepSec ?? resolveIntervalPick(chartTimeframe)?.stepSec ?? 60
+        // Prefer bar-open time when scissors is active (1m feed can still be tick-remapped after seconds).
+        let x: number | null = null
+        if (selectBarChartActive && bar && chartStepSec >= 60) {
+          x = state.tvChart.lineXAtBarTimeSec(scissorsBarOpenSec(bar), offset)
+        }
         if (x == null) {
-          const visible = scissorsVisibleChartBars()
-          const bar = visible[idx]
-          const chartStepSec =
-            scissorsPickCache?.chartStepSec ?? resolveIntervalPick(chartTimeframe)?.stepSec ?? 60
-          if (bar && chartStepSec > 60) {
-            x = state.tvChart.lineXAtBarTimeSec(Number(bar.time), offset)
-          }
+          x = state.tvChart.lineXAtBarIndex(idx, 0, offset)
+        }
+        if (x == null && bar && chartStepSec >= 60) {
+          x = state.tvChart.lineXAtBarTimeSec(scissorsBarOpenSec(bar), offset)
         }
         if (x != null && selectBarChartActive && scissorsPickCache) {
           scissorsPickCache.lineXByIdx.set(idx, x)
@@ -5483,39 +6188,135 @@ export function mountChartWorkspace(
 
     function applyPlotClipVars(
       target: HTMLElement | null,
-      clip: { top: number; bottom: number; right: number } | null,
+      clip: { top: number; bottom: number; left: number; right: number } | null,
     ) {
       if (!target) return
       if (clip) {
         target.style.setProperty('--sb-top', `${clip.top}px`)
         target.style.setProperty('--sb-bottom', `${clip.bottom}px`)
+        target.style.setProperty('--sb-left', `${clip.left}px`)
         target.style.setProperty('--sb-right', `${clip.right}px`)
       } else {
         target.style.removeProperty('--sb-top')
         target.style.removeProperty('--sb-bottom')
+        target.style.removeProperty('--sb-left')
         target.style.removeProperty('--sb-right')
       }
     }
 
-    function updateSelectBarPlotClip() {
-      const clip = state.tvChart ? state.tvChart.getPlotClipInsets(chartHost) : null
-      applyPlotClipVars(selectBarOverlay, clip)
-      applyPlotClipVars(replayMaskOverlay, clip)
+    /** Keep scissors clear of the icon half-height at the plot edges. */
+    const SELECT_BAR_SCISSORS_PAD_PX = 8
+    /** Wash starts just below OHLC / above Volume so candle tips in that band stay hidden. */
+    const SELECT_BAR_LEGEND_CLEAR_PX = 30
+    /**
+     * Minimum bottom inset so wash never paints over the time-axis label strip.
+     */
+    const SELECT_BAR_WASH_BOTTOM_MIN_PX = 72
+    /** Keep wash off the right price scale (“clock” axis). */
+    const SELECT_BAR_PRICE_AXIS_RIGHT_MIN_PX = 72
+    /** Ignore click-to-pick after a drag/pan larger than this. */
+    const SELECT_BAR_PAN_SLOP_PX = 8
+
+    function readSelectBarClipInsets(): {
+      top: number
+      bottom: number
+      left: number
+      right: number
+    } {
+      const measured = state.tvChart ? state.tvChart.getPlotClipInsets(chartHost) : null
+      if (measured) {
+        return {
+          top: Math.max(0, measured.top),
+          bottom: measured.bottom,
+          left: measured.left,
+          right: measured.right,
+        }
+      }
+      return { top: 0, bottom: 0, left: 0, right: 56 }
     }
 
-    function paintSelectBarCursor(lineX: number, offsetY: number) {
+    function setSelectBarOverLegend(_over: boolean) {
+      // No longer clamp / hide for a fake “OHLC ceiling” — full-chart travel.
+      selectBarOverlay?.classList.remove('rw-select-bar-overlay--over-legend')
+    }
+
+    /** Full price pane — scissors track anywhere in the plot. */
+    function pointerInSelectBarPlot(clientX: number, clientY: number): boolean {
+      const hostRect = chartHost.getBoundingClientRect()
+      const clip = readSelectBarClipInsets()
+      const left = hostRect.left + clip.left
+      const right = hostRect.right - clip.right
+      const top = hostRect.top + clip.top
+      const bottom = hostRect.bottom - clip.bottom
+      return clientX >= left && clientX <= right && clientY >= top && clientY <= bottom
+    }
+
+    function updateSelectBarPlotClip() {
+      const clip = readSelectBarClipInsets()
+      applyPlotClipVars(selectBarOverlay, clip)
+      applyPlotClipVars(replayMaskOverlay, clip)
+      applyPlotClipVars(selectBarTimeFlyout, clip)
+      if (selectBarOverlay) {
+        // Wash just below OHLC (above Volume); keep off time axis + price scales.
+        const washTop = clip.top + SELECT_BAR_LEGEND_CLEAR_PX
+        const washBottom = Math.max(SELECT_BAR_WASH_BOTTOM_MIN_PX, clip.bottom)
+        const axisRight = Math.max(SELECT_BAR_PRICE_AXIS_RIGHT_MIN_PX, clip.right)
+        selectBarOverlay.style.setProperty('--sb-blur-top', `${washTop}px`)
+        selectBarOverlay.style.setProperty('--sb-blur-bottom', `${washBottom}px`)
+        selectBarOverlay.style.setProperty('--sb-right', `${axisRight}px`)
+        selectBarOverlay.style.setProperty('--sb-left', `${Math.max(0, clip.left)}px`)
+        selectBarOverlay.style.setProperty('--sb-hit-top', `${clip.top}px`)
+        selectBarOverlay.style.setProperty('--sb-line-top', `${clip.top}px`)
+        selectBarOverlay.style.removeProperty('--sb-ohlc-cut-h')
+        selectBarOverlay.style.removeProperty('--sb-hit-bottom')
+        selectBarOverlay.style.removeProperty('--sb-wash-bottom')
+        selectBarOverlay.style.removeProperty('--sb-legend-notch-w')
+        selectBarOverlay.style.removeProperty('--sb-legend-notch-h')
+      }
+    }
+
+    /** Park wash/line off-chart until the pointer places a scissors pick. */
+    function parkSelectBarCursorOffChart() {
       if (!selectBarOverlay) return
       updateSelectBarPlotClip()
+      const clip = readSelectBarClipInsets()
+      const w = selectBarOverlay.clientWidth || 0
+      const axisRight = Math.max(SELECT_BAR_PRICE_AXIS_RIGHT_MIN_PX, clip.right)
+      const x = Math.max(clip.left, w - axisRight)
+      selectBarOverlay.style.setProperty('--sx', `${x}px`)
+      selectBarOverlay.style.setProperty('--sy', `${clip.top + SELECT_BAR_SCISSORS_PAD_PX}px`)
+      chartCanvas.style.setProperty('--rw-sb-sx', `${x}px`)
+    }
+
+    function paintSelectBarCursor(lineX: number, offsetY?: number) {
+      if (!selectBarOverlay) return
+      updateSelectBarPlotClip()
+      const clip = readSelectBarClipInsets()
       const w = selectBarOverlay.clientWidth
       const h = selectBarOverlay.clientHeight
-      const x = Math.max(0, Math.min(w, lineX))
-      const y = Math.max(0, Math.min(h, offsetY))
+      const axisRight = Math.max(SELECT_BAR_PRICE_AXIS_RIGHT_MIN_PX, clip.right)
+      const x = Math.max(clip.left, Math.min(w - axisRight, lineX))
+      // Scissors travel the full plot height.
+      const yMin = clip.top + SELECT_BAR_SCISSORS_PAD_PX
+      const yMax = Math.max(yMin, h - clip.bottom - SELECT_BAR_SCISSORS_PAD_PX)
+      const midY = yMin + (yMax - yMin) * 0.42
+      const y =
+        offsetY != null && Number.isFinite(offsetY)
+          ? Math.max(yMin, Math.min(yMax, offsetY))
+          : midY
       selectBarOverlay.style.setProperty('--sx', `${x}px`)
       selectBarOverlay.style.setProperty('--sy', `${y}px`)
+      setSelectBarOverLegend(false)
+      updateSelectBarPastEndCover()
 
       const canvasRect = chartCanvas.getBoundingClientRect()
       const hostRect = chartHost.getBoundingClientRect()
       chartCanvas.style.setProperty('--rw-sb-sx', `${hostRect.left - canvasRect.left + x}px`)
+    }
+
+    /** Mid Y for initial scissors placement (full plot). */
+    function selectBarCandlesTopPx(clip: { top: number }): number {
+      return clip.top
     }
 
     function formatSelectBarPickLabel(idx: number): string {
@@ -5531,11 +6332,9 @@ export function mountChartWorkspace(
           return formatQuoteTickPickLabelLocal(ms)
         }
       }
-      const bar = isDecoupledReplay()
-        ? scissorsVisibleChartBars()[idx]
-        : replay.getBars()[idx]
+      const bar = scissorsVisibleChartBars()[idx] ?? replay.getBars()[idx]
       if (!bar) return ''
-      if (state.tvChart) return formatChartPickLabelUtc(Number(bar.time))
+      if (state.tvChart) return formatChartPickLabelUtc(scissorsBarOpenSec(bar))
       return formatLocalPickLabel(Number(bar.time))
     }
 
@@ -5560,15 +6359,16 @@ export function mountChartWorkspace(
     }
 
     function updateSelectBarLabel(clientX: number): number {
-      const idx = pickIndexAtClientX(clientX)
+      const idx = pickIndexAtClientX(clampClientXToLastCandle(clientX))
       pickStableIdx = idx
       lastSnappedSliceIndex = idx
       applySelectBarPickPreview(idx)
       if (selectBarTimeEl) selectBarTimeEl.textContent = formatSelectBarPickLabel(idx)
+      updateSelectBarPastEndCover()
       return idx
     }
 
-    function syncSelectBarLineAtIndex(idx: number, offsetY: number) {
+    function syncSelectBarLineAtIndex(idx: number, offsetY?: number) {
       const lineX = lineXAtBarIndex(idx)
       if (lineX == null) return false
       paintSelectBarCursor(lineX, offsetY)
@@ -5578,7 +6378,6 @@ export function mountChartWorkspace(
     let selectBarSyncRaf = 0
     let pendingSelectBarPointer: { x: number; y: number } | null = null
     let unsubscribeTvTimeScaleChange: (() => void) | null = null
-    let selectBarFrozenViewport: TvLockedViewport | null = null
 
     function scheduleSelectBarSync(clientX: number, clientY: number) {
       pendingSelectBarPointer = { x: clientX, y: clientY }
@@ -5592,27 +6391,28 @@ export function mountChartWorkspace(
     }
 
     function syncSelectBarFromPointer(clientX: number, clientY: number) {
-      const hostRect = chartHost.getBoundingClientRect()
-      const y = clientY - hostRect.top
-      if (
-        clientX < hostRect.left ||
-        clientX > hostRect.right ||
-        clientY < hostRect.top ||
-        clientY > hostRect.bottom
-      ) {
+      if (!pointerInSelectBarPlot(clientX, clientY)) {
+        // Leave plot — hide scissors chrome until the pointer returns.
         setSelectBarPointerInChart(false)
+        setSelectBarOverLegend(false)
         return
       }
-      setSelectBarPointerInChart(true)
-      lastPointerClientX = clientX
+      const hostRect = chartHost.getBoundingClientRect()
+      const y = clientY - hostRect.top
+      const clampedX = clampClientXToLastCandle(clientX)
+      lastPointerClientX = clampedX
       lastPointerClientY = clientY
-      const idx = pickIndexAtClientX(clientX)
+      const idx = pickIndexAtClientX(clampedX)
       const idxChanged = idx !== pickStableIdx
       pickStableIdx = idx
       lastSnappedSliceIndex = idx
       const lineX = lineXAtBarIndex(idx)
+      updateSelectBarPastEndCover()
+      // Keep TV crosshair suppressed — empty future space must not show a black time badge.
+      state.tvChart?.setCrosshairVisible(false)
       if (lineX != null) {
         paintSelectBarCursor(lineX, y)
+        setSelectBarPointerInChart(true)
         if (idxChanged) {
           if (selectBarTimeEl) selectBarTimeEl.textContent = formatSelectBarPickLabel(idx)
           applySelectBarPickPreview(idx)
@@ -5622,28 +6422,33 @@ export function mountChartWorkspace(
         const fallbackX = prevSx ? Number.parseFloat(prevSx) : null
         if (fallbackX != null && Number.isFinite(fallbackX)) {
           paintSelectBarCursor(fallbackX, y)
+          setSelectBarPointerInChart(true)
           if (idxChanged && selectBarTimeEl) {
             selectBarTimeEl.textContent = formatSelectBarPickLabel(idx)
           }
-        } else {
-          setSelectBarPointerInChart(false)
         }
       }
     }
 
     const resyncSelectBarOverlay = () => {
       updateSelectBarPlotClip()
-      if (lastPointerClientX != null && lastPointerClientY != null) {
-        const hostRect = chartHost.getBoundingClientRect()
-        const y = lastPointerClientY - hostRect.top
-        if (syncSelectBarLineAtIndex(pickStableIdx, y)) setSelectBarPointerInChart(true)
+      // Only keep chrome if the pointer is still over the plot.
+      if (
+        lastPointerClientX == null ||
+        lastPointerClientY == null ||
+        !pointerInSelectBarPlot(lastPointerClientX, lastPointerClientY)
+      ) {
+        setSelectBarPointerInChart(false)
         return
       }
       const hostRect = chartHost.getBoundingClientRect()
-      const y =
-        (selectBarOverlay && parseFloat(selectBarOverlay.style.getPropertyValue('--sy'))) ||
-        hostRect.height * 0.42
-      if (syncSelectBarLineAtIndex(pickStableIdx, y)) setSelectBarPointerInChart(true)
+      const y = lastPointerClientY - hostRect.top
+      if (syncSelectBarLineAtIndex(pickStableIdx, y)) {
+        if (selectBarTimeEl) selectBarTimeEl.textContent = formatSelectBarPickLabel(pickStableIdx)
+        setSelectBarPointerInChart(true)
+      }
+      updateSelectBarPastEndCover()
+      state.tvChart?.setCrosshairVisible(false)
     }
 
     const onSelectBarChartRangeChange = () => {
@@ -5651,8 +6456,11 @@ export function mountChartWorkspace(
       // Viewport moved — refresh layout offset / line X only (keep visible bars; avoid re-paint).
       if (scissorsPickCache) {
         const layout = state.tvChart?.getPlotLayout(chartHost)
-        scissorsPickCache.plotOffsetX =
+        let nextOff =
           layout?.plotOffsetX ?? layout?.iframeOffsetX ?? scissorsPickCache.plotOffsetX
+        const hostW = Math.max(1, chartHost.clientWidth)
+        if (nextOff > hostW * 0.35) nextOff = layout?.iframeOffsetX ?? scissorsPickCache.plotOffsetX
+        scissorsPickCache.plotOffsetX = nextOff
         scissorsPickCache.lineXByIdx.clear()
       } else {
         refreshScissorsPickCache()
@@ -5660,24 +6468,78 @@ export function mountChartWorkspace(
       resyncSelectBarOverlay()
     }
 
-    function setReplaySelectUi(mode: 'bar' | 'date') {
+    function setReplaySelectUi(mode: ReplaySelectMode) {
       replaySelectMode = mode
       if (replaySelectLabel) {
-        replaySelectLabel.textContent = mode === 'date' ? 'Select date' : 'Select bar'
+        const labels: Record<ReplaySelectMode, string> = {
+          bar: 'Select bar',
+          date: 'Select date',
+          first: 'First Available Bar',
+          random: 'Random date',
+        }
+        replaySelectLabel.textContent = labels[mode]
       }
       if (replaySelectIco) {
-        replaySelectIco.innerHTML = mode === 'date' ? icons.replaySelectDate : icons.replayBarSelect
+        const icos: Record<ReplaySelectMode, string> = {
+          bar: icons.replayBarSelect,
+          date: icons.replaySelectDate,
+          first: icons.replayFlag,
+          random: icons.replayDice,
+        }
+        replaySelectIco.innerHTML = icos[mode]
       }
       host.querySelectorAll('.rw-replay-start-menu__item').forEach((el) => {
         const id = (el as HTMLElement).dataset.rwReplayStart
-        el.classList.toggle(
-          'rw-replay-start-menu__item--active',
-          (mode === 'bar' && id === 'bar') || (mode === 'date' && id === 'date'),
-        )
+        el.classList.toggle('rw-replay-start-menu__item--active', id === mode)
       })
+      host.querySelectorAll('.rw-replay-hub__card').forEach((el) => {
+        const id = (el as HTMLElement).dataset.rwReplayStart
+        el.classList.toggle('rw-replay-hub__card--active', id === mode)
+      })
+      syncReplaySelectSelectedChrome()
     }
 
-    setReplaySelectUi('date')
+    /** Black-fill select control while a start mode is actively engaged. */
+    function syncReplaySelectSelectedChrome() {
+      const selected = selectBarChartActive || replaySelectMode !== 'bar'
+      btnSelectBarChart?.classList.toggle('rw-replay-dock__select--selected', selected)
+      btnSelectBarChart?.setAttribute('aria-pressed', selected ? 'true' : 'false')
+    }
+
+    setReplaySelectUi('bar')
+
+    const SB_IFRAME_CURSOR_STYLE_ID = 'rw-sb-cursor-none-style'
+
+    /** Hide OS/TV cursor over the plot only — toolbars / dock / page chrome keep a normal cursor. */
+    function setSelectBarScissorsCursor(on: boolean) {
+      chartHost.classList.toggle('rw-chart-host--scissors-pick', on)
+      chartCursorUi?.refresh()
+      try {
+        const iframe =
+          (chartTv?.querySelector('iframe') as HTMLIFrameElement | null) ??
+          (chartHost.querySelector('iframe') as HTMLIFrameElement | null)
+        const doc = iframe?.contentDocument
+        if (!doc) return
+        let style = doc.getElementById(SB_IFRAME_CURSOR_STYLE_ID) as HTMLStyleElement | null
+        if (on) {
+          if (!style) {
+            style = doc.createElement('style')
+            style.id = SB_IFRAME_CURSOR_STYLE_ID
+            // Canvases = price/time panes only. Do not blanket `*` or body — that hides the
+            // cursor on TV drawing tools, top bar, and other chart-page chrome.
+            style.textContent = [
+              'canvas { cursor: none !important; }',
+              '.chart-markup-table { cursor: none !important; }',
+            ].join('\n')
+            ;(doc.head ?? doc.documentElement).appendChild(style)
+          }
+        } else {
+          style?.remove()
+        }
+      } catch {
+        /* ignore */
+      }
+    }
 
     function closeSelectBarChartMode(apply: boolean) {
       if (!selectBarChartActive) return
@@ -5689,6 +6551,7 @@ export function mountChartWorkspace(
             : lastSnappedSliceIndex + 1
       const savedViewport = apply ? captureLockedChartViewport() : null
       selectBarChartActive = false
+      setSelectBarScissorsCursor(false)
       clearScissorsPickCache()
       pickStableIdx = 0
       lastPickPreviewIdx = -1
@@ -5701,16 +6564,24 @@ export function mountChartWorkspace(
       }
       unsubscribeTvTimeScaleChange?.()
       unsubscribeTvTimeScaleChange = null
+      unbindSelectBarPointerTracking()
       if (selectBarOverlay) {
         selectBarOverlay.hidden = true
         selectBarOverlay.classList.remove('rw-select-bar-overlay--active')
         selectBarOverlay.classList.remove('rw-select-bar-overlay--pointer-in')
+        selectBarOverlay.classList.remove('rw-select-bar-overlay--over-legend')
         selectBarOverlay.setAttribute('aria-hidden', 'true')
         selectBarOverlay.style.removeProperty('--sx')
         selectBarOverlay.style.removeProperty('--sy')
         selectBarOverlay.style.removeProperty('--sb-top')
         selectBarOverlay.style.removeProperty('--sb-bottom')
         selectBarOverlay.style.removeProperty('--sb-right')
+        selectBarOverlay.style.removeProperty('--sb-wash-bottom')
+        selectBarOverlay.style.removeProperty('--sb-blur-bottom')
+        selectBarOverlay.style.removeProperty('--sb-hit-bottom')
+        selectBarOverlay.style.removeProperty('--sb-legend-notch-w')
+        selectBarOverlay.style.removeProperty('--sb-legend-notch-h')
+        selectBarOverlay.style.removeProperty('--sb-past-end-left')
       }
       if (selectBarTimeFlyout) {
         selectBarTimeFlyout.hidden = true
@@ -5719,20 +6590,19 @@ export function mountChartWorkspace(
       }
       chartCanvas.style.removeProperty('--rw-sb-sx')
       btnSelectBarChart?.classList.remove('rw-replay-dock__select--picking')
-      btnSelectBarChart?.setAttribute('aria-pressed', 'false')
+      syncReplaySelectSelectedChrome()
       if (selectBarTimeEl) selectBarTimeEl.textContent = ''
       state.trading?.chart.applyOptions({ crosshair: { mode: CrosshairMode.Normal } })
       if (!apply) {
-        selectBarFrozenViewport = null
         state.tvChart?.setViewportFreeze(null)
         state.trading?.clearReplayPickPreview()
         state.tvChart?.clearReplayPickPreview()
       } else {
-        selectBarFrozenViewport = null
         state.tvChart?.setViewportFreeze(null)
       }
       state.trading?.setReplayCursorVisible(true)
       state.tvChart?.setReplayCursorVisible(true)
+      state.tvChart?.setCrosshairVisible(true)
       syncTickLineOverlayActive()
       if (apply) {
         state.trading?.clearReplayPickPreview()
@@ -5752,27 +6622,26 @@ export function mountChartWorkspace(
         }
         void (async () => {
           replay.setLoopStartIndex(cutIndex)
+          // Cut/seek often rewinds — force one paint so second-step / decoupled chart updates.
           nextReplayTickForce = true
-          await seekReplayToIndex(cutIndex, 'Starting replay…', {
+          await seekReplayToIndex(cutIndex, false, {
             fit: false,
             preserveView: !tickTvCut,
           })
-          // Minute decoupled: ensure chart feed matches after seek.
-          // Sub-minute: seek + force tick already painted — a second paint re-primed the full
-          // session and felt like 2–3s lag on cut.
+          // Minute decoupled: light sync after seek.
+          // Sub-minute: seek + force tick already painted — skip a second full paint.
           if (isDecoupledReplay()) {
             const rp = resolveIntervalPick(replayTimeframe)
             if (!rp || !isSubMinuteReplayPick(rp)) {
-              syncDecoupledTvFeed(cutIndex, 'paint')
+              syncDecoupledTvFeed(cutIndex, 'prime')
             }
           }
           if (!tickTvCut) {
             if (savedViewport?.lwc) {
               await restoreLockedChartViewport({ tv: null, lwc: savedViewport.lwc })
             }
+            // Single restore — a second delayed restore caused an extra blink.
             if (lockedTvViewport && state.tvChart) {
-              await state.tvChart.restoreVisibleRange(lockedTvViewport)
-              await new Promise((r) => setTimeout(r, 80))
               await state.tvChart.restoreVisibleRange(lockedTvViewport)
             }
           }
@@ -5792,11 +6661,12 @@ export function mountChartWorkspace(
       if (allBars.length === 0) return
       closeStartMenu()
       closeReplayHub()
-      setReplaySelectUi('bar')
       replay.pause()
       syncPlayBtnPaused()
       primeTvFeedForScissorsPick()
       selectBarChartActive = true
+      setSelectBarScissorsCursor(true)
+      setReplaySelectUi('bar')
       selectBarOverlay.hidden = false
       selectBarOverlay.classList.add('rw-select-bar-overlay--active')
       selectBarOverlay.setAttribute('aria-hidden', 'false')
@@ -5805,42 +6675,60 @@ export function mountChartWorkspace(
         selectBarTimeFlyout.setAttribute('aria-hidden', 'false')
       }
       btnSelectBarChart?.classList.add('rw-replay-dock__select--picking')
-      btnSelectBarChart?.setAttribute('aria-pressed', 'true')
+      syncReplaySelectSelectedChrome()
       state.trading?.chart.applyOptions({ crosshair: { mode: CrosshairMode.Hidden } })
       state.trading?.clearReplayPickPreview()
       state.tvChart?.clearReplayPickPreview()
       state.trading?.setReplayCursorVisible(false)
       state.tvChart?.setReplayCursorVisible(false)
+      state.tvChart?.setCrosshairVisible(false)
       syncTickLineOverlayActive()
       refreshScissorsPickCache()
-      pickStableIdx = isDecoupledReplay()
-        ? maxPickBarIndex()
-        : Math.max(0, Math.min(maxPickBarIndex(), replay.getState().index - 1))
-      lastSnappedSliceIndex = pickStableIdx
+      pickStableIdx = 0
+      lastSnappedSliceIndex = 0
       lastPickPreviewIdx = -1
+      lastPointerClientX = null
+      lastPointerClientY = null
       setSelectBarPointerInChart(false)
-      updateSelectBarPlotClip()
-      selectBarFrozenViewport = state.tvChart?.captureLockedViewport() ?? null
-      state.tvChart?.setViewportFreeze(selectBarFrozenViewport)
+      parkSelectBarCursorOffChart()
+      updateSelectBarPastEndCover()
+      // Allow chart pan/zoom while scissors are active — do not freeze the viewport.
+      state.tvChart?.setViewportFreeze(null)
       unsubscribeTvTimeScaleChange?.()
       unsubscribeTvTimeScaleChange =
         state.tvChart?.subscribeTimeScaleChange(onSelectBarChartRangeChange) ?? null
-      const hostRect = chartHost.getBoundingClientRect()
-      applySelectBarPickPreview(pickStableIdx)
-      if (syncSelectBarLineAtIndex(pickStableIdx, hostRect.height * 0.42)) {
-        setSelectBarPointerInChart(true)
-      }
-      // One light layout refresh after overlay mounts — avoid double full cache rebuild.
+      bindSelectBarPointerTracking()
+      // Do not park the line on the rightmost / replay-cursor bar — wait for pointer over the plot.
+      if (selectBarTimeEl) selectBarTimeEl.textContent = ''
+      // After force paint, TV coordinates settle a frame later — rebind + verify splits.
       if (state.tvChart) {
         requestAnimationFrame(() => {
-          if (!selectBarChartActive) return
-          if (scissorsPickCache) {
-            const layout = state.tvChart?.getPlotLayout(chartHost)
-            scissorsPickCache.plotOffsetX =
-              layout?.plotOffsetX ?? layout?.iframeOffsetX ?? scissorsPickCache.plotOffsetX
-            scissorsPickCache.lineXByIdx.clear()
-          }
-          resyncSelectBarOverlay()
+          requestAnimationFrame(() => {
+            if (!selectBarChartActive) return
+            bindSelectBarPointerTracking()
+            setSelectBarScissorsCursor(true)
+            refreshScissorsPickCache()
+            // If the scale still collapsed to one X, force one more full paint and retry.
+            if (!scissorsPlotSplitsReady()) {
+              if (isDecoupledReplay()) {
+                const view = state.tvChart?.captureLockedViewport()
+                syncDecoupledTvFeed(replay.getState().index, 'paint', view, { forceFull: true })
+              }
+              state.tvChart?.flushPendingRefresh()
+              clearScissorsPickCache()
+              refreshScissorsPickCache()
+            }
+            // If the pointer is already over the plot, activate scissors at the cursor.
+            if (
+              lastPointerClientX != null &&
+              lastPointerClientY != null &&
+              pointerInSelectBarPlot(lastPointerClientX, lastPointerClientY)
+            ) {
+              syncSelectBarFromPointer(lastPointerClientX, lastPointerClientY)
+            } else {
+              setSelectBarPointerInChart(false)
+            }
+          })
         })
       }
       chartCursorUi?.refresh()
@@ -5854,46 +6742,92 @@ export function mountChartWorkspace(
 
     state.exitSelectBarChartMode = () => closeSelectBarChartMode(false)
 
-    const onChartHostPointerMove = (e: PointerEvent) => {
-      if (!selectBarChartActive) return
-      scheduleSelectBarSync(e.clientX, e.clientY)
-    }
-    const onChartHostPointerLeave = () => {
-      if (!selectBarChartActive) return
-      setSelectBarPointerInChart(false)
-    }
-
-    const onOverlayPointerMove = (e: PointerEvent) => {
-      if (!selectBarChartActive || !selectBarOverlay) return
-      e.preventDefault()
-      scheduleSelectBarSync(e.clientX, e.clientY)
-    }
-    const onOverlayPointerDown = (e: PointerEvent) => {
-      if (!selectBarChartActive || !selectBarOverlay) return
-      e.preventDefault()
-      selectBarOverlay.setPointerCapture(e.pointerId)
-      scheduleSelectBarSync(e.clientX, e.clientY)
-    }
-    const onOverlayPointerUp = (e: PointerEvent) => {
-      if (!selectBarOverlay?.hasPointerCapture(e.pointerId)) return
-      selectBarOverlay.releasePointerCapture(e.pointerId)
-    }
-    const onOverlayClick = (e: MouseEvent) => {
-      if (!selectBarChartActive) return
-      e.preventDefault()
-      e.stopPropagation()
-      const hostRect = chartHost.getBoundingClientRect()
-      updateSelectBarLabel(e.clientX)
-      syncSelectBarLineAtIndex(pickStableIdx, e.clientY - hostRect.top)
-      closeSelectBarChartMode(true)
+    /** Same-origin TV iframe doc (events inside the iframe never bubble to the parent). */
+    function selectBarTvIframeDoc(): Document | null {
+      try {
+        const iframe =
+          (chartTv?.querySelector('iframe') as HTMLIFrameElement | null) ??
+          (chartHost.querySelector('iframe') as HTMLIFrameElement | null)
+        return iframe?.contentDocument ?? null
+      } catch {
+        return null
+      }
     }
 
-    chartHost.addEventListener('pointermove', onChartHostPointerMove)
-    chartHost.addEventListener('pointerleave', onChartHostPointerLeave)
-    selectBarOverlay?.addEventListener('pointerdown', onOverlayPointerDown)
-    selectBarOverlay?.addEventListener('pointermove', onOverlayPointerMove)
-    selectBarOverlay?.addEventListener('pointerup', onOverlayPointerUp)
-    selectBarOverlay?.addEventListener('click', onOverlayClick)
+    let selectBarPointerCleanups: Array<() => void> = []
+    let selectBarGestureStart: { x: number; y: number } | null = null
+    let selectBarGestureMoved = false
+
+    function unbindSelectBarPointerTracking() {
+      for (const off of selectBarPointerCleanups) off()
+      selectBarPointerCleanups = []
+      selectBarGestureStart = null
+      selectBarGestureMoved = false
+    }
+
+    /**
+     * Track scissors + click-to-pick without covering the chart.
+     * Hit layer stays pointer-events:none so drag-pan reaches TV / LWC.
+     */
+    function bindSelectBarPointerTracking() {
+      unbindSelectBarPointerTracking()
+
+      const onDown = (e: PointerEvent) => {
+        if (!selectBarChartActive) return
+        selectBarGestureStart = { x: e.clientX, y: e.clientY }
+        selectBarGestureMoved = false
+      }
+      const onMove = (e: PointerEvent) => {
+        if (!selectBarChartActive) return
+        if (selectBarGestureStart) {
+          const dx = e.clientX - selectBarGestureStart.x
+          const dy = e.clientY - selectBarGestureStart.y
+          if (dx * dx + dy * dy > SELECT_BAR_PAN_SLOP_PX * SELECT_BAR_PAN_SLOP_PX) {
+            selectBarGestureMoved = true
+          }
+        }
+        scheduleSelectBarSync(e.clientX, e.clientY)
+      }
+      const onUp = () => {
+        // Keep gestureMoved until click handler runs (same tick / next).
+        window.setTimeout(() => {
+          selectBarGestureStart = null
+        }, 0)
+      }
+      const onPickClick = (e: MouseEvent) => {
+        if (!selectBarChartActive) return
+        // Pan/drag must not commit a bar pick or tear down the scissors bar.
+        if (selectBarGestureMoved) {
+          selectBarGestureMoved = false
+          return
+        }
+        if (!pointerInSelectBarPlot(e.clientX, e.clientY)) return
+        e.preventDefault()
+        e.stopPropagation()
+        const hostRect = chartHost.getBoundingClientRect()
+        updateSelectBarLabel(e.clientX)
+        syncSelectBarLineAtIndex(pickStableIdx, e.clientY - hostRect.top)
+        closeSelectBarChartMode(true)
+      }
+
+      const targets: EventTarget[] = [window, chartHost]
+      const iframeDoc = selectBarTvIframeDoc()
+      if (iframeDoc) targets.push(iframeDoc)
+
+      for (const target of targets) {
+        target.addEventListener('pointerdown', onDown as EventListener, true)
+        target.addEventListener('pointermove', onMove as EventListener, true)
+        target.addEventListener('pointerup', onUp as EventListener, true)
+        target.addEventListener('click', onPickClick as EventListener, true)
+        selectBarPointerCleanups.push(() => {
+          target.removeEventListener('pointerdown', onDown as EventListener, true)
+          target.removeEventListener('pointermove', onMove as EventListener, true)
+          target.removeEventListener('pointerup', onUp as EventListener, true)
+          target.removeEventListener('click', onPickClick as EventListener, true)
+        })
+      }
+    }
+
     state.openReplayBarPick = openSelectBarChartMode
 
     if (trading) {
@@ -5907,6 +6841,14 @@ export function mountChartWorkspace(
         openReplayDatePanel()
         return
       }
+      if (replaySelectMode === 'first') {
+        void seekReplayToIndex(replay.getState().loopStartIndex)
+        return
+      }
+      if (replaySelectMode === 'random') {
+        void seekReplayToIndex(1 + Math.floor(Math.random() * Math.max(1, chartBars.length)))
+        return
+      }
       toggleSelectBarChartMode()
     }
     btnSelectBarChart?.addEventListener('click', onSelectBarChartBtnClick)
@@ -5916,12 +6858,7 @@ export function mountChartWorkspace(
         trading.chart.timeScale().unsubscribeVisibleLogicalRangeChange(onSelectBarChartRangeChange)
         trading.chart.timeScale().unsubscribeVisibleTimeRangeChange(onSelectBarChartRangeChange)
       }
-      chartHost.removeEventListener('pointermove', onChartHostPointerMove)
-      chartHost.removeEventListener('pointerleave', onChartHostPointerLeave)
-      selectBarOverlay?.removeEventListener('pointerdown', onOverlayPointerDown)
-      selectBarOverlay?.removeEventListener('pointermove', onOverlayPointerMove)
-      selectBarOverlay?.removeEventListener('pointerup', onOverlayPointerUp)
-      selectBarOverlay?.removeEventListener('click', onOverlayClick)
+      unbindSelectBarPointerTracking()
       btnSelectBarChart?.removeEventListener('click', onSelectBarChartBtnClick)
       state.exitSelectBarChartMode = null
     })
@@ -5942,13 +6879,15 @@ export function mountChartWorkspace(
           return
         }
         if (mode === 'first') {
+          setReplaySelectUi('first')
           closeSelectBarChartMode(false)
           void seekReplayToIndex(replay.getState().loopStartIndex)
           return
         }
         if (mode === 'random') {
+          setReplaySelectUi('random')
           closeSelectBarChartMode(false)
-          void seekReplayToIndex(1 + Math.floor(Math.random() * chartBars.length))
+          void seekReplayToIndex(1 + Math.floor(Math.random() * Math.max(1, chartBars.length)))
           return
         }
         if (mode === 'date') {
@@ -6149,7 +7088,27 @@ export function mountChartWorkspace(
       await seekReplayToIndex(index, 'Jumping…')
     }
 
-    syncReplaySpeedUi(0)
+    syncReplaySpeedUi(REPLAY_DEFAULT_SPEED_INDEX)
+
+    if (replaySpeedBtn) {
+      const onSpeedBtn = (e: MouseEvent) => {
+        e.stopPropagation()
+        toggleSpeedMenu()
+      }
+      replaySpeedBtn.addEventListener('click', onSpeedBtn)
+      cleanupFns.push(() => replaySpeedBtn.removeEventListener('click', onSpeedBtn))
+    }
+
+    if (replaySpeedMenu) {
+      const onSpeedMenuClick = (e: MouseEvent) => {
+        const item = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-rw-replay-speed-index]')
+        if (!item) return
+        selectReplaySpeedIndex(Number(item.dataset.rwReplaySpeedIndex))
+        closeSpeedMenu()
+      }
+      replaySpeedMenu.addEventListener('click', onSpeedMenuClick)
+      cleanupFns.push(() => replaySpeedMenu.removeEventListener('click', onSpeedMenuClick))
+    }
 
     if (replaySpeed && replaySpeedWrap) {
       const onSpeedInput = () => {
@@ -6207,14 +7166,15 @@ export function mountChartWorkspace(
       replay.pause()
       syncPlayBtnPaused()
       replay.setLoop(false)
-      replay.setSpeedIndex(0)
-      syncReplaySpeedUi(0)
-      if (replaySpeed) replaySpeed.value = '0'
+      replay.setSpeedIndex(REPLAY_DEFAULT_SPEED_INDEX)
+      syncReplaySpeedUi(REPLAY_DEFAULT_SPEED_INDEX)
+      if (replaySpeed) replaySpeed.value = String(REPLAY_DEFAULT_SPEED_INDEX)
       setReplaySelectUi('date')
 
       state.trading?.clearReplayPickPreview()
       state.tvChart?.clearReplayPickPreview()
       state.trading?.setTradeMarkers([])
+      state.tvChart?.setBacktestTradeMarkers([])
       backtestState.result = null
       backtestState.highlightTradeNum = undefined
       sidePanel?.clear()
@@ -6380,10 +7340,24 @@ export function mountChartWorkspace(
     }
 
     const replayHandlers: Array<{ el: Element; fn: () => void }> = []
+    const flashTimers = new WeakMap<HTMLElement, number>()
+    const flashReplayTico = (el: HTMLElement) => {
+      el.classList.add('rw-replay-dock__tico--pressed')
+      const prev = flashTimers.get(el)
+      if (prev != null) window.clearTimeout(prev)
+      const id = window.setTimeout(() => {
+        el.classList.remove('rw-replay-dock__tico--pressed')
+        flashTimers.delete(el)
+      }, 160)
+      flashTimers.set(el, id)
+    }
     host.querySelectorAll('[data-rw-replay-dock] [data-rw]').forEach((btn) => {
       if ((btn as HTMLElement).dataset.rw === 'play') return
       const fn = () => {
         const act = (btn as HTMLElement).dataset.rw
+        if (act === 'fwd' || act === 'step' || act === 'end') {
+          flashReplayTico(btn as HTMLElement)
+        }
         if (act === 'start') {
           seekReplayToIndex(replay.getState().loopStartIndex)
         } else if (act === 'back') {
@@ -6411,7 +7385,7 @@ export function mountChartWorkspace(
       const ae = document.activeElement as HTMLElement | null
       if (ae?.closest?.('input:not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select'))
         return
-      if (ae?.closest?.('[data-rw-replay-speed-wrap]')) return
+      if (ae?.closest?.('[data-rw-replay-speed-wrap], [data-rw-replay-speed-menu], [data-rw-replay-speed-btn]')) return
 
       const keyToGoTo: Partial<Record<string, ReplayGoToTarget>> = {
         KeyY: 'next_day_open',
@@ -6463,20 +7437,28 @@ export function mountChartWorkspace(
         return
       }
       const b = lastBar(replay.slice())
-      if (!b) return
-      const { ask } = bidAskFromBar(b)
+      if (!b) {
+        showReplayNotice('No replay bar to trade — open Replay and select a starting bar first.')
+        return
+      }
+      const fill = entryFillPrice(b)
       const qty = readOrderQty()
-      const cost = longOrderCost(qty, ask)
-      const { cash } = replayAccount.summary(ask)
-      const opened = replayAccount.openLong(qty, ask, Number(b.time))
+      if (qtyInput && !qtyInput.value.trim()) qtyInput.value = String(qty)
+      const cost = longOrderCost(qty, fill)
+      const { cash } = replayAccount.summary(fill)
+      const opened = replayAccount.openLong(qty, fill, Number(b.time))
       if (!opened) {
         showReplayNotice(
-          `Insufficient cash for long order. Need ${formatMoney(cost)} (${qty} × ${formatSessionPrice(ask)}), available ${formatMoney(cash)}.`,
+          `Insufficient cash for long order. Need ${formatMoney(cost)} (${qty} × ${formatSessionPrice(fill)}), available ${formatMoney(cash)}.`,
         )
         return
       }
       schedulePersistReplay()
       syncTradingUi(b)
+      // Re-layout after TV price scale settles so the entry line locks to the candle.
+      requestAnimationFrame(() => {
+        if (!state.disposed) syncPositionOverlay(true)
+      })
     }
     const onSell = () => {
       if (!propTradingAllowed) {
@@ -6486,20 +7468,27 @@ export function mountChartWorkspace(
         return
       }
       const b = lastBar(replay.slice())
-      if (!b) return
-      const { bid } = bidAskFromBar(b)
+      if (!b) {
+        showReplayNotice('No replay bar to trade — open Replay and select a starting bar first.')
+        return
+      }
+      const fill = entryFillPrice(b)
       const qty = readOrderQty()
-      const margin = shortOrderMargin(qty, bid)
-      const { cash } = replayAccount.summary(bid)
-      const opened = replayAccount.openShort(qty, bid, Number(b.time))
+      if (qtyInput && !qtyInput.value.trim()) qtyInput.value = String(qty)
+      const margin = shortOrderMargin(qty, fill)
+      const { cash } = replayAccount.summary(fill)
+      const opened = replayAccount.openShort(qty, fill, Number(b.time))
       if (!opened) {
         showReplayNotice(
-          `Insufficient margin for short order. Need ${formatMoney(margin)} (5% of ${qty} × ${formatSessionPrice(bid)}), available ${formatMoney(cash)}.`,
+          `Insufficient margin for short order. Need ${formatMoney(margin)} (5% of ${qty} × ${formatSessionPrice(fill)}), available ${formatMoney(cash)}.`,
         )
         return
       }
       schedulePersistReplay()
       syncTradingUi(b)
+      requestAnimationFrame(() => {
+        if (!state.disposed) syncPositionOverlay(true)
+      })
     }
     ticketBuy.addEventListener('click', onBuy)
     ticketSell.addEventListener('click', onSell)
@@ -6545,6 +7534,7 @@ export function mountChartWorkspace(
         if (state.tvChart) {
           state.tvChart.resize()
           syncTickLineOverlay(replay.getState().index)
+          updateSelectBarPlotClip()
         } else if (trading) {
           trading.chart.resize(w, h)
           trading.repaintTimeShades()

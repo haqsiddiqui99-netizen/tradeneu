@@ -26,14 +26,18 @@
 }
 
 .sx-strat-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   height: 36px;
   padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.05);
   color: #d4d4d8;
   font: inherit;
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -197,6 +201,132 @@
   background: rgba(0, 0, 0, 0.25);
 }
 
+/* Home Strategy tab — light theme matching dashboard / subscription */
+.sx-strat-page--embedded {
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: rgba(255, 255, 255, 0.78);
+  color: #0f172a;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+}
+
+.sx-strat-page--embedded .sx-strat-page__head {
+  border-bottom-color: #e8eaed;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 1.25rem 1.25rem 0 0;
+  padding: 1rem 1.25rem;
+}
+
+.sx-strat-page--embedded .sx-strat-page__title {
+  color: #0f172a;
+}
+
+.sx-strat-page--embedded .sx-strat-page__subtitle {
+  color: #64748b;
+}
+
+.sx-strat-page--embedded .sx-strat-page__btn {
+  border-color: #e2e8f0;
+  background: #fff;
+  color: #334155;
+}
+
+.sx-strat-page--embedded .sx-strat-page__btn:hover:not(:disabled) {
+  background: #F1F5F9;
+  border-color: #cbd5e1;
+}
+
+.sx-strat-page--embedded .sx-strat-page__btn--primary {
+  border-color: transparent;
+  background: #334155;
+  color: #fff;
+}
+
+.sx-strat-page--embedded .sx-strat-page__btn--primary:hover:not(:disabled) {
+  background: #1E293B;
+}
+
+.sx-strat-page--embedded .sx-strat-page__body {
+  min-height: 32rem;
+}
+
+.sx-strat-page--embedded .sx-strat-page__list {
+  border-right-color: #e8eaed;
+  background: #F1F5F9;
+}
+
+.sx-strat-page--embedded .sx-strat-page__list-label {
+  color: #94a3b8;
+}
+
+.sx-strat-page--embedded .sx-strat-page__card {
+  border-color: #e2e8f0;
+  background: #fff;
+  color: #0f172a;
+}
+
+.sx-strat-page--embedded .sx-strat-page__card:hover {
+  border-color: #93c5fd;
+  background: #f0f9ff;
+}
+
+.sx-strat-page--embedded .sx-strat-page__card.is-active {
+  border-color: #60a5fa;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
+}
+
+.sx-strat-page--embedded .sx-strat-page__card-meta,
+.sx-strat-page--embedded .sx-strat-page__empty,
+.sx-strat-page--embedded .sx-strat-page__editor-summary {
+  color: #64748b;
+}
+
+.sx-strat-page--embedded .sx-strat-page__editor {
+  overflow: visible;
+  background: #fff;
+}
+
+.sx-strat-page--embedded .sx-strat-page__tag {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.sx-strat-page--embedded .sx-strat-page__editor .sx-strat-builder {
+  --sx-strat-text: #0f172a;
+  --sx-strat-muted: #64748b;
+  --sx-strat-border: #e2e8f0;
+  --sx-strat-bg: #F1F5F9;
+}
+
+.sx-strat-page--embedded .sx-strat-page__editor .sx-strat-input,
+.sx-strat-page--embedded .sx-strat-page__editor .sx-strat-select {
+  background: #fff;
+  border-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.sx-strat-page--embedded .sx-strat-builder__readonly {
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.sx-strat-page--embedded .sx-strat-btn--ghost {
+  color: #2563eb;
+}
+
+.sx-strat-page--embedded .sx-strat-btn--primary {
+  border-color: transparent;
+  background: #334155;
+}
+
+.sx-strat-page--embedded .sx-strat-btn--primary:hover:not(:disabled) {
+  background: #1E293B;
+}
+
 @media (max-width: 900px) {
   .sx-strat-page__body {
     grid-template-columns: 1fr;
@@ -206,5 +336,9 @@
     border-right: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     max-height: 220px;
+  }
+
+  .sx-strat-page--embedded .sx-strat-page__list {
+    border-bottom-color: #e8eaed;
   }
 }

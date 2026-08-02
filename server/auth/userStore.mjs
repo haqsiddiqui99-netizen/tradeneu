@@ -162,3 +162,38 @@ export async function authenticateUser(dataDir, email, password) {
   if (!outcome.ok) return outcome
   return { ok: true, user: outcome.result }
 }
+
+/**
+ * Change password for an authenticated email account.
+ * @returns {Promise<{ ok: true } | { ok: false, error: string, status?: number }>}
+ */
+export async function changeUserPassword(dataDir, email, currentPassword, nextPassword) {
+  const storage = authStorageStatus()
+  if (!storage.ready) return storageUnavailableResult()
+
+  const e = normalizeEmail(email)
+  const current = String(currentPassword || '')
+  const next = String(nextPassword || '')
+  if (!e) return { ok: false, error: 'Not signed in.', status: 401 }
+  if (!current) return { ok: false, error: 'Enter your current password.', status: 400 }
+  if (next.length < 8) return { ok: false, error: 'New password must be at least 8 characters.', status: 400 }
+  if (current === next) {
+    return { ok: false, error: 'New password must be different from the current password.', status: 400 }
+  }
+
+  const outcome = await withUserByEmail(dataDir, e, async (user) => {
+    if (!user) {
+      return { ok: false, error: 'No account found for this email.', status: 401 }
+    }
+    if (!verifyPassword(current, user.passwordSalt, user.passwordHash)) {
+      return { ok: false, error: 'Current password is incorrect.', status: 401 }
+    }
+    const creds = createPasswordCreds(next)
+    user.passwordHash = creds.passwordHash
+    user.passwordSalt = creds.passwordSalt
+    return { ok: true, result: true, user }
+  })
+
+  if (!outcome.ok) return outcome
+  return { ok: true }
+}

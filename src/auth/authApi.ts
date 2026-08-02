@@ -43,7 +43,7 @@ async function readResponsePayload(res: Response): Promise<{ json: unknown | nul
 function formatNonJsonError(res: Response, text: string): string {
   const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 120)
   if (res.status === 502 || res.status === 503 || snippet.includes('ECONNREFUSED')) {
-    return 'Account server is offline. Stop any old process on port 3001, then run: npm run dev'
+    return 'Account server is offline. Stop any old process on the historic API port (default 3100), then run: npm run dev'
   }
   if (res.status === 404 || snippet.includes('Cannot POST') || snippet.includes('<!DOCTYPE')) {
     return 'Account API not found. Restart with npm run dev so /api/auth/register is available.'
@@ -123,6 +123,41 @@ export async function logoutServerSession(): Promise<void> {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
   } catch {
     /* offline */
+  }
+}
+
+export type ChangePasswordResult = { ok: true } | { ok: false; error: string; offline?: boolean }
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<ChangePasswordResult> {
+  try {
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
+    const { json, text } = await readResponsePayload(res)
+    if (!json || typeof json !== 'object') {
+      return { ok: false, error: formatNonJsonError(res, text), offline: res.status >= 502 }
+    }
+    const body = json as { ok?: boolean; error?: string }
+    if (!res.ok || !body.ok) {
+      return {
+        ok: false,
+        error: body.error || `Request failed (${res.status}).`,
+        offline: res.status >= 502,
+      }
+    }
+    return { ok: true }
+  } catch {
+    return {
+      ok: false,
+      error: 'Cannot reach the account server. Run npm run dev and try again.',
+      offline: true,
+    }
   }
 }
 

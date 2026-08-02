@@ -38,27 +38,59 @@ const FAV_CLICK_DELAY_MS = 250
 
 function positionPanel(anchor: HTMLElement, panel: HTMLElement, variant: 'default' | 'replay' = 'default') {
   const r = anchor.getBoundingClientRect()
-  const pad = 4
+  const pad = variant === 'replay' ? 6 : 4
   const toolbarClearance = 48
-  const panelW = panel.offsetWidth || (variant === 'replay' ? 50 : 154)
-  const panelH = panel.offsetHeight || 120
+  const edgePad = 8
+  const minScrollH = 100
+  const panelW = panel.offsetWidth || (variant === 'replay' ? 220 : 154)
   const left =
     variant === 'replay'
       ? r.left + r.width / 2 - panelW / 2
       : r.left
   panel.style.left = `${Math.max(8, Math.min(left, window.innerWidth - panelW - 8))}px`
 
-  const spaceAbove = r.top - toolbarClearance
-  const spaceBelow = window.innerHeight - r.bottom
-  const openBelow =
-    spaceBelow >= panelH + pad && (spaceBelow >= spaceAbove || r.top < window.innerHeight * 0.45)
+  const scroll = panel.querySelector<HTMLElement>('.rw-intmenu__scroll')
+  panel.style.maxHeight = ''
+  if (scroll) scroll.style.maxHeight = ''
+
+  const head = panel.querySelector<HTMLElement>('.rw-intmenu__tv-head')
+  const foot = panel.querySelector<HTMLElement>('.rw-intmenu__tv-foot')
+  const chromeH = (head?.offsetHeight ?? 0) + (foot?.offsetHeight ?? 0)
+  const naturalH = panel.scrollHeight || panel.offsetHeight || 120
+
+  const spaceAbove = Math.max(0, r.top - toolbarClearance - pad)
+  const spaceBelow = Math.max(0, window.innerHeight - r.bottom - pad - edgePad)
+
+  let openBelow: boolean
+  if (variant === 'replay') {
+    // Prefer the side with more room so the menu never covers the replay dock.
+    openBelow = spaceBelow > spaceAbove || r.top < window.innerHeight * 0.45
+  } else {
+    openBelow =
+      spaceBelow >= naturalH + pad && (spaceBelow >= spaceAbove || r.top < window.innerHeight * 0.45)
+    if (spaceBelow < naturalH + pad && spaceAbove < naturalH + pad) {
+      openBelow = spaceBelow >= spaceAbove
+    }
+  }
+
+  const avail = openBelow ? spaceBelow : spaceAbove
+  // Hard-cap to available space so the menu never overlaps the replay bar / toolbar.
+  const maxPanelH = avail > 0 ? avail : minScrollH
+  panel.style.maxHeight = `${maxPanelH}px`
+  if (scroll) {
+    scroll.style.maxHeight = `${Math.max(48, maxPanelH - chromeH)}px`
+    scroll.scrollTop = 0
+  }
 
   panel.classList.toggle('rw-intmenu--below', openBelow)
   panel.classList.toggle('rw-intmenu--above', !openBelow)
+
+  const h = Math.min(panel.offsetHeight || maxPanelH, maxPanelH)
   if (openBelow) {
     panel.style.top = `${r.bottom + pad}px`
   } else {
-    panel.style.top = `${Math.max(toolbarClearance, r.top - pad - panelH)}px`
+    // Sit fully above the anchor with a gap — no overlap with the replay bar.
+    panel.style.top = `${Math.max(toolbarClearance, r.top - pad - h)}px`
   }
 }
 
@@ -94,26 +126,76 @@ export function createChartIntervalMenu(opts: {
   onPreferencesChange?: () => void
   /** When set, only these rows are shown (no section headers). */
   items?: IntervalPick[]
-  /** `replay` = compact list centered under anchor (FXReplay floating bar). */
+  /** Dynamic compact list — preferred over `items` when both are set (rebuilds on each open). */
+  getItems?: () => IntervalPick[] | null | undefined
+  /** `replay` = TradingView-style UPDATE INTERVAL popover under the replay dock pill. */
   variant?: 'default' | 'replay'
   /** Show “Add custom interval…” row (TradingView-style). */
   showCustomInterval?: boolean
+  /** TradingView “Auto select interval” (replay variant). */
+  getAutoSelectInterval?: () => boolean
+  setAutoSelectInterval?: (on: boolean) => void
+  /** Extra documents/elements that should dismiss the menu (e.g. TV iframe / chart). */
+  getDismissTargets?: () => Array<Document | EventTarget | null | undefined>
 }): ChartIntervalMenuApi {
   const root = document.createElement('div')
   root.className = 'rw-intmenu'
   if (opts.variant === 'replay') root.classList.add('rw-intmenu--replay')
   root.setAttribute('role', 'listbox')
-  root.setAttribute('aria-label', 'Chart interval')
+  root.setAttribute('aria-label', opts.variant === 'replay' ? 'Update interval' : 'Chart interval')
+
+  let footEl: HTMLElement | null = null
+  if (opts.variant === 'replay') {
+    const head = document.createElement('div')
+    head.className = 'rw-intmenu__tv-head'
+    head.innerHTML =
+      '<span class="rw-intmenu__tv-title">Update interval</span>' +
+      '<button type="button" class="rw-intmenu__tv-help" title="Replay step interval. When Auto select is on, this follows the chart interval." aria-label="About update interval">?</button>'
+    root.appendChild(head)
+  }
 
   const scroll = document.createElement('div')
   scroll.className = 'rw-intmenu__scroll'
   root.appendChild(scroll)
 
+  if (opts.variant === 'replay' && opts.getAutoSelectInterval && opts.setAutoSelectInterval) {
+    footEl = document.createElement('div')
+    footEl.className = 'rw-intmenu__tv-foot'
+    const label = document.createElement('span')
+    label.className = 'rw-intmenu__tv-auto-label'
+    label.textContent = 'Auto select interval'
+    const toggle = document.createElement('button')
+    toggle.type = 'button'
+    toggle.className = 'rw-intmenu__tv-toggle'
+    toggle.setAttribute('role', 'switch')
+    const syncToggle = () => {
+      const on = opts.getAutoSelectInterval!()
+      toggle.classList.toggle('rw-intmenu__tv-toggle--on', on)
+      toggle.setAttribute('aria-checked', on ? 'true' : 'false')
+      toggle.title = on
+        ? 'Auto select on — replay follows the chart interval'
+        : 'Auto select off — pick a replay step manually'
+    }
+    syncToggle()
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const next = !opts.getAutoSelectInterval!()
+      opts.setAutoSelectInterval!(next)
+      syncToggle()
+    })
+    footEl.appendChild(label)
+    footEl.appendChild(toggle)
+    root.appendChild(footEl)
+    // Keep syncToggle reachable when rebuilding is not needed for foot.
+    ;(footEl as HTMLElement & { __syncToggle?: () => void }).__syncToggle = syncToggle
+  }
+
   const expandedSections = new Set<string>(['seconds', 'minutes'])
-  const isCompact = Boolean(opts.items?.length) || opts.variant === 'replay'
+  const isCompact =
+    Boolean(opts.getItems) || Boolean(opts.items?.length) || opts.variant === 'replay'
 
   const customIntervalDialog =
-    opts.showCustomInterval !== false && !opts.items?.length
+    opts.showCustomInterval !== false && !opts.items?.length && !opts.getItems
       ? createCustomIntervalDialog({
           onAdd: (pick) => {
             addCustomInterval(pick)
@@ -123,6 +205,15 @@ export function createChartIntervalMenu(opts: {
           },
         })
       : null
+
+  function resolveCompactItems(): IntervalPick[] | null {
+    if (opts.getItems) {
+      const dyn = opts.getItems()
+      if (dyn != null && dyn.length) return dyn
+    }
+    if (opts.items?.length) return opts.items
+    return null
+  }
 
   function ensureExpandedForSelection() {
     const pill = opts.getSelectedPill().trim()
@@ -268,8 +359,9 @@ export function createChartIntervalMenu(opts: {
   function rebuildMenuContent() {
     scroll.innerHTML = ''
 
-    if (opts.items?.length) {
-      addButtons(opts.items, scroll, false)
+    const compact = resolveCompactItems()
+    if (compact?.length) {
+      addButtons(compact, scroll, false)
       return
     }
 
@@ -325,7 +417,7 @@ export function createChartIntervalMenu(opts: {
         : pick.kind === 'tick'
           ? 'Tick intervals need Dukascopy ticks (session dates) or enough 1-minute history'
           : (pick.stepSec ?? 60) < 60
-            ? 'Sub-minute intervals need Dukascopy ticks and session start/end dates'
+            ? 'Sub-minute intervals need session dates + ticks, synced second bars, or enough 1-minute history'
             : 'Not enough 1-minute history to build this interval'
     })
   }
@@ -334,13 +426,57 @@ export function createChartIntervalMenu(opts: {
   let onDocMouseDown: ((e: MouseEvent) => void) | null = null
   let onDocKeyDown: ((e: KeyboardEvent) => void) | null = null
   let onWinResize: (() => void) | null = null
+  let onWinBlur: (() => void) | null = null
+  const dismissCleanups: Array<() => void> = []
+
+  function clearDismissTargets() {
+    while (dismissCleanups.length) dismissCleanups.pop()?.()
+  }
+
+  function bindDismissTargets() {
+    clearDismissTargets()
+    const targets = opts.getDismissTargets?.() ?? []
+    for (const target of targets) {
+      if (!target) continue
+      const onPtr = (e: Event) => {
+        const t = e.target as Node | null
+        // Anchor lives inside chartCanvas/dock — don't treat toggle clicks as "outside".
+        if (t && (root.contains(t) || opts.anchor.contains(t))) return
+        close()
+      }
+      target.addEventListener('pointerdown', onPtr, true)
+      dismissCleanups.push(() => target.removeEventListener('pointerdown', onPtr, true))
+    }
+    // Focus entering the TV iframe does not bubble to the host document.
+    onWinBlur = () => {
+      window.setTimeout(() => {
+        if (!menuOpen) return
+        const ae = document.activeElement
+        if (ae instanceof HTMLIFrameElement) close()
+      }, 0)
+    }
+    window.addEventListener('blur', onWinBlur)
+    dismissCleanups.push(() => {
+      if (onWinBlur) window.removeEventListener('blur', onWinBlur)
+      onWinBlur = null
+    })
+  }
 
   function close() {
     if (!menuOpen) return
     menuOpen = false
     opts.onOpenChange?.(false)
-    root.classList.remove('rw-intmenu--open')
+    root.classList.remove('rw-intmenu--open', 'rw-intmenu--above', 'rw-intmenu--below')
+    root.style.removeProperty('max-height')
+    root.style.removeProperty('top')
+    root.style.removeProperty('left')
+    const scrollEl = root.querySelector<HTMLElement>('.rw-intmenu__scroll')
+    if (scrollEl) {
+      scrollEl.style.removeProperty('max-height')
+      scrollEl.scrollTop = 0
+    }
     if (root.parentNode) root.parentNode.removeChild(root)
+    clearDismissTargets()
     if (onDocMouseDown) {
       document.removeEventListener('mousedown', onDocMouseDown, true)
       onDocMouseDown = null
@@ -363,6 +499,10 @@ export function createChartIntervalMenu(opts: {
     ensureExpandedForSelection()
     syncSectionOpenState()
     syncDisabledAndActive()
+    const footSync = footEl
+      ? (footEl as HTMLElement & { __syncToggle?: () => void }).__syncToggle
+      : undefined
+    footSync?.()
     syncChartThemeToElement(root)
     document.body.appendChild(root)
     root.classList.add('rw-intmenu--open')
@@ -391,6 +531,7 @@ export function createChartIntervalMenu(opts: {
         close()
       }
       document.addEventListener('mousedown', onDocMouseDown, true)
+      bindDismissTargets()
     }, 0)
   }
 
