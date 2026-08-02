@@ -351,31 +351,91 @@ function replayJournalStripHtml(session: StoredSession): string {
     </div>`
 }
 
-function lastBacktestDetailsHtml(session: StoredSession): string {
-  const bt = session.lastBacktest
-  if (!bt) {
-    return '<div><dt class="text-zinc-500">Last backtest</dt><dd class="text-zinc-200">No backtest run yet</dd></div>'
-  }
-  const strat = resolveStrategy(bt.strategyId)
-  const stratName = strat?.name ?? bt.strategyId
-  const winPct = Number.isFinite(bt.winRate) ? bt.winRate.toFixed(1) : '0'
-  return `<div><dt class="text-zinc-500">Last backtest</dt><dd class="text-zinc-200">${formatDashMoney(bt.netPnl)} · ${bt.totalTrades} trades · ${winPct}% win</dd></div>
-                  <div><dt class="text-zinc-500">Strategy</dt><dd class="text-zinc-200">${escapeHtml(stratName)}</dd></div>
-                  <div><dt class="text-zinc-500">Backtest ran</dt><dd class="text-zinc-200">${escapeHtml(formatSessionTimestamp(bt.ranAt))}</dd></div>`
+function parseSessionBalanceNumber(raw: string): number | null {
+  const n = Number(String(raw).replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(n) ? n : null
 }
 
-function sessionDateRangeLabel(session: StoredSession): string {
+function buildSessionSummaryPanelHtml(session: StoredSession): string {
+  const bt = session.lastBacktest
+  const replay = session.replayState
+  const closed = replay?.account.closedTrades ?? []
+  const hasReplay = closed.length > 0 || (replay != null && Math.abs(replay.account.realizedPnL) > 1e-6)
+
+  const pnl = bt != null ? bt.netPnl : hasReplay ? replay!.account.realizedPnL : 0
+  const tradeCount = bt != null ? bt.totalTrades : hasReplay ? closed.length : 0
+  let winRate = bt != null && Number.isFinite(bt.winRate) ? bt.winRate : null
+  if (winRate == null && hasReplay && closed.length) {
+    const wins = closed.filter((t) => t.pnl > 0).length
+    winRate = (wins / closed.length) * 100
+  }
+  const winLabel = winRate != null ? `${winRate.toFixed(1)}%` : '—'
+  const pnlTone = pnl > 0 ? 'is-profit' : pnl < 0 ? 'is-loss' : 'is-flat'
+  const strat = bt ? resolveStrategy(bt.strategyId) : null
+  const stratName = strat?.name ?? bt?.strategyId ?? '—'
+  const typeLabel = session.sessionType === 'prop' ? 'Prop firm' : 'Backtesting'
+  const ranAt = bt ? formatSessionTimestamp(bt.ranAt) : '—'
+  const initialBal = parseSessionBalanceNumber(session.balance)
+  const initialLabel = initialBal != null ? formatDashMoney(initialBal) : escapeHtml(session.balance || '—')
+  const finalLabel = initialBal != null ? formatDashMoney(initialBal + pnl) : '—'
+
+  const card = (label: string, value: string, valueClass = '') =>
+    `<div class="sx-dash-session-summary__kpi">
+                <span class="sx-dash-session-summary__kpi-label">${label}</span>
+                <span class="sx-dash-session-summary__kpi-value${valueClass ? ` ${valueClass}` : ''}">${value}</span>
+              </div>`
+
+  const propCards =
+    session.sessionType === 'prop'
+      ? `${card('Challenge', escapeHtml(propStatusLabel(session.propResult?.status)), 'sx-dash-session-summary__kpi-value--sm')}
+              ${card('Profit target', `${session.propRules?.profitTargetPct ?? 10}%`, 'sx-dash-session-summary__kpi-value--sm')}
+              ${card('Max drawdown', `${session.propRules?.maxDrawdownPct ?? 5}%`, 'sx-dash-session-summary__kpi-value--sm')}
+              ${card('Daily loss limit', `${session.propRules?.maxDailyLossPct ?? 2}%`, 'sx-dash-session-summary__kpi-value--sm')}`
+      : ''
+
+  return `<div class="sx-dash-session-row__details sx-dash-session-summary mt-3 hidden w-full" data-session-details>
+            <div class="sx-dash-session-summary__kpis" role="group" aria-label="Session summary">
+              ${card('Session name', escapeHtml(session.name), 'sx-dash-session-summary__kpi-value--sm')}
+              ${card('Created', escapeHtml(formatSessionTimestamp(session.createdAt)), 'sx-dash-session-summary__kpi-value--sm')}
+              ${card('Date range', sessionDateRangeHtml(session, true), 'sx-dash-session-summary__kpi-value--sm sx-dash-session-summary__kpi-value--multiline')}
+              ${card('Symbol', escapeHtml(session.assets))}
+              ${card('Type', typeLabel)}
+              ${card('Initial balance', initialLabel)}
+              ${card('Final balance', finalLabel, `sx-dash-session-summary__kpi-value--${pnlTone}`)}
+              ${card('Total trades', String(tradeCount))}
+              ${card('Backtest ran', escapeHtml(ranAt), 'sx-dash-session-summary__kpi-value--sm')}
+              ${card('Strategy', escapeHtml(stratName), 'sx-dash-session-summary__kpi-value--sm')}
+              ${card('Total P&amp;L', formatDashMoney(pnl), `sx-dash-session-summary__kpi-value--${pnlTone}`)}
+              ${card('Win rate', winLabel)}
+              ${propCards}
+            </div>
+          </div>`
+}
+
+function sessionDateRangeParts(session: StoredSession): { start: string; end: string } | null {
   const a = formatSessionModalDate(session.startDate)
   const b = formatSessionModalDate(session.endDate)
-  if (a === '—' && b === '—') return 'No date range'
-  return `${a} – ${b}`
+  if (a === '—' && b === '—') return null
+  return { start: a, end: b }
 }
 
-function sessionBadgeHtml(sessionType: StoredSession['sessionType']): string {
-  if (sessionType === 'prop') {
+function sessionDateRangeHtml(session: StoredSession, multiline = false): string {
+  const parts = sessionDateRangeParts(session)
+  if (!parts) return 'No date range'
+  if (multiline) return `${escapeHtml(parts.start)} -<br>${escapeHtml(parts.end)}`
+  return `${escapeHtml(parts.start)} – ${escapeHtml(parts.end)}`
+}
+
+function sessionSymbolBadgeHtml(session: StoredSession): string {
+  return `<span class="sx-dash-session-symbol-badge inline-flex items-center rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:border-white/10 dark:bg-white/[0.08] dark:text-zinc-200">${escapeHtml(session.assets)}</span>`
+}
+
+function sessionBadgeHtml(session: StoredSession): string {
+  if (session.sessionType === 'prop') {
     return '<span class="inline-flex items-center gap-1 rounded-full border border-violet-400/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-200"><i class="fa-solid fa-bolt text-[0.6rem]" aria-hidden="true"></i>Prop</span>'
   }
-  return '<span class="inline-flex items-center gap-1 rounded-full border border-sky-400/30 bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-200"><i class="fa-solid fa-chart-line text-[0.6rem]" aria-hidden="true"></i>Backtest</span>'
+  const created = escapeHtml(formatSessionTimestamp(session.createdAt))
+  return `<span class="sx-dash-session-created-badge inline-flex items-center gap-1 rounded-full border border-sky-300/70 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-sky-800" title="Created ${created}"><i class="fa-regular fa-calendar text-[0.6rem]" aria-hidden="true"></i>${created}</span>`
 }
 
 function propChallengeBadgeHtml(session: StoredSession): string {
@@ -399,7 +459,7 @@ function sessionSearchBlob(session: StoredSession): string {
 
 function buildSessionActionsHtml(): string {
   return `
-      <div class="flex shrink-0 flex-wrap items-center justify-end gap-1 sm:flex-col sm:items-end lg:flex-row">
+      <div class="sx-dash-session-row__actions flex shrink-0 flex-wrap items-center justify-end gap-1 self-start sm:flex-col sm:items-end lg:flex-row">
         <button type="button" data-action="session-delete" class="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-rose-400 transition hover:border-rose-500/25 hover:bg-rose-500/10" title="Delete" aria-label="Delete session"><i class="fa-solid fa-trash-can text-[0.8rem]" aria-hidden="true"></i></button>
         <button type="button" data-action="session-edit" class="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-zinc-400 transition hover:border-white/10 hover:bg-white/[0.06] hover:text-zinc-200" title="Edit" aria-label="Edit session"><i class="fa-solid fa-pen text-[0.8rem]" aria-hidden="true"></i></button>
         <button type="button" data-action="session-duplicate" class="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-zinc-400 transition hover:border-white/10 hover:bg-white/[0.06] hover:text-zinc-200" title="Duplicate" aria-label="Duplicate session"><i class="fa-regular fa-copy text-[0.8rem]" aria-hidden="true"></i></button>
@@ -409,50 +469,36 @@ function buildSessionActionsHtml(): string {
 }
 
 function buildSessionRowHtml(session: StoredSession): string {
-  const range = sessionDateRangeLabel(session)
   const lastOpened = session.lastOpenedAt
     ? `Last opened ${formatSessionTimestamp(session.lastOpenedAt)}`
     : `Updated ${formatSessionTimestamp(session.updatedAt)}`
   const actions = buildSessionActionsHtml()
   return `<li class="sx-dash-session-row rounded-2xl border border-white/[0.1] bg-white/[0.04] p-4 sm:p-5" data-session-id="${escapeHtml(session.id)}" data-session-name="${escapeHtml(sessionSearchBlob(session))}">
-          <div class="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+          <div class="sx-dash-session-row__main flex flex-col gap-4 lg:flex-row lg:items-start">
             <button type="button" data-action="resume-session" class="flex h-12 w-12 shrink-0 items-center justify-center self-start rounded-full bg-[#334155] text-white shadow-[0_8px_22px_rgba(51,65,85,0.35)] transition hover:bg-[#1E293B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60" title="Resume session" aria-label="Resume session">
               <i class="fa-solid fa-play ml-0.5 text-sm" aria-hidden="true"></i>
             </button>
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
                 <span class="text-base font-bold text-slate-900 dark:text-white">${escapeHtml(session.name)}</span>
-                ${sessionBadgeHtml(session.sessionType)}
+                ${sessionBadgeHtml(session)}
+                ${sessionSymbolBadgeHtml(session)}
                 ${propChallengeBadgeHtml(session)}
               </div>
               <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
-                <span class="inline-flex items-center gap-1.5"><i class="fa-regular fa-calendar text-[0.75rem]" aria-hidden="true"></i>${escapeHtml(range)}</span>
+                <span class="inline-flex items-center gap-1.5">
+                  <i class="fa-regular fa-calendar text-[0.75rem]" aria-hidden="true"></i>
+                  <span class="sx-dash-session-date-range">${sessionDateRangeHtml(session)}</span>
+                </span>
                 <span class="inline-flex items-center gap-1.5"><i class="fa-solid fa-wallet text-[0.75rem]" aria-hidden="true"></i>${escapeHtml(session.balance)}</span>
               </div>
-              <span class="mt-2 inline-flex rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:border-white/10 dark:bg-white/[0.08] dark:text-zinc-200">${escapeHtml(session.assets)}</span>
               ${lastBacktestStripHtml(session)}
               ${replayJournalStripHtml(session)}
               <p class="mt-2 text-[11px] text-zinc-500 dark:text-zinc-500">${escapeHtml(lastOpened)}</p>
-              <div class="sx-dash-session-row__details mt-3 hidden rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-xs text-zinc-400" data-session-details>
-                <dl class="grid gap-1 sm:grid-cols-2">
-                  <div><dt class="text-zinc-500">Type</dt><dd class="text-zinc-200">${session.sessionType === 'prop' ? 'Prop firm' : 'Backtesting'}</dd></div>
-                  ${lastBacktestDetailsHtml(session)}
-                  ${
-                    session.sessionType === 'prop'
-                      ? `<div><dt class="text-zinc-500">Challenge</dt><dd class="text-zinc-200">${escapeHtml(propStatusLabel(session.propResult?.status))}</dd></div>
-                  <div><dt class="text-zinc-500">Profit target</dt><dd class="text-zinc-200">${session.propRules?.profitTargetPct ?? 10}%</dd></div>
-                  <div><dt class="text-zinc-500">Max drawdown</dt><dd class="text-zinc-200">${session.propRules?.maxDrawdownPct ?? 5}%</dd></div>
-                  <div><dt class="text-zinc-500">Daily loss limit</dt><dd class="text-zinc-200">${session.propRules?.maxDailyLossPct ?? 2}%</dd></div>`
-                      : ''
-                  }
-                  <div><dt class="text-zinc-500">Created</dt><dd class="text-zinc-200">${escapeHtml(formatSessionTimestamp(session.createdAt))}</dd></div>
-                  <div><dt class="text-zinc-500">Updated</dt><dd class="text-zinc-200">${escapeHtml(formatSessionTimestamp(session.updatedAt))}</dd></div>
-                  <div><dt class="text-zinc-500">Date range</dt><dd class="text-zinc-200">${escapeHtml(range)}</dd></div>
-                </dl>
-              </div>
             </div>
             ${actions}
           </div>
+          ${buildSessionSummaryPanelHtml(session)}
         </li>`
 }
 
@@ -822,7 +868,6 @@ export function mountDashboardApp(root: HTMLElement): void {
           <div class="relative z-[1]">
             <div class="min-w-0 max-w-2xl">
               <h2 class="sx-dash-welcome-title mb-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Practice on the past. Profit in the present.</h2>
-              <p class="sx-dash-welcome-sub max-w-xl text-sm leading-snug text-slate-600">Create a session, pick a date, and replay the tape — or resume where you left off.</p>
               <ul class="sx-dash-premium-pills mt-2.5 flex flex-wrap gap-1.5" aria-label="Workspace highlights">
                 <li class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600">Tick-accurate replay</li>
                 <li class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600">Multi-symbol sessions</li>
@@ -832,7 +877,12 @@ export function mountDashboardApp(root: HTMLElement): void {
           </div>
         </header>
 
-        <section class="sx-dash-action-row flex flex-wrap items-center gap-3">
+        <div class="sx-dash-launch-stack">
+        <p class="sx-dash-welcome-sub sx-dash-welcome-sub--below mx-auto text-center text-xl leading-snug sm:text-2xl">
+          Create a session, pick a date, and replay the tape — or resume where you left off.
+        </p>
+
+        <section class="sx-dash-action-row flex flex-wrap items-center justify-center gap-3">
           <span class="sx-dash-cta-ai">
             <span class="sx-dash-cta-ai__glow" aria-hidden="true"></span>
             <span class="sx-dash-cta-ai__border" aria-hidden="true"><span class="sx-dash-cta-ai__ring"></span></span>
@@ -858,6 +908,7 @@ export function mountDashboardApp(root: HTMLElement): void {
             </button>
           </span>
         </section>
+        </div>
 
           </div>
 
@@ -1875,7 +1926,9 @@ export function mountDashboardApp(root: HTMLElement): void {
     root.querySelectorAll('.sx-dash-pro-upgrade-btn').forEach((el) => {
       el.classList.toggle('hidden', tier === 'pro')
     })
-    root.querySelector('[data-sx-sessions-banner]')?.classList.toggle('hidden', tier === 'pro')
+    root.querySelectorAll('[data-sx-sessions-banner]').forEach((el) => {
+      el.classList.toggle('hidden', tier === 'pro')
+    })
   }
   applyAccountTierUi()
   syncSidebarProfile()

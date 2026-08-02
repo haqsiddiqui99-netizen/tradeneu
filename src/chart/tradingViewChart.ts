@@ -80,6 +80,42 @@ export type TradingViewChartHandle = {
     price: number,
     layout: { plotOffsetX: number; top: number; bottom: number; width: number },
   ) => { x: number; y: number } | null
+  /** Host-relative Y for a price (plot top + pane priceToCoordinate). */
+  priceToHostY: (price: number, hostEl: HTMLElement) => number | null
+  /**
+   * Draw entry/TP/SL as TradingView horizontal_line shapes (same price scale as candles).
+   * Returns true when shapes are used — caller should skip DOM dashed lines but keep badges.
+   */
+  syncReplayPositions: (
+    positions: Array<{
+      id: string
+      direction: 'long' | 'short'
+      qty: number
+      entryPrice: number
+      entryTime: number
+      takeProfit: number | null
+      stopLoss: number | null
+    }>,
+    handlers: {
+      onClose: (id: string) => void
+      formatPnl: (id: string) => string
+    },
+  ) => boolean
+  /**
+   * Show backtest entry/exit arrows on the TV chart (createShape).
+   * Pass [] to clear. Optional maxTimeSec limits markers to the replay cursor.
+   */
+  setBacktestTradeMarkers: (
+    trades: Array<{
+      direction: 'long' | 'short'
+      entryTime: number
+      exitTime: number
+      entryPrice: number
+      exitPrice: number
+      pnl: number
+    }>,
+    opts?: { maxTimeSec?: number },
+  ) => void
   getPlotClipInsets: (hostEl: HTMLElement) => { top: number; bottom: number; left: number; right: number } | null
   getPlotLayout: (hostEl: HTMLElement) => {
     top: number
@@ -550,6 +586,8 @@ const headerButtonFaceWatchers = new Map<string, MutationObserver>()
 
 const REPLAY_HEADER_CSS_ID = 'rw-tv-replay-header-css'
 const AXIS_HAIRLINE_KILL_CSS_ID = 'rw-tv-axis-hairline-kill-css'
+const INDICATORS_DIALOG_CSS_ID = 'rw-tv-indicators-dialog-css'
+const TV_BACK_PAD_CSS_ID = 'rw-tv-back-pad-css'
 
 /** Purge leftover white axis-cover strips (clipped “Chart by TradingView” / “Keep drawing”). */
 function removeStaleAxisHairlineCovers(mount?: HTMLElement | null) {
@@ -624,6 +662,350 @@ function ensureReplayHeaderCss(doc: Document) {
 [data-rw-tv-btn="replay"].rw-tv-header-btn--text::before {
   content: none !important;
   display: none !important;
+}
+`
+}
+
+/** Technicals list: SCRIPT NAME | Developer | Rating columns + Built-in / — cells. */
+function ensureIndicatorsDialogCss(doc: Document) {
+  let style = doc.getElementById(INDICATORS_DIALOG_CSS_ID) as HTMLStyleElement | null
+  if (!style) {
+    style = doc.createElement('style')
+    style.id = INDICATORS_DIALOG_CSS_ID
+    ;(doc.head ?? doc.documentElement).appendChild(style)
+  }
+  /* Do NOT override TV row display — that breaks star/title layout.
+   * Default 480px; was 720px (+50%); now −25% of that → 540px. */
+  style.textContent = `
+[class*="dialogLibrary"],
+[data-name="insert-indicator-dialog"],
+[data-name="indicators-dialog"],
+.dialog-UAy2ZKyS {
+  width: 540px !important;
+  max-width: min(540px, 96vw) !important;
+}
+@media (max-width: 540px) {
+  [class*="dialogLibrary"],
+  [data-name="insert-indicator-dialog"],
+  [data-name="indicators-dialog"],
+  .dialog-UAy2ZKyS {
+    width: 96vw !important;
+    max-width: 96vw !important;
+  }
+}
+.rw-ind-col-head {
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 8px 12px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif !important;
+}
+.rw-ind-col-head__fav {
+  display: none !important;
+}
+.rw-ind-col-head__name,
+.rw-ind-col-head__dev,
+.rw-ind-col-head__rating {
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  color: #787b86 !important;
+  line-height: 16px !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+/* Default ≈ star gutter; JS overwrites with measured title X */
+.rw-ind-col-head__name {
+  left: 52px !important;
+}
+.rw-ind-col-head__dev {
+  /* Sit in mid column (after script names), not flush to Rating */
+  left: 56% !important;
+  right: auto !important;
+}
+.rw-ind-col-head__rating {
+  right: 12px !important;
+  left: auto !important;
+  width: 56px !important;
+  text-align: right !important;
+}
+.rw-ind-tech-row.container-WeNdU0sq {
+  position: relative !important;
+}
+.rw-ind-dev,
+.rw-ind-rating {
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 18px !important;
+  color: #787b86 !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+}
+.rw-ind-dev {
+  left: 56% !important;
+  right: auto !important;
+  max-width: 100px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.rw-ind-rating {
+  right: 12px !important;
+  width: 56px !important;
+  text-align: right !important;
+}
+/* Hide native lone SCRIPT NAME so only our aligned header shows */
+.rw-ind-hide-native-script-head {
+  display: none !important;
+}
+html.theme-dark .rw-ind-col-head__name,
+html.theme-dark .rw-ind-col-head__dev,
+html.theme-dark .rw-ind-col-head__rating,
+html.theme-dark .rw-ind-dev,
+html.theme-dark .rw-ind-rating {
+  color: #787b86 !important;
+}
+`
+}
+
+/** Left edge of the first text glyph inside an element. */
+function textStartLeft(el: HTMLElement): number {
+  try {
+    const doc = el.ownerDocument
+    const walker = doc.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    let node: Node | null = walker.nextNode()
+    while (node) {
+      if ((node.textContent || '').trim().length > 0) {
+        const range = doc.createRange()
+        const text = node.textContent || ''
+        const offset = text.search(/\S/)
+        range.setStart(node, Math.max(0, offset))
+        range.setEnd(node, Math.max(0, offset) + 1)
+        const rect = range.getBoundingClientRect()
+        if (rect.left || rect.width) return rect.left
+      }
+      node = walker.nextNode()
+    }
+  } catch {
+    /* fall through */
+  }
+  return el.getBoundingClientRect().left
+}
+
+/** Find the visible indicator title node in a Technicals row (after the star). */
+function findRowTitleEl(row: HTMLElement): HTMLElement | null {
+  const main = row.querySelector('[class*="main-"]') as HTMLElement | null
+  if (!main) return null
+  const labeled = main.querySelector('[data-label]') as HTMLElement | null
+  if (labeled) return labeled
+  const leaves = [...main.querySelectorAll('span, div, a')].filter((el) => {
+    if (el.childElementCount > 0) return false
+    const t = (el.textContent || '').trim()
+    return t.length >= 3 && t.toLowerCase() !== 'built-in' && t !== '—'
+  }) as HTMLElement[]
+  return leaves[0] ?? main
+}
+
+/** Pin SCRIPT NAME so its S lines up with the first title character (e.g. 5). */
+function syncIndicatorsColHead(bar: HTMLElement, row: HTMLElement) {
+  const titleEl = findRowTitleEl(row)
+  const nameHead = bar.querySelector('.rw-ind-col-head__name') as HTMLElement | null
+  if (!titleEl || !nameHead) return
+
+  const barLeft = bar.getBoundingClientRect().left
+  let titleLeft = textStartLeft(titleEl)
+
+  // If favorite star is present, never place the header left of the title after it.
+  const fav = row.querySelector('[class*="favorite"]') as HTMLElement | null
+  if (fav) {
+    const favRight = fav.getBoundingClientRect().right
+    titleLeft = Math.max(titleLeft, favRight + 4)
+  }
+
+  const left = Math.max(0, Math.round(titleLeft - barLeft))
+  nameHead.style.setProperty('left', `${left}px`, 'important')
+  nameHead.style.setProperty('right', 'auto', 'important')
+}
+
+const INDICATORS_DIALOG_LABEL_OBS = 'rwTvIndLabelObs'
+
+function indicatorsDialogRoots(doc: Document): Element[] {
+  // Keep this selector cheap — never scan every h3/span/div. A full-document walk
+  // on each MutationObserver tick freezes the TV iframe while the chart boots.
+  return [
+    ...doc.querySelectorAll(
+      '.dialogLibrary-I087YV6b, [data-name="insert-indicator-dialog"], [data-name="indicators-dialog"], [class*="dialogLibrary"]',
+    ),
+  ]
+}
+
+function isLeafLabel(el: Element, want: string): boolean {
+  if (el.childElementCount > 0) return false
+  return (el.textContent?.trim() ?? '').toUpperCase() === want
+}
+
+/** Technicals: inject Developer/Rating headers + cells. Community: rename Author/Boosts. */
+function ensureIndicatorsDialogColumnLabels(doc: Document) {
+  const rewrite = () => {
+    const roots = indicatorsDialogRoots(doc)
+    // Chart boot mutates the iframe constantly — bail unless the Indicators dialog is open.
+    if (!roots.length) return
+    for (const root of roots) {
+      let el: HTMLElement | null = root as HTMLElement
+      let dialogEl: HTMLElement | null = null
+      while (el) {
+        const name = el.getAttribute('data-name') ?? ''
+        const cls = typeof el.className === 'string' ? el.className : ''
+        if (
+          el.getAttribute('role') === 'dialog' ||
+          name.includes('indicator') ||
+          /dialogLibrary|dialog-[A-Za-z0-9]{6,}/.test(cls)
+        ) {
+          dialogEl = el
+        }
+        el = el.parentElement
+      }
+      dialogEl = dialogEl || (root as HTMLElement)
+      dialogEl.style.setProperty('width', '540px', 'important')
+      dialogEl.style.setProperty('max-width', 'min(540px, 96vw)', 'important')
+      dialogEl.style.setProperty('min-width', 'min(540px, 96vw)', 'important')
+      root.querySelectorAll('h3, span, div, th, td').forEach((el) => {
+        if (el.childElementCount > 0) return
+        if (el.classList.contains('rw-ind-dev') || el.classList.contains('rw-ind-rating')) return
+        if (el.classList.contains('rw-ind-col-head__name') || el.classList.contains('rw-ind-col-head__dev') || el.classList.contains('rw-ind-col-head__rating')) return
+        const key = (el.textContent?.trim() ?? '').toUpperCase()
+        if (key === 'AUTHOR') el.textContent = 'Developer'
+        else if (key === 'BOOSTS' || key === 'BOOST') el.textContent = 'Rating'
+      })
+
+      // Insert SCRIPT NAME | Developer | Rating header above the Technicals list.
+      const scriptHeads = [...root.querySelectorAll('h3, span, div')].filter((el) =>
+        isLeafLabel(el, 'SCRIPT NAME'),
+      )
+      for (const head of scriptHeads) {
+        if (head.closest('.rw-ind-col-head') || head.closest('.container-WeNdU0sq')) continue
+        head.classList.add('rw-ind-hide-native-script-head')
+        ;(head as HTMLElement).style.setProperty('display', 'none', 'important')
+        if (root.querySelector('.rw-ind-col-head')) continue
+
+        const bar = doc.createElement('div')
+        bar.className = 'rw-ind-col-head'
+        bar.setAttribute('data-rw-ind-cols', '1')
+        const favPad = doc.createElement('span')
+        favPad.className = 'rw-ind-col-head__fav'
+        favPad.setAttribute('aria-hidden', 'true')
+        const name = doc.createElement('span')
+        name.className = 'rw-ind-col-head__name'
+        name.textContent = 'SCRIPT NAME'
+        const dev = doc.createElement('span')
+        dev.className = 'rw-ind-col-head__dev'
+        dev.textContent = 'Developer'
+        const rating = doc.createElement('span')
+        rating.className = 'rw-ind-col-head__rating'
+        rating.textContent = 'Rating'
+        bar.append(favPad, name, dev, rating)
+
+        // Mount in the same scroll/list host as rows so widths match.
+        const firstRow = root.querySelector(
+          '.container-WeNdU0sq, [class*="container-"][class*="WeNd"], [class*="item-"]',
+        ) as HTMLElement | null
+        const rowParent = firstRow?.parentElement
+        if (rowParent && firstRow) {
+          rowParent.insertBefore(bar, firstRow)
+        } else {
+          head.insertAdjacentElement('afterend', bar)
+        }
+      }
+
+      root.querySelectorAll('.container-WeNdU0sq').forEach((row) => {
+        const el = row as HTMLElement
+        // Community rows already have author/likes columns.
+        if (el.querySelector('[class*="author-"], [class*="likes-"]')) {
+          el.classList.remove('rw-ind-tech-row')
+          el.querySelectorAll('.rw-ind-dev, .rw-ind-rating').forEach((n) => n.remove())
+          return
+        }
+        el.classList.add('rw-ind-tech-row')
+        el.querySelector('.rw-ind-fav-slot')?.remove()
+        if (!el.querySelector('.rw-ind-dev')) {
+          const dev = doc.createElement('span')
+          dev.className = 'rw-ind-dev'
+          dev.textContent = 'Built-in'
+          el.appendChild(dev)
+        }
+        if (!el.querySelector('.rw-ind-rating')) {
+          const rating = doc.createElement('span')
+          rating.className = 'rw-ind-rating'
+          rating.textContent = '—'
+          el.appendChild(rating)
+        }
+      })
+
+      const bar = root.querySelector('.rw-ind-col-head') as HTMLElement | null
+      const sampleRow = root.querySelector('.rw-ind-tech-row') as HTMLElement | null
+      if (bar && sampleRow) {
+        const runSync = () => syncIndicatorsColHead(bar, sampleRow)
+        requestAnimationFrame(runSync)
+        window.setTimeout(runSync, 0)
+        window.setTimeout(runSync, 50)
+        window.setTimeout(runSync, 150)
+        window.setTimeout(runSync, 400)
+      }
+
+    }
+  }
+  rewrite()
+  const tagged = doc as Document & { [INDICATORS_DIALOG_LABEL_OBS]?: MutationObserver }
+  if (tagged[INDICATORS_DIALOG_LABEL_OBS]) return
+  let scheduled = false
+  const obs = new MutationObserver(() => {
+    if (scheduled) return
+    scheduled = true
+    requestAnimationFrame(() => {
+      scheduled = false
+      rewrite()
+    })
+  })
+  obs.observe(doc.body ?? doc.documentElement, { childList: true, subtree: true })
+  tagged[INDICATORS_DIALOG_LABEL_OBS] = obs
+  // Re-sync after dialog layout settles / window.
+  window.addEventListener('resize', () => {
+    for (const root of indicatorsDialogRoots(doc)) {
+      const bar = root.querySelector('.rw-ind-col-head') as HTMLElement | null
+      const sampleRow = root.querySelector('.rw-ind-tech-row') as HTMLElement | null
+      if (bar && sampleRow) syncIndicatorsColHead(bar, sampleRow)
+    }
+  })
+}
+
+/** Leave room at the left of the TV header for the Tradeneu back-to-dashboard overlay.
+ *  Pad must match the toolbar fill — transparent padding showed a grey gutter. */
+function ensureTvBackPadCss(doc: Document) {
+  let style = doc.getElementById(TV_BACK_PAD_CSS_ID) as HTMLStyleElement | null
+  if (!style) {
+    style = doc.createElement('style')
+    style.id = TV_BACK_PAD_CSS_ID
+    ;(doc.head ?? doc.documentElement).appendChild(style)
+  }
+  style.textContent = `
+.layout__area--top {
+  padding-left: 34px !important;
+  box-sizing: border-box !important;
+  background-color: #ffffff !important;
+}
+html.theme-dark .layout__area--top {
+  background-color: #131722 !important;
 }
 `
 }
@@ -978,6 +1360,130 @@ export async function createTradingViewChart(
 
   let replayCtrl: TvReplayChartController | null = null
 
+  type PosShapeBundle = {
+    entryId: string
+    tpId: string | null
+    slId: string | null
+    entryPrice: number
+    takeProfit: number | null
+    stopLoss: number | null
+    direction: 'long' | 'short'
+  }
+  const posShapes = new Map<string, PosShapeBundle>()
+  const ownedShapeIds = new Set<string>()
+  let shapeSyncGen = 0
+  const backtestMarkerIds: string[] = []
+  let backtestMarkerGen = 0
+  const MAX_BACKTEST_MARKER_TRADES = 120
+
+  const toTimeSec = (t: number) => (t > 1e12 ? Math.floor(t / 1000) : Math.floor(t))
+
+  const removeShapeId = (chart: { removeEntity?: (id: string) => void }, id: string | null) => {
+    if (!id) return
+    try {
+      chart.removeEntity?.(id)
+    } catch {
+      /* ignore */
+    }
+    ownedShapeIds.delete(id)
+  }
+
+  const clearBacktestMarkers = () => {
+    backtestMarkerGen += 1
+    try {
+      const chart = widget.activeChart()
+      for (const id of backtestMarkerIds) removeShapeId(chart, id)
+    } catch {
+      /* ignore */
+    }
+    backtestMarkerIds.length = 0
+  }
+
+  const clearTvPositionLines = () => {
+    shapeSyncGen += 1
+    try {
+      const chart = widget.activeChart()
+      for (const bundle of posShapes.values()) {
+        removeShapeId(chart, bundle.entryId)
+        removeShapeId(chart, bundle.tpId)
+        removeShapeId(chart, bundle.slId)
+      }
+    } catch {
+      /* ignore */
+    }
+    posShapes.clear()
+  }
+
+  const horzLineOverrides = (color: string, label: string) => ({
+    linecolor: color,
+    linestyle: 2,
+    linewidth: 1,
+    showPrice: false,
+    showLabel: true,
+    text: label,
+    textcolor: '#ffffff',
+    fontsize: 11,
+    bold: true,
+    horzLabelsAlign: 'left',
+    vertLabelsAlign: 'middle',
+  })
+
+  const createHorzLine = async (
+    chart: {
+      createShape: (
+        point: { time: number; price: number },
+        options: Record<string, unknown>,
+      ) => Promise<string>
+    },
+    timeSec: number,
+    price: number,
+    color: string,
+    label: string,
+  ): Promise<string | null> => {
+    try {
+      const id = await chart.createShape(
+        { time: timeSec, price },
+        {
+          shape: 'horizontal_line',
+          lock: true,
+          disableSelection: true,
+          disableSave: true,
+          disableUndo: true,
+          showInObjectsTree: false,
+          text: label,
+          overrides: horzLineOverrides(color, label),
+        },
+      )
+      if (id) ownedShapeIds.add(String(id))
+      return id ? String(id) : null
+    } catch (err) {
+      console.warn('[TradingView] createShape horizontal_line failed', err)
+      return null
+    }
+  }
+
+  const setShapePrice = (
+    chart: {
+      getShapeById?: (id: string) => {
+        setPoints?: (pts: Array<{ time: number; price: number }>) => void
+        applyOverrides?: (o: Record<string, unknown>) => void
+      }
+    },
+    shapeId: string,
+    timeSec: number,
+    price: number,
+    color: string,
+    label: string,
+  ) => {
+    try {
+      const shape = chart.getShapeById?.(shapeId)
+      shape?.setPoints?.([{ time: timeSec, price }])
+      shape?.applyOverrides?.(horzLineOverrides(color, label))
+    } catch {
+      /* ignore */
+    }
+  }
+
   const chartChromeOverrides: Record<string, unknown> = {
     // Last price (green/red dashed + axis label) stays on — that is normal TV.
     // Bid/ask lines (blue #2962FF / pink #F7525F) are optional and often look like a
@@ -1013,8 +1519,10 @@ export async function createTradingViewChart(
       'caption_buttons_text_if_possible',
       'hide_right_toolbar',
       'seconds_resolution',
+      // Parent `use_localstorage_for_settings` is off; re-enable stars in Indicators dialog.
+      'items_favoriting',
     ],
-    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css?v=kill-axis-cover-1`,
+    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css?v=ind-dev-col-mid-3`,
     loading_screen: { backgroundColor: opts.theme === 'dark' ? '#131722' : '#ffffff' },
     // settings_overrides wins over any saved chart settings; plain overrides do not.
     settings_overrides: { ...chartChromeOverrides },
@@ -1071,7 +1579,9 @@ export async function createTradingViewChart(
     const afterTemplateItems: Array<string | HTMLElement> = []
     const beforeUtilityButtons: HTMLElement[] = []
 
-    for (const def of opts.headerButtons ?? []) {
+    const buttonDefs: TvHeaderButtonDef[] = [...(opts.headerButtons ?? [])]
+
+    for (const def of buttonDefs) {
       const align = def.align ?? 'left'
 
       if (def.iconHtml) {
@@ -1140,7 +1650,7 @@ export async function createTradingViewChart(
       for (const el of beforeUtilityButtons) {
         repositionBeforeRightUtilities(mount, el)
       }
-      for (const def of opts.headerButtons ?? []) {
+      for (const def of buttonDefs) {
         const el = resolveHeaderButtonEl(def.id)
         if (!el) continue
         if (def.iconHtml) {
@@ -1196,6 +1706,8 @@ export async function createTradingViewChart(
           /* action id may not exist in this build */
         }
         for (const shape of chart.getAllShapes?.() ?? []) {
+          const sid = String(shape.id || '')
+          if (ownedShapeIds.has(sid)) continue
           const name = String(shape.name || '').toLowerCase()
           if (
             name === 'horizontal_line' ||
@@ -1217,19 +1729,33 @@ export async function createTradingViewChart(
         if (!disposed) hideChartHairlines()
       }, delay)
     }
-    // Keep purging stale covers; changeTheme / reloads can leave them behind.
+    // Short purge window only — a permanent 500ms loop contended with chart paint.
+    let hairlineTicks = 0
     const hairlineTimer = window.setInterval(() => {
-      if (disposed) {
+      if (disposed || ++hairlineTicks > 12) {
         window.clearInterval(hairlineTimer)
         return
       }
       hideChartHairlines()
-    }, 500)
+    }, 1000)
     headerButtonCleanups.push(() => window.clearInterval(hairlineTimer))
 
     void widget
       .headerReady()
-      .then(mountHeaderButtons)
+      .then(() => {
+        try {
+          const doc = tvIframeDocument(mount)
+          if (doc) {
+            ensureReplayHeaderCss(doc)
+            ensureIndicatorsDialogCss(doc)
+            ensureIndicatorsDialogColumnLabels(doc)
+            ensureTvBackPadCss(doc)
+          }
+        } catch {
+          /* ignore */
+        }
+        mountHeaderButtons()
+      })
       .catch((err) => console.error('[TradingView] headerReady failed:', err))
 
     {
@@ -1286,6 +1812,8 @@ export async function createTradingViewChart(
       if (disposed) return
       disposed = true
       try {
+        clearTvPositionLines()
+        clearBacktestMarkers()
         replayCtrl?.dispose()
         replayCtrl = null
         headerButtonCleanups.forEach((fn) => fn())
@@ -1533,6 +2061,219 @@ export async function createTradingViewChart(
 
     hostPointForWallTimeMs(timeMs, price, layout) {
       return replayCtrl?.hostPointForWallTimeMs(timeMs, price, layout) ?? null
+    },
+
+    priceToHostY(price, hostEl) {
+      const layout = measureTvPlotLayout(mount, hostEl, currentTheme)
+      if (!layout || layout.width < 80) return null
+      const plotY = replayCtrl?.priceToPlotY(price)
+      if (plotY == null || !Number.isFinite(plotY)) return null
+      // priceToPlotY is pane-local (main series pane). layout.top is the plot canvas top.
+      const y = layout.top + plotY
+      const paneBottom = layout.top + Math.max(8, hostEl.clientHeight - layout.top - layout.bottom)
+      if (y < layout.top + 2 || y > paneBottom - 2) return null
+      return y
+    },
+
+    syncReplayPositions(positions, _handlers) {
+      // Native createPositionLine pins into header chrome. Use horizontal_line shapes
+      // instead — they share the candle price scale, so BUY/SELL stay in sync.
+      const chart = (() => {
+        try {
+          return widget.activeChart() as unknown as {
+            createShape: (
+              point: { time: number; price: number },
+              options: Record<string, unknown>,
+            ) => Promise<string>
+            getShapeById?: (id: string) => {
+              setPoints?: (pts: Array<{ time: number; price: number }>) => void
+              applyOverrides?: (o: Record<string, unknown>) => void
+            }
+            removeEntity?: (id: string) => void
+          }
+        } catch {
+          return null
+        }
+      })()
+      if (!chart || typeof chart.createShape !== 'function') {
+        clearTvPositionLines()
+        return false
+      }
+
+      const gen = ++shapeSyncGen
+      const ids = new Set(positions.map((p) => p.id))
+      for (const [id, bundle] of [...posShapes.entries()]) {
+        if (ids.has(id)) continue
+        removeShapeId(chart, bundle.entryId)
+        removeShapeId(chart, bundle.tpId)
+        removeShapeId(chart, bundle.slId)
+        posShapes.delete(id)
+      }
+
+      void (async () => {
+        for (const pos of positions) {
+          if (disposed || gen !== shapeSyncGen) return
+          const timeSec = toTimeSec(pos.entryTime)
+          const color = pos.direction === 'long' ? '#2962ff' : '#e65100'
+          const label = pos.direction === 'long' ? 'BUY' : 'SELL'
+          let bundle = posShapes.get(pos.id)
+
+          if (!bundle) {
+            const entryId = await createHorzLine(chart, timeSec, pos.entryPrice, color, label)
+            if (!entryId || disposed || gen !== shapeSyncGen) {
+              if (entryId) removeShapeId(chart, entryId)
+              continue
+            }
+            let tpId: string | null = null
+            let slId: string | null = null
+            if (pos.takeProfit != null) {
+              tpId = await createHorzLine(chart, timeSec, pos.takeProfit, '#089981', 'TP')
+            }
+            if (pos.stopLoss != null) {
+              slId = await createHorzLine(chart, timeSec, pos.stopLoss, '#f7931a', 'SL')
+            }
+            if (disposed || gen !== shapeSyncGen) {
+              removeShapeId(chart, entryId)
+              removeShapeId(chart, tpId)
+              removeShapeId(chart, slId)
+              continue
+            }
+            posShapes.set(pos.id, {
+              entryId,
+              tpId,
+              slId,
+              entryPrice: pos.entryPrice,
+              takeProfit: pos.takeProfit,
+              stopLoss: pos.stopLoss,
+              direction: pos.direction,
+            })
+            continue
+          }
+
+          if (bundle.entryPrice !== pos.entryPrice || bundle.direction !== pos.direction) {
+            setShapePrice(chart, bundle.entryId, timeSec, pos.entryPrice, color, label)
+            bundle.entryPrice = pos.entryPrice
+            bundle.direction = pos.direction
+          }
+
+          if (pos.takeProfit != null) {
+            if (!bundle.tpId) {
+              bundle.tpId = await createHorzLine(chart, timeSec, pos.takeProfit, '#089981', 'TP')
+            } else if (bundle.takeProfit !== pos.takeProfit) {
+              setShapePrice(chart, bundle.tpId, timeSec, pos.takeProfit, '#089981', 'TP')
+            }
+          } else if (bundle.tpId) {
+            removeShapeId(chart, bundle.tpId)
+            bundle.tpId = null
+          }
+          bundle.takeProfit = pos.takeProfit
+
+          if (pos.stopLoss != null) {
+            if (!bundle.slId) {
+              bundle.slId = await createHorzLine(chart, timeSec, pos.stopLoss, '#f7931a', 'SL')
+            } else if (bundle.stopLoss !== pos.stopLoss) {
+              setShapePrice(chart, bundle.slId, timeSec, pos.stopLoss, '#f7931a', 'SL')
+            }
+          } else if (bundle.slId) {
+            removeShapeId(chart, bundle.slId)
+            bundle.slId = null
+          }
+          bundle.stopLoss = pos.stopLoss
+        }
+      })()
+
+      return true
+    },
+
+    setBacktestTradeMarkers(trades, opts) {
+      clearBacktestMarkers()
+      if (!trades.length) return
+      const chart = (() => {
+        try {
+          return widget.activeChart() as unknown as {
+            createShape: (
+              point: { time: number; price: number },
+              options: Record<string, unknown>,
+            ) => Promise<string>
+            removeEntity?: (id: string) => void
+          }
+        } catch {
+          return null
+        }
+      })()
+      if (!chart || typeof chart.createShape !== 'function') return
+
+      const maxTime = opts?.maxTimeSec
+      const filtered =
+        maxTime != null && Number.isFinite(maxTime)
+          ? trades.filter((t) => toTimeSec(t.entryTime) <= maxTime)
+          : trades
+      const slice = filtered.slice(0, MAX_BACKTEST_MARKER_TRADES)
+      const gen = backtestMarkerGen
+
+      void (async () => {
+        for (const t of slice) {
+          if (disposed || gen !== backtestMarkerGen) return
+          const win = t.pnl > 0
+          const color = win ? '#089981' : '#f23645'
+          const entrySec = toTimeSec(t.entryTime)
+          const exitSec = toTimeSec(t.exitTime)
+          try {
+            const entryId = await chart.createShape(
+              { time: entrySec, price: t.entryPrice },
+              {
+                shape: t.direction === 'long' ? 'arrow_up' : 'arrow_down',
+                lock: true,
+                disableSelection: true,
+                disableSave: true,
+                disableUndo: true,
+                showInObjectsTree: false,
+                overrides: { color, size: 18 },
+              },
+            )
+            if (entryId && gen === backtestMarkerGen && !disposed) {
+              const id = String(entryId)
+              ownedShapeIds.add(id)
+              backtestMarkerIds.push(id)
+            } else if (entryId) {
+              removeShapeId(chart, String(entryId))
+            }
+          } catch (err) {
+            console.warn('[TradingView] backtest entry marker failed', err)
+          }
+
+          if (maxTime != null && exitSec > maxTime) continue
+          try {
+            const exitId = await chart.createShape(
+              { time: exitSec, price: t.exitPrice },
+              {
+                shape: 'flag',
+                lock: true,
+                disableSelection: true,
+                disableSave: true,
+                disableUndo: true,
+                showInObjectsTree: false,
+                text: `$${Math.round(Number.isFinite(t.pnl) ? t.pnl : 0)}`,
+                overrides: {
+                  color,
+                  backgroundColor: color,
+                  textcolor: '#ffffff',
+                  fontsize: 10,
+                },
+              },
+            )
+            if (exitId && gen === backtestMarkerGen && !disposed) {
+              const id = String(exitId)
+              ownedShapeIds.add(id)
+              backtestMarkerIds.push(id)
+            } else if (exitId) {
+              removeShapeId(chart, String(exitId))
+            }
+          } catch (err) {
+            console.warn('[TradingView] backtest exit marker failed', err)
+          }
+        }
+      })()
     },
 
     getPlotClipInsets(hostEl) {

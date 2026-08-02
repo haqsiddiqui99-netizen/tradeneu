@@ -52,8 +52,16 @@
   z-index: 4;
 }
 
+.rw-top__home .sx-ico,
+.rw-top__home svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
 .rw-top__home:hover {
   background: var(--rw-hover);
+  color: var(--rw-bright);
 }
 
 .rw-top__cluster {
@@ -1336,6 +1344,64 @@ button.rw-legend-status-btn:focus-visible {
   display: none !important;
 }
 
+/*
+ * TV mode hides .rw-top, so the dashboard back control lives as a chart overlay
+ * in the top-left of the TV header strip (outside the iframe — always visible).
+ * Styled like a native TV header icon: flat glyph, no filled chip.
+ */
+.rw-chart-back {
+  display: none;
+}
+
+.rw-root--tv .rw-chart-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #131722;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: none;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.rw-root--tv .rw-chart-back .sx-ico,
+.rw-root--tv .rw-chart-back svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.rw-root--tv .rw-chart-back:hover {
+  background: rgba(43, 49, 57, 0.06);
+  color: #131722;
+}
+
+.rw-root--tv .rw-chart-back:focus-visible {
+  outline: 2px solid #2962ff;
+  outline-offset: -2px;
+}
+
+.rw-root--tv[data-chart-theme='dark'] .rw-chart-back {
+  background: transparent;
+  color: #d1d4dc;
+  box-shadow: none;
+}
+
+.rw-root--tv[data-chart-theme='dark'] .rw-chart-back:hover {
+  background: rgba(209, 212, 220, 0.08);
+  color: #d1d4dc;
+}
+
 .rw-root--tv .rw-subbar__stack {
   display: none !important;
 }
@@ -1831,23 +1897,27 @@ button.rw-legend-status-btn:focus-visible {
   overflow: visible;
 }
 
-/* TradingView-style: dock sits bottom-center inside the chart pane (original place).
-   Hide via .rw-symbol-search-open / TV overlay JS when popups open — do not shift layout. */
+/* TradingView-style: floating replay panel over the chart (draggable). */
 .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--tv,
 .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv {
   position: absolute !important;
-  left: 50% !important;
-  right: auto !important;
-  top: auto !important;
-  bottom: 0 !important;
-  height: 40px !important;
-  transform: translateX(-50%) !important;
-  z-index: 40 !important;
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: 56px;
+  height: auto !important;
+  transform: translateX(-50%);
+  z-index: 45 !important;
   display: flex !important;
   align-items: center;
   justify-content: center;
   overflow: visible !important;
   pointer-events: none;
+}
+
+.rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv.rw-replay-dock--user-pos {
+  transform: none;
+  bottom: auto;
 }
 
 /* While Symbol search is open (class toggled from JS), never paint bar replay over it. */
@@ -1860,41 +1930,498 @@ button.rw-legend-status-btn:focus-visible {
   pointer-events: none !important;
 }
 
-/* TradingView-style compact replay bar (Select · Play · Step · 1x · 1m · End).
-   Flat / integrated into the chart's bottom toolbar — no floating card (no bg/border/shadow).
-   High-specificity (floating.tv + theme) to beat the generic --tv bar theme rules. */
+/* Floating TV replay card over the chart. */
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar,
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar,
 .rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar {
-  height: 32px;
-  padding: 0 4px;
-  border: none;
-  border-bottom: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  height: 48px;
+  padding: 0 14px 0 4px;
+  border: 1px solid rgba(19, 23, 34, 0.1);
+  border-radius: 12px;
+  background: #ffffff;
+  /* FXReplay-style soft under-bar shade (elevation). */
+  box-shadow:
+    0 1px 2px rgba(19, 23, 34, 0.06),
+    0 4px 12px rgba(19, 23, 34, 0.1),
+    0 10px 28px rgba(19, 23, 34, 0.12);
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   pointer-events: auto;
   overflow: visible;
 }
 
-/* Fixed footer dock — no drag handle, no grab cursor. */
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__drag {
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar {
+  background: #1e222d;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.35),
+    0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv {
+  --rw-tv-chip-h: 36px;
+  --rw-tv-chip-r: 12px;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__drag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 26px;
+  height: var(--rw-tv-chip-h);
+  margin: 0 2px 0 8px;
+  padding: 0;
+  border: none;
+  border-radius: var(--rw-tv-chip-r, 12px);
+  background: transparent;
+  color: #131722;
+  cursor: grab;
+  flex-shrink: 0;
+  touch-action: none;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__drag:hover {
+  background: transparent;
+  color: #0b0e14;
+}
+
+/* Select + playback controls — same inset rounded-rect chip geometry. */
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-wrap,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__transport-anchor {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  height: auto;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-split {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--rw-tv-chip-h);
+  overflow: visible;
+  border-radius: 0;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__transport {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--rw-tv-chip-h);
+  overflow: visible;
+  border-radius: 0;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__transport
+  > .rw-replay-dock__speed-wrap {
+  box-sizing: border-box;
+  flex: 0 0 var(--rw-tv-chip-h);
+  width: var(--rw-tv-chip-h);
+  min-width: var(--rw-tv-chip-h);
+  max-width: var(--rw-tv-chip-h);
+  height: var(--rw-tv-chip-h);
+  margin: 0;
+  border: none;
+  border-radius: var(--rw-tv-chip-r);
+  box-shadow: none;
+  align-self: center;
+  overflow: hidden;
+}
+
+/* Icon chips — square rounded rect (same shape as marked play button). */
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__transport
+  > .rw-replay-dock__tico[data-rw='play'],
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__transport
+  > .rw-replay-dock__tico[data-rw='fwd'] {
+  box-sizing: border-box;
+  flex: 0 0 var(--rw-tv-chip-h);
+  width: var(--rw-tv-chip-h);
+  min-width: var(--rw-tv-chip-h);
+  max-width: var(--rw-tv-chip-h);
+  height: var(--rw-tv-chip-h);
+  margin: 0;
+  border: none;
+  border-radius: var(--rw-tv-chip-r);
+  box-shadow: none;
+  align-self: center;
+  overflow: hidden;
+}
+
+/* Select dropdown chevron — black chip; width ~30% narrower than play chip. */
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-chev,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-chev:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-chev--open,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev[aria-expanded='true'],
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-chev--open:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev[aria-expanded='true']:hover,
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev,
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev:hover,
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev--open,
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev[aria-expanded='true'],
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev:hover,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev--open,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev[aria-expanded='true'] {
+  --rw-tv-select-chev-w: calc(var(--rw-tv-chip-h, 36px) * 0.7);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--rw-tv-select-chev-w);
+  width: var(--rw-tv-select-chev-w);
+  min-width: var(--rw-tv-select-chev-w);
+  max-width: var(--rw-tv-select-chev-w);
+  height: var(--rw-tv-chip-h);
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--rw-tv-chip-r);
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  /* ~20% darker than #f0f3fa for the chevron mark */
+  color: #c0c4cc;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-chev::before {
   display: none;
 }
 
-.rw-chart-replay-dock.rw-replay-dock--tv,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-chev:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-chev--open:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev[aria-expanded='true']:hover {
+  background: #1e222d;
+  color: #b8bcc6;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico--end {
+  box-sizing: border-box;
+  width: var(--rw-tv-chip-h);
+  min-width: var(--rw-tv-chip-h);
+  max-width: var(--rw-tv-chip-h);
+  height: var(--rw-tv-chip-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  border-radius: var(--rw-tv-chip-r);
+  overflow: hidden;
+}
+
+/* Labels on the floating TV bar (Select bar · 1x · 1m). */
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select--main,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__speed-btn,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tf {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Select bar — always full rounded chip (idle / hover / selected). */
+/* Select bar — always full rounded chip (idle / hover / selected). */
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select--main {
+  font-weight: 500;
+  height: var(--rw-tv-chip-h);
+  align-self: center;
+  border-radius: var(--rw-tv-chip-r, 12px);
+  overflow: hidden;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select--main:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--picking,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--selected,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main[aria-pressed='true'],
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--picking:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--selected:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main[aria-pressed='true']:hover,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main:hover,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--picking,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--selected,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main[aria-pressed='true'],
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--picking:hover,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--selected:hover,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main[aria-pressed='true']:hover {
+  border-radius: var(--rw-tv-chip-r, 12px);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__speed-btn {
+  box-sizing: border-box;
+  flex: 0 0 var(--rw-tv-chip-h);
+  width: var(--rw-tv-chip-h);
+  min-width: var(--rw-tv-chip-h);
+  max-width: var(--rw-tv-chip-h);
+  height: var(--rw-tv-chip-h);
+  padding: 0;
+  justify-content: center;
+  border-radius: var(--rw-tv-chip-r);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico {
+  width: var(--rw-tv-chip-h);
+  height: var(--rw-tv-chip-h);
+  justify-content: center;
+  border-radius: var(--rw-tv-chip-r);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  flex: 0 0 var(--rw-tv-chip-h);
+  width: var(--rw-tv-chip-h);
+  min-width: var(--rw-tv-chip-h);
+  max-width: var(--rw-tv-chip-h);
+  height: var(--rw-tv-chip-h);
+  min-height: var(--rw-tv-chip-h);
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  border-radius: var(--rw-tv-chip-r);
+  overflow: hidden;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico svg,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico--end .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico--end svg {
+  width: 20px;
+  height: 20px;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__play-ico {
+  width: 20px;
+  height: 20px;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-ico .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-ico svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-chev .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-chev svg {
+  width: 18px;
+  height: 14px;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval-chev .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval-chev svg {
+  width: 13px;
+  height: 13px;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__drag .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__drag svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Idle chips — rounded shape, light surface, dark marks (readable). */
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__speed-btn,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='play'],
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='fwd'],
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico--end {
+  border-radius: var(--rw-tv-chip-r, 12px);
+  background: transparent;
+  color: var(--rw-tv-ctrl-fg, #131722);
+  border: none;
+  box-shadow: none;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__speed-btn:hover:not([aria-expanded='true']),
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='play']:hover:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='fwd']:hover:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico--end:hover:not(:disabled) {
+  background: var(--rw-tv-ctrl-fill-hover, #f0f3fa);
+  color: var(--rw-tv-ctrl-fg, #131722);
+}
+
+/* Keep idle transparent even when the speed button retains focus after click. */
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__speed-btn:focus:not(:hover):not([aria-expanded='true']),
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__speed-btn:focus-visible:not(:hover):not([aria-expanded='true']) {
+  background: transparent;
+  color: var(--rw-tv-ctrl-fg, #131722);
+}
+
+/*
+ * Selected / active only — black rounded fill + white mark (like Select bar).
+ */
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--picking,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--selected,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main[aria-pressed='true'],
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--picking:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--selected:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main[aria-pressed='true']:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__speed-btn[aria-expanded='true'],
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__speed-btn[aria-expanded='true']:hover,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='play'].rw-replay-dock__play--active,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='play'][aria-pressed='true'],
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='play'].rw-replay-dock__play--active:hover:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='play'][aria-pressed='true']:hover:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='fwd']:active:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='fwd'].rw-replay-dock__tico--pressed,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval--open,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__interval[aria-expanded='true'],
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico--end:active:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico--end.rw-replay-dock__tico--pressed,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--picking,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main.rw-replay-dock__select--selected,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select--main[aria-pressed='true'],
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__speed-btn[aria-expanded='true'],
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='play'].rw-replay-dock__play--active,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='play'][aria-pressed='true'] {
+  border-radius: var(--rw-tv-chip-r, 12px);
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
+  border: none;
+  box-shadow: none;
+}
+
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__speed-btn,
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='play']:not(.rw-replay-dock__play--active):not([aria-pressed='true']),
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='fwd'],
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__interval:not(.rw-replay-dock__interval--open):not([aria-expanded='true']),
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico--end {
+  background: transparent;
+  color: var(--rw-tv-ctrl-fg, #d1d4dc);
+  border-radius: var(--rw-tv-chip-r, 12px);
+}
+
+/* Show drag grip so the panel can be moved. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__drag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: var(--rw-tv-ctrl-h, 32px);
+  margin-left: 2px;
+  margin-right: 2px;
+  color: #131722;
+  opacity: 1;
+  cursor: grab;
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__drag:hover {
+  opacity: 1;
+  color: #0b0e14;
+  background: var(--rw-tv-ctrl-fill-hover, #f0f3fa);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__drag .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__drag svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__bar {
   cursor: default;
 }
 
 /* TV dock control chrome — outlined chips (black stroke, light fill, dark ink). */
 .rw-chart-replay-dock.rw-replay-dock--tv {
-  --rw-tv-ctrl-h: 32px;
+  --rw-tv-ctrl-h: 34px;
   --rw-tv-ctrl-border: #131722;
   --rw-tv-ctrl-border-w: 1.5px;
+  --rw-tv-panel-border: #b2b5be;
   --rw-tv-ctrl-radius: 6px;
   --rw-tv-ctrl-fill: #ffffff;
   --rw-tv-ctrl-fg: #131722;
@@ -1906,6 +2433,7 @@ button.rw-legend-status-btn:focus-visible {
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv {
   --rw-tv-ctrl-border: #d1d4dc;
+  --rw-tv-panel-border: #787b86;
   --rw-tv-ctrl-fill: #1e222d;
   --rw-tv-ctrl-fg: #d1d4dc;
   --rw-tv-ctrl-fill-hover: #2a2e39;
@@ -1933,11 +2461,14 @@ button.rw-legend-status-btn:focus-visible {
   cursor: pointer;
 }
 
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover:not([aria-expanded='true']),
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus:not([aria-expanded='true']),
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus-visible:not([aria-expanded='true']) {
+/* Hover only — no grey fill on :focus (play/pause stay clear after click). */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover:not([aria-expanded='true']) {
   background: var(--rw-tv-ctrl-fill-hover);
   color: var(--rw-tv-ctrl-fg);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus:not([aria-expanded='true']),
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus-visible:not([aria-expanded='true']) {
   outline: none;
 }
 
@@ -1958,9 +2489,7 @@ button.rw-legend-status-btn:focus-visible {
   color: var(--rw-tv-ctrl-fg);
 }
 
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover:not([aria-expanded='true']),
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus:not([aria-expanded='true']),
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:focus-visible:not([aria-expanded='true']) {
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn:hover:not([aria-expanded='true']) {
   background: var(--rw-tv-ctrl-fill-hover);
   color: var(--rw-tv-ctrl-fg);
 }
@@ -1998,7 +2527,7 @@ button.rw-legend-status-btn:focus-visible {
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main {
   background: transparent;
   color: var(--rw-tv-ctrl-fg, #131722);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval {
@@ -2006,9 +2535,9 @@ button.rw-legend-status-btn:focus-visible {
   margin: 0;
   height: var(--rw-tv-ctrl-h);
   min-height: var(--rw-tv-ctrl-h);
-  border: var(--rw-tv-ctrl-border-w) solid var(--rw-tv-ctrl-border);
+  border: none;
   border-radius: var(--rw-tv-ctrl-radius);
-  background: var(--rw-tv-ctrl-fill);
+  background: transparent;
   box-shadow: none;
   font-weight: 600;
   color: var(--rw-tv-ctrl-fg);
@@ -2016,26 +2545,26 @@ button.rw-legend-status-btn:focus-visible {
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval:hover {
   background: var(--rw-tv-ctrl-fill-hover);
-  border-color: var(--rw-tv-ctrl-border);
+  border: none;
   color: var(--rw-tv-ctrl-fg);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval--open,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval[aria-expanded='true'] {
   background: var(--rw-tv-ctrl-active-fill, #131722);
-  border-color: var(--rw-tv-ctrl-border);
+  border: none;
   color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval {
-  border-color: var(--rw-tv-ctrl-border);
+  border: none;
   color: var(--rw-tv-ctrl-fg);
-  background: var(--rw-tv-ctrl-fill);
+  background: transparent;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval:hover {
   background: var(--rw-tv-ctrl-fill-hover);
-  border-color: var(--rw-tv-ctrl-border);
+  border: none;
   color: var(--rw-tv-ctrl-fg);
 }
 
@@ -2051,17 +2580,17 @@ button.rw-legend-status-btn:focus-visible {
   display: none !important;
 }
 
-/* Pinned TV footer dock — always visible, vertically centered in the time-axis strip. */
+/* Default / free-float TV dock — bottom-center until user drags. */
 .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--pinned,
 .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--pinned {
   position: absolute !important;
-  left: 50% !important;
-  right: auto !important;
-  top: auto !important;
-  bottom: 0 !important;
-  height: 40px !important;
-  transform: translateX(-50%) !important;
-  z-index: 40 !important;
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: 56px;
+  height: auto !important;
+  transform: translateX(-50%);
+  z-index: 45 !important;
   display: flex !important;
   align-items: center;
   justify-content: center;
@@ -2077,9 +2606,9 @@ button.rw-legend-status-btn:focus-visible {
 
 .rw-replay-dock--dragging .rw-replay-dock__bar {
   box-shadow:
-    0 0 0 1px rgba(19, 23, 34, 0.06),
-    0 14px 40px rgba(19, 23, 34, 0.16),
-    0 4px 10px rgba(19, 23, 34, 0.08);
+    0 2px 4px rgba(19, 23, 34, 0.08),
+    0 8px 20px rgba(19, 23, 34, 0.14),
+    0 16px 40px rgba(19, 23, 34, 0.16);
 }
 
 .rw-replay-dock--dragging,
@@ -2092,6 +2621,32 @@ button.rw-legend-status-btn:focus-visible {
 body.rw-replay-dock-dragging,
 body.rw-replay-dock-dragging * {
   cursor: grabbing !important;
+}
+
+/* While dragging the replay bar — dim the chart (FXReplay-style); dock stays bright above. */
+.rw-chart-canvas::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: rgba(19, 23, 34, 0.34);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+}
+
+.rw-chart-canvas.rw-chart-canvas--dock-dragging::after,
+body.rw-replay-dock-dragging .rw-chart-canvas::after {
+  opacity: 1;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-canvas::after {
+  background: rgba(0, 0, 0, 0.48);
+}
+
+.rw-chart-canvas.rw-chart-canvas--dock-dragging > .rw-chart-replay-dock,
+body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
+  z-index: 46 !important;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__scrub-wrap {
@@ -2128,10 +2683,21 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval {
-  height: var(--rw-tv-ctrl-h, 32px);
+  box-sizing: border-box;
+  flex: 0 0 var(--rw-tv-chip-h, 36px);
+  width: var(--rw-tv-chip-h, 36px);
+  min-width: var(--rw-tv-chip-h, 36px);
+  max-width: var(--rw-tv-chip-h, 36px);
+  height: var(--rw-tv-chip-h, 36px);
+  min-height: var(--rw-tv-chip-h, 36px);
   margin: 0;
-  padding: 0 10px 0 11px;
-  border-radius: var(--rw-tv-ctrl-radius);
+  padding: 0;
+  border-radius: var(--rw-tv-chip-r, 12px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  overflow: hidden;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__interval-chev .sx-ico,
@@ -2341,16 +2907,16 @@ body.rw-replay-dock-dragging * {
   height: var(--rw-tv-ctrl-h);
 }
 
-/* Select + chevron share one outlined shell (aligned, no gap sliver). */
+/* Select + chevron share one shell — no outline (panel edge provides the frame). */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-split {
   box-sizing: border-box;
   display: inline-flex;
   align-items: stretch;
   height: var(--rw-tv-ctrl-h);
   gap: 0;
-  border: var(--rw-tv-ctrl-border-w) solid var(--rw-tv-ctrl-border);
+  border: none;
   border-radius: var(--rw-tv-ctrl-radius);
-  background: var(--rw-tv-ctrl-fill);
+  background: transparent;
   box-shadow: none;
   overflow: hidden;
 }
@@ -2368,39 +2934,42 @@ body.rw-replay-dock-dragging * {
   font: 600 13px/1 var(--rw-font);
   letter-spacing: -0.01em;
   box-shadow: none;
+  outline: none;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main:hover {
   background: var(--rw-tv-ctrl-fill-hover);
-  border-color: transparent;
+  border: none;
   color: var(--rw-tv-ctrl-fg);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main {
-  border-color: transparent;
+  border: none;
   background: transparent;
   color: var(--rw-tv-ctrl-fg);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main:hover {
-  border-color: transparent;
+  border: none;
   background: var(--rw-tv-ctrl-fill-hover);
   color: var(--rw-tv-ctrl-fg);
 }
 
+/* Only the label side turns black — chevron stays on the light shell. */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true'] {
-  background: var(--rw-tv-ctrl-active-fill);
-  border-color: transparent;
-  color: var(--rw-tv-ctrl-active-fg);
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  border: none;
+  border-radius: calc(var(--rw-tv-ctrl-radius) - 1px) 0 0 calc(var(--rw-tv-ctrl-radius) - 1px);
+  color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking:hover,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected:hover,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true']:hover {
   background: #1e222d;
-  border-color: transparent;
+  border: none;
   color: #ffffff;
 }
 
@@ -2419,12 +2988,13 @@ body.rw-replay-dock-dragging * {
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking,
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected,
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true'] {
-  background: var(--rw-tv-ctrl-active-fill);
-  border-color: transparent;
-  color: var(--rw-tv-ctrl-active-fg);
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  border: none;
+  color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev {
+  position: relative;
   box-sizing: border-box;
   width: 28px;
   min-height: 0;
@@ -2432,35 +3002,64 @@ body.rw-replay-dock-dragging * {
   margin: 0;
   padding: 0;
   border: none;
-  border-left: 1px solid var(--rw-tv-ctrl-border);
   border-radius: 0;
   background: transparent;
   color: var(--rw-tv-ctrl-fg);
   box-shadow: none;
+  outline: none;
+}
+
+/* Fixed 1px divider — avoid border-left so hover/focus border-color rules cannot thicken it. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--rw-tv-panel-border, #b2b5be);
+  pointer-events: none;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev:hover {
   background: var(--rw-tv-ctrl-fill-hover);
-  border-color: var(--rw-tv-ctrl-border);
+  border: none;
   color: var(--rw-tv-ctrl-fg);
 }
 
+/* Dropdown open: keep chevron light — only the Select label goes black. */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev[aria-expanded='true'] {
-  background: var(--rw-tv-ctrl-active-fill, #131722);
-  border-left-color: rgba(240, 243, 250, 0.25);
-  color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
+  background: transparent;
+  border: none;
+  color: var(--rw-tv-ctrl-fg);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open:hover,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev[aria-expanded='true']:hover {
+  background: var(--rw-tv-ctrl-fill-hover);
+  color: var(--rw-tv-ctrl-fg);
+}
+
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open::before,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev[aria-expanded='true']::before {
+  background: var(--rw-tv-ctrl-border);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev {
-  border-left-color: var(--rw-tv-ctrl-border);
+  border: none;
   background: transparent;
   color: var(--rw-tv-ctrl-fg);
 }
 
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev::before {
+  background: var(--rw-tv-panel-border, #787b86);
+}
+
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev:hover,
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open {
-  border-left-color: var(--rw-tv-ctrl-border);
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open,
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev[aria-expanded='true'] {
+  border: none;
   background: var(--rw-tv-ctrl-fill-hover);
   color: var(--rw-tv-ctrl-fg);
 }
@@ -2509,22 +3108,22 @@ body.rw-replay-dock-dragging * {
   height: var(--rw-tv-ctrl-h);
 }
 
-/* Speed + play + skip share one outlined chip — clip hover fill inside the border. */
+/* Speed + play + skip — no outline (panel edge provides the frame). */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport {
   box-sizing: border-box;
   display: inline-flex;
   align-items: stretch;
   height: var(--rw-tv-ctrl-h);
   margin: 0;
-  border: var(--rw-tv-ctrl-border-w) solid var(--rw-tv-ctrl-border);
+  border: none;
   border-radius: var(--rw-tv-ctrl-radius);
-  background: var(--rw-tv-ctrl-fill);
+  background: transparent;
   overflow: hidden;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__tico,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__speed-wrap {
-  border-right: 1px solid rgba(19, 23, 34, 0.12);
+  border-right: 1px solid var(--rw-tv-panel-border, #b2b5be);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__tico,
@@ -2604,8 +3203,22 @@ body.rw-replay-dock-dragging * {
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play-ico .sx-ico,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play-ico svg {
   display: block;
-  /* Outline play triangle reads optically low vs step-fwd; nudge to match. */
-  transform: translateY(-1px);
+}
+
+/* Solid play triangle — fill only (tico rule sets stroke: currentColor). */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play-ico--play .sx-ico,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play-ico--play svg,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play-ico--play path {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* Skip / last bar — solid triangle (+ bars); don't stroke filled shapes. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'] path:first-child,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end path:first-child,
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end rect {
+  fill: currentColor;
+  stroke: none;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .sx-ico--replay-tv {
@@ -2620,19 +3233,27 @@ body.rw-replay-dock-dragging * {
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end {
   box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
   color: var(--rw-tv-ctrl-fg);
   width: var(--rw-tv-ctrl-h);
   height: var(--rw-tv-ctrl-h);
   min-height: var(--rw-tv-ctrl-h);
-  border: var(--rw-tv-ctrl-border-w) solid var(--rw-tv-ctrl-border);
+  margin: 0;
+  padding: 0;
+  border: none;
   border-radius: var(--rw-tv-ctrl-radius);
-  background: var(--rw-tv-ctrl-fill);
+  background: transparent;
   box-shadow: none;
+  line-height: 0;
+  font-size: 0;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:hover:not(:disabled) {
   background: var(--rw-tv-ctrl-fill-hover);
-  border-color: var(--rw-tv-ctrl-border);
+  border: none;
   color: var(--rw-tv-ctrl-fg);
 }
 
@@ -2669,6 +3290,7 @@ body.rw-replay-dock-dragging * {
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'][aria-pressed='true'] {
   background: var(--rw-tv-ctrl-active-fill, #131722);
   color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
+  border-radius: 0;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'].rw-replay-dock__play--active:hover:not(:disabled),
@@ -3538,7 +4160,9 @@ body.rw-replay-dock-dragging * {
   position: absolute;
   left: 0;
   z-index: 30;
-  min-width: 232px;
+  width: max-content;
+  min-width: 0;
+  max-width: none;
   padding: 0 0 4px;
   background: #fff;
   border: 1px solid var(--rw-border);
@@ -3579,6 +4203,7 @@ body.rw-replay-dock-dragging * {
   color: var(--rw-bright);
   font: 500 13px var(--rw-font);
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -3587,12 +4212,12 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-replay-start-menu__item--active {
-  background: #363a45;
-  color: #fff;
+  background: #131722;
+  color: #f0f3fa;
 }
 
 .rw-replay-start-menu__item--active:hover {
-  background: #434651;
+  background: #1e222d;
   color: #fff;
 }
 
@@ -3610,7 +4235,7 @@ body.rw-replay-dock-dragging * {
   height: 18px;
 }
 
-/* Replay speed dropdown (10x … 0.1x), opens upward above the speed button. */
+/* Replay speed dropdown (10x … 0.1x); flips above/below by available space. */
 .rw-replay-dock__speed-wrap {
   position: relative;
   display: inline-flex;
@@ -3620,7 +4245,9 @@ body.rw-replay-dock-dragging * {
 .rw-replay-speed-menu {
   position: absolute;
   left: 50%;
+  /* Default above; JS flips to --below when the dock is near the top. */
   bottom: calc(100% + 8px);
+  top: auto;
   transform: translateX(-50%);
   z-index: 40;
   min-width: 244px;
@@ -3629,6 +4256,20 @@ body.rw-replay-dock-dragging * {
   border: 1px solid var(--rw-border);
   border-radius: 6px;
   box-shadow: 0 6px 24px rgba(19, 23, 34, 0.2);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.rw-replay-speed-menu--below {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+.rw-replay-speed-menu--above {
+  bottom: calc(100% + 8px);
+  top: auto;
 }
 
 .rw-replay-speed-menu[hidden] {
@@ -3636,11 +4277,15 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-replay-speed-menu__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   padding: 9px 14px 7px;
   font: 600 10px var(--rw-font);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--rw-text);
+  background: #fff;
 }
 
 .rw-replay-speed-menu__item {
@@ -5777,12 +6422,12 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-root[data-chart-theme='dark'] .rw-replay-start-menu__item--active {
-  background: #2962ff;
-  color: #fff;
+  background: #131722;
+  color: #f0f3fa;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-replay-start-menu__item--active:hover {
-  background: #3d71ff;
+  background: #1e222d;
   color: #fff;
 }
 
@@ -5790,6 +6435,10 @@ body.rw-replay-dock-dragging * {
   background: #1e222d;
   border-color: var(--rw-border-strong);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-replay-speed-menu__head {
+  background: #1e222d;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-replay-speed-menu__item {
@@ -6060,15 +6709,15 @@ body.rw-replay-dock-dragging * {
 }
 
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-split {
-  background: var(--rw-tv-ctrl-fill, #ffffff);
-  border-color: var(--rw-tv-ctrl-border, #131722);
+  background: transparent;
+  border: none;
 }
 
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--picking,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true'] {
   background: var(--rw-tv-ctrl-active-fill, #131722);
-  border-color: transparent;
+  border: none;
   color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
 }
 
@@ -6076,30 +6725,39 @@ body.rw-replay-dock-dragging * {
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main.rw-replay-dock__select--selected:hover,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select--main[aria-pressed='true']:hover {
   background: #1e222d;
-  border-color: transparent;
+  border: none;
   color: #ffffff;
 }
 
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end {
-  background: var(--rw-tv-ctrl-fill, #ffffff);
+  background: transparent;
   color: var(--rw-tv-ctrl-fg, #131722);
-  border-color: var(--rw-tv-ctrl-border, #131722);
+  border: none;
 }
 
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev {
   background: transparent;
   color: var(--rw-tv-ctrl-fg, #131722);
-  border-left-color: var(--rw-tv-ctrl-border, #131722);
+  border: none;
 }
 
-.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev:hover,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev::before {
+  background: var(--rw-tv-panel-border, #b2b5be);
+}
+
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval:hover,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:hover:not(:disabled) {
   background: var(--rw-tv-ctrl-fill-hover, #f0f3fa);
   color: var(--rw-tv-ctrl-fg, #131722);
-  border-color: var(--rw-tv-ctrl-border, #131722);
+  border: none;
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev:hover {
+  background: var(--rw-tv-ctrl-fill-hover, #f0f3fa);
+  color: var(--rw-tv-ctrl-fg, #131722);
+  border: none;
 }
 
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico,
@@ -6118,7 +6776,60 @@ body.rw-replay-dock-dragging * {
 
 /* Open/active fills after default ink so light text wins over the rules above. */
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open,
-.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev[aria-expanded='true'],
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev[aria-expanded='true'] {
+  background: transparent;
+  color: var(--rw-tv-ctrl-fg, #131722);
+  border: none;
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open:hover,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev[aria-expanded='true']:hover {
+  background: var(--rw-tv-ctrl-fill-hover, #f0f3fa);
+  color: var(--rw-tv-ctrl-fg, #131722);
+}
+
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev--open::before,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__select-chev[aria-expanded='true']::before {
+  background: var(--rw-tv-panel-border, #b2b5be);
+}
+
+/* Floating TV: keep black chevron chip + ~20% darker mark over light-theme defaults. */
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev:hover,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev--open,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev[aria-expanded='true'],
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev--open:hover,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev[aria-expanded='true']:hover {
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  color: #c0c4cc;
+  border: none;
+}
+
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev:hover,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev--open:hover,
+.rw-root[data-chart-theme='light']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__select-chev[aria-expanded='true']:hover {
+  background: #1e222d;
+  color: #b8bcc6;
+}
+
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval--open,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__interval[aria-expanded='true'],
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true'],
@@ -6133,7 +6844,7 @@ body.rw-replay-dock-dragging * {
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end.rw-replay-dock__tico--pressed {
   background: var(--rw-tv-ctrl-active-fill, #131722);
   color: #f0f3fa;
-  border-color: var(--rw-tv-ctrl-border, #131722);
+  border: none;
 }
 
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true'] [data-rw-replay-speed-label] {
@@ -7231,6 +7942,13 @@ body.rw-replay-dock-dragging * {
   min-width: 12px;
 }
 
+.rw-trade-ticket {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .rw-trade-bar__actions {
   display: inline-flex;
   align-items: center;
@@ -7430,15 +8148,32 @@ body.rw-replay-dock-dragging * {
     0 2px 8px rgba(17, 24, 39, 0.06);
 }
 
+.rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar {
+  border: 1px solid rgba(19, 23, 34, 0.1);
+  height: 48px;
+  padding: 0 14px 0 4px;
+  border-radius: 12px;
+  box-shadow:
+    0 1px 2px rgba(19, 23, 34, 0.06),
+    0 4px 12px rgba(19, 23, 34, 0.1),
+    0 10px 28px rgba(19, 23, 34, 0.12);
+}
+
 .rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__scrub-wrap {
   flex-basis: 104px;
   width: 104px;
 }
 
-.rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__play {
+.rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--floating:not(.rw-replay-dock--tv) .rw-replay-dock__play {
   width: 32px;
   height: 32px;
   border-radius: 8px;
+}
+
+.rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'],
+.rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play,
+.rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__play--active {
+  border-radius: 0;
 }
 
 .rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__switch-input:checked + .rw-replay-dock__switch-ui {

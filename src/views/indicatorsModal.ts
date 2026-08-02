@@ -44,6 +44,7 @@ function isCommunityNav(id: NavId): boolean {
   return COMMUNITY_NAV_IDS.includes(id)
 }
 
+/** Options for the chart Indicators dialog (single declaration — do not re-export). */
 export type IndicatorsModalOptions = {
   root: HTMLElement
   onOpenChange?: (open: boolean) => void

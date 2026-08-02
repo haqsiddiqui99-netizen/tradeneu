@@ -38,27 +38,59 @@ const FAV_CLICK_DELAY_MS = 250
 
 function positionPanel(anchor: HTMLElement, panel: HTMLElement, variant: 'default' | 'replay' = 'default') {
   const r = anchor.getBoundingClientRect()
-  const pad = 4
+  const pad = variant === 'replay' ? 6 : 4
   const toolbarClearance = 48
+  const edgePad = 8
+  const minScrollH = 100
   const panelW = panel.offsetWidth || (variant === 'replay' ? 220 : 154)
-  const panelH = panel.offsetHeight || 120
   const left =
     variant === 'replay'
       ? r.left + r.width / 2 - panelW / 2
       : r.left
   panel.style.left = `${Math.max(8, Math.min(left, window.innerWidth - panelW - 8))}px`
 
-  const spaceAbove = r.top - toolbarClearance
-  const spaceBelow = window.innerHeight - r.bottom
-  const openBelow =
-    spaceBelow >= panelH + pad && (spaceBelow >= spaceAbove || r.top < window.innerHeight * 0.45)
+  const scroll = panel.querySelector<HTMLElement>('.rw-intmenu__scroll')
+  panel.style.maxHeight = ''
+  if (scroll) scroll.style.maxHeight = ''
+
+  const head = panel.querySelector<HTMLElement>('.rw-intmenu__tv-head')
+  const foot = panel.querySelector<HTMLElement>('.rw-intmenu__tv-foot')
+  const chromeH = (head?.offsetHeight ?? 0) + (foot?.offsetHeight ?? 0)
+  const naturalH = panel.scrollHeight || panel.offsetHeight || 120
+
+  const spaceAbove = Math.max(0, r.top - toolbarClearance - pad)
+  const spaceBelow = Math.max(0, window.innerHeight - r.bottom - pad - edgePad)
+
+  let openBelow: boolean
+  if (variant === 'replay') {
+    // Prefer the side with more room so the menu never covers the replay dock.
+    openBelow = spaceBelow > spaceAbove || r.top < window.innerHeight * 0.45
+  } else {
+    openBelow =
+      spaceBelow >= naturalH + pad && (spaceBelow >= spaceAbove || r.top < window.innerHeight * 0.45)
+    if (spaceBelow < naturalH + pad && spaceAbove < naturalH + pad) {
+      openBelow = spaceBelow >= spaceAbove
+    }
+  }
+
+  const avail = openBelow ? spaceBelow : spaceAbove
+  // Hard-cap to available space so the menu never overlaps the replay bar / toolbar.
+  const maxPanelH = avail > 0 ? avail : minScrollH
+  panel.style.maxHeight = `${maxPanelH}px`
+  if (scroll) {
+    scroll.style.maxHeight = `${Math.max(48, maxPanelH - chromeH)}px`
+    scroll.scrollTop = 0
+  }
 
   panel.classList.toggle('rw-intmenu--below', openBelow)
   panel.classList.toggle('rw-intmenu--above', !openBelow)
+
+  const h = Math.min(panel.offsetHeight || maxPanelH, maxPanelH)
   if (openBelow) {
     panel.style.top = `${r.bottom + pad}px`
   } else {
-    panel.style.top = `${Math.max(toolbarClearance, r.top - pad - panelH)}px`
+    // Sit fully above the anchor with a gap — no overlap with the replay bar.
+    panel.style.top = `${Math.max(toolbarClearance, r.top - pad - h)}px`
   }
 }
 
@@ -434,7 +466,15 @@ export function createChartIntervalMenu(opts: {
     if (!menuOpen) return
     menuOpen = false
     opts.onOpenChange?.(false)
-    root.classList.remove('rw-intmenu--open')
+    root.classList.remove('rw-intmenu--open', 'rw-intmenu--above', 'rw-intmenu--below')
+    root.style.removeProperty('max-height')
+    root.style.removeProperty('top')
+    root.style.removeProperty('left')
+    const scrollEl = root.querySelector<HTMLElement>('.rw-intmenu__scroll')
+    if (scrollEl) {
+      scrollEl.style.removeProperty('max-height')
+      scrollEl.scrollTop = 0
+    }
     if (root.parentNode) root.parentNode.removeChild(root)
     clearDismissTargets()
     if (onDocMouseDown) {

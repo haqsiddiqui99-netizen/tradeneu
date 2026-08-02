@@ -230,6 +230,7 @@
   line-height: 18px;
   min-width: 220px;
   max-width: 260px;
+  /* Hard ceiling; JS caps further to available space above/below the dock. */
   max-height: min(420px, 60vh);
   padding: 0;
   border-radius: 6px;
@@ -275,8 +276,18 @@
 }
 
 .rw-intmenu--replay .rw-intmenu__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: min(300px, 42vh);
   padding: 4px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.rw-intmenu--replay .rw-intmenu__tv-head,
+.rw-intmenu--replay .rw-intmenu__tv-foot {
+  flex: 0 0 auto;
 }
 
 .rw-intmenu--replay .rw-intmenu__btn {
