@@ -11,8 +11,8 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-# Include devDependencies so `vite` / `tsc` are available for the image build.
-RUN npm ci --include=dev
+# Prefer install over ci: lockfile can drift across npm majors; still installs vite/tsc for build.
+RUN npm install --include=dev
 
 COPY . .
 RUN npm run build \
