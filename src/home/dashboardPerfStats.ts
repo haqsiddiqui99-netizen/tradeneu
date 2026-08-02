@@ -72,6 +72,38 @@ function collectPnlEvents(
   return events
 }
 
+/**
+ * Chart series: prefer closed journal trades (daily path); fall back to lastBacktest
+ * snapshots when a session has no closed trades in range (avoids double-counting).
+ */
+function collectChartPnlEvents(
+  sessions: StoredSession[],
+  range: DashboardPerfRange,
+  now = Date.now(),
+): PnlEvent[] {
+  const events: PnlEvent[] = []
+  for (const session of sessions) {
+    if (session.sessionType !== 'backtest' && session.sessionType !== 'prop') continue
+
+    const closed = session.replayState?.account.closedTrades ?? []
+    let tradeCount = 0
+    for (const trade of closed) {
+      const ts = trade.exitTime * 1000
+      if (!inRange(ts, range, now)) continue
+      tradeCount += 1
+      events.push({ ts, pnl: trade.pnl })
+    }
+
+    if (tradeCount > 0) continue
+
+    const bt = session.lastBacktest
+    if (bt && inRange(bt.ranAt, range, now) && session.sessionType !== 'prop') {
+      events.push({ ts: bt.ranAt, pnl: bt.netPnl })
+    }
+  }
+  return events
+}
+
 function countJournalTrades(session: StoredSession, range: DashboardPerfRange, now: number): number {
   const closed = session.replayState?.account.closedTrades ?? []
   return closed.filter((t) => inRange(t.exitTime * 1000, range, now)).length
@@ -153,42 +185,19 @@ export function computeDashboardPerfTotals(
   return { netPnl, sessionsActive, tradesTaken, winRate, hasData }
 }
 
-function niceMoneyCeiling(maxAbs: number): number {
-  if (!Number.isFinite(maxAbs) || maxAbs <= 0) return 100
-  const padded = maxAbs * 1.15
-  const pow = 10 ** Math.floor(Math.log10(padded))
-  const n = padded / pow
-  let nice: number
-  if (n <= 1) nice = 1
-  else if (n <= 2) nice = 2
-  else if (n <= 5) nice = 5
-  else nice = 10
-  return nice * pow
-}
-
-function valueToY(v: number, y0: number, y1: number, yMax: number): number {
-  if (yMax <= 0) return y1
-  const t = Math.min(1, Math.max(0, v / yMax))
-  return y1 - t * (y1 - y0)
-}
-
-/** Map value onto a bidirectional plot: vMax at top (y0), vMin at bottom (y1). */
-function valueToYRange(v: number, y0: number, y1: number, vMin: number, vMax: number): number {
-  const span = vMax - vMin
-  if (!(span > 0)) return (y0 + y1) / 2
-  const t = (v - vMin) / span
-  return y1 - t * (y1 - y0)
-}
-
 function formatMoneyTick(v: number, emphasize = false): string {
-  const sign = v < 0 ? '-' : ''
   const abs = Math.abs(v)
   let s: string
-  if (abs >= 1000) s = `${(abs / 1000).toFixed(1)}k`
+  if (abs >= 1_000_000) s = `${(abs / 1_000_000).toFixed(1)}M`
+  else if (abs >= 1000) s = `${(abs / 1000).toFixed(abs >= 10_000 ? 0 : 1)}k`
   else if (abs >= 100) s = abs.toFixed(0)
   else if (abs >= 10) s = abs.toFixed(1)
+  else if (abs < 0.005) s = '0'
   else s = abs.toFixed(2)
-  return emphasize || v === 0 ? `${sign}$${s}` : `${sign}${s}`
+  if (Math.abs(v) < 1e-9) return '$0'
+  const sign = v < 0 ? '-' : '+'
+  if (emphasize) return `${sign}$${s}`
+  return `${sign}${s}`
 }
 
 function formatBarPnlLabel(v: number): string {
@@ -201,19 +210,122 @@ function formatBarPnlLabel(v: number): string {
   return `${sign}${abs.toFixed(2)}`
 }
 
-function daysInCurrentMonth(now = new Date()): number {
-  return new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+function niceMoneyCeiling(maxAbs: number): number {
+  if (!Number.isFinite(maxAbs) || maxAbs <= 0) return 100
+  const padded = maxAbs * 1.12
+  const pow = 10 ** Math.floor(Math.log10(padded))
+  const n = padded / pow
+  let nice: number
+  if (n <= 1) nice = 1
+  else if (n <= 2) nice = 2
+  else if (n <= 5) nice = 5
+  else nice = 10
+  return nice * pow
 }
 
-function bucketDaily(events: PnlEvent[], now = new Date()): number[] {
-  const nDays = daysInCurrentMonth(now)
-  const buckets = new Array<number>(nDays).fill(0)
-  for (const e of events) {
-    const d = new Date(e.ts)
-    if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth()) continue
-    buckets[d.getDate() - 1] = (buckets[d.getDate() - 1] ?? 0) + e.pnl
+/** Evenly spaced nice ticks between vMin and vMax (inclusive), de-duped. */
+function niceAxisTicks(vMin: number, vMax: number, targetCount = 5): number[] {
+  if (!(vMax > vMin)) return [vMin]
+  const span = vMax - vMin
+  const rawStep = span / Math.max(1, targetCount - 1)
+  const mag = 10 ** Math.floor(Math.log10(Math.max(rawStep, 1e-9)))
+  const r = rawStep / mag
+  let step: number
+  if (r <= 1) step = mag
+  else if (r <= 2) step = 2 * mag
+  else if (r <= 5) step = 5 * mag
+  else step = 10 * mag
+
+  const start = Math.floor(vMin / step) * step
+  const ticks: number[] = []
+  for (let v = start; v <= vMax + step * 0.5; v += step) {
+    if (v < vMin - step * 0.01 || v > vMax + step * 0.01) continue
+    const rounded = Math.abs(v) < step * 1e-9 ? 0 : Number(v.toPrecision(12))
+    if (!ticks.length || Math.abs(ticks[ticks.length - 1]! - rounded) > step * 0.25) {
+      ticks.push(rounded)
+    }
   }
-  return buckets
+  if (!ticks.some((t) => Math.abs(t) < 1e-12) && vMin < 0 && vMax > 0) {
+    ticks.push(0)
+    ticks.sort((a, b) => a - b)
+  }
+  return ticks.length ? ticks : [vMin, vMax]
+}
+
+function valueToYRange(v: number, y0: number, y1: number, vMin: number, vMax: number): number {
+  const span = vMax - vMin
+  if (!(span > 0)) return (y0 + y1) / 2
+  const t = (v - vMin) / span
+  return y1 - t * (y1 - y0)
+}
+
+function valueToY(v: number, y0: number, y1: number, yMax: number): number {
+  if (yMax <= 0) return y1
+  const t = Math.min(1, Math.max(0, v / yMax))
+  return y1 - t * (y1 - y0)
+}
+
+function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+const CHART_MS_DAY = 86_400_000
+
+/** Daily buckets: last 7d / 30d ending today; if empty, last N days ending at latest event. */
+function bucketDailyForChart(
+  events: PnlEvent[],
+  range: DashboardPerfRange,
+  now = new Date(),
+): { vals: number[]; xLabels: string[]; minSlot: number; periodLabel: string } {
+  const nDays = range === 'week' ? 7 : 30
+
+  const build = (endDay: Date) => {
+    const end = startOfLocalDay(endDay)
+    const start = new Date(end)
+    start.setDate(start.getDate() - (nDays - 1))
+    const buckets = new Array<number>(nDays).fill(0)
+    const labels = new Array<string>(nDays)
+    for (let i = 0; i < nDays; i++) {
+      const day = new Date(start)
+      day.setDate(start.getDate() + i)
+      labels[i] = `${MONTH_SHORT[day.getMonth()]} ${String(day.getDate()).padStart(2, '0')}`
+    }
+    for (const e of events) {
+      const d = startOfLocalDay(new Date(e.ts))
+      if (d < start || d > end) continue
+      const idx = Math.round((d.getTime() - start.getTime()) / CHART_MS_DAY)
+      if (idx >= 0 && idx < nDays) buckets[idx] = (buckets[idx] ?? 0) + e.pnl
+    }
+    return {
+      vals: buckets,
+      xLabels: labels,
+      minSlot: range === 'week' ? 36 : 22,
+      periodLabel: `${formatChartDayLabel(start)} – ${formatChartDayLabel(end)}`,
+      start,
+      end,
+    }
+  }
+
+  let result = build(now)
+  const hasActivity = result.vals.some((v) => Math.abs(v) > 1e-9)
+  if (!hasActivity && events.length > 0) {
+    let latest = events[0]!
+    for (const e of events) {
+      if (e.ts > latest.ts) latest = e
+    }
+    result = build(new Date(latest.ts))
+  }
+
+  return {
+    vals: result.vals,
+    xLabels: result.xLabels,
+    minSlot: result.minSlot,
+    periodLabel: result.periodLabel,
+  }
+}
+
+function formatChartDayLabel(d: Date): string {
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function bucketMonthly(events: PnlEvent[], now = new Date()): number[] {
@@ -226,6 +338,42 @@ function bucketMonthly(events: PnlEvent[], now = new Date()): number[] {
   return buckets
 }
 
+function resolveChartEvents(
+  sessions: StoredSession[],
+  mode: DashboardPerfMode,
+  range: DashboardPerfRange,
+  now: number,
+): PnlEvent[] {
+  return mode === 'battles'
+    ? collectPnlEvents(sessions, mode, range, now)
+    : collectChartPnlEvents(sessions, range, now)
+}
+
+/** Human-readable period for the Net P&L path chart header. */
+export function describeDashboardPerfChartPeriod(
+  sessions: StoredSession[],
+  mode: DashboardPerfMode,
+  range: DashboardPerfRange,
+  view: DashboardTimeChartView,
+  now = Date.now(),
+): string {
+  const events = resolveChartEvents(sessions, mode, range, now)
+  const nowDate = new Date(now)
+  if (view === 'monthly') {
+    let year = nowDate.getFullYear()
+    const vals = bucketMonthly(events, nowDate)
+    if (events.length > 0 && vals.every((v) => Math.abs(v) < 1e-9)) {
+      let latest = events[0]!
+      for (const e of events) {
+        if (e.ts > latest.ts) latest = e
+      }
+      year = new Date(latest.ts).getFullYear()
+    }
+    return String(year)
+  }
+  return bucketDailyForChart(events, range, nowDate).periodLabel
+}
+
 export function buildDashboardPerfChartSvg(
   sessions: StoredSession[],
   mode: DashboardPerfMode,
@@ -233,156 +381,186 @@ export function buildDashboardPerfChartSvg(
   view: DashboardTimeChartView,
   now = Date.now(),
 ): string {
-  const events = collectPnlEvents(sessions, mode, range, now)
-  const yLabelX = 44
-  const x0 = 52
-  const y0 = 14
-  const y1 = 92
-  const xLabelY = 108
+  const events = resolveChartEvents(sessions, mode, range, now)
+  const yLabelX = 48
+  const x0 = 56
+  const y0 = 22
+  const y1 = 118
+  const xLabelY = 138
   const nowDate = new Date(now)
+  const gradUp = view === 'monthly' ? 'sx-dash-pnl-bar-up-m' : 'sx-dash-pnl-bar-up-d'
+  const gradDown = view === 'monthly' ? 'sx-dash-pnl-bar-down-m' : 'sx-dash-pnl-bar-down-d'
 
   let vals: number[]
   let xLabels: string[]
-  let minSlot: number
 
   if (view === 'monthly') {
     vals = bucketMonthly(events, nowDate)
+    if (events.length > 0 && vals.every((v) => Math.abs(v) < 1e-9)) {
+      let latest = events[0]!
+      for (const e of events) {
+        if (e.ts > latest.ts) latest = e
+      }
+      vals = bucketMonthly(events, new Date(latest.ts))
+    }
     xLabels = MONTH_SHORT
-    minSlot = 36
   } else {
-    const nDays = daysInCurrentMonth(nowDate)
-    vals = bucketDaily(events, nowDate)
-    xLabels = Array.from({ length: nDays }, (_, i) => String(i + 1).padStart(2, '0'))
-    minSlot = 22
+    const daily = bucketDailyForChart(events, range, nowDate)
+    vals = daily.vals
+    xLabels = daily.xLabels
   }
 
-  const n = vals.length
-  const plotInnerW = Math.max(520, minSlot * n)
-  const x1 = x0 + plotInnerW
-  const slot = plotInnerW / n
-
-  // Waterfall / candle bridge: each bar floats from prior cumulative level
-  type WaterfallStep = { i: number; from: number; to: number; delta: number }
+  // Build cumulative waterfall steps
+  type WaterfallStep = { label: string; from: number; to: number; delta: number }
   const steps: WaterfallStep[] = []
   let cum = 0
   let minLevel = 0
   let maxLevel = 0
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < vals.length; i++) {
     const delta = vals[i] ?? 0
     const from = cum
     cum += delta
     const to = cum
     minLevel = Math.min(minLevel, from, to)
     maxLevel = Math.max(maxLevel, from, to)
-    if (Math.abs(delta) > 1e-9) steps.push({ i, from, to, delta })
+    // Daily: only trading days (clears empty desert). Monthly: keep every month slot.
+    if (view === 'monthly' || Math.abs(delta) > 1e-9) {
+      steps.push({ label: xLabels[i] ?? '', from, to, delta })
+    }
   }
 
-  const topBound = maxLevel > 0 ? niceMoneyCeiling(maxLevel) : 0
-  const bottomBound = minLevel < 0 ? -niceMoneyCeiling(-minLevel) : 0
-  const vMax = topBound === 0 && bottomBound === 0 ? 100 : topBound === 0 ? Math.max(100, -bottomBound * 0.25) : topBound
-  const vMin = topBound === 0 && bottomBound === 0 ? 0 : bottomBound === 0 ? Math.min(0, -topBound * 0.05) : bottomBound
+  const emptySvg = (msg: string) =>
+    `<svg class="sx-dash-time-chart__svg sx-dash-time-chart__svg--fill sx-dash-time-chart__svg--empty" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" width="100%" preserveAspectRatio="xMidYMid meet" aria-hidden="true" data-time-chart-svg="${view}">
+  <text x="320" y="82" text-anchor="middle" fill="var(--sx-tc-xtext)" font-size="13" font-weight="600" font-family="inherit">${msg}</text>
+</svg>`
 
-  const tickCount = 4
-  const tickVals: number[] = []
-  for (let i = 0; i <= tickCount; i++) {
-    tickVals.push(vMin + ((vMax - vMin) * i) / tickCount)
+  if (view === 'daily' && steps.length === 0) {
+    return emptySvg('No closed trades in this period')
   }
-  if (vMin < 0 && vMax > 0 && !tickVals.some((t) => Math.abs(t) < 1e-9)) {
+
+  // Symmetric Y domain around zero: +$40k and -$40k share equal space
+  const peak = Math.max(Math.abs(minLevel), Math.abs(maxLevel), 1)
+  const bound = niceMoneyCeiling(peak * 1.05)
+  let vMax = bound
+  let vMin = -bound
+  if (bound < 1e-6) {
+    vMax = 100
+    vMin = -100
+  }
+
+  // Fixed symmetric ticks: +bound … 0 … -bound
+  const tickVals = niceAxisTicks(vMin, vMax, 5)
+  if (!tickVals.some((t) => Math.abs(t) < 1e-12)) {
     tickVals.push(0)
     tickVals.sort((a, b) => a - b)
   }
+  const filteredTicks: number[] = []
+  for (const v of tickVals) {
+    const y = valueToYRange(v, y0, y1, vMin, vMax)
+    if (filteredTicks.some((t) => Math.abs(valueToYRange(t, y0, y1, vMin, vMax) - y) < 14)) continue
+    filteredTicks.push(v)
+  }
+  const ticks = filteredTicks.length ? filteredTicks : [-bound, 0, bound]
+
+  const colCount = Math.max(1, steps.length)
+  const slot = view === 'monthly' ? 42 : Math.max(56, Math.min(88, 560 / colCount))
+  const plotInnerW = Math.max(520, slot * colCount)
+  const x1 = x0 + plotInnerW
+  const maxBw = view === 'monthly' ? 22 : 28
 
   const lines: string[] = []
   const yTicks: string[] = []
-  for (let i = 0; i < tickVals.length; i++) {
-    const v = tickVals[i]!
+  for (const v of ticks) {
     const y = valueToYRange(v, y0, y1, vMin, vMax)
-    lines.push(`<line x1="${x0}" y1="${y.toFixed(2)}" x2="${x1}" y2="${y.toFixed(2)}" />`)
-    const emphasize = i === 0 || i === tickVals.length - 1 || Math.abs(v) < 1e-9
+    const isZero = Math.abs(v) < 1e-9
+    lines.push(
+      `<line x1="${x0}" y1="${y.toFixed(2)}" x2="${x1}" y2="${y.toFixed(2)}" stroke-dasharray="${isZero ? '0' : '3 5'}" opacity="${isZero ? '0' : '0.7'}" />`,
+    )
     yTicks.push(
-      `<text x="${yLabelX}" y="${y.toFixed(2)}" text-anchor="end" dominant-baseline="middle" fill="var(--sx-tc-ytext)" font-size="10" font-weight="600" font-family="inherit">${formatMoneyTick(v, emphasize)}</text>`,
+      `<text x="${yLabelX}" y="${y.toFixed(2)}" text-anchor="end" dominant-baseline="middle" fill="var(--sx-tc-ytext)" font-size="10.5" font-weight="${isZero ? '700' : '600'}" font-family="inherit">${formatMoneyTick(v, isZero || v === ticks[0] || v === ticks[ticks.length - 1])}</text>`,
     )
   }
 
   const zeroY = valueToYRange(0, y0, y1, vMin, vMax)
-  const gradUp = view === 'monthly' ? 'sx-dash-pnl-bar-up-m' : 'sx-dash-pnl-bar-up-d'
-  const gradDown = view === 'monthly' ? 'sx-dash-pnl-bar-down-m' : 'sx-dash-pnl-bar-down-d'
   const connectors: string[] = []
   const bars: string[] = []
   const valueLabels: string[] = []
   const labels: string[] = []
-  const maxBw = view === 'monthly' ? 22 : 14
-
-  for (let i = 0; i < n; i++) {
-    const cx = x0 + (i + 0.5) * slot
-    labels.push(
-      `<text x="${cx.toFixed(2)}" y="${xLabelY}" text-anchor="middle" fill="var(--sx-tc-xtext)" font-size="9" font-weight="600" font-family="inherit">${xLabels[i] ?? ''}</text>`,
-    )
-  }
+  const scaleSpan = Math.max(Math.abs(vMax - vMin), 1)
 
   for (let s = 0; s < steps.length; s++) {
     const step = steps[s]!
-    const cx = x0 + (step.i + 0.5) * slot
-    const bw = Math.min(maxBw, slot * 0.55)
+    const cx = x0 + (s + 0.5) * slot
+    const bw = Math.min(maxBw, slot * 0.52)
+    labels.push(
+      `<text x="${cx.toFixed(2)}" y="${xLabelY}" text-anchor="middle" fill="var(--sx-tc-xtext)" font-size="10.5" font-weight="600" font-family="inherit">${step.label}</text>`,
+    )
+
+    if (Math.abs(step.delta) < 1e-9) continue
+
     const yFrom = valueToYRange(step.from, y0, y1, vMin, vMax)
     const yTo = valueToYRange(step.to, y0, y1, vMin, vMax)
     let barTop = Math.min(yFrom, yTo)
     let barBottom = Math.max(yFrom, yTo)
-    if (barBottom - barTop < 4) {
+    const minBarPx = 6
+    if (barBottom - barTop < minBarPx) {
       if (step.delta > 0) {
-        barTop = yFrom - 4
+        barTop = yFrom - minBarPx
         barBottom = yFrom
       } else {
         barTop = yFrom
-        barBottom = yFrom + 4
+        barBottom = yFrom + minBarPx
       }
     }
     const h = barBottom - barTop
-    const r = Math.min(3.5, h / 2, bw / 2)
+    const r = Math.min(4, h / 2, bw / 2)
     const x = cx - bw / 2
     const isProfit = step.delta > 0
+    const tip = formatBarPnlLabel(step.delta)
     bars.push(
-      `<path class="sx-dash-pnl-bar sx-dash-pnl-bar--${isProfit ? 'profit' : 'loss'}" d="${roundedBarPath(x, barTop, bw, h, r)}" fill="url(#${isProfit ? gradUp : gradDown})" />`,
+      `<path class="sx-dash-pnl-bar sx-dash-pnl-bar--${isProfit ? 'profit' : 'loss'}" d="${roundedBarPath(x, barTop, bw, h, r)}" fill="url(#${isProfit ? gradUp : gradDown})"><title>${step.label}: ${tip}</title></path>`,
     )
 
     const next = steps[s + 1]
-    if (next) {
-      const nextCx = x0 + (next.i + 0.5) * slot
-      const nextBw = Math.min(maxBw, slot * 0.55)
+    if (next && Math.abs(next.delta) > 1e-9) {
+      const nextCx = x0 + (s + 1.5) * slot
+      const nextBw = Math.min(maxBw, slot * 0.52)
       const yLink = valueToYRange(step.to, y0, y1, vMin, vMax)
-      const x1c = cx + bw / 2
-      const x2c = nextCx - nextBw / 2
-      if (x2c > x1c + 1) {
+      const x1c = cx + bw / 2 + 1
+      const x2c = nextCx - nextBw / 2 - 1
+      if (x2c > x1c + 2) {
         connectors.push(
-          `<line x1="${x1c.toFixed(2)}" y1="${yLink.toFixed(2)}" x2="${x2c.toFixed(2)}" y2="${yLink.toFixed(2)}" stroke="var(--sx-tc-baseline)" stroke-width="1" stroke-dasharray="3 3" opacity="0.75" />`,
+          `<line x1="${x1c.toFixed(2)}" y1="${yLink.toFixed(2)}" x2="${x2c.toFixed(2)}" y2="${yLink.toFixed(2)}" stroke="var(--sx-tc-baseline)" stroke-width="1.25" stroke-dasharray="2.5 3.5" opacity="0.55" />`,
         )
       }
     }
 
-    const pnlLabel = formatBarPnlLabel(step.delta)
-    if (pnlLabel) {
-      const labelY = isProfit ? barTop - 6 : Math.min(barBottom + 11, y1 + 12)
+    // With few trading days, label every bar; otherwise only meaningful moves
+    const showLabel = steps.length <= 12 || Math.abs(step.delta) >= scaleSpan * 0.02 || Math.abs(step.delta) >= 100
+    if (showLabel && tip) {
+      const labelY = isProfit ? Math.max(y0 + 10, barTop - 8) : Math.min(y1 + 14, barBottom + 14)
       valueLabels.push(
-        `<text x="${cx.toFixed(2)}" y="${labelY.toFixed(2)}" text-anchor="middle" fill="${isProfit ? '#047857' : '#be123c'}" font-size="10" font-weight="800" font-family="inherit">${pnlLabel}</text>`,
+        `<text x="${cx.toFixed(2)}" y="${labelY.toFixed(2)}" text-anchor="middle" fill="${isProfit ? '#047857' : '#be123c'}" font-size="11" font-weight="800" font-family="inherit">${tip}</text>`,
       )
     }
   }
 
-  const vbW = Math.ceil(x1 + 10)
-  const vbH = 122
+  const vbW = Math.ceil(x1 + 16)
+  const vbH = 156
   return `<svg class="sx-dash-time-chart__svg sx-dash-time-chart__svg--fill" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vbW} ${vbH}" width="100%" preserveAspectRatio="xMidYMid meet" aria-hidden="true" data-time-chart-svg="${view}">
   <defs>
     <linearGradient id="${gradUp}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#4ade80" />
-      <stop offset="100%" stop-color="#16a34a" />
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#059669" />
     </linearGradient>
     <linearGradient id="${gradDown}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f43f5e" />
+      <stop offset="0%" stop-color="#fb7185" />
       <stop offset="100%" stop-color="#e11d48" />
     </linearGradient>
   </defs>
-  <g stroke="var(--sx-tc-grid)" fill="none" stroke-dasharray="4 6" stroke-width="1" opacity="0.95">${lines.join('')}</g>
-  <line x1="${x0}" y1="${zeroY.toFixed(2)}" x2="${x1}" y2="${zeroY.toFixed(2)}" stroke="var(--sx-tc-baseline)" stroke-width="1.5" />
+  <rect x="${x0}" y="${y0}" width="${(x1 - x0).toFixed(1)}" height="${(y1 - y0).toFixed(1)}" rx="10" fill="rgba(148,163,184,0.04)" />
+  <g stroke="var(--sx-tc-grid)" fill="none" stroke-width="1">${lines.join('')}</g>
+  <line x1="${x0}" y1="${zeroY.toFixed(2)}" x2="${x1}" y2="${zeroY.toFixed(2)}" stroke="var(--sx-tc-baseline)" stroke-width="1.6" />
   <g>${connectors.join('')}</g>
   <g>${bars.join('')}</g>
   <g>${valueLabels.join('')}</g>
@@ -433,6 +611,11 @@ export type SessionPulsePracticeRow = {
   practiceMs: number
   share: number
   isActive: boolean
+  /** Net P&L in the selected pulse range (closed trades, else backtest snapshot). */
+  netPnl: number
+  profit: number
+  loss: number
+  hasPnl: boolean
 }
 
 export type SessionPulseStats = {
@@ -508,6 +691,36 @@ function collectPulseJournalTrades(
   return closed
     .filter((t) => inRange(t.exitTime * 1000, range, now))
     .map((t) => ({ pnl: t.pnl, direction: t.direction, ts: t.exitTime * 1000 }))
+}
+
+function sessionPnlInRange(
+  session: StoredSession,
+  range: DashboardPerfRange,
+  now: number,
+): { netPnl: number; profit: number; loss: number; hasPnl: boolean } {
+  const journal = collectPulseJournalTrades(session, range, now)
+  if (journal.length) {
+    let profit = 0
+    let loss = 0
+    let netPnl = 0
+    for (const t of journal) {
+      netPnl += t.pnl
+      if (t.pnl > 0) profit += t.pnl
+      else if (t.pnl < 0) loss += -t.pnl
+    }
+    return { netPnl, profit, loss, hasPnl: true }
+  }
+  const bt = session.lastBacktest
+  if (bt && inRange(bt.ranAt, range, now) && session.sessionType !== 'prop') {
+    const netPnl = bt.netPnl
+    return {
+      netPnl,
+      profit: netPnl > 0 ? netPnl : 0,
+      loss: netPnl < 0 ? -netPnl : 0,
+      hasPnl: true,
+    }
+  }
+  return { netPnl: 0, profit: 0, loss: 0, hasPnl: false }
 }
 
 export function computeSessionPulseStats(
@@ -593,13 +806,20 @@ export function computeSessionPulseStats(
       if (b.practice !== a.practice) return b.practice - a.practice
       return b.touchedAt - a.touchedAt
     })
-    .map((row) => ({
-      id: row.session.id,
-      name: row.session.name?.trim() || 'Untitled session',
-      practiceMs: row.practice,
-      share: practiceMs > 0 ? (row.practice / practiceMs) * 100 : 0,
-      isActive: row.session.id === activeId,
-    }))
+    .map((row) => {
+      const pnl = sessionPnlInRange(row.session, range, now)
+      return {
+        id: row.session.id,
+        name: row.session.name?.trim() || 'Untitled session',
+        practiceMs: row.practice,
+        share: practiceMs > 0 ? (row.practice / practiceMs) * 100 : 0,
+        isActive: row.session.id === activeId,
+        netPnl: pnl.netPnl,
+        profit: pnl.profit,
+        loss: pnl.loss,
+        hasPnl: pnl.hasPnl,
+      }
+    })
 
   const winRate = tradesTaken > 0 ? (wins / tradesTaken) * 100 : null
   const symbols = [...symbolMap.entries()]
@@ -702,10 +922,24 @@ export function buildPulsePracticeRowsHtml(rows: SessionPulsePracticeRow[]): str
       const name = row.name.replace(/[<>&"']/g, '')
       const activeClass = row.isActive ? ' sx-dash-pulse-session--active' : ''
       const badge = row.isActive ? `<span class="sx-dash-pulse-session__badge">Active</span>` : ''
+      const pnlTone = !row.hasPnl
+        ? 'sx-dash-pulse-session__pnl--flat'
+        : row.netPnl > 0
+          ? 'sx-dash-pulse-session__pnl--ok'
+          : row.netPnl < 0
+            ? 'sx-dash-pulse-session__pnl--warn'
+            : 'sx-dash-pulse-session__pnl--flat'
+      const pnlText = row.hasPnl ? formatDashboardPerfMoney(row.netPnl) : '—'
+      const pnlTitle = row.hasPnl
+        ? `Profit ${formatDashboardPerfMoney(row.profit)} · Loss ${formatDashboardPerfMoney(-row.loss)} · Net ${formatDashboardPerfMoney(row.netPnl)}`
+        : 'No P&L in this range'
       return `<div class="sx-dash-pulse-session${activeClass}" style="--sx-pulse-i:${i}">
         <div class="sx-dash-pulse-session__meta">
           <span class="sx-dash-pulse-session__name"><span class="sx-dash-pulse-session__label">${name}</span>${badge}</span>
-          <span class="sx-dash-pulse-session__time">${formatPulseDuration(row.practiceMs)}</span>
+          <span class="sx-dash-pulse-session__stats">
+            <span class="sx-dash-pulse-session__pnl ${pnlTone}" title="${pnlTitle.replace(/"/g, '&quot;')}">${pnlText}</span>
+            <span class="sx-dash-pulse-session__time">${formatPulseDuration(row.practiceMs)}</span>
+          </span>
         </div>
         <div class="sx-dash-pulse-session__track" aria-hidden="true">
           <span class="sx-dash-pulse-session__fill" style="width:${width}%"></span>

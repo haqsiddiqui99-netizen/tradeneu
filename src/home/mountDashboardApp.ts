@@ -40,6 +40,7 @@ import { DASH_LOCALES, dashLocaleMenuLabel, isDashLocaleCode } from './dashboard
 import { readDisplayName, readUserAvatar } from './dashboardUserPrefs'
 import {
   buildDashboardPerfChartSvg,
+  describeDashboardPerfChartPeriod,
   buildPulseActivityChartSvg,
   buildPulsePracticeRowsHtml,
   buildPulsePracticeSplitHtml,
@@ -569,13 +570,67 @@ function saveSessionDraft(p: SessionCreatedPayload) {
   saveSessionDraftCompat(p)
 }
 
+function buildSessionPulseKpiHtml(opts?: { titleId?: string; extraClass?: string }): string {
+  const titleId = opts?.titleId ?? 'sx-dash-pulse-title'
+  const extraClass = opts?.extraClass ? ` ${opts.extraClass}` : ''
+  return `
+            <section class="sx-dash-pulse sx-dash-pulse--pro sx-dash-pulse--kpi-only${extraClass}" aria-labelledby="${titleId}" data-sx-session-pulse>
+              <div class="sx-dash-pulse__head">
+                <div>
+                  <h3 id="${titleId}" class="sx-dash-pulse__title">Session Pulse</h3>
+                  <p class="sx-dash-pulse__sub">Your practice desk at a glance — time, edge, and equity path.</p>
+                </div>
+                <div class="sx-dash-pulse__range" role="group" aria-label="Pulse time range">
+                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="week">7D</button>
+                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="month">30D</button>
+                  <button type="button" class="sx-dash-pulse__range-btn sx-dash-pulse__range-btn--active" data-pulse-range="lifetime" aria-pressed="true">All</button>
+                </div>
+              </div>
+
+              <div class="sx-dash-pulse__kpi" role="group" aria-label="Key pulse metrics">
+                <div class="sx-dash-pulse__kpi-item">
+                  <div class="sx-dash-pulse__kpi-top">
+                    <span class="sx-dash-pulse__kpi-label">Practice time</span>
+                    <button type="button" class="sx-dash-pulse__info" title="Estimated desk time across sessions in this range." aria-label="About practice time">i</button>
+                  </div>
+                  <p class="sx-dash-pulse__kpi-value" data-sx-pulse="practice">—</p>
+                  <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="practice-hint">Across sessions</p>
+                </div>
+                <div class="sx-dash-pulse__kpi-item">
+                  <div class="sx-dash-pulse__kpi-top">
+                    <span class="sx-dash-pulse__kpi-label">Market tape</span>
+                    <button type="button" class="sx-dash-pulse__info" title="Sum of market date ranges you replayed." aria-label="About market tape">i</button>
+                  </div>
+                  <p class="sx-dash-pulse__kpi-value" data-sx-pulse="historical">—</p>
+                  <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="historical-hint">Historical coverage</p>
+                </div>
+                <div class="sx-dash-pulse__kpi-item">
+                  <div class="sx-dash-pulse__kpi-top">
+                    <span class="sx-dash-pulse__kpi-label">Net P&amp;L</span>
+                    <button type="button" class="sx-dash-pulse__info" title="Net profit and loss from backtests in this range." aria-label="About Net P&amp;L">i</button>
+                  </div>
+                  <p class="sx-dash-pulse__kpi-value" data-sx-pulse="pnl">—</p>
+                  <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="pnl-hint">Backtest results</p>
+                </div>
+                <div class="sx-dash-pulse__kpi-item">
+                  <div class="sx-dash-pulse__kpi-top">
+                    <span class="sx-dash-pulse__kpi-label">Win rate</span>
+                    <button type="button" class="sx-dash-pulse__info" title="Share of winning trades over closed trades." aria-label="About win rate">i</button>
+                  </div>
+                  <p class="sx-dash-pulse__kpi-value" data-sx-pulse="winrate">—</p>
+                  <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="winrate-hint">Closed trade edge</p>
+                </div>
+              </div>
+            </section>`
+}
+
 function buildRecentSessionsSectionHtml(): string {
   return `
             <section
-              class="sx-dash-recent-sessions sx-dash-card-surface overflow-hidden rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-8 lg:p-10"
+              class="sx-dash-recent-sessions sx-dash-card-surface overflow-hidden rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-6 sm:py-5"
               aria-labelledby="sx-dash-recent-sessions-title"
             >
-              <div class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div class="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h3 id="sx-dash-recent-sessions-title" class="text-lg font-bold tracking-tight text-slate-900 dark:text-white sm:text-xl">
                   Recent Sessions
                 </h3>
@@ -598,7 +653,7 @@ function buildRecentSessionsSectionHtml(): string {
                 </div>
               </div>
 
-              <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <div class="relative min-w-0 flex-1">
                   <i
                     class="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[0.8rem] text-zinc-500 dark:text-zinc-500"
@@ -910,6 +965,8 @@ export function mountDashboardApp(root: HTMLElement): void {
         </section>
         </div>
 
+          ${buildSessionPulseKpiHtml({ titleId: 'sx-dash-pulse-title' })}
+
           </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="sessions" role="tabpanel" hidden></div>
@@ -919,55 +976,8 @@ export function mountDashboardApp(root: HTMLElement): void {
           </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="analytics" role="tabpanel" hidden>
-            <section class="sx-dash-pulse sx-dash-pulse--pro" aria-labelledby="sx-dash-pulse-title" data-sx-session-pulse>
-          <div class="sx-dash-pulse__head">
-            <div>
-              <p class="sx-dash-pulse__eyebrow">Replay intelligence</p>
-              <h3 id="sx-dash-pulse-title" class="sx-dash-pulse__title">Session Pulse</h3>
-              <p class="sx-dash-pulse__sub">Your practice desk at a glance — time, edge, and equity path.</p>
-            </div>
-            <div class="sx-dash-pulse__range" role="group" aria-label="Pulse time range">
-              <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="week">7D</button>
-              <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="month">30D</button>
-              <button type="button" class="sx-dash-pulse__range-btn sx-dash-pulse__range-btn--active" data-pulse-range="lifetime" aria-pressed="true">All</button>
-            </div>
-          </div>
-
-          <div class="sx-dash-pulse__kpi" role="group" aria-label="Key pulse metrics">
-            <div class="sx-dash-pulse__kpi-item">
-              <div class="sx-dash-pulse__kpi-top">
-                <span class="sx-dash-pulse__kpi-label">Practice time</span>
-                <button type="button" class="sx-dash-pulse__info" title="Estimated desk time across sessions in this range." aria-label="About practice time">i</button>
-              </div>
-              <p class="sx-dash-pulse__kpi-value" data-sx-pulse="practice">—</p>
-              <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="practice-hint">Across sessions</p>
-            </div>
-            <div class="sx-dash-pulse__kpi-item">
-              <div class="sx-dash-pulse__kpi-top">
-                <span class="sx-dash-pulse__kpi-label">Market tape</span>
-                <button type="button" class="sx-dash-pulse__info" title="Sum of market date ranges you replayed." aria-label="About market tape">i</button>
-              </div>
-              <p class="sx-dash-pulse__kpi-value" data-sx-pulse="historical">—</p>
-              <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="historical-hint">Historical coverage</p>
-            </div>
-            <div class="sx-dash-pulse__kpi-item">
-              <div class="sx-dash-pulse__kpi-top">
-                <span class="sx-dash-pulse__kpi-label">Net P&amp;L</span>
-                <button type="button" class="sx-dash-pulse__info" title="Net profit and loss from backtests in this range." aria-label="About Net P&amp;L">i</button>
-              </div>
-              <p class="sx-dash-pulse__kpi-value" data-sx-pulse="pnl">—</p>
-              <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="pnl-hint">Backtest results</p>
-            </div>
-            <div class="sx-dash-pulse__kpi-item">
-              <div class="sx-dash-pulse__kpi-top">
-                <span class="sx-dash-pulse__kpi-label">Win rate</span>
-                <button type="button" class="sx-dash-pulse__info" title="Share of winning trades over closed trades." aria-label="About win rate">i</button>
-              </div>
-              <p class="sx-dash-pulse__kpi-value" data-sx-pulse="winrate">—</p>
-              <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="winrate-hint">Closed trade edge</p>
-            </div>
-          </div>
-
+            ${buildSessionPulseKpiHtml({ titleId: 'sx-dash-pulse-title-analytics', extraClass: 'sx-dash-pulse--analytics-kpi' })}
+            <section class="sx-dash-pulse sx-dash-pulse--pro sx-dash-pulse--workspace-only" aria-label="Session analytics">
           <div class="sx-dash-pulse__workspace">
             <article class="sx-dash-pulse__panel sx-dash-pulse__panel--desk">
               <header class="sx-dash-pulse__panel-head">
@@ -1022,8 +1032,9 @@ export function mountDashboardApp(root: HTMLElement): void {
               <header class="sx-dash-pulse__panel-head">
                 <div>
                   <h4 class="sx-dash-pulse__panel-title">Net P&amp;L path</h4>
-                  <p class="sx-dash-pulse__panel-sub">Daily waterfall — green up on profit, red down on loss</p>
+                  <p class="sx-dash-pulse__panel-sub">Trading-day waterfall — green up on profit, red down on loss</p>
                 </div>
+                <span class="sx-dash-pulse__period" data-sx-pnl-chart-period aria-live="polite"></span>
               </header>
               <div class="sx-dash-pulse-pnl-chart sx-dash-time-chart" role="img" data-sx-time-chart aria-label="Pulse Net P&amp;L chart">
                 <div class="sx-dash-time-chart__frame">
@@ -1750,7 +1761,7 @@ export function mountDashboardApp(root: HTMLElement): void {
       sessionsHost.classList.toggle('hidden', !showSessions)
     }
     if (tab === 'dashboard' || tab === 'sessions') syncRecentSessionsUi()
-    if (tab === 'analytics') {
+    if (tab === 'dashboard' || tab === 'analytics') {
       syncSessionPulse()
       syncDashboardPerf()
     }
@@ -2022,17 +2033,60 @@ export function mountDashboardApp(root: HTMLElement): void {
     const longPct = directed > 0 ? Math.round((pulse.longTrades / directed) * 100) : 50
     const shortPct = directed > 0 ? 100 - longPct : 50
 
-    const practiceEl = root.querySelector<HTMLElement>('[data-sx-pulse="practice"]')
-    const histEl = root.querySelector<HTMLElement>('[data-sx-pulse="historical"]')
-    const practiceHint = root.querySelector<HTMLElement>('[data-sx-pulse="practice-hint"]')
+    const practiceText = formatPulseDuration(pulse.practiceMs)
+    const histText = formatPulseDuration(pulse.historicalMs)
+    const practiceHintText = pulse.sessionsTouched
+      ? `${pulse.sessionsTouched} session${pulse.sessionsTouched === 1 ? '' : 's'} · Active ${formatPulseDuration(pulse.activePracticeMs)}`
+      : 'Across sessions'
+    const histHintText =
+      pulse.practiceMs > 0 && pulse.historicalMs > 0
+        ? `${Math.max(1, Math.round(pulse.historicalMs / Math.max(pulse.practiceMs, 1)))}× tape vs practice`
+        : 'Historical coverage'
+    const pnlText = pnlTotals.hasData ? formatDashboardPerfMoney(pnlTotals.netPnl) : '—'
+    const pnlHintText = pnlTotals.hasData
+      ? `${pnlTotals.sessionsActive} session${pnlTotals.sessionsActive === 1 ? '' : 's'} · ${pnlTotals.tradesTaken} trades`
+      : 'Backtest results'
+    const winrateText = formatDashboardWinRate(pulse.winRate)
+    const winrateHintText =
+      pulse.tradesTaken > 0
+        ? `${pulse.wins}W / ${pulse.losses}L on ${pulse.tradesTaken}`
+        : 'Closed trade edge'
+
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="practice"]').forEach((el) => {
+      el.textContent = practiceText
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="historical"]').forEach((el) => {
+      el.textContent = histText
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="practice-hint"]').forEach((el) => {
+      el.textContent = practiceHintText
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="historical-hint"]').forEach((el) => {
+      el.textContent = histHintText
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="pnl"]').forEach((el) => {
+      el.textContent = pnlText
+      el.classList.toggle('sx-dash-pulse__kpi-value--ok', pnlTotals.hasData && pnlTotals.netPnl > 0)
+      el.classList.toggle('sx-dash-pulse__kpi-value--warn', pnlTotals.hasData && pnlTotals.netPnl < 0)
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="pnl-hint"]').forEach((el) => {
+      el.textContent = pnlHintText
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="winrate"]').forEach((el) => {
+      el.textContent = winrateText
+      el.classList.toggle('sx-dash-pulse__kpi-value--ok', pulse.winRate != null && pulse.winRate >= 50)
+      el.classList.toggle(
+        'sx-dash-pulse__kpi-value--warn',
+        pulse.winRate != null && pulse.winRate < 50 && pulse.tradesTaken > 0,
+      )
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="winrate-hint"]').forEach((el) => {
+      el.textContent = winrateHintText
+    })
+
     const activeSessionEl = root.querySelector<HTMLElement>('[data-sx-pulse="active-session"]')
     const practiceSplit = root.querySelector<HTMLElement>('[data-sx-pulse="practice-split"]')
     const practiceSessions = root.querySelector<HTMLElement>('[data-sx-pulse="practice-sessions"]')
-    const histHint = root.querySelector<HTMLElement>('[data-sx-pulse="historical-hint"]')
-    const pnlEl = root.querySelector<HTMLElement>('[data-sx-pulse="pnl"]')
-    const pnlHint = root.querySelector<HTMLElement>('[data-sx-pulse="pnl-hint"]')
-    const winrateEl = root.querySelector<HTMLElement>('[data-sx-pulse="winrate"]')
-    const winrateHint = root.querySelector<HTMLElement>('[data-sx-pulse="winrate-hint"]')
     const tradesEl = root.querySelector<HTMLElement>('[data-sx-pulse="trades"]')
     const splitLabel = root.querySelector<HTMLElement>('[data-sx-pulse="split-label"]')
     const longBar = root.querySelector<HTMLElement>('[data-sx-pulse="long-bar"]')
@@ -2042,8 +2096,6 @@ export function mountDashboardApp(root: HTMLElement): void {
     const symbolsHost = root.querySelector<HTMLElement>('[data-sx-pulse="symbols"]')
     const insightsHost = root.querySelector<HTMLElement>('[data-sx-pulse="insights"]')
 
-    if (practiceEl) practiceEl.textContent = formatPulseDuration(pulse.practiceMs)
-    if (histEl) histEl.textContent = formatPulseDuration(pulse.historicalMs)
     if (activeSessionEl) {
       if (pulse.activeSessionName) {
         activeSessionEl.textContent = `Active · ${pulse.activeSessionName} · ${formatPulseDuration(pulse.activePracticeMs)}`
@@ -2055,43 +2107,6 @@ export function mountDashboardApp(root: HTMLElement): void {
     }
     if (practiceSplit) practiceSplit.innerHTML = buildPulsePracticeSplitHtml(pulse.sessionPractice)
     if (practiceSessions) practiceSessions.innerHTML = buildPulsePracticeRowsHtml(pulse.sessionPractice)
-    if (practiceHint) {
-      if (pulse.sessionsTouched) {
-        practiceHint.textContent = `${pulse.sessionsTouched} session${pulse.sessionsTouched === 1 ? '' : 's'} · Active ${formatPulseDuration(pulse.activePracticeMs)}`
-      } else {
-        practiceHint.textContent = 'Across sessions'
-      }
-    }
-    if (histHint) {
-      histHint.textContent =
-        pulse.practiceMs > 0 && pulse.historicalMs > 0
-          ? `${Math.max(1, Math.round(pulse.historicalMs / Math.max(pulse.practiceMs, 1)))}× tape vs practice`
-          : 'Historical coverage'
-    }
-    if (pnlEl) {
-      pnlEl.textContent = pnlTotals.hasData ? formatDashboardPerfMoney(pnlTotals.netPnl) : '—'
-      pnlEl.classList.toggle('sx-dash-pulse__kpi-value--ok', pnlTotals.hasData && pnlTotals.netPnl > 0)
-      pnlEl.classList.toggle('sx-dash-pulse__kpi-value--warn', pnlTotals.hasData && pnlTotals.netPnl < 0)
-    }
-    if (pnlHint) {
-      pnlHint.textContent = pnlTotals.hasData
-        ? `${pnlTotals.sessionsActive} session${pnlTotals.sessionsActive === 1 ? '' : 's'} · ${pnlTotals.tradesTaken} trades`
-        : 'Backtest results'
-    }
-    if (winrateEl) {
-      winrateEl.textContent = formatDashboardWinRate(pulse.winRate)
-      winrateEl.classList.toggle('sx-dash-pulse__kpi-value--ok', pulse.winRate != null && pulse.winRate >= 50)
-      winrateEl.classList.toggle(
-        'sx-dash-pulse__kpi-value--warn',
-        pulse.winRate != null && pulse.winRate < 50 && pulse.tradesTaken > 0,
-      )
-    }
-    if (winrateHint) {
-      winrateHint.textContent =
-        pulse.tradesTaken > 0
-          ? `${pulse.wins}W / ${pulse.losses}L on ${pulse.tradesTaken}`
-          : 'Closed trade edge'
-    }
     if (tradesEl) {
       tradesEl.textContent =
         pulse.tradesTaken > 0
@@ -2123,13 +2138,18 @@ export function mountDashboardApp(root: HTMLElement): void {
   function syncDashboardPerf() {
     const range = readPulseRange()
     const sessions = listSessions()
+    const period = describeDashboardPerfChartPeriod(sessions, 'backtest', range, 'daily')
 
     root.querySelectorAll<HTMLElement>('[data-sx-time-chart-pan]').forEach((pan) => {
       pan.innerHTML = buildDashboardPerfChartSvg(sessions, 'backtest', range, 'daily')
     })
 
+    root.querySelectorAll<HTMLElement>('[data-sx-pnl-chart-period]').forEach((el) => {
+      el.textContent = period
+    })
+
     root.querySelectorAll<HTMLElement>('[data-sx-time-chart]').forEach((roleImg) => {
-      roleImg.setAttribute('aria-label', `Net P&L by day this month (${PERF_RANGE_LABELS[range]})`)
+      roleImg.setAttribute('aria-label', `Net P&L path for ${period}`)
     })
   }
 
