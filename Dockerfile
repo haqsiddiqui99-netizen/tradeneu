@@ -11,10 +11,11 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-# Prefer install over ci: lockfile can drift across npm majors; still installs vite/tsc for build.
-RUN npm install --include=dev
+# Ignore scripts: postinstall needs scripts/ which is copied next.
+RUN npm install --include=dev --ignore-scripts
 
 COPY . .
+# prebuild runs TV sync (non-strict); then Vite/tsc build.
 RUN npm run build \
   && npm prune --omit=dev \
   && npm cache clean --force
