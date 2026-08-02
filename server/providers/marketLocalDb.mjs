@@ -405,6 +405,28 @@ export function countLocalTicksInRange(symbol, startSec, endSec) {
 }
 
 /**
+ * Min/max bar times stored locally for a symbol/timeframe (unix seconds).
+ * @param {string} symbol
+ * @param {string} timeframe
+ * @returns {{ minSec: number, maxSec: number } | null}
+ */
+export function getLocalBarTimeBounds(symbol, timeframe) {
+  const sym = normalizeMarketSymbol(symbol)
+  const tf = String(timeframe || '').trim().toLowerCase()
+  if (!BAR_TIMEFRAMES.includes(tf)) return null
+  const row = getMarketDb()
+    .prepare(
+      `SELECT MIN(time_sec) AS min_s, MAX(time_sec) AS max_s FROM bars
+       WHERE symbol = ? AND timeframe = ?`,
+    )
+    .get(sym, tf)
+  const minSec = row?.min_s != null ? Number(row.min_s) : NaN
+  const maxSec = row?.max_s != null ? Number(row.max_s) : NaN
+  if (!Number.isFinite(minSec) || !Number.isFinite(maxSec) || maxSec < minSec) return null
+  return { minSec, maxSec }
+}
+
+/**
  * @param {string} symbol
  * @param {string} timeframe
  * @param {number} startSec

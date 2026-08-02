@@ -16,7 +16,7 @@
  * Optional: TWELVE_DATA_OUTPUT_SIZE, MARKET_CHART_RANGE / MARKET_CHART_INTERVAL (or legacy MARKET_YAHOO_*).
  * Optional cache: MARKET_BARS_CACHE_TTL_MS (default 120000), MARKET_BARS_CACHE_HISTORICAL_TTL_MS (default 600000).
  *
- * Port: HISTORIC_API_PORT or 3001. Dev: Vite proxies /api → this server.
+ * Port: HISTORIC_API_PORT or 3100 (avoids Windows Hyper-V reserved 2921–3020). Dev: Vite proxies /api → this server.
  */
 
 import express from 'express'
@@ -25,20 +25,17 @@ import multer from 'multer'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { parseXauCsvText } from '../scripts/xauCsvParse.mjs'
+import { resolveHistoricApiPort } from '../scripts/historicApiPort.mjs'
 import { resolveMarketBars } from './providers/resolveChain.mjs'
 import { getCachedMarketBars, invalidateMarketBarsCache, marketBarsCacheKey } from './providers/marketBarsCache.mjs'
 import { getCachedMarketTicks, marketTicksCacheKey } from './providers/marketTicksCache.mjs'
 import { resolveMarketTicks } from './providers/marketLocalResolve.mjs'
 import { getLocalStoreStats, marketDbPath, marketLocalEnabled } from './providers/marketLocalDb.mjs'
 import { mountLocalAuthRoutes } from './auth/localAuth.mjs'
+import { mountGoogleAuthRoutes } from './auth/googleOAuth.mjs'
 import { authStorageStatus } from './auth/userPersistence.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-/** Vercel serverless has ephemeral disk; /tmp persists for the lifetime of a warm instance. */
-const DATA_DIR = process.env.VERCEL
-  ? path.join('/tmp', 'suplexity-server-data')
-  : path.join(__dirname, '..', 'server-data')
-const GOLD_FILE = path.join(DATA_DIR, 'gold-bars.json')
 
 /** Load `.env.local` so `TWELVE_DATA_API_KEY` works without exporting in the shell. Does not override existing env. */
 function loadEnvLocal() {
@@ -68,12 +65,57 @@ function loadEnvLocal() {
 }
 loadEnvLocal()
 
+/** Persistent data root: Railway volume `/data`, Vercel `/tmp`, else repo `server-data`. */
+function resolveDataDir() {
+  const fromEnv = process.env.MARKET_DATA_DIR?.trim()
+  if (fromEnv) return fromEnv
+  if (process.env.VERCEL) return path.join('/tmp', 'suplexity-server-data')
+  if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+    return path.join('/data', 'server-data')
+  }
+  if (fs.existsSync('/data') && (process.env.NODE_ENV === 'production' || process.env.SERVE_SPA === '1')) {
+    return path.join('/data', 'server-data')
+  }
+  return path.join(__dirname, '..', 'server-data')
+}
+
+const DATA_DIR = resolveDataDir()
+const GOLD_FILE = path.join(DATA_DIR, 'gold-bars.json')
+
+/** Default SQLite + Dukascopy cache onto the persistent volume in production. */
+function applyProductionDataDefaults() {
+  const useVolumeDefaults =
+    Boolean(process.env.RAILWAY_ENVIRONMENT) ||
+    Boolean(process.env.RAILWAY_VOLUME_MOUNT_PATH) ||
+    process.env.SERVE_SPA === '1' ||
+    (process.env.NODE_ENV === 'production' && fs.existsSync('/data'))
+  if (!useVolumeDefaults) return
+  if (!process.env.MARKET_DB_PATH?.trim()) {
+    process.env.MARKET_DB_PATH = path.join(DATA_DIR, 'market.db')
+  }
+  if (!process.env.DUKASCOPY_CACHE_PATH?.trim()) {
+    process.env.DUKASCOPY_CACHE_PATH = path.join(DATA_DIR, 'dukascopy-cache')
+  }
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true })
+    fs.mkdirSync(process.env.DUKASCOPY_CACHE_PATH, { recursive: true })
+  } catch {
+    /* ignore */
+  }
+}
+applyProductionDataDefaults()
+
 const app = express()
 
-/** Lets Vite / dev scripts confirm 3001 is this server, not some other process. */
+/** Lets Vite / dev scripts confirm this port is our historic server, not some other process. */
 app.get('/api/historic/identity', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store')
   res.json({ ok: true, app: 'suplexity-historic-api' })
+})
+
+app.get('/health', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.status(200).json({ ok: true, service: 'tradeneu' })
 })
 
 const upload = multer({
@@ -95,6 +137,7 @@ app.use((req, res, next) => {
 })
 
 mountLocalAuthRoutes(app, { dataDir: DATA_DIR })
+mountGoogleAuthRoutes(app, { dataDir: DATA_DIR })
 const authStorage = authStorageStatus()
 if (authStorage.ready) {
   console.log(`[auth] user storage: ${authStorage.backend}`)
@@ -370,14 +413,39 @@ app.get('/api/market/providers', (_req, res) => {
 
 export default app
 
-/** Standalone dev / `npm run server:historic` — skipped on Vercel (see `api/index.mjs`). */
+/** Standalone / Railway — skipped on Vercel (see `api/index.mjs`). */
 if (!process.env.VERCEL) {
-  const PORT = Number(process.env.HISTORIC_API_PORT || 3001)
-  const HOST = process.env.HISTORIC_API_HOST?.trim() || '127.0.0.1'
+  const PORT = resolveHistoricApiPort()
+  const isProdServe =
+    process.env.SERVE_SPA === '1' ||
+    process.env.NODE_ENV === 'production' ||
+    Boolean(process.env.RAILWAY_ENVIRONMENT)
+  const HOST =
+    process.env.HISTORIC_API_HOST?.trim() || (isProdServe ? '0.0.0.0' : '127.0.0.1')
+
+  // Production: serve Vite build + SPA routes from the same process as /api.
+  if (isProdServe) {
+    const distDir = path.join(__dirname, '..', 'dist')
+    const indexHtml = path.join(distDir, 'index.html')
+    if (fs.existsSync(distDir) && fs.existsSync(indexHtml)) {
+      app.use(express.static(distDir, { index: false, maxAge: '1h' }))
+      app.get(/^(?!\/api\/).*/, (req, res, next) => {
+        if (req.method !== 'GET' && req.method !== 'HEAD') return next()
+        res.sendFile(indexHtml, (err) => {
+          if (err) next(err)
+        })
+      })
+      console.log(`[market-data] Serving SPA from ${distDir}`)
+    } else {
+      console.warn(`[market-data] dist/ missing — API only (run npm run build)`)
+    }
+  }
+
   const server = app.listen(PORT, HOST, () => {
     const keyOk = Boolean(process.env.TWELVE_DATA_API_KEY?.trim())
     console.log(`[market-data] http://${HOST}:${PORT}`)
     console.log(`  Default MARKET_BAR_CHAIN: ${DEFAULT_CHAIN}`)
+    console.log(`  Data dir: ${DATA_DIR}`)
     console.log(`  Dukascopy cache: ${process.env.DUKASCOPY_CACHE_PATH?.trim() || 'server-data/dukascopy-cache'}`)
     console.log(`  Local SQLite: ${marketDbPath()} (local-first: ${marketLocalEnabled() ? 'on' : 'off'})`)
     if (!keyOk) {
@@ -390,7 +458,7 @@ if (!process.env.VERCEL) {
     console.log(
       `  Default chart query: range=${process.env.MARKET_CHART_RANGE || process.env.MARKET_YAHOO_RANGE || '5d'} interval=${process.env.MARKET_CHART_INTERVAL || process.env.MARKET_YAHOO_INTERVAL || '1m'} (override with ?range=&interval=)`,
     )
-    console.log(`  GET /api/historic/identity  |  GET /api/market/bars?symbol=AAPL  |  GET /api/market/ticks?symbol=EURUSD&start=&end=  |  GET /api/market/providers`)
+    console.log(`  GET /health  |  GET /api/historic/identity  |  GET /api/market/bars?symbol=AAPL  |  GET /api/market/ticks?symbol=EURUSD&start=&end=  |  GET /api/market/providers`)
     console.log(`  GET /api/auth/me  |  POST /api/auth/register  |  POST /api/auth/login  |  POST /api/auth/logout`)
     console.log(`  Gold CSV: POST/GET/DELETE /api/historic/gold/*`)
   })
@@ -398,6 +466,15 @@ if (!process.env.VERCEL) {
     if (err && typeof err === 'object' && 'code' in err && err.code === 'EADDRINUSE') {
       console.error(
         `[market-data] Port ${PORT} is already in use. Stop the other process or set HISTORIC_API_PORT.`,
+      )
+      process.exit(1)
+    }
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'EACCES') {
+      console.error(
+        `[market-data] Permission denied binding ${HOST}:${PORT} (EACCES).\n` +
+          '  On Windows this often means the port is in a Hyper-V / WinNAT excluded range.\n' +
+          '  Check: netsh interface ipv4 show excludedportrange protocol=tcp\n' +
+          '  Fix: set HISTORIC_API_PORT to a free port outside those ranges (default is now 3100).',
       )
       process.exit(1)
     }
