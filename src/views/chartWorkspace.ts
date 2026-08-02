@@ -106,7 +106,7 @@ import {
   replaySpeedLabel,
   replaySpeedX,
 } from '../playback/replayController'
-import { createReplayAccount, defaultTpSl, longOrderCost, positionPoints, positionUnrealized, shortOrderMargin } from '../replay/replayPositions'
+import { createReplayAccount, defaultTpSl, longOrderCost, positionMarkPrice, positionPoints, positionUnrealized, shortOrderMargin } from '../replay/replayPositions'
 import {
   renderReplayJournal,
   renderReplayJournalStats,
@@ -818,6 +818,7 @@ export function mountChartWorkspace(
                     type="number"
                     min="1"
                     step="1"
+                    value="1"
                     placeholder="Quantity"
                     inputmode="numeric"
                     data-rw-order-qty
@@ -3462,7 +3463,8 @@ export function mountChartWorkspace(
 
       const mark = b?.close ?? 0
       const barTime = b ? Number(b.time) : Math.floor(Date.now() / 1000)
-      const equity = replayAccount.summary(mark).equity
+      const ba = b ? bidAskFromBar(b) : undefined
+      const equity = replayAccount.summary(mark, ba).equity
       const prevStatus = propState.status
       const result = evaluatePropChallenge({
         rules: propRules,
@@ -3521,7 +3523,9 @@ export function mountChartWorkspace(
     cleanupFns.push(() => flushPersistReplay())
 
     function renderJournalPanel(markPrice: number) {
-      const sum = replayAccount.summary(markPrice)
+      const b = lastBar(replay.slice())
+      const ba = b ? bidAskFromBar(b) : undefined
+      const sum = replayAccount.summary(markPrice, ba)
       const trades = replayAccount.getClosedTrades()
       if (journalStatsEl) {
         renderReplayJournalStats(journalStatsEl, {
@@ -3549,9 +3553,12 @@ export function mountChartWorkspace(
           '<p class="rw-session-empty">Use <strong>Buy</strong> or <strong>Sell</strong> to open a position.</p>'
         return
       }
+      const b = lastBar(replay.slice())
+      const ba = b ? bidAskFromBar(b) : null
       sessionPositionEl.innerHTML = positions
         .map((p) => {
-          const pnl = positionUnrealized(p, markPrice)
+          const mark = ba ? positionMarkPrice(p.direction, ba.bid, ba.ask) : markPrice
+          const pnl = positionUnrealized(p, mark)
           const up = pnl >= 0
           return `<div class="rw-manual-pos">
             <span class="rw-manual-pos__dir rw-manual-pos__dir--${p.direction}">${p.direction === 'long' ? 'Long' : 'Short'}</span>
@@ -3573,43 +3580,62 @@ export function mountChartWorkspace(
       return hints
     }
 
+    function positionLineColor(
+      pos: { direction: 'long' | 'short'; entryPrice: number; qty: number },
+      mark: number,
+    ) {
+      const pnl =
+        pos.direction === 'long'
+          ? (mark - pos.entryPrice) * pos.qty
+          : (pos.entryPrice - mark) * pos.qty
+      if (!Number.isFinite(pnl) || Math.abs(pnl) < 1e-9) return '#787b86'
+      return pnl > 0 ? '#2962ff' : '#e65100'
+    }
+
     function syncPositionOverlay(recreateLines = true) {
       state.trading?.setPositionPriceHints(positionPriceHints())
       const positions = replayAccount.getPositions()
-      const mark = lastBar(replay.slice())?.close ?? 0
+      const b = lastBar(replay.slice())
+      const markMid = b?.close ?? 0
+      const ba = b ? bidAskFromBar(b) : null
       const usedTvShapes =
         state.tvChart?.syncReplayPositions(
-          positions.map((p) => ({
-            id: p.id,
-            direction: p.direction,
-            qty: p.qty,
-            entryPrice: p.entryPrice,
-            entryTime: p.entryTime,
-            takeProfit: p.takeProfit,
-            stopLoss: p.stopLoss,
-          })),
+          positions.map((p) => {
+            const mark = ba ? positionMarkPrice(p.direction, ba.bid, ba.ask) : markMid
+            return {
+              id: p.id,
+              direction: p.direction,
+              qty: p.qty,
+              entryPrice: p.entryPrice,
+              entryTime: p.entryTime,
+              takeProfit: p.takeProfit,
+              stopLoss: p.stopLoss,
+              lineColor: positionLineColor(p, mark),
+            }
+          }),
           {
             onClose: (id) => {
-              const b = lastBar(replay.slice())
-              if (!b) return
-              const { bid, ask } = bidAskFromBar(b)
+              const bar = lastBar(replay.slice())
+              if (!bar) return
+              const { bid, ask } = bidAskFromBar(bar)
               const pos = replayAccount.getPositions().find((x) => x.id === id)
               if (!pos) return
               replayAccount.closePosition(id, pos.direction === 'long' ? bid : ask, {
-                exitTime: Number(b.time),
+                exitTime: Number(bar.time),
                 exitReason: 'manual',
               })
               schedulePersistReplay()
-              syncTradingUi(b)
+              syncTradingUi(bar)
             },
             formatPnl: (id) => {
               const pos = replayAccount.getPositions().find((x) => x.id === id)
               if (!pos) return ''
+              const mark = ba ? positionMarkPrice(pos.direction, ba.bid, ba.ask) : markMid
               const pnl = positionUnrealized(pos, mark)
               const pts = positionPoints(pos, mark)
-              const side = pos.direction === 'long' ? 'BUY' : 'SELL'
-              const sign = pnl < 0 ? '-' : ''
-              return `${side} ${String(Math.abs(pts)).padStart(3, '0')} → ${sign}${Math.abs(pnl).toFixed(2)} USD`
+              const ptsLabel = String(Math.abs(Math.round(pts))).padStart(3, '0')
+              const pnlSigned = pnl < 0 ? `-${Math.abs(pnl).toFixed(2)}` : Math.abs(pnl).toFixed(2)
+              return `${ptsLabel}→${pnlSigned} USD`
             },
           },
         ) === true
@@ -3621,13 +3647,14 @@ export function mountChartWorkspace(
 
     function syncTradingUi(b: Bar | null) {
       const mark = b?.close ?? 0
+      const ba = b ? bidAskFromBar(b) : undefined
       let accountChanged = false
       if (b) {
         const { bid, ask } = bidAskFromBar(b)
         const closed = replayAccount.processExits(Number(b.time), mark, bid, ask)
         if (closed.length) accountChanged = true
       }
-      const sum = replayAccount.summary(mark)
+      const sum = replayAccount.summary(mark, ba)
       host.querySelectorAll('.rw-bal').forEach((el) => {
         el.textContent = formatMoney(sum.equity)
       })
@@ -3642,7 +3669,8 @@ export function mountChartWorkspace(
       renderManualPositionPanel(mark)
       renderJournalPanel(mark)
       syncOrderPanelPosition()
-      syncPositionOverlay(true)
+      // Prefer soft sync — full recreate only when chart series revision changes.
+      syncPositionOverlay(false)
       if (accountChanged) schedulePersistReplay()
       evaluatePropIfNeeded(b)
     }
@@ -4292,6 +4320,9 @@ export function mountChartWorkspace(
           updateLegend(displayBars)
           decoupledLegendStep = index
           decoupledLegendBarCount = displayBars.length
+        } else if (cursorBar) {
+          // Keep account / position badges live even when legend OHLC is throttled.
+          syncTradingUi(cursorBar)
         }
       } else {
         updateLegend(decoupled ? displayBars : slice)
@@ -4300,9 +4331,6 @@ export function mountChartWorkspace(
       chartBarCount = isDecoupledReplay() ? replay.getBars().length : chartBars.length
       syncReplayTransportUi(index)
       syncTradeNavUi(cursorBar ? Number(cursorBar.time) : undefined)
-      if (!replayPlaying) {
-        syncPositionOverlay(true)
-      }
       if (!replayPlaying || !decoupled || index % 15 === 0) {
         syncChartIndicators(allBars, displayBars)
       }
@@ -4492,6 +4520,10 @@ export function mountChartWorkspace(
     const positionOverlayHandlers = {
       getPositions: () => replayAccount.getPositions(),
       getMarkPrice: () => lastBar(replay.slice())?.close ?? 0,
+      getBidAsk: () => {
+        const b = lastBar(replay.slice())
+        return b ? bidAskFromBar(b) : null
+      },
       getAnchorTime: () => {
         const slice = replay.slice()
         const last = slice.length ? slice[slice.length - 1]! : null
@@ -7405,9 +7437,13 @@ export function mountChartWorkspace(
         return
       }
       const b = lastBar(replay.slice())
-      if (!b) return
+      if (!b) {
+        showReplayNotice('No replay bar to trade — open Replay and select a starting bar first.')
+        return
+      }
       const fill = entryFillPrice(b)
       const qty = readOrderQty()
+      if (qtyInput && !qtyInput.value.trim()) qtyInput.value = String(qty)
       const cost = longOrderCost(qty, fill)
       const { cash } = replayAccount.summary(fill)
       const opened = replayAccount.openLong(qty, fill, Number(b.time))
@@ -7421,7 +7457,7 @@ export function mountChartWorkspace(
       syncTradingUi(b)
       // Re-layout after TV price scale settles so the entry line locks to the candle.
       requestAnimationFrame(() => {
-        if (!state.disposed) syncPositionOverlay(false)
+        if (!state.disposed) syncPositionOverlay(true)
       })
     }
     const onSell = () => {
@@ -7432,9 +7468,13 @@ export function mountChartWorkspace(
         return
       }
       const b = lastBar(replay.slice())
-      if (!b) return
+      if (!b) {
+        showReplayNotice('No replay bar to trade — open Replay and select a starting bar first.')
+        return
+      }
       const fill = entryFillPrice(b)
       const qty = readOrderQty()
+      if (qtyInput && !qtyInput.value.trim()) qtyInput.value = String(qty)
       const margin = shortOrderMargin(qty, fill)
       const { cash } = replayAccount.summary(fill)
       const opened = replayAccount.openShort(qty, fill, Number(b.time))
@@ -7447,7 +7487,7 @@ export function mountChartWorkspace(
       schedulePersistReplay()
       syncTradingUi(b)
       requestAnimationFrame(() => {
-        if (!state.disposed) syncPositionOverlay(false)
+        if (!state.disposed) syncPositionOverlay(true)
       })
     }
     ticketBuy.addEventListener('click', onBuy)

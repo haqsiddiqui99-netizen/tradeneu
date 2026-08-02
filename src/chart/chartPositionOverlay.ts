@@ -2,7 +2,7 @@ import './chartPositionOverlay.css'
 import type { IChartApi, IPriceLine, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { LineStyle } from 'lightweight-charts'
 import type { OpenPosition } from '../replay/replayPositions'
-import { positionPoints, positionUnrealized } from '../replay/replayPositions'
+import { positionMarkPrice, positionPoints, positionUnrealized } from '../replay/replayPositions'
 
 type LineBundle = {
   entry: IPriceLine
@@ -47,7 +47,10 @@ export function mountChartPositionOverlay(opts: {
   getMinPlotY?: () => number
   getBottomInset?: () => number
   getPositions: () => OpenPosition[]
+  /** Mid/last (used as fallback). Prefer getBidAsk for FXReplay-style points. */
   getMarkPrice: () => number
+  /** Bid/ask for mark-to-market (long→bid, short→ask). */
+  getBidAsk?: () => { bid: number; ask: number } | null
   /** Unix time of the replay cursor / last revealed bar — anchors UI in future whitespace. */
   getAnchorTime: () => number | null
   /** Optional: host X for chip anchoring (TV). Falls back to mid-plot. */
@@ -175,11 +178,22 @@ export function mountChartPositionOverlay(opts: {
     rowMap.delete(id)
   }
 
+  function markFor(pos: OpenPosition): number {
+    const ba = opts.getBidAsk?.()
+    if (ba && Number.isFinite(ba.bid) && Number.isFinite(ba.ask)) {
+      return positionMarkPrice(pos.direction, ba.bid, ba.ask)
+    }
+    return opts.getMarkPrice()
+  }
+
   function ensurePriceLines(pos: OpenPosition) {
     if (!opts.getSeries) return
     const series = opts.getSeries()
     let bundle = lineMap.get(pos.id)
-    const entryColor = pos.direction === 'long' ? '#2962ff' : '#e65100'
+    const mark = markFor(pos)
+    const pnl = positionUnrealized(pos, mark)
+    const flat = !Number.isFinite(pnl) || Math.abs(pnl) < 1e-9
+    const entryColor = flat ? '#787b86' : pnl > 0 ? '#2962ff' : '#e65100'
 
     if (!bundle) {
       bundle = {
@@ -241,7 +255,11 @@ export function mountChartPositionOverlay(opts: {
 
   function ensureDomLines(pos: OpenPosition) {
     if (skipDomLines) return
-    const entryColor = pos.direction === 'long' ? '#2962ff' : '#e65100'
+    // FXReplay: line color follows unrealized P&L (blue profit / orange loss / gray flat).
+    const mark = markFor(pos)
+    const pnl = positionUnrealized(pos, mark)
+    const flat = !Number.isFinite(pnl) || Math.abs(pnl) < 1e-9
+    const entryColor = flat ? '#787b86' : pnl > 0 ? '#2962ff' : '#e65100'
     const entryTitle = pos.direction === 'long' ? 'BUY' : 'SELL'
     let bundle = domLineMap.get(pos.id)
     if (!bundle) {
@@ -309,24 +327,27 @@ export function mountChartPositionOverlay(opts: {
       rowMap.set(pos.id, row)
     }
 
-    const pts = positionPoints(pos, markPrice)
-    const pnl = positionUnrealized(pos, markPrice)
+    const mark = markPrice
+    const pts = positionPoints(pos, mark)
+    const pnl = positionUnrealized(pos, mark)
     const pnlEl = row.querySelector('[data-pos-pnl]') as HTMLElement
     const qtyEl = row.querySelector('[data-pos-qty]') as HTMLElement
     const tpBtn = row.querySelector('[data-pos-tp]') as HTMLButtonElement
     const slBtn = row.querySelector('[data-pos-sl]') as HTMLButtonElement
 
     const side = pos.direction === 'long' ? 'BUY' : 'SELL'
-    // Flat = break-even (mark ≈ entry). Color the chip by P&L, not by side —
-    // otherwise a flat short looked like a "SELL loss" in orange.
-    const flat = !Number.isFinite(pnl) || Math.abs(pnl) < 1e-9
-    const up = !flat && pnl > 0
-    const down = !flat && pnl < 0
+    // FXReplay badge: "098→-0.00 USD" — first number is price POINTS (Δprice×1000),
+    // not order qty (qty is the separate chip). USD may round to 0.00 while points ≠ 0.
+    const ptsLabel = String(Math.abs(Math.round(pts))).padStart(3, '0')
+    const flat = Math.abs(pts) < 1 && Math.abs(pnl) < 0.005
+    const up = pts > 0 || (pts === 0 && pnl > 0.005)
+    const down = pts < 0 || (pts === 0 && pnl < -0.005)
     if (pnlEl) {
-      const ptsLabel = String(Math.abs(pts)).padStart(3, '0')
-      const sign = down ? '-' : ''
-      pnlEl.textContent = `${side} ${ptsLabel} → ${sign}${Math.abs(pnl).toFixed(2)} USD`
-      pnlEl.title = `${side} · unrealized P&L`
+      const pnlSigned =
+        pnl < 0 || (pnl === 0 && down) ? `-${Math.abs(pnl).toFixed(2)}` : Math.abs(pnl).toFixed(2)
+      // Match FXReplay: always show points, even when USD is ±0.00.
+      pnlEl.textContent = `${ptsLabel}→${pnlSigned} USD`
+      pnlEl.title = `${side} · ${Math.abs(Math.round(pts))} pts from entry @ ${pos.entryPrice} · mark ${mark} · unrealized P&L`
     }
     if (qtyEl) qtyEl.textContent = String(pos.qty)
     if (tpBtn) tpBtn.classList.toggle('rw-pos-chip--off', pos.takeProfit == null)
@@ -425,7 +446,7 @@ export function mountChartPositionOverlay(opts: {
     }
 
     const positions = opts.getPositions()
-    const mark = opts.getMarkPrice()
+    const markFallback = opts.getMarkPrice()
     const ids = new Set(positions.map((p) => p.id))
 
     for (const id of [...lineMap.keys(), ...domLineMap.keys()]) {
@@ -435,7 +456,7 @@ export function mountChartPositionOverlay(opts: {
     for (const pos of positions) {
       if (useDomLines && !skipDomLines) ensureDomLines(pos)
       else if (!useDomLines) ensurePriceLines(pos)
-      ensureRow(pos, mark)
+      ensureRow(pos, markFor(pos) || markFallback)
     }
 
     layoutRows()

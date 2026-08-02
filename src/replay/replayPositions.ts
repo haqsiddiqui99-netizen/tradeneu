@@ -61,6 +61,19 @@ export function positionUnrealized(pos: OpenPosition, markPrice: number): number
   return (pos.entryPrice - markPrice) * pos.qty
 }
 
+/**
+ * Mark-to-market price (FXReplay-style):
+ * long → bid, short → ask. Using the same mid/close for fill AND mark always
+ * yields 0 points at entry; opposite-side quotes produce the non-zero points chip.
+ */
+export function positionMarkPrice(
+  direction: PositionDirection,
+  bid: number,
+  ask: number,
+): number {
+  return direction === 'long' ? bid : ask
+}
+
 export function positionPoints(pos: OpenPosition, markPrice: number): number {
   const raw = pos.direction === 'long' ? markPrice - pos.entryPrice : pos.entryPrice - markPrice
   return Math.round(raw * 1000)
@@ -113,8 +126,11 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
     nextId = 1
   }
 
-  function summary(markPrice: number): ReplayAccountSummary {
-    const unrealizedPnL = positions.reduce((a, p) => a + positionUnrealized(p, markPrice), 0)
+  function summary(markPrice: number, bidAsk?: { bid: number; ask: number }): ReplayAccountSummary {
+    const unrealizedPnL = positions.reduce((a, p) => {
+      const mark = bidAsk ? positionMarkPrice(p.direction, bidAsk.bid, bidAsk.ask) : markPrice
+      return a + positionUnrealized(p, mark)
+    }, 0)
     return {
       cash,
       realizedPnL,

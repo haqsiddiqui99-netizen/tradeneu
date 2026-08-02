@@ -95,6 +95,8 @@ export type TradingViewChartHandle = {
       entryTime: number
       takeProfit: number | null
       stopLoss: number | null
+      /** Entry-line color (FXReplay: blue profit / orange loss). */
+      lineColor?: string
     }>,
     handlers: {
       onClose: (id: string) => void
@@ -1368,8 +1370,11 @@ export async function createTradingViewChart(
     takeProfit: number | null
     stopLoss: number | null
     direction: 'long' | 'short'
+    lineColor: string
   }
   const posShapes = new Map<string, PosShapeBundle>()
+  /** Ids currently being created — avoid duplicate async createShape storms. */
+  const posShapesCreating = new Set<string>()
   const ownedShapeIds = new Set<string>()
   let shapeSyncGen = 0
   const backtestMarkerIds: string[] = []
@@ -1412,6 +1417,7 @@ export async function createTradingViewChart(
       /* ignore */
     }
     posShapes.clear()
+    posShapesCreating.clear()
   }
 
   const horzLineOverrides = (color: string, label: string) => ({
@@ -2100,7 +2106,6 @@ export async function createTradingViewChart(
         return false
       }
 
-      const gen = ++shapeSyncGen
       const ids = new Set(positions.map((p) => p.id))
       for (const [id, bundle] of [...posShapes.entries()]) {
         if (ids.has(id)) continue
@@ -2108,79 +2113,142 @@ export async function createTradingViewChart(
         removeShapeId(chart, bundle.tpId)
         removeShapeId(chart, bundle.slId)
         posShapes.delete(id)
+        posShapesCreating.delete(id)
       }
 
-      void (async () => {
-        for (const pos of positions) {
-          if (disposed || gen !== shapeSyncGen) return
-          const timeSec = toTimeSec(pos.entryTime)
-          const color = pos.direction === 'long' ? '#2962ff' : '#e65100'
-          const label = pos.direction === 'long' ? 'BUY' : 'SELL'
-          let bundle = posShapes.get(pos.id)
+      const missing: typeof positions = []
 
-          if (!bundle) {
-            const entryId = await createHorzLine(chart, timeSec, pos.entryPrice, color, label)
-            if (!entryId || disposed || gen !== shapeSyncGen) {
-              if (entryId) removeShapeId(chart, entryId)
-              continue
-            }
-            let tpId: string | null = null
-            let slId: string | null = null
-            if (pos.takeProfit != null) {
-              tpId = await createHorzLine(chart, timeSec, pos.takeProfit, '#089981', 'TP')
-            }
-            if (pos.stopLoss != null) {
-              slId = await createHorzLine(chart, timeSec, pos.stopLoss, '#f7931a', 'SL')
-            }
-            if (disposed || gen !== shapeSyncGen) {
-              removeShapeId(chart, entryId)
-              removeShapeId(chart, tpId)
-              removeShapeId(chart, slId)
-              continue
-            }
-            posShapes.set(pos.id, {
-              entryId,
-              tpId,
-              slId,
-              entryPrice: pos.entryPrice,
-              takeProfit: pos.takeProfit,
-              stopLoss: pos.stopLoss,
-              direction: pos.direction,
-            })
-            continue
-          }
+      for (const pos of positions) {
+        const timeSec = toTimeSec(pos.entryTime)
+        const color =
+          pos.lineColor ?? (pos.direction === 'long' ? '#2962ff' : '#e65100')
+        const label = pos.direction === 'long' ? 'BUY' : 'SELL'
+        const bundle = posShapes.get(pos.id)
 
-          if (bundle.entryPrice !== pos.entryPrice || bundle.direction !== pos.direction) {
-            setShapePrice(chart, bundle.entryId, timeSec, pos.entryPrice, color, label)
-            bundle.entryPrice = pos.entryPrice
-            bundle.direction = pos.direction
-          }
-
-          if (pos.takeProfit != null) {
-            if (!bundle.tpId) {
-              bundle.tpId = await createHorzLine(chart, timeSec, pos.takeProfit, '#089981', 'TP')
-            } else if (bundle.takeProfit !== pos.takeProfit) {
-              setShapePrice(chart, bundle.tpId, timeSec, pos.takeProfit, '#089981', 'TP')
-            }
-          } else if (bundle.tpId) {
-            removeShapeId(chart, bundle.tpId)
-            bundle.tpId = null
-          }
-          bundle.takeProfit = pos.takeProfit
-
-          if (pos.stopLoss != null) {
-            if (!bundle.slId) {
-              bundle.slId = await createHorzLine(chart, timeSec, pos.stopLoss, '#f7931a', 'SL')
-            } else if (bundle.stopLoss !== pos.stopLoss) {
-              setShapePrice(chart, bundle.slId, timeSec, pos.stopLoss, '#f7931a', 'SL')
-            }
-          } else if (bundle.slId) {
-            removeShapeId(chart, bundle.slId)
-            bundle.slId = null
-          }
-          bundle.stopLoss = pos.stopLoss
+        if (!bundle) {
+          if (!posShapesCreating.has(pos.id)) missing.push(pos)
+          continue
         }
-      })()
+
+        // Sync existing shapes immediately — do NOT bump shapeSyncGen (that was
+        // cancelling in-flight createShape on every replay tick / PnL refresh).
+        if (
+          bundle.entryPrice !== pos.entryPrice ||
+          bundle.direction !== pos.direction ||
+          bundle.lineColor !== color
+        ) {
+          setShapePrice(chart, bundle.entryId, timeSec, pos.entryPrice, color, label)
+          bundle.entryPrice = pos.entryPrice
+          bundle.direction = pos.direction
+          bundle.lineColor = color
+        }
+
+        if (pos.takeProfit != null) {
+          if (!bundle.tpId) {
+            if (!posShapesCreating.has(`${pos.id}:tp`)) {
+              posShapesCreating.add(`${pos.id}:tp`)
+              void createHorzLine(chart, timeSec, pos.takeProfit, '#089981', 'TP').then((tpId) => {
+                posShapesCreating.delete(`${pos.id}:tp`)
+                if (!tpId || disposed) {
+                  if (tpId) removeShapeId(chart, tpId)
+                  return
+                }
+                const b = posShapes.get(pos.id)
+                if (!b) {
+                  removeShapeId(chart, tpId)
+                  return
+                }
+                b.tpId = tpId
+                b.takeProfit = pos.takeProfit
+              })
+            }
+          } else if (bundle.takeProfit !== pos.takeProfit) {
+            setShapePrice(chart, bundle.tpId, timeSec, pos.takeProfit, '#089981', 'TP')
+            bundle.takeProfit = pos.takeProfit
+          }
+        } else if (bundle.tpId) {
+          removeShapeId(chart, bundle.tpId)
+          bundle.tpId = null
+          bundle.takeProfit = null
+        }
+
+        if (pos.stopLoss != null) {
+          if (!bundle.slId) {
+            if (!posShapesCreating.has(`${pos.id}:sl`)) {
+              posShapesCreating.add(`${pos.id}:sl`)
+              void createHorzLine(chart, timeSec, pos.stopLoss, '#f7931a', 'SL').then((slId) => {
+                posShapesCreating.delete(`${pos.id}:sl`)
+                if (!slId || disposed) {
+                  if (slId) removeShapeId(chart, slId)
+                  return
+                }
+                const b = posShapes.get(pos.id)
+                if (!b) {
+                  removeShapeId(chart, slId)
+                  return
+                }
+                b.slId = slId
+                b.stopLoss = pos.stopLoss
+              })
+            }
+          } else if (bundle.stopLoss !== pos.stopLoss) {
+            setShapePrice(chart, bundle.slId, timeSec, pos.stopLoss, '#f7931a', 'SL')
+            bundle.stopLoss = pos.stopLoss
+          }
+        } else if (bundle.slId) {
+          removeShapeId(chart, bundle.slId)
+          bundle.slId = null
+          bundle.stopLoss = null
+        }
+      }
+
+      if (missing.length) {
+        const gen = ++shapeSyncGen
+        void (async () => {
+          for (const pos of missing) {
+            if (disposed || gen !== shapeSyncGen) return
+            if (posShapes.has(pos.id) || posShapesCreating.has(pos.id)) continue
+            posShapesCreating.add(pos.id)
+            const timeSec = toTimeSec(pos.entryTime)
+            const color =
+              pos.lineColor ?? (pos.direction === 'long' ? '#2962ff' : '#e65100')
+            const label = pos.direction === 'long' ? 'BUY' : 'SELL'
+            try {
+              const entryId = await createHorzLine(chart, timeSec, pos.entryPrice, color, label)
+              if (!entryId || disposed || gen !== shapeSyncGen) {
+                if (entryId) removeShapeId(chart, entryId)
+                continue
+              }
+              let tpId: string | null = null
+              let slId: string | null = null
+              if (pos.takeProfit != null) {
+                tpId = await createHorzLine(chart, timeSec, pos.takeProfit, '#089981', 'TP')
+              }
+              if (pos.stopLoss != null) {
+                slId = await createHorzLine(chart, timeSec, pos.stopLoss, '#f7931a', 'SL')
+              }
+              if (disposed || gen !== shapeSyncGen || posShapes.has(pos.id)) {
+                removeShapeId(chart, entryId)
+                removeShapeId(chart, tpId)
+                removeShapeId(chart, slId)
+                continue
+              }
+              posShapes.set(pos.id, {
+                entryId,
+                tpId,
+                slId,
+                entryPrice: pos.entryPrice,
+                takeProfit: pos.takeProfit,
+                stopLoss: pos.stopLoss,
+                direction: pos.direction,
+                lineColor: color,
+              })
+            } finally {
+              posShapesCreating.delete(pos.id)
+            }
+          }
+        })()
+      }
 
       return true
     },
