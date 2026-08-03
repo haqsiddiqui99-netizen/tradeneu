@@ -5904,45 +5904,6 @@ export function mountChartWorkspace(
       return scissorsPickCache!
     }
 
-    /**
-     * Initial scissors index at the current replay cursor (chart candle), not always the live edge.
-     * Second-step decoupled used maxPick → line jumped to the far-right / end of chart.
-     */
-    function scissorsPickIndexAtReplayCursor(): number {
-      const maxIdx = maxPickBarIndex()
-      if (maxIdx <= 0) return 0
-
-      if (!isDecoupledReplay()) {
-        return Math.max(0, Math.min(maxIdx, replay.getState().index - 1))
-      }
-
-      const chartPick = resolveIntervalPick(chartTimeframe)
-      const replayPick = resolveIntervalPick(replayTimeframe)
-      const stepBars = replay.getBars()
-      if (!chartPick || !replayPick || !stepBars.length) return maxIdx
-
-      const replayStepSec = effectiveReplayStepSec(stepBars, replayPick.stepSec ?? 60)
-      const cursorEnd = cursorEndSecForStepIndex(
-        stepBars,
-        replayStepSec,
-        replay.getState().index,
-      )
-      if (cursorEnd <= 0) return maxIdx
-
-      const chartStepSec = chartPick.stepSec ?? 60
-      const visible = scissorsVisibleChartBars()
-      if (!visible.length) return 0
-
-      // Candle that contains cursorEnd, else last fully closed candle before it.
-      for (let i = 0; i < visible.length; i++) {
-        const open = Number(visible[i]!.time)
-        const close = open + chartStepSec
-        if (cursorEnd > open && cursorEnd <= close) return Math.min(maxIdx, i)
-        if (cursorEnd <= open) return Math.min(maxIdx, Math.max(0, i - 1))
-      }
-      return maxIdx
-    }
-
     /** Chart candles visible for scissors pick (decoupled: 2m display; coupled: replay slice). */
     function scissorsVisibleChartBars(): Bar[] {
       if (selectBarChartActive && scissorsPickCache) return scissorsPickCache.visible
@@ -6312,11 +6273,6 @@ export function mountChartWorkspace(
       const canvasRect = chartCanvas.getBoundingClientRect()
       const hostRect = chartHost.getBoundingClientRect()
       chartCanvas.style.setProperty('--rw-sb-sx', `${hostRect.left - canvasRect.left + x}px`)
-    }
-
-    /** Mid Y for initial scissors placement (full plot). */
-    function selectBarCandlesTopPx(clip: { top: number }): number {
-      return clip.top
     }
 
     function formatSelectBarPickLabel(idx: number): string {

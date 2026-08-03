@@ -61,22 +61,12 @@ const LS_SESSION_SORT = 'suplexity-dash-session-sort'
 const LS_THEME = 'suplexity-dash-theme'
 const LS_ACCOUNT_TIER = 'suplexity-account-tier'
 const LS_PULSE_RANGE = 'suplexity-dash-pulse-range'
-const LS_TIME_CHART_VIEW = 'suplexity-dash-time-chart-view'
 const LS_TESTING_TAB = 'suplexity-dash-testing-tab'
 
 const TESTING_TABS = ['dashboard', 'sessions', 'trades', 'analytics'] as const
 type TestingTab = (typeof TESTING_TABS)[number]
 
-const TIME_CHART_VIEWS = ['daily', 'monthly'] as const
-type TimeChartView = (typeof TIME_CHART_VIEWS)[number]
-
 const PERF_RANGE_VALUES = ['week', 'month', 'lifetime'] as const
-
-const PERF_RANGE_LABELS: Record<(typeof PERF_RANGE_VALUES)[number], string> = {
-  week: 'Last week',
-  month: 'Last month',
-  lifetime: 'Lifetime',
-}
 
 const SESSION_FILTER_VALUES = [
   'all',
@@ -184,24 +174,6 @@ function buildDashLocalePanelHtml(): string {
     const label = dashLocaleMenuLabel(l.code, l.name)
     return `<button type="button" role="option" class="sx-dash-locale-option" data-locale-option="${l.code}">${label}</button>`
   }).join('')
-}
-
-function readTimeChartView(): TimeChartView {
-  try {
-    const v = localStorage.getItem(LS_TIME_CHART_VIEW)
-    if (v && TIME_CHART_VIEWS.includes(v as TimeChartView)) return v as TimeChartView
-  } catch {
-    /* noop */
-  }
-  return 'daily'
-}
-
-function writeTimeChartView(view: TimeChartView) {
-  try {
-    localStorage.setItem(LS_TIME_CHART_VIEW, view)
-  } catch {
-    /* noop */
-  }
 }
 
 function readAccountTier(): 'free' | 'intermediate' | 'pro' {
@@ -1123,8 +1095,7 @@ export function mountDashboardApp(root: HTMLElement): void {
   const mlPillMobiles = root.querySelectorAll('[data-sx-ml-pill-mobile]')
 
   if (appRoot) {
-    applyDashTheme(appRoot, 'light')
-    writeDashTheme('light')
+    applyDashTheme(appRoot, readDashTheme())
     syncDashFullscreenUi(appRoot)
 
     appRoot.querySelectorAll<HTMLButtonElement>('.sx-dash-theme-icon-btn').forEach((btn) => {
