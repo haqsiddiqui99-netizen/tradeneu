@@ -52,33 +52,39 @@ export async function resolveMarketTicks(p) {
  */
 export function tryResolveLocalBars(p) {
   if (!marketLocalEnabled()) return null
-  const tf = chartIntervalToLocalTimeframe(p.chartInterval)
-  if (!tf) return null
-  const out = readLocalBars(p.symbol, tf, p.startSec, p.endSec)
-  if (out.ok) return out
+  try {
+    const tf = chartIntervalToLocalTimeframe(p.chartInterval)
+    if (!tf) return null
+    const out = readLocalBars(p.symbol, tf, p.startSec, p.endSec)
+    if (out.ok) return out
 
-  // Session end often extends past the last synced bar (stale SQLite). Serve the
-  // overlapping local window instead of blocking on Dukascopy / hanging the chart.
-  const startSec = Number.isFinite(p.startSec) ? Number(p.startSec) : null
-  const endSec = Number.isFinite(p.endSec) ? Number(p.endSec) : null
-  if (startSec == null) return null
-  const bounds = getLocalBarTimeBounds(p.symbol, tf)
-  if (!bounds) return null
-  if (startSec > bounds.maxSec) return null
-  const clampedStart = Math.max(startSec, bounds.minSec)
-  const clampedEnd = Math.min(endSec != null ? endSec : bounds.maxSec, bounds.maxSec)
-  if (clampedEnd <= clampedStart) return null
-  if (
-    clampedStart === startSec &&
-    endSec != null &&
-    clampedEnd === endSec
-  ) {
+    // Session end often extends past the last synced bar (stale SQLite). Serve the
+    // overlapping local window instead of blocking on Dukascopy / hanging the chart.
+    const startSec = Number.isFinite(p.startSec) ? Number(p.startSec) : null
+    const endSec = Number.isFinite(p.endSec) ? Number(p.endSec) : null
+    if (startSec == null) return null
+    const bounds = getLocalBarTimeBounds(p.symbol, tf)
+    if (!bounds) return null
+    if (startSec > bounds.maxSec) return null
+    const clampedStart = Math.max(startSec, bounds.minSec)
+    const clampedEnd = Math.min(endSec != null ? endSec : bounds.maxSec, bounds.maxSec)
+    if (clampedEnd <= clampedStart) return null
+    if (
+      clampedStart === startSec &&
+      endSec != null &&
+      clampedEnd === endSec
+    ) {
+      return null
+    }
+    const soft = readLocalBars(p.symbol, tf, clampedStart, clampedEnd)
+    if (!soft.ok) return null
+    return {
+      ...soft,
+      source: `${soft.source}:clamped`,
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.warn(`[market-local] read failed — skipping local provider (${msg})`)
     return null
-  }
-  const soft = readLocalBars(p.symbol, tf, clampedStart, clampedEnd)
-  if (!soft.ok) return null
-  return {
-    ...soft,
-    source: `${soft.source}:clamped`,
   }
 }

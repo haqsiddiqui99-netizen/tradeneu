@@ -12,7 +12,9 @@ RUN apt-get update \
 
 COPY package.json package-lock.json ./
 # Ignore scripts: postinstall needs scripts/ which is copied next.
-RUN npm install --include=dev --ignore-scripts
+# Rebuild better-sqlite3 native bindings (--ignore-scripts skips its install hook).
+RUN npm install --include=dev --ignore-scripts \
+  && npm rebuild better-sqlite3
 
 COPY . .
 # Enable TradingView Advanced Charts (vendor submodule or committed public/charting_library).

@@ -85,6 +85,7 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
 
   const tried = []
   let lastError = null
+  const chainUsesLocal = parts.includes('local') || parts.includes('sqlite')
 
   for (const step of parts) {
     if (step === 'local' || step === 'sqlite') {
@@ -99,20 +100,25 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
             ? GOLD_CHART_INTERVAL
             : DEFAULT_INTERVAL
       tried.push('local')
-      const local = tryResolveLocalBars({
-        symbol,
-        chartInterval: cInterval,
-        startSec: Number.isFinite(startSec) ? startSec : undefined,
-        endSec: Number.isFinite(endSec) ? endSec : undefined,
-      })
-      if (local?.ok && local.bars?.length >= minLocalBarsForInterval(cInterval)) {
-        return {
-          ok: true,
-          bars: local.bars,
-          timeframe: local.timeframe,
-          source: local.source,
-          chain: tried.join('→'),
+      try {
+        const local = tryResolveLocalBars({
+          symbol,
+          chartInterval: cInterval,
+          startSec: Number.isFinite(startSec) ? startSec : undefined,
+          endSec: Number.isFinite(endSec) ? endSec : undefined,
+        })
+        if (local?.ok && local.bars?.length >= minLocalBarsForInterval(cInterval)) {
+          return {
+            ok: true,
+            bars: local.bars,
+            timeframe: local.timeframe,
+            source: local.source,
+            chain: tried.join('→'),
+          }
         }
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err)
+        console.warn(`[market] local provider failed — trying next in chain (${lastError})`)
       }
       continue
     }
@@ -157,27 +163,32 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
         }
       }
       if (dc.error) lastError = dc.error
-      if (marketLocalEnabled()) {
+      if (chainUsesLocal && marketLocalEnabled()) {
         const cInterval =
           typeof chartInterval === 'string' && chartInterval.trim()
             ? chartInterval.trim()
             : isGoldDefaultRangeSymbol(symbol)
               ? GOLD_CHART_INTERVAL
               : DEFAULT_INTERVAL
-        const local = tryResolveLocalBars({
-          symbol,
-          chartInterval: cInterval,
-          startSec: Number.isFinite(startSec) ? startSec : undefined,
-          endSec: Number.isFinite(endSec) ? endSec : undefined,
-        })
-        if (local?.ok && local.bars?.length >= minLocalBarsForInterval(cInterval)) {
-          return {
-            ok: true,
-            bars: local.bars,
-            timeframe: local.timeframe,
-            source: local.source,
-            chain: [...tried, 'local(fallback)'].join('→'),
+        try {
+          const local = tryResolveLocalBars({
+            symbol,
+            chartInterval: cInterval,
+            startSec: Number.isFinite(startSec) ? startSec : undefined,
+            endSec: Number.isFinite(endSec) ? endSec : undefined,
+          })
+          if (local?.ok && local.bars?.length >= minLocalBarsForInterval(cInterval)) {
+            return {
+              ok: true,
+              bars: local.bars,
+              timeframe: local.timeframe,
+              source: local.source,
+              chain: [...tried, 'local(fallback)'].join('→'),
+            }
           }
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : String(err)
+          console.warn(`[market] local fallback after dukascopy failed (${lastError})`)
         }
       }
       continue

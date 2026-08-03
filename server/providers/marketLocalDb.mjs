@@ -19,7 +19,10 @@ const require = createRequire(import.meta.url)
 /** @type {typeof import('better-sqlite3') | null} */
 let BetterSqlite3 = null
 try {
-  BetterSqlite3 = require('better-sqlite3')
+  const mod = require('better-sqlite3')
+  const probe = new mod(':memory:')
+  probe.close()
+  BetterSqlite3 = mod
 } catch (err) {
   const msg = err instanceof Error ? err.message : String(err)
   console.warn(`[market-local] better-sqlite3 unavailable — local SQLite store disabled (${msg})`)
