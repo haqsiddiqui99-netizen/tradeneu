@@ -28,11 +28,13 @@ import { parseXauCsvText } from '../scripts/xauCsvParse.mjs'
 import { resolveHistoricApiPort } from '../scripts/historicApiPort.mjs'
 import { resolveMarketBars } from './providers/resolveChain.mjs'
 import { getCachedMarketBars, invalidateMarketBarsCache, marketBarsCacheKey } from './providers/marketBarsCache.mjs'
+import { initMarketBarsDiskCache } from './providers/marketBarsDiskCache.mjs'
 import { getCachedMarketTicks, marketTicksCacheKey } from './providers/marketTicksCache.mjs'
 import { resolveMarketTicks } from './providers/marketLocalResolve.mjs'
 import { getLocalStoreStats, marketDbPath, marketLocalEnabled } from './providers/marketLocalDb.mjs'
 import { mountLocalAuthRoutes } from './auth/localAuth.mjs'
 import { mountGoogleAuthRoutes } from './auth/googleOAuth.mjs'
+import { scheduleMarketWarmup } from './marketWarmup.mjs'
 import { authStorageStatus } from './auth/userPersistence.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -96,14 +98,19 @@ function applyProductionDataDefaults() {
   if (!process.env.DUKASCOPY_CACHE_PATH?.trim()) {
     process.env.DUKASCOPY_CACHE_PATH = path.join(DATA_DIR, 'dukascopy-cache')
   }
+  if (!process.env.DUKASCOPY_CLI_WORK_DIR?.trim()) {
+    process.env.DUKASCOPY_CLI_WORK_DIR = path.join(DATA_DIR, 'sync-tmp')
+  }
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true })
     fs.mkdirSync(process.env.DUKASCOPY_CACHE_PATH, { recursive: true })
+    fs.mkdirSync(process.env.DUKASCOPY_CLI_WORK_DIR, { recursive: true })
   } catch {
     /* ignore */
   }
 }
 applyProductionDataDefaults()
+initMarketBarsDiskCache(DATA_DIR)
 
 const app = express()
 
@@ -202,6 +209,12 @@ app.delete('/api/historic/gold/upload', (req, res) => {
 
 const DEFAULT_CHAIN = process.env.MARKET_BAR_CHAIN?.trim() || 'local,dukascopy,twelvedata'
 
+function barsHttpCacheSec(endSec) {
+  const nowSec = Math.floor(Date.now() / 1000)
+  if (Number.isFinite(endSec) && endSec < nowSec - 300) return 3600
+  return 120
+}
+
 /** Express may give `string | string[]` for repeated keys. */
 function firstQueryString(q, key) {
   const v = q?.[key]
@@ -254,7 +267,7 @@ app.get('/api/market/bars', async (req, res) => {
       })
       return
     }
-    res.setHeader('Cache-Control', 'private, max-age=60')
+    res.setHeader('Cache-Control', `private, max-age=${barsHttpCacheSec(Number.isFinite(endSec) ? endSec : undefined)}`)
     if (out.cache) res.setHeader('X-Market-Bars-Cache', out.cache)
     res.json({
       ok: true,
@@ -450,7 +463,9 @@ if (!process.env.VERCEL) {
     console.log(`  Default MARKET_BAR_CHAIN: ${DEFAULT_CHAIN}`)
     console.log(`  Data dir: ${DATA_DIR}`)
     console.log(`  Dukascopy cache: ${process.env.DUKASCOPY_CACHE_PATH?.trim() || 'server-data/dukascopy-cache'}`)
+    console.log(`  Disk bars cache: ${process.env.MARKET_BARS_DISK_CACHE_PATH?.trim() || path.join(DATA_DIR, 'market-bars-cache')}`)
     console.log(`  Local SQLite: ${marketDbPath()} (local-first: ${marketLocalEnabled() ? 'on' : 'off'})`)
+    scheduleMarketWarmup()
     if (!keyOk) {
       console.warn(
         '  [WARN] TWELVE_DATA_API_KEY is not set — /api/market/bars will fail for Twelve Data. Set env or .env.local at repo root.',

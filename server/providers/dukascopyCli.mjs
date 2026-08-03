@@ -10,8 +10,8 @@ import { appSymbolToDukascopyInstrument } from './dukascopy.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..', '..')
-const DEFAULT_WORK_DIR = path.join(ROOT, 'server-data', 'sync-tmp')
-const DEFAULT_CACHE = path.join(ROOT, 'server-data', 'dukascopy-cache')
+const DEFAULT_WORK_DIR = process.env.DUKASCOPY_CLI_WORK_DIR?.trim() || path.join(ROOT, 'server-data', 'sync-tmp')
+const DEFAULT_CACHE = process.env.DUKASCOPY_CACHE_PATH?.trim() || path.join(ROOT, 'server-data', 'dukascopy-cache')
 
 function cliEnabled() {
   const v = process.env.MARKET_SYNC_USE_CLI?.trim().toLowerCase()

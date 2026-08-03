@@ -1,15 +1,22 @@
 /**
  * Short-lived in-memory cache for resolved OHLCV series (Twelve Data is slow to page).
  * Historical session ranges (end in the past) stay cached longer than live windows.
+ * Disk layer (marketBarsDiskCache) persists hits across restarts on /data volume.
  */
 
+import {
+  invalidateMarketBarsDiskCache,
+  readMarketBarsDiskCache,
+  writeMarketBarsDiskCache,
+} from './marketBarsDiskCache.mjs'
+
 const DEFAULT_TTL_MS = Math.max(
-  15_000,
-  Number.parseInt(process.env.MARKET_BARS_CACHE_TTL_MS || '120000', 10) || 120_000,
+  30_000,
+  Number.parseInt(process.env.MARKET_BARS_CACHE_TTL_MS || '300000', 10) || 300_000,
 )
 const HISTORICAL_TTL_MS = Math.max(
   DEFAULT_TTL_MS,
-  Number.parseInt(process.env.MARKET_BARS_CACHE_HISTORICAL_TTL_MS || '600000', 10) || 600_000,
+  Number.parseInt(process.env.MARKET_BARS_CACHE_HISTORICAL_TTL_MS || '86400000', 10) || 86_400_000,
 )
 const MAX_ENTRIES = Math.min(
   128,
@@ -77,10 +84,18 @@ export async function getCachedMarketBars(key, loader, opts = {}) {
   }
   if (hit) store.delete(key)
 
+  const diskHit = readMarketBarsDiskCache(key, opts)
+  if (diskHit) {
+    pruneIfNeeded()
+    store.set(key, { value: diskHit, expires: now + ttlMs(opts.endSec) })
+    return diskHit
+  }
+
   const value = await loader()
   if (value?.ok && Array.isArray(value.bars) && value.bars.length >= 16) {
     pruneIfNeeded()
     store.set(key, { value, expires: now + ttlMs(opts.endSec) })
+    writeMarketBarsDiskCache(key, value, opts)
     return { ...value, cache: 'miss' }
   }
   return { ...value, cache: 'bypass' }
@@ -90,10 +105,12 @@ export async function getCachedMarketBars(key, loader, opts = {}) {
 export function invalidateMarketBarsCache(prefix) {
   if (!prefix) {
     store.clear()
+    invalidateMarketBarsDiskCache()
     return
   }
   const p = normalizeSymbol(prefix)
   for (const k of store.keys()) {
     if (k.startsWith(`${p}|`)) store.delete(k)
   }
+  invalidateMarketBarsDiskCache(p)
 }

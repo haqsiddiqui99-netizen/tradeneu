@@ -4,8 +4,8 @@
  * second bars from SQLite before remote providers (override with `VITE_MARKET_BAR_CHAIN` or `chain`).
  */
 
-/** Default provider chain — match server `MARKET_BAR_CHAIN` (Dukascopy first on production). */
-export const DEFAULT_MARKET_BAR_CHAIN = 'dukascopy,twelvedata'
+/** Default provider chain — local SQLite (disk) first, then Dukascopy, Twelve Data fallback. */
+export const DEFAULT_MARKET_BAR_CHAIN = 'local,dukascopy,twelvedata'
 
 import type { Bar } from '../types'
 
@@ -52,13 +52,13 @@ export type MarketBarsFetchOpts = {
 }
 
 const BARS_CACHE_TTL_MS = Math.max(
-  15_000,
-  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_CACHE_TTL_MS ?? '120000'), 10) || 120_000,
+  30_000,
+  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_CACHE_TTL_MS ?? '300000'), 10) || 300_000,
 )
 const BARS_CACHE_HISTORICAL_TTL_MS = Math.max(
   BARS_CACHE_TTL_MS,
-  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_CACHE_HISTORICAL_TTL_MS ?? '600000'), 10) ||
-    600_000,
+  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_CACHE_HISTORICAL_TTL_MS ?? '86400000'), 10) ||
+    86_400_000,
 )
 const BARS_CACHE_MAX = 32
 
