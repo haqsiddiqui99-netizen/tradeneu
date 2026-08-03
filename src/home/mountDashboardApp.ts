@@ -1,7 +1,12 @@
 import './traderLocal.css'
 import './dashboardTheme.css'
 import './surrealHero.css'
-import { CHART_PAGE_PATH, HOME_PAGE_PATH, LOGIN_PAGE_PATH, normalizeAppPath } from '../appPaths'
+import {
+  appPageFromPath,
+  applyLocaleFromPath,
+  dashCodeToLocaleTag,
+  resolveAppPath,
+} from '../appPaths'
 import { formatSessionModalDate } from '../data/sessionDateRange'
 import {
   createSession,
@@ -1341,9 +1346,9 @@ export function mountDashboardApp(root: HTMLElement): void {
       viewChart.classList.remove('hidden')
     }
     if (viewDash) viewDash.hidden = true
-    const path = normalizeAppPath(window.location.pathname)
-    if (path !== CHART_PAGE_PATH) {
-      history.pushState({ sx: 'chart', sessionId: session.id }, '', CHART_PAGE_PATH)
+    const page = appPageFromPath(window.location.pathname)
+    if (page !== 'chart') {
+      history.pushState({ sx: 'chart', sessionId: session.id }, '', resolveAppPath('chart'))
     }
     disposeChart?.()
     disposeChart = mountChartWorkspace(viewChart, payload, {
@@ -1627,9 +1632,9 @@ export function mountDashboardApp(root: HTMLElement): void {
   }
 
   function showDashboard() {
-    const path = normalizeAppPath(window.location.pathname)
-    if (path === CHART_PAGE_PATH) {
-      history.pushState({ sx: 'dash' }, '', HOME_PAGE_PATH)
+    const page = appPageFromPath(window.location.pathname)
+    if (page === 'chart') {
+      history.pushState({ sx: 'dash' }, '', resolveAppPath('dashboard'))
     }
     if (appRoot) setAiChatOpen(appRoot, false)
     activeSessionId = null
@@ -1847,7 +1852,7 @@ export function mountDashboardApp(root: HTMLElement): void {
   root.querySelectorAll<HTMLButtonElement>('[data-nav="logout"]').forEach((btn) => {
     btn.addEventListener('click', () => {
       void clearAllAuthSessions().then(() => {
-        window.location.assign(LOGIN_PAGE_PATH)
+        window.location.assign(resolveAppPath('login'))
       })
     })
   })
@@ -2269,6 +2274,11 @@ export function mountDashboardApp(root: HTMLElement): void {
       if (code && isDashLocaleCode(code)) {
         writeDashLocale(code)
         syncDashLocaleUi(code)
+        const page = appPageFromPath(window.location.pathname) ?? 'dashboard'
+        const newPath = resolveAppPath(page, dashCodeToLocaleTag(code))
+        if (newPath !== window.location.pathname) {
+          history.pushState({ sx: 'locale', locale: code }, '', newPath)
+        }
         closeAllLocaleDropdowns()
         closeAllPerfDropdowns()
       }
@@ -2308,7 +2318,8 @@ export function mountDashboardApp(root: HTMLElement): void {
     closeAllPerfDropdowns()
   })
 
-  const initialLocale = readDashLocale()
+  const fromUrl = applyLocaleFromPath(window.location.pathname)
+  const initialLocale = fromUrl ?? readDashLocale()
   writeDashLocale(initialLocale)
   syncDashLocaleUi(initialLocale)
 
@@ -2325,12 +2336,14 @@ export function mountDashboardApp(root: HTMLElement): void {
   })
 
   function onPopState() {
-    const path = normalizeAppPath(window.location.pathname)
-    if (path === CHART_PAGE_PATH) {
+    const code = applyLocaleFromPath(window.location.pathname)
+    if (code) syncDashLocaleUi(code)
+    const page = appPageFromPath(window.location.pathname)
+    if (page === 'chart') {
       const id = getLastSessionId()
       const s = id ? getSession(id) : listSessions()[0] ?? null
       if (!s) {
-        history.replaceState(null, '', HOME_PAGE_PATH)
+        history.replaceState(null, '', resolveAppPath('dashboard'))
         showDashboard()
         return
       }
@@ -2338,19 +2351,19 @@ export function mountDashboardApp(root: HTMLElement): void {
       openChartWithStoredSession(s)
       return
     }
-    if (path === HOME_PAGE_PATH) {
+    if (page === 'dashboard') {
       showDashboard()
     }
   }
 
   window.addEventListener('popstate', onPopState)
 
-  if (normalizeAppPath(window.location.pathname) === CHART_PAGE_PATH) {
+  if (appPageFromPath(window.location.pathname) === 'chart') {
     const id = getLastSessionId()
     const s = id ? getSession(id) : listSessions()[0] ?? null
     if (s) openChartWithStoredSession(s)
     else {
-      history.replaceState(null, '', HOME_PAGE_PATH)
+      history.replaceState(null, '', resolveAppPath('dashboard'))
       showDashboardView()
     }
   } else {

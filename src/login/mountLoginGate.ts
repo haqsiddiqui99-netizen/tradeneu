@@ -1,5 +1,5 @@
 import './loginGate.css'
-import { HOME_PAGE_PATH } from '../appPaths'
+import { dashboardPathForUser } from '../appPaths'
 import { fetchAuthServerStatus, loginUser, registerUser } from '../auth/authApi'
 import { clearAllAuthSessions, getAuthUser, GUEST_AUTH_EMAIL, mirrorServerUser, setGuestLoginSession } from '../auth/authSession'
 import { writeDisplayName } from '../home/dashboardUserPrefs'
@@ -80,7 +80,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
           <button type="button" class="sx-login__link" id="sx-login-signout">Sign out</button>
         </p>
 
-        <button type="button" class="sx-login__google" id="sx-login-google">
+        <button type="button" class="sx-login__google" id="sx-login-google" hidden>
           <svg class="sx-login__google-ico" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -89,7 +89,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
           </svg>
           Continue with Google
         </button>
-        <div class="sx-login__divider" aria-hidden="true"><span>or</span></div>
+        <div class="sx-login__divider" id="sx-login-google-divider" aria-hidden="true" hidden><span>or</span></div>
 
         <div class="sx-login__fields">
           <div class="sx-login__field sx-login__field--signup-only" data-signup-only hidden>
@@ -190,6 +190,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
   const submitBtn = wrap.querySelector('#sx-login-submit') as HTMLButtonElement
   const skipBtn = wrap.querySelector('#sx-login-skip') as HTMLButtonElement
   const googleBtn = wrap.querySelector('#sx-login-google') as HTMLButtonElement
+  const googleDivider = wrap.querySelector('#sx-login-google-divider') as HTMLElement
   const signupOnlyFields = wrap.querySelectorAll<HTMLElement>('[data-signup-only]')
   const signinOnlyEls = wrap.querySelectorAll<HTMLElement>('.sx-login__field--signin-only')
   const toastEl = wrap.querySelector('#sx-login-toast') as HTMLElement
@@ -307,7 +308,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
       if (localPart && localPart.length >= 2) writeDisplayName(localPart)
     }
     if (onEnter) onEnter()
-    else window.location.assign(HOME_PAGE_PATH)
+    else window.location.assign(dashboardPathForUser())
   }
 
   dialTrigger.addEventListener('click', (e) => {
@@ -426,7 +427,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
   if (getAuthUser() && authedHintEl) authedHintEl.hidden = false
   continueBtn?.addEventListener('click', () => {
     if (onEnter) onEnter()
-    else window.location.assign(HOME_PAGE_PATH)
+    else window.location.assign(dashboardPathForUser())
   })
   signoutBtn?.addEventListener('click', () => {
     void clearAllAuthSessions().then(() => {
@@ -441,7 +442,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
   if (authError) {
     const authErrorMessages: Record<string, string> = {
       google_not_configured:
-        'Google sign-in is not set up yet. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to .env.local, then restart.',
+        'Google sign-in is not configured yet. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (Railway Variables or .env.local), then redeploy.',
       access_denied: 'Google sign-in was cancelled.',
       invalid_state: 'Google sign-in expired. Please try again.',
       email_not_verified: 'Your Google email is not verified.',
@@ -452,6 +453,10 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
   }
 
   void fetchAuthServerStatus().then((status) => {
+    if (status.googleEnabled) {
+      googleBtn.hidden = false
+      googleDivider.hidden = false
+    }
     if (!offlineHintEl) return
     if (status.online && status.localAuth && status.storageReady !== false) {
       offlineHintEl.hidden = true

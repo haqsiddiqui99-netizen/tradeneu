@@ -1,50 +1,122 @@
-/** Canonical SPA routes (Phase 1: lowercase, semantic names). */
-export const LOGIN_PAGE_PATH = '/login'
-/** Dashboard home — alias `HOME_PAGE_PATH` kept for existing imports. */
-export const HOME_PAGE_PATH = '/dashboard'
+import {
+  DEFAULT_LOCALE_TAG,
+  dashCodeToLocaleTag,
+  isKnownLocaleTag,
+  localeTagToDashCode,
+  persistDashLocaleCode,
+  resolveLocaleTagFromStorage,
+} from './appLocale'
+
+/** SPA page segment (after locale prefix). */
+export type AppPage = 'login' | 'dashboard' | 'chart'
+
+export type ParsedAppPath = {
+  localeTag: string
+  page: AppPage
+}
+
+const LOCALE_PAGE_RE = /^\/([^/]+)\/(login|dashboard|chart)$/
+
+/** Build a locale-prefixed path, e.g. `/en-US/dashboard`. */
+export function appPath(localeTag: string, page: AppPage): string {
+  return `/${localeTag}/${page}`
+}
+
+/** Default-locale shortcuts (backward-compatible exports). */
+export const LOGIN_PAGE_PATH = appPath(DEFAULT_LOCALE_TAG, 'login')
+export const HOME_PAGE_PATH = appPath(DEFAULT_LOCALE_TAG, 'dashboard')
 export const DASHBOARD_PAGE_PATH = HOME_PAGE_PATH
-/** Candle chart workspace (URL updated when a session is opened). */
-export const CHART_PAGE_PATH = '/chart'
+export const CHART_PAGE_PATH = appPath(DEFAULT_LOCALE_TAG, 'chart')
 
-const APP_PAGE_PATHS = new Set([LOGIN_PAGE_PATH, HOME_PAGE_PATH, CHART_PAGE_PATH])
+/** Legacy + Phase 1 bare paths → Phase 2 canonical (default locale). */
+function legacyTarget(pathname: string): string | null {
+  const p = pathname.replace(/\/$/, '') || '/'
+  const map: Record<string, AppPage> = {
+    '/loginPage': 'login',
+    '/loginpage': 'login',
+    '/login': 'login',
+    '/HomePage': 'dashboard',
+    '/homepage': 'dashboard',
+    '/home': 'dashboard',
+    '/dashboard': 'dashboard',
+    '/Chart': 'chart',
+    '/chart': 'chart',
+  }
+  const page = map[p] ?? map[p.toLowerCase()]
+  if (!page) return null
+  return appPath(DEFAULT_LOCALE_TAG, page)
+}
 
-/** Map legacy URLs → canonical (exact path segments, case-sensitive keys where needed). */
-const LEGACY_PATH_MAP: Record<string, string> = {
-  '/loginPage': LOGIN_PAGE_PATH,
-  '/loginpage': LOGIN_PAGE_PATH,
-  '/HomePage': HOME_PAGE_PATH,
-  '/homepage': HOME_PAGE_PATH,
-  '/home': HOME_PAGE_PATH,
-  '/Chart': CHART_PAGE_PATH,
+export function parseAppPath(pathname: string): ParsedAppPath | null {
+  const p = pathname.replace(/\/$/, '') || '/'
+  const m = LOCALE_PAGE_RE.exec(p)
+  if (!m) return null
+  const localeTag = m[1]!
+  const page = m[2] as AppPage
+  if (!isKnownLocaleTag(localeTag)) return null
+  return { localeTag, page }
 }
 
 /**
- * Normalize pathname to a canonical app route when it matches login, dashboard, or chart.
+ * Normalize to canonical Phase 2 path (`/{locale}/{page}`) when recognized.
  * Unknown paths are returned unchanged.
  */
 export function normalizeAppPath(pathname: string): string {
-  const p = pathname.replace(/\/$/, '') || '/'
-  if (LEGACY_PATH_MAP[p]) return LEGACY_PATH_MAP[p]
-  const lower = p.toLowerCase()
-  if (lower === '/loginpage' || lower === '/login') return LOGIN_PAGE_PATH
-  if (lower === '/homepage' || lower === '/home' || lower === '/dashboard') return HOME_PAGE_PATH
-  if (lower === '/chart') return CHART_PAGE_PATH
-  return p
+  const parsed = parseAppPath(pathname)
+  if (parsed) return appPath(parsed.localeTag, parsed.page)
+  const legacy = legacyTarget(pathname)
+  if (legacy) return legacy
+  return pathname.replace(/\/$/, '') || '/'
 }
 
-/** True when the path is (or normalizes to) a known app shell route. */
 export function isAppShellPath(pathname: string): boolean {
-  return APP_PAGE_PATHS.has(normalizeAppPath(pathname))
+  return parseAppPath(normalizeAppPath(pathname)) != null
 }
 
 /**
- * When the browser URL uses a legacy or non-canonical spelling, return the canonical path
- * so the app can redirect (e.g. `/HomePage` → `/dashboard`).
+ * When the URL should redirect (legacy, Phase 1 bare paths, or unknown locale tag).
  */
 export function canonicalPathFromLegacy(pathname: string): string | null {
   const p = pathname.replace(/\/$/, '') || '/'
-  const canonical = normalizeAppPath(p)
-  if (!APP_PAGE_PATHS.has(canonical)) return null
-  if (p === canonical) return null
-  return canonical
+  const normalized = normalizeAppPath(p)
+  if (normalized !== p) return normalized
+
+  const m = LOCALE_PAGE_RE.exec(p)
+  if (m && !isKnownLocaleTag(m[1]!)) {
+    return appPath(DEFAULT_LOCALE_TAG, m[2] as AppPage)
+  }
+  return null
 }
+
+/** Current locale tag from the URL, or default. */
+export function localeTagFromPath(pathname?: string): string {
+  return parseAppPath(normalizeAppPath(pathname ?? window.location.pathname))?.localeTag ?? DEFAULT_LOCALE_TAG
+}
+
+/** Current page from the URL, if on an app shell route. */
+export function appPageFromPath(pathname?: string): AppPage | null {
+  return parseAppPath(normalizeAppPath(pathname ?? window.location.pathname))?.page ?? null
+}
+
+/** Build path for `page` using URL locale, optional override, or stored preference. */
+export function resolveAppPath(page: AppPage, localeTag?: string): string {
+  const fromUrl = parseAppPath(normalizeAppPath(window.location.pathname))?.localeTag
+  const tag = localeTag ?? fromUrl ?? resolveLocaleTagFromStorage()
+  return appPath(tag, page)
+}
+
+/** Dashboard home for the user's stored locale (post-login navigation). */
+export function dashboardPathForUser(): string {
+  return appPath(resolveLocaleTagFromStorage(), 'dashboard')
+}
+
+/** Sync URL locale tag → dashboard picker + `<html lang>`. */
+export function applyLocaleFromPath(pathname?: string): ReturnType<typeof localeTagToDashCode> {
+  const tag = localeTagFromPath(pathname)
+  const code = localeTagToDashCode(tag)
+  if (!code) return null
+  persistDashLocaleCode(code)
+  return code
+}
+
+export { dashCodeToLocaleTag, DEFAULT_LOCALE_TAG, localeTagToDashCode }

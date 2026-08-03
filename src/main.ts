@@ -1,11 +1,14 @@
 import './app.css'
 import '@fortawesome/fontawesome-free/css/all.min.css'
 import {
+  appPath,
+  applyLocaleFromPath,
   canonicalPathFromLegacy,
-  CHART_PAGE_PATH,
-  HOME_PAGE_PATH,
-  LOGIN_PAGE_PATH,
+  dashboardPathForUser,
+  DEFAULT_LOCALE_TAG,
   normalizeAppPath,
+  parseAppPath,
+  resolveAppPath,
 } from './appPaths'
 import { resolveAuthSession } from './auth/authSession'
 import { mountDashboardApp } from './home/mountDashboardApp'
@@ -20,28 +23,35 @@ async function bootstrap(): Promise<void> {
     return
   }
 
-  const path = normalizeAppPath(window.location.pathname)
-
+  const parsed = parseAppPath(normalizeAppPath(window.location.pathname))
   const authed = await resolveAuthSession()
 
-  if (path === LOGIN_PAGE_PATH) {
+  if (!parsed) {
+    window.location.replace(
+      authed ? resolveAppPath('dashboard') : appPath(DEFAULT_LOCALE_TAG, 'login'),
+    )
+    return
+  }
+
+  applyLocaleFromPath(window.location.pathname)
+
+  if (parsed.page === 'login') {
     mountLoginGate(root, () => {
-      window.location.assign(HOME_PAGE_PATH)
+      window.location.assign(dashboardPathForUser())
     })
     return
   }
 
-  if (path === HOME_PAGE_PATH || path === CHART_PAGE_PATH) {
+  if (parsed.page === 'dashboard' || parsed.page === 'chart') {
     if (!authed) {
-      window.location.replace(LOGIN_PAGE_PATH)
+      window.location.replace(resolveAppPath('login', parsed.localeTag))
       return
     }
     mountDashboardApp(root)
     return
   }
 
-  // `/` and unknown paths → login or dashboard
-  window.location.replace(authed ? HOME_PAGE_PATH : LOGIN_PAGE_PATH)
+  window.location.replace(authed ? dashboardPathForUser() : resolveAppPath('login'))
 }
 
 void bootstrap()

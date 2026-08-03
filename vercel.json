@@ -5,15 +5,22 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "redirects": [
-    { "source": "/loginPage", "destination": "/login", "permanent": true },
-    { "source": "/loginpage", "destination": "/login", "permanent": true },
-    { "source": "/HomePage", "destination": "/dashboard", "permanent": true },
-    { "source": "/homepage", "destination": "/dashboard", "permanent": true },
-    { "source": "/Chart", "destination": "/chart", "permanent": true }
+    { "source": "/loginPage", "destination": "/en-US/login", "permanent": true },
+    { "source": "/loginpage", "destination": "/en-US/login", "permanent": true },
+    { "source": "/login", "destination": "/en-US/login", "permanent": true },
+    { "source": "/HomePage", "destination": "/en-US/dashboard", "permanent": true },
+    { "source": "/homepage", "destination": "/en-US/dashboard", "permanent": true },
+    { "source": "/home", "destination": "/en-US/dashboard", "permanent": true },
+    { "source": "/dashboard", "destination": "/en-US/dashboard", "permanent": true },
+    { "source": "/Chart", "destination": "/en-US/chart", "permanent": true },
+    { "source": "/chart", "destination": "/en-US/chart", "permanent": true }
   ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/", "destination": "/index.html" },
+    { "source": "/:locale/login", "destination": "/index.html" },
+    { "source": "/:locale/dashboard", "destination": "/index.html" },
+    { "source": "/:locale/chart", "destination": "/index.html" },
     { "source": "/login", "destination": "/index.html" },
     { "source": "/dashboard", "destination": "/index.html" },
     { "source": "/chart", "destination": "/index.html" },

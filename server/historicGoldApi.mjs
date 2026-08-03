@@ -132,13 +132,17 @@ const upload = multer({
 
 app.use(express.json({ limit: '32kb' }))
 
-/** Phase 1 URL migration — permanent redirects from legacy SPA paths. */
+/** Phase 1–2 URL migration — permanent redirects to locale-prefixed canonical paths. */
 const LEGACY_SPA_REDIRECTS = {
-  '/loginPage': '/login',
-  '/loginpage': '/login',
-  '/HomePage': '/dashboard',
-  '/homepage': '/dashboard',
-  '/Chart': '/chart',
+  '/loginPage': '/en-US/login',
+  '/loginpage': '/en-US/login',
+  '/login': '/en-US/login',
+  '/HomePage': '/en-US/dashboard',
+  '/homepage': '/en-US/dashboard',
+  '/home': '/en-US/dashboard',
+  '/dashboard': '/en-US/dashboard',
+  '/Chart': '/en-US/chart',
+  '/chart': '/en-US/chart',
 }
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next()

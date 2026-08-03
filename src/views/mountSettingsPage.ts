@@ -1,5 +1,5 @@
 import './platformPage.css'
-import { LOGIN_PAGE_PATH } from '../appPaths'
+import { resolveAppPath } from '../appPaths'
 import { changePassword } from '../auth/authApi'
 import type { AuthUser } from '../auth/authSession'
 import { GUEST_AUTH_EMAIL } from '../auth/authSession'
@@ -225,7 +225,7 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
           </div>
           <div class="sx-platform-page__actions">
             <button type="button" class="sx-platform-page__btn sx-platform-page__btn--primary" data-sx-settings-save-username>Save profile</button>
-            ${isGuest ? `<a class="sx-platform-page__btn" href="${LOGIN_PAGE_PATH}">Create account</a>` : ''}
+            ${isGuest ? `<a class="sx-platform-page__btn" href="${resolveAppPath('login')}">Create account</a>` : ''}
           </div>
           <p class="sx-platform-page__saved" data-sx-settings-account-saved aria-live="polite"></p>
         </section>
@@ -240,7 +240,7 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
               <li><i class="fa-solid fa-check" aria-hidden="true"></i> Keep session history after browser clears</li>
               <li><i class="fa-solid fa-check" aria-hidden="true"></i> Enable password + billing controls</li>
             </ul>
-            <a class="sx-platform-page__btn sx-platform-page__btn--primary" href="${LOGIN_PAGE_PATH}">Sign in or create account</a>
+            <a class="sx-platform-page__btn sx-platform-page__btn--primary" href="${resolveAppPath('login')}">Sign in or create account</a>
           </div>`
               : `<div class="sx-settings-fields">
             <div class="sx-platform-page__field">

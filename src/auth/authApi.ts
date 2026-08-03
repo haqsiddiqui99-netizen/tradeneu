@@ -24,6 +24,7 @@ export type AuthApiResult =
 export type AuthServerStatus = {
   online: boolean
   localAuth: boolean
+  googleEnabled?: boolean
   storageReady?: boolean
   storageBackend?: string
   storageMessage?: string
@@ -181,6 +182,7 @@ export async function fetchAuthServerStatus(): Promise<AuthServerStatus> {
         return {
           online: true,
           localAuth: true,
+          googleEnabled: body.googleEnabled === true,
           storageReady: false,
           storageBackend: body.storageBackend,
           storageMessage: body.storageMessage,
@@ -190,6 +192,7 @@ export async function fetchAuthServerStatus(): Promise<AuthServerStatus> {
       return {
         online: true,
         localAuth: true,
+        googleEnabled: body.googleEnabled === true,
         storageReady: body.storageReady ?? true,
         storageBackend: body.storageBackend,
       }
