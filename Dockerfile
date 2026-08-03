@@ -15,6 +15,8 @@ COPY package.json package-lock.json ./
 RUN npm install --include=dev --ignore-scripts
 
 COPY . .
+# Enable TradingView Advanced Charts in the Vite build (requires vendor/charting_library submodule in repo).
+ENV VITE_USE_TV_CHART=1
 # prebuild runs TV sync (non-strict); then Vite/tsc build.
 RUN npm run build \
   && npm prune --omit=dev \
