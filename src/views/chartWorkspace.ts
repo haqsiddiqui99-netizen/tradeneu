@@ -21,7 +21,6 @@ import { useTradingViewChart } from '../chart/tradingViewFeature'
 import {
   createTradingViewChart,
   preloadTradingViewScript,
-  tradingViewLibraryAvailable,
   type TradingViewChartHandle,
 } from '../chart/tradingViewChart'
 import { mountTickLineOverlay, type TickLineOverlayHandle } from '../chart/tickLineOverlay'
@@ -1188,7 +1187,7 @@ export function mountChartWorkspace(
     bootLoadingWatchdog = window.setTimeout(() => {
       bootLoadingWatchdog = null
       void endBootLoading(true)
-    }, 22_000)
+    }, 10_000)
   }
 
   async function endBootLoading(force = false) {
@@ -2368,6 +2367,7 @@ export function mountChartWorkspace(
       }
       chartVolEl.innerHTML = ''
       if (replayStatusEl) replayStatusEl.textContent = 'Replay · load failed'
+      await endBootLoading(true)
       return
     }
     if (state.disposed || !series) {
@@ -3695,10 +3695,6 @@ export function mountChartWorkspace(
 
     let useLightweightChart = !tvChartMode
 
-    if (tvChartMode && !(await tradingViewLibraryAvailable())) {
-      console.warn('[TradingView] charting_library probe failed — attempting widget load anyway')
-    }
-
     if (tvChartMode) {
       rwRoot.classList.add('rw-root--tv')
       chartHost.classList.add('rw-chart-host--tv')
@@ -3710,8 +3706,10 @@ export function mountChartWorkspace(
       ])
       if (state.disposed) return
       const { startSec, endSec } = sessionDateRangeSec(activeSession.startDate, activeSession.endDate)
+      const TV_INIT_TIMEOUT_MS = 15_000
       try {
-        state.tvChart = await createTradingViewChart(chartTv, {
+        state.tvChart = await Promise.race([
+          createTradingViewChart(chartTv, {
           symbol: formatDisplaySymbol(currentChartSymbol),
           resolution: intervalPillToTvResolution(chartTimeframe),
           theme: uiChartTheme === 'dark' ? 'dark' : 'light',
@@ -3736,7 +3734,15 @@ export function mountChartWorkspace(
             }
             void applyIntervalPick(pick)
           },
-        })
+        }),
+          new Promise<TradingViewChartHandle>((_, reject) => {
+            window.setTimeout(
+              () => reject(new Error('TradingView init timeout')),
+              TV_INIT_TIMEOUT_MS,
+            )
+          }),
+        ])
+        void dismissBootAfterPaint()
         state.tvChart.setSessionBars(
           tvBarsForChart(chartBars),
           intervalPillToTvResolution(chartTimeframe),

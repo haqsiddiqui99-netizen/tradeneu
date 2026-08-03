@@ -1225,21 +1225,13 @@ export async function tradingViewLibraryAvailable(): Promise<boolean> {
   try {
     const url = chartingLibraryScriptUrl()
     const head = await fetch(url, { method: 'HEAD', cache: 'no-store' })
-    if (head.ok) {
-      const ct = (head.headers.get('content-type') ?? '').toLowerCase()
-      if (ct.includes('text/html')) return false
-      const totalLen = head.headers.get('content-length')
-      if (totalLen && Number.parseInt(totalLen, 10) >= 10_000) return true
-    }
-    const res = await fetch(url, { method: 'GET', cache: 'no-store' })
-    if (!res.ok) return false
-    const ct = (res.headers.get('content-type') ?? '').toLowerCase()
+    if (!head.ok) return false
+    const ct = (head.headers.get('content-type') ?? '').toLowerCase()
     if (ct.includes('text/html')) return false
-    const buf = await res.arrayBuffer()
-    if (buf.byteLength < 10_000) return false
-    const text = new TextDecoder().decode(buf.slice(0, Math.min(buf.byteLength, 256))).trimStart()
-    if (text.startsWith('<!') || text.startsWith('<html')) return false
-    return text.includes('TradingView') || text.includes('function') || text.includes('var ')
+    const totalLen = head.headers.get('content-length')
+    if (totalLen && Number.parseInt(totalLen, 10) >= 10_000) return true
+    // Some hosts omit Content-Length on HEAD; let script load be the source of truth.
+    return !ct.includes('text/html')
   } catch {
     return false
   }
@@ -1254,11 +1246,18 @@ function loadTradingViewScript(): Promise<void> {
   if (tvWidgetCtor()) return Promise.resolve()
   if (!scriptLoadPromise) {
     scriptLoadPromise = new Promise((resolve, reject) => {
+      const SCRIPT_LOAD_TIMEOUT_MS = 12_000
+      const timeoutId = window.setTimeout(() => {
+        scriptLoadPromise = null
+        reject(new Error('TradingView script load timeout'))
+      }, SCRIPT_LOAD_TIMEOUT_MS)
       const finishOk = () => {
+        window.clearTimeout(timeoutId)
         if (tvWidgetCtor()) resolve()
         else reject(new Error('TradingView script loaded but widget constructor is missing'))
       }
       const finishErr = (msg: string) => {
+        window.clearTimeout(timeoutId)
         scriptLoadPromise = null
         reject(new Error(msg))
       }
@@ -1309,15 +1308,17 @@ export async function createTradingViewChart(
   removeStaleAxisHairlineCovers(mount)
 
   // Drop stale TV chart settings that can re-enable bid/ask even when overrides say false.
-  try {
-    for (const key of [...Object.keys(localStorage)]) {
-      if (/tradingview|tvlanding|chartproperties/i.test(key)) {
-        localStorage.removeItem(key)
+  window.setTimeout(() => {
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (/tradingview|tvlanding|chartproperties/i.test(key)) {
+          localStorage.removeItem(key)
+        }
       }
+    } catch {
+      /* private mode / blocked storage */
     }
-  } catch {
-    /* private mode / blocked storage */
-  }
+  }, 0)
 
   let currentSymbol = opts.symbol.trim().toUpperCase()
   let currentResolution = opts.resolution
@@ -1498,6 +1499,8 @@ export async function createTradingViewChart(
     'scalesProperties.lineColor': opts.theme === 'dark' ? '#131722' : '#ffffff',
     'paneProperties.separatorColor': opts.theme === 'dark' ? '#131722' : '#ffffff',
   }
+
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
   const widget = new Widget({
     symbol: currentSymbol,
