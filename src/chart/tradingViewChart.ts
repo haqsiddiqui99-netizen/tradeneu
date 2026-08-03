@@ -158,6 +158,12 @@ export type TradingViewChartOpts = {
   theme: TvTheme
   sessionStartSec?: number
   sessionEndSec?: number
+  /** Seed replay feed before widget init so TV never boots against an empty datafeed. */
+  initialSessionBars?: {
+    bars: Bar[]
+    resolution: string
+    barPeriodSec?: number
+  }
   /** Provider label for resolveSymbol (e.g. dukascopy:xauusd → Dukascopy). Set before widget init. */
   dataSource?: string
   onSymbolChange?: (symbol: string) => void
@@ -1349,6 +1355,13 @@ export async function createTradingViewChart(
     datafeedBundle.setProviderExchangeLabel(opts.dataSource)
     lastProviderExchangeLabel = datafeedBundle.getProviderExchangeLabel()
   }
+  if (opts.initialSessionBars?.bars.length) {
+    datafeedBundle.replayFeed.setSessionBars(
+      opts.initialSessionBars.bars,
+      opts.initialSessionBars.resolution,
+      opts.initialSessionBars.barPeriodSec,
+    )
+  }
   datafeedBundle.replayFeed.setTvFullSeriesReplay(false)
   const datafeed: TvDatafeed = datafeedBundle.datafeed
 
@@ -1724,21 +1737,9 @@ export async function createTradingViewChart(
       removeStaleAxisHairlineCovers(mount)
     }
     hideChartHairlines()
-    for (const delay of [0, 100, 200, 800, 2000, 5000]) {
-      window.setTimeout(() => {
-        if (!disposed) hideChartHairlines()
-      }, delay)
-    }
-    // Short purge window only — a permanent 500ms loop contended with chart paint.
-    let hairlineTicks = 0
-    const hairlineTimer = window.setInterval(() => {
-      if (disposed || ++hairlineTicks > 12) {
-        window.clearInterval(hairlineTimer)
-        return
-      }
-      hideChartHairlines()
-    }, 1000)
-    headerButtonCleanups.push(() => window.clearInterval(hairlineTimer))
+    window.setTimeout(() => {
+      if (!disposed) hideChartHairlines()
+    }, 250)
 
     void widget
       .headerReady()

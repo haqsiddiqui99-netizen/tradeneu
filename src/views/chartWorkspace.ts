@@ -2067,11 +2067,10 @@ export function mountChartWorkspace(
     tvOverlayObserver = new MutationObserver(() => syncTvOverlayDockVisibility())
     tvOverlayObserver.observe(doc.body ?? doc.documentElement, {
       childList: true,
-      subtree: true,
       attributes: true,
       attributeFilter: ['class', 'style', 'hidden', 'aria-hidden'],
     })
-    tvOverlayPoll = setInterval(syncTvOverlayDockVisibility, 500)
+    tvOverlayPoll = setInterval(syncTvOverlayDockVisibility, 2500)
   }
   cleanupFns.push(() => {
     tvOverlayObserver?.disconnect()
@@ -2377,6 +2376,9 @@ export function mountChartWorkspace(
       feedLabel = `Tradeneu · ${series.dataSource}`
     }
     let chartBars = filterSessionChartBars(series.bars, activeSession)
+    if (!chartBars.length && series.bars.length >= MIN_BOOT_CHART_BARS) {
+      chartBars = series.bars.slice()
+    }
     let sessionReplayStartIndex = sessionStartReplayIndex(chartBars, activeSession.startDate)
     const emptyDateRange =
       chartBars.length < 8 &&
@@ -3716,6 +3718,11 @@ export function mountChartWorkspace(
           dataSource: series.dataSource,
           sessionStartSec: startSec,
           sessionEndSec: endSec,
+          initialSessionBars: {
+            bars: tvBarsForChart(chartBars),
+            resolution: intervalPillToTvResolution(chartTimeframe),
+            barPeriodSec: tvBarPeriodSecForPill(chartTimeframe),
+          },
           intervalSwapRef: tvIntervalSwap,
           onSymbolChange: (symbol) => {
             const next = symbol.trim().toUpperCase()
@@ -3747,6 +3754,7 @@ export function mountChartWorkspace(
           tvBarsForChart(chartBars),
           intervalPillToTvResolution(chartTimeframe),
           tvBarPeriodSecForPill(chartTimeframe),
+          { deferRefresh: true },
         )
         tvBootBarsApplied = true
         hideReplayNotice()

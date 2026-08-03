@@ -248,6 +248,13 @@ async function fetchLiveMarketSeries(
     ...(hasRange ? { startSec, endSec, sessionStartSec: sessionStartSec ?? undefined } : {}),
   })
   if (!fromMarket) return null
+  if (hasRange && fromMarket.bars.length) {
+    const first = fromMarket.bars[0]!.time
+    const last = fromMarket.bars[fromMarket.bars.length - 1]!.time
+    if (last < startSec! - 86_400 || first > endSec! + 86_400) {
+      return null
+    }
+  }
   return {
     bars: fromMarket.bars,
     timeframe: fromMarket.timeframe,
