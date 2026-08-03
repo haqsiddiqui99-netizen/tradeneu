@@ -4,8 +4,8 @@
  * second bars from SQLite before remote providers (override with `VITE_MARKET_BAR_CHAIN` or `chain`).
  */
 
-/** Default provider chain — must match server `MARKET_BAR_CHAIN` (local first for 10s bars). */
-export const DEFAULT_MARKET_BAR_CHAIN = 'local,dukascopy,twelvedata'
+/** Default provider chain — match server `MARKET_BAR_CHAIN` (Dukascopy first on production). */
+export const DEFAULT_MARKET_BAR_CHAIN = 'dukascopy,twelvedata'
 
 import type { Bar } from '../types'
 

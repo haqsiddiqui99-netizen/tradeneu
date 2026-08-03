@@ -8,6 +8,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { getHistoricalRates } from 'dukascopy-node'
+import { cliEnabled, fetchDukascopyViaCli } from './dukascopyCli.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DEFAULT_CACHE_DIR = path.join(__dirname, '..', '..', 'server-data', 'dukascopy-cache')
@@ -124,6 +125,40 @@ function dukascopyFetchTimeoutMs() {
     120_000,
     Math.max(8_000, Number.parseInt(process.env.DUKASCOPY_FETCH_TIMEOUT_MS || '25000', 10) || 25_000),
   )
+}
+
+/** CLI supports a subset of bar timeframes (see dukascopy-node `-t`). */
+function cliBarTimeframe(timeframe) {
+  const tf = String(timeframe || '').trim().toLowerCase()
+  return tf === 'm1' || tf === 'h1' || tf === 'd1' || tf === 'mn1' ? tf : null
+}
+
+/**
+ * @param {object} p
+ * @param {string} p.symbol
+ * @param {string} p.instrument
+ * @param {string} p.timeframe
+ * @param {number} p.startSec
+ * @param {number} p.endSec
+ * @param {number} [p.filterStartSec]
+ * @param {number} [p.filterEndSec]
+ */
+async function fetchBarsViaCli({ symbol, instrument, timeframe, startSec, endSec, filterStartSec, filterEndSec }) {
+  const cliTf = cliBarTimeframe(timeframe)
+  if (!cliEnabled() || !cliTf) return null
+  const cli = await fetchDukascopyViaCli({
+    symbol,
+    startSec,
+    endSec,
+    timeframe: cliTf,
+  })
+  if (!cli.ok || !Array.isArray(cli.rows) || !cli.rows.length) return null
+  const bars = normalizeDukascopyRows(cli.rows, filterStartSec, filterEndSec)
+  if (bars.length < 16) return null
+  return {
+    bars,
+    source: cli.source || `dukascopy:cli:${instrument}`,
+  }
 }
 
 /**
@@ -265,6 +300,61 @@ export async function fetchDukascopyBars({
     ? { from: new Date(startSec * 1000), to: new Date(endSec * 1000) }
     : rangeToDateWindow(range)
 
+  const cliStart = hasRange ? startSec : Math.floor(dates.from.getTime() / 1000)
+  const cliEnd = hasRange ? endSec : Math.floor(dates.to.getTime() / 1000)
+  const filterStart = hasRange ? startSec : undefined
+  const filterEnd = hasRange ? endSec : undefined
+
+  // CLI first — more reliable on Railway / flaky networks (same as market:sync).
+  const cliFirst = await fetchBarsViaCli({
+    symbol,
+    instrument,
+    timeframe,
+    startSec: cliStart,
+    endSec: cliEnd,
+    filterStartSec: filterStart,
+    filterEndSec: filterEnd,
+  })
+  if (cliFirst) {
+    let bars = cliFirst.bars
+    if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
+      const priorFrom = Math.max(0, sessionStartSec - 7 * 86_400)
+      const priorCli = await fetchBarsViaCli({
+        symbol,
+        instrument,
+        timeframe,
+        startSec: priorFrom,
+        endSec: sessionStartSec,
+        filterStartSec: priorFrom,
+        filterEndSec: sessionStartSec,
+      })
+      if (priorCli?.bars.length) {
+        let prior = null
+        for (const b of priorCli.bars) {
+          if (b.time < sessionStartSec) prior = b
+        }
+        if (prior && prior.time < bars[0].time) {
+          bars = [prior, ...bars]
+        }
+      }
+    }
+    const app = String(symbol).trim()
+    return {
+      ok: true,
+      bars,
+      timeframe: dcTimeframeToLabel(timeframe),
+      source: cliFirst.source,
+      dukascopy_request: {
+        instrument,
+        app_symbol: app,
+        timeframe,
+        transport: 'cli',
+        startSec: cliStart,
+        endSec: cliEnd,
+      },
+    }
+  }
+
   let rows
   try {
     rows = await withTimeout(
@@ -293,6 +383,20 @@ export async function fetchDukascopyBars({
   }
 
   let bars = normalizeDukascopyRows(rows, hasRange ? startSec : undefined, hasRange ? endSec : undefined)
+  if (bars.length < 16) {
+    const cliRetry = await fetchBarsViaCli({
+      symbol,
+      instrument,
+      timeframe,
+      startSec: cliStart,
+      endSec: cliEnd,
+      filterStartSec: filterStart,
+      filterEndSec: filterEnd,
+    })
+    if (cliRetry) {
+      bars = cliRetry.bars
+    }
+  }
   if (bars.length < 16) {
     return { ok: false, error: `dukascopy: parsed too few bars (${bars.length})` }
   }
