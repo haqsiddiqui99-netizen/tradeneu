@@ -1130,30 +1130,6 @@ function paintTextHeaderButtonFace(
   }
 }
 
-function watchTextHeaderButtonFace(
-  el: HTMLElement,
-  getOpts: () => {
-    id: string
-    active: boolean
-    label: string
-    iconHtml?: string
-    title?: string
-  },
-) {
-  const id = getOpts().id
-  headerButtonFaceWatchers.get(id)?.disconnect()
-  const paint = resolveHeaderButtonPaintTarget(el)
-  const obs = new MutationObserver(() => {
-    if (paint.dataset.rwFacePainting === '1') return
-    const opts = getOpts()
-    const needsLabel = !paint.querySelector('.rw-tv-header-btn__label')
-    const needsIcon = Boolean(opts.iconHtml?.trim()) && !opts.id.startsWith('replay') && !paint.querySelector('.rw-tv-header-btn__ico')
-    if (needsLabel || needsIcon) paintTextHeaderButtonFace(paint, opts)
-  })
-  obs.observe(paint, { childList: true, subtree: true, characterData: true })
-  headerButtonFaceWatchers.set(id, obs)
-}
-
 function resolveCreateButtonElement(
   mount: HTMLElement,
   result: string | HTMLElement,
