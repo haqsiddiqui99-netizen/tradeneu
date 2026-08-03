@@ -1,3 +1,5 @@
+# Clone the TradingView charting_library git submodule before Docker build:
+#   RAILWAY_GIT_CLONE_FLAGS=--recursive --depth 1
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"

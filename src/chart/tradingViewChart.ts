@@ -1220,11 +1220,25 @@ function notifyWidgetResize(): void {
   }, 32)
 }
 
-/** True when the synced TV static bundle is present (skipped on Vercel without submodule). */
+/** True when the synced TV static bundle is present (skipped on deploy without submodule). */
 export async function tradingViewLibraryAvailable(): Promise<boolean> {
   try {
-    const res = await fetch(chartingLibraryScriptUrl(), { method: 'HEAD', cache: 'no-store' })
-    return res.ok
+    const url = chartingLibraryScriptUrl()
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Range: 'bytes=0-511' },
+      cache: 'no-store',
+    })
+    if (!res.ok && res.status !== 206) return false
+    const ct = (res.headers.get('content-type') ?? '').toLowerCase()
+    if (ct.includes('text/html')) return false
+    const lenHeader = res.headers.get('content-length')
+    if (lenHeader && Number.parseInt(lenHeader, 10) < 10_000) return false
+    const buf = await res.arrayBuffer()
+    if (buf.byteLength < 64) return false
+    const head = new TextDecoder().decode(buf.slice(0, Math.min(buf.byteLength, 256))).trimStart()
+    if (head.startsWith('<!') || head.startsWith('<html')) return false
+    return head.includes('TradingView') || head.includes('function') || head.includes('var ')
   } catch {
     return false
   }

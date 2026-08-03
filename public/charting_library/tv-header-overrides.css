@@ -1,0 +1,136 @@
+/* Tradeneu custom TradingView header controls */
+.rw-tv-header-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  cursor: pointer !important;
+  min-width: 34px !important;
+  min-height: 28px !important;
+  padding: 0 6px !important;
+  box-sizing: border-box !important;
+  border: none !important;
+  color: inherit !important;
+}
+
+.rw-tv-header-btn:not(.rw-tv-header-btn--text) {
+  line-height: 0 !important;
+}
+
+.rw-tv-header-btn:not(.rw-tv-header-btn--active):not(.rw-tv-header-btn--replay) {
+  background: transparent !important;
+}
+
+.rw-tv-header-btn:not(.rw-tv-header-btn--active):hover {
+  opacity: 0.85 !important;
+}
+
+.rw-tv-header-btn--text {
+  line-height: 16px !important;
+  font: 400 13px/16px -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif !important;
+  gap: 6px !important;
+  padding: 0 10px !important;
+  min-width: auto !important;
+  height: 28px !important;
+}
+
+.rw-tv-header-btn__ico {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  line-height: 0 !important;
+}
+
+.rw-tv-header-btn .sx-ico,
+.rw-tv-header-btn svg,
+.rw-tv-header-btn__ico .sx-ico,
+.rw-tv-header-btn__ico svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+/* Attached Replay look: rewind icon (::before) + label on light-gray rounded chip */
+.rw-tv-header-btn--replay.rw-tv-header-btn--text:not(.rw-tv-header-btn--active),
+[data-rw-tv-btn='replay'].rw-tv-header-btn--text:not(.rw-tv-header-btn--active) {
+  background: #f0f3fa !important;
+  background-color: #f0f3fa !important;
+  color: #131722 !important;
+  border-radius: 8px !important;
+  padding: 0 10px !important;
+  height: 28px !important;
+  gap: 6px !important;
+}
+
+/* Hollow double-triangle rewind is in the button label text (◁◁). Do not draw a second CSS icon. */
+.rw-tv-header-btn--replay.rw-tv-header-btn--text::before,
+[data-rw-tv-btn='replay'].rw-tv-header-btn--text::before {
+  content: none !important;
+  display: none !important;
+}
+
+.rw-tv-header-btn--replay .rw-tv-header-btn__ico .sx-ico,
+.rw-tv-header-btn--replay .rw-tv-header-btn__ico svg {
+  width: 22px;
+  height: 14px;
+}
+
+.rw-tv-header-btn__label {
+  display: inline-block !important;
+  white-space: nowrap !important;
+}
+
+/* Selected Replay: black pill, white << + label */
+.rw-tv-header-btn.rw-tv-header-btn--active,
+.rw-tv-header-btn.rw-tv-header-btn--text.rw-tv-header-btn--active,
+button.rw-tv-header-btn.rw-tv-header-btn--active,
+[data-rw-tv-btn='replay'].rw-tv-header-btn--active,
+[data-rw-tv-btn='replay'].rw-tv-header-btn.rw-tv-header-btn--active {
+  background: #131722 !important;
+  background-color: #131722 !important;
+  color: #ffffff !important;
+  border-radius: 8px !important;
+  opacity: 1 !important;
+  padding: 0 11px !important;
+  gap: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  height: 28px !important;
+}
+
+.rw-tv-header-btn.rw-tv-header-btn--active:hover,
+button.rw-tv-header-btn.rw-tv-header-btn--active:hover,
+[data-rw-tv-btn='replay'].rw-tv-header-btn--active:hover {
+  background: #1e222d !important;
+  background-color: #1e222d !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+.rw-tv-header-btn.rw-tv-header-btn--active .sx-ico,
+.rw-tv-header-btn.rw-tv-header-btn--active svg,
+.rw-tv-header-btn.rw-tv-header-btn--active .rw-tv-header-btn__label,
+.rw-tv-header-btn.rw-tv-header-btn--active .rw-tv-header-btn__ico,
+[data-rw-tv-btn='replay'].rw-tv-header-btn--active svg,
+[data-rw-tv-btn='replay'].rw-tv-header-btn--active .rw-tv-header-btn__label,
+[data-rw-tv-btn='replay'].rw-tv-header-btn--active .rw-tv-header-btn__ico {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* Kill leftover white axis-cover strips injected by earlier hairline experiments. */
+#rw-tv-axis-hairline-cover,
+[data-rw-axis-hairline-cover],
+[id*='axis-hairline-cover'] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  pointer-events: none !important;
+}

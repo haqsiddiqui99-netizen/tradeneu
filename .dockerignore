@@ -19,5 +19,3 @@ TradingNeu.xlsx
 .DS_Store
 agent-transcripts
 coverage
-vendor/charting_library
-public/charting_library

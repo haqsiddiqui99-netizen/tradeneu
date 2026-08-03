@@ -3693,8 +3693,11 @@ export function mountChartWorkspace(
 
     setBootLoadStep(2)
 
+    let useLightweightChart = !tvChartMode
+
     if (tvChartMode && !(await tradingViewLibraryAvailable())) {
       tvChartMode = false
+      useLightweightChart = true
       chartTv.hidden = true
       chartHost.classList.remove('rw-chart-host--tv')
       chartCanvas.classList.remove('rw-chart-canvas--tv')
@@ -3749,11 +3752,19 @@ export function mountChartWorkspace(
         hideReplayNotice()
       } catch (err) {
         console.error('[TradingView]', err)
-        const detail = err instanceof Error ? err.message : String(err)
+        tvChartMode = false
+        useLightweightChart = true
+        state.tvChart?.dispose()
+        state.tvChart = null
+        chartTv.hidden = true
+        chartHost.classList.remove('rw-chart-host--tv')
+        chartCanvas.classList.remove('rw-chart-canvas--tv')
+        rwRoot.classList.remove('rw-root--tv')
         showReplayNotice(
-          `TradingView failed to load (${detail}). Try: npm run tv:sync — then hard-refresh.`,
+          'TradingView chart unavailable — using Lightweight Charts. Redeploy with the charting_library submodule for the full TV widget.',
         )
       }
+      if (tvChartMode) {
       cleanupFns.push(() => {
         state.tvChart?.dispose()
         state.tvChart = null
@@ -3773,7 +3784,10 @@ export function mountChartWorkspace(
       window.setTimeout(() => {
         if (!state.disposed) bindTvOverlayObserver()
       }, 2000)
-    } else {
+      }
+    }
+
+    if (useLightweightChart) {
     trading = createTradingChart(chartLwc, {
       theme: tradingThemeFromUi(uiChartTheme),
       timeAxisUtcMinutes: 5,
@@ -3834,7 +3848,7 @@ export function mountChartWorkspace(
       footRangeCleanups.push(() => btn.removeEventListener('click', onFoot))
     })
     cleanupFns.push(() => footRangeCleanups.forEach((f) => f()))
-    } /* end !tvChartMode */
+    } /* end useLightweightChart */
 
     const footGotoDlg = host.querySelector('[data-rw-foot-goto-dialog]') as HTMLDialogElement | null
     const footGotoOpenBtn = host.querySelector('[data-rw-foot-goto]') as HTMLButtonElement | null
