@@ -1224,21 +1224,22 @@ function notifyWidgetResize(): void {
 export async function tradingViewLibraryAvailable(): Promise<boolean> {
   try {
     const url = chartingLibraryScriptUrl()
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: { Range: 'bytes=0-511' },
-      cache: 'no-store',
-    })
-    if (!res.ok && res.status !== 206) return false
+    const head = await fetch(url, { method: 'HEAD', cache: 'no-store' })
+    if (head.ok) {
+      const ct = (head.headers.get('content-type') ?? '').toLowerCase()
+      if (ct.includes('text/html')) return false
+      const totalLen = head.headers.get('content-length')
+      if (totalLen && Number.parseInt(totalLen, 10) >= 10_000) return true
+    }
+    const res = await fetch(url, { method: 'GET', cache: 'no-store' })
+    if (!res.ok) return false
     const ct = (res.headers.get('content-type') ?? '').toLowerCase()
     if (ct.includes('text/html')) return false
-    const lenHeader = res.headers.get('content-length')
-    if (lenHeader && Number.parseInt(lenHeader, 10) < 10_000) return false
     const buf = await res.arrayBuffer()
-    if (buf.byteLength < 64) return false
-    const head = new TextDecoder().decode(buf.slice(0, Math.min(buf.byteLength, 256))).trimStart()
-    if (head.startsWith('<!') || head.startsWith('<html')) return false
-    return head.includes('TradingView') || head.includes('function') || head.includes('var ')
+    if (buf.byteLength < 10_000) return false
+    const text = new TextDecoder().decode(buf.slice(0, Math.min(buf.byteLength, 256))).trimStart()
+    if (text.startsWith('<!') || text.startsWith('<html')) return false
+    return text.includes('TradingView') || text.includes('function') || text.includes('var ')
   } catch {
     return false
   }

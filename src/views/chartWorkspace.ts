@@ -3696,13 +3696,7 @@ export function mountChartWorkspace(
     let useLightweightChart = !tvChartMode
 
     if (tvChartMode && !(await tradingViewLibraryAvailable())) {
-      tvChartMode = false
-      useLightweightChart = true
-      chartTv.hidden = true
-      chartHost.classList.remove('rw-chart-host--tv')
-      chartCanvas.classList.remove('rw-chart-canvas--tv')
-      rwRoot.classList.remove('rw-root--tv')
-      console.warn('[TradingView] charting_library not deployed — using Lightweight Charts')
+      console.warn('[TradingView] charting_library probe failed — attempting widget load anyway')
     }
 
     if (tvChartMode) {
