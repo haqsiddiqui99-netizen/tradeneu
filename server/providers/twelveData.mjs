@@ -318,20 +318,22 @@ export async function fetchTwelveDataTimeSeries({
   }
 
   const app = String(symbol).trim()
+  const twelve_data_request = {
+    symbol: tdSym,
+    app_symbol: app,
+    interval: tdInterval,
+    timezone: 'UTC',
+    startSec: hasRange ? startSec : undefined,
+    endSec: hasRange ? endSec : undefined,
+    chunks: hasRange ? true : undefined,
+    ...(lastRequest || {}),
+  }
+  delete twelve_data_request.apikey
   return {
     ok: true,
     bars: merged,
     timeframe: tdIntervalToTimeframeLabel(tdInterval),
     source: `twelvedata:${tdSym}`,
-    twelve_data_request: {
-      symbol: tdSym,
-      app_symbol: app,
-      interval: tdInterval,
-      timezone: 'UTC',
-      startSec: hasRange ? startSec : undefined,
-      endSec: hasRange ? endSec : undefined,
-      chunks: hasRange ? true : undefined,
-      ...(lastRequest || {}),
-    },
+    twelve_data_request,
   }
 }
