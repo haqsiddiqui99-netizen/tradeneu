@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import { historicApiIdentityOk } from './scripts/historicIdentityProbe.mjs'
 import { resolveHistoricApiPort } from './scripts/historicApiPort.mjs'
-import { CHART_PAGE_PATH, HOME_PAGE_PATH, LOGIN_PAGE_PATH } from './src/appPaths'
+import { isAppShellPath } from './src/appPaths'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -212,15 +212,7 @@ function spaShellRoutesFallback(): Plugin {
   function rewriteIfSpaRoute(url: string | undefined): string | undefined {
     const rawUrl = url ?? ''
     const pathname = (rawUrl.split('?')[0]?.split('#')[0] ?? '/').replace(/\/$/, '') || '/'
-    const lower = pathname.toLowerCase()
-    const isSpa =
-      pathname === LOGIN_PAGE_PATH ||
-      pathname === HOME_PAGE_PATH ||
-      pathname === CHART_PAGE_PATH ||
-      lower === '/loginpage' ||
-      lower === '/homepage' ||
-      lower === '/chart'
-    if (!isSpa) return undefined
+    if (!isAppShellPath(pathname)) return undefined
     const q = rawUrl.includes('?') ? `?${rawUrl.split('?').slice(1).join('?')}` : ''
     return `/index.html${q}`
   }

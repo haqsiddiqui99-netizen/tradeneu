@@ -132,6 +132,23 @@ const upload = multer({
 
 app.use(express.json({ limit: '32kb' }))
 
+/** Phase 1 URL migration — permanent redirects from legacy SPA paths. */
+const LEGACY_SPA_REDIRECTS = {
+  '/loginPage': '/login',
+  '/loginpage': '/login',
+  '/HomePage': '/dashboard',
+  '/homepage': '/dashboard',
+  '/Chart': '/chart',
+}
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next()
+  const p = (req.path || '/').replace(/\/$/, '') || '/'
+  const target = LEGACY_SPA_REDIRECTS[p]
+  if (!target) return next()
+  const q = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''
+  res.redirect(301, `${target}${q}`)
+})
+
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')

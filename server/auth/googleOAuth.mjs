@@ -45,11 +45,11 @@ function isSecureRequest(req) {
 }
 
 function loginPath() {
-  return '/loginPage'
+  return '/login'
 }
 
 function homePath() {
-  return '/HomePage'
+  return '/dashboard'
 }
 
 function redirectUri(req) {

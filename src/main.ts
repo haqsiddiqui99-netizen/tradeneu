@@ -1,6 +1,12 @@
 import './app.css'
 import '@fortawesome/fontawesome-free/css/all.min.css'
-import { CHART_PAGE_PATH, HOME_PAGE_PATH, LOGIN_PAGE_PATH, normalizeAppPath } from './appPaths'
+import {
+  canonicalPathFromLegacy,
+  CHART_PAGE_PATH,
+  HOME_PAGE_PATH,
+  LOGIN_PAGE_PATH,
+  normalizeAppPath,
+} from './appPaths'
 import { resolveAuthSession } from './auth/authSession'
 import { mountDashboardApp } from './home/mountDashboardApp'
 import { mountLoginGate } from './login/mountLoginGate'
@@ -8,16 +14,13 @@ import { mountLoginGate } from './login/mountLoginGate'
 const root = document.querySelector('#root') as HTMLElement
 
 async function bootstrap(): Promise<void> {
-  const pathname = window.location.pathname.replace(/\/$/, '') || '/'
-  const path = normalizeAppPath(window.location.pathname)
-
-  if (
-    (path === LOGIN_PAGE_PATH || path === HOME_PAGE_PATH || path === CHART_PAGE_PATH) &&
-    pathname !== path
-  ) {
-    window.location.replace(path + window.location.search + window.location.hash)
+  const legacyRedirect = canonicalPathFromLegacy(window.location.pathname)
+  if (legacyRedirect) {
+    window.location.replace(legacyRedirect + window.location.search + window.location.hash)
     return
   }
+
+  const path = normalizeAppPath(window.location.pathname)
 
   const authed = await resolveAuthSession()
 

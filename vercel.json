@@ -4,15 +4,24 @@
   "installCommand": "npm install",
   "outputDirectory": "dist",
   "framework": "vite",
+  "redirects": [
+    { "source": "/loginPage", "destination": "/login", "permanent": true },
+    { "source": "/loginpage", "destination": "/login", "permanent": true },
+    { "source": "/HomePage", "destination": "/dashboard", "permanent": true },
+    { "source": "/homepage", "destination": "/dashboard", "permanent": true },
+    { "source": "/Chart", "destination": "/chart", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/", "destination": "/index.html" },
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/dashboard", "destination": "/index.html" },
+    { "source": "/chart", "destination": "/index.html" },
     { "source": "/loginPage", "destination": "/index.html" },
     { "source": "/HomePage", "destination": "/index.html" },
     { "source": "/Chart", "destination": "/index.html" },
     { "source": "/loginpage", "destination": "/index.html" },
-    { "source": "/homepage", "destination": "/index.html" },
-    { "source": "/chart", "destination": "/index.html" }
+    { "source": "/homepage", "destination": "/index.html" }
   ],
   "functions": {
     "api/index.mjs": {
