@@ -19,13 +19,13 @@ export function buildSessionModalHealthMessage(
   if (!health?.apiReachable) {
     lines.push(
       isProd
-        ? 'Market API is unreachable. Sessions on live symbols may load demo or empty bars until /api/market is deployed on Vercel.'
+        ? 'Market API is unreachable. Sessions on live symbols may load demo or empty bars until /api/market is deployed.'
         : 'Market API is offline. Run npm run dev (historic API on port 3100) for live Twelve Data bars.',
     )
   } else if (health.twelveDataKeyConfigured === false) {
     lines.push(
       isProd
-        ? 'TWELVE_DATA_API_KEY is not set on Vercel. Add it under Environment Variables and redeploy.'
+        ? 'TWELVE_DATA_API_KEY is not set in Railway Variables. Add it and redeploy for Twelve Data fallback quotes.'
         : 'Add TWELVE_DATA_API_KEY to .env.local and restart the dev server for live quotes.',
     )
   }

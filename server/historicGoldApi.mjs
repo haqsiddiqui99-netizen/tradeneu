@@ -431,6 +431,9 @@ if (!process.env.VERCEL) {
       app.use(express.static(distDir, { index: false, maxAge: '1h' }))
       app.get(/^(?!\/api\/).*/, (req, res, next) => {
         if (req.method !== 'GET' && req.method !== 'HEAD') return next()
+        const p = req.path.toLowerCase()
+        if (p.startsWith('/charting_library/')) return next()
+        if (/\.(js|css|map|woff2?|ttf|png|svg|ico|json|txt|webmanifest)(\?|$)/.test(p)) return next()
         res.sendFile(indexHtml, (err) => {
           if (err) next(err)
         })
