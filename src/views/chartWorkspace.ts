@@ -1187,7 +1187,7 @@ export function mountChartWorkspace(
     bootLoadingWatchdog = window.setTimeout(() => {
       bootLoadingWatchdog = null
       void endBootLoading(true)
-    }, 10_000)
+    }, 45_000)
   }
 
   async function endBootLoading(force = false) {
@@ -2370,6 +2370,7 @@ export function mountChartWorkspace(
       return
     }
     if (state.disposed || !series) {
+      await endBootLoading(true)
       return
     }
     if (series.dataSource && usesMarketDataSession(currentChartSymbol)) {
@@ -3420,6 +3421,7 @@ export function mountChartWorkspace(
       }
       chartVolEl.innerHTML = ''
       if (replayStatusEl) replayStatusEl.textContent = 'Replay · no data'
+      await endBootLoading(true)
       return
     }
 
@@ -3695,7 +3697,7 @@ export function mountChartWorkspace(
 
     setBootLoadStep(2)
 
-    let useLightweightChart = !tvChartMode
+    let useLightweightChart = true
 
     if (tvChartMode) {
       rwRoot.classList.add('rw-root--tv')
@@ -3706,12 +3708,20 @@ export function mountChartWorkspace(
         waitForChartHostLayout(chartCanvas, () => state.disposed),
         waitForChartHostLayout(chartHost, () => state.disposed),
       ])
-      if (state.disposed) return
+      if (state.disposed) {
+        await endBootLoading(true)
+        return
+      }
+      await preloadTradingViewScript().catch((err) => {
+        console.warn('[ChartBoot] TV script preload', err)
+      })
+      if (state.disposed) {
+        await endBootLoading(true)
+        return
+      }
       const { startSec, endSec } = sessionDateRangeSec(activeSession.startDate, activeSession.endDate)
-      const TV_INIT_TIMEOUT_MS = 15_000
       try {
-        state.tvChart = await Promise.race([
-          createTradingViewChart(chartTv, {
+        state.tvChart = await createTradingViewChart(chartTv, {
           symbol: formatDisplaySymbol(currentChartSymbol),
           resolution: intervalPillToTvResolution(chartTimeframe),
           theme: uiChartTheme === 'dark' ? 'dark' : 'light',
@@ -3741,23 +3751,20 @@ export function mountChartWorkspace(
             }
             void applyIntervalPick(pick)
           },
-        }),
-          new Promise<TradingViewChartHandle>((_, reject) => {
-            window.setTimeout(
-              () => reject(new Error('TradingView init timeout')),
-              TV_INIT_TIMEOUT_MS,
-            )
-          }),
-        ])
-        void dismissBootAfterPaint()
+        })
         state.tvChart.setSessionBars(
           tvBarsForChart(chartBars),
           intervalPillToTvResolution(chartTimeframe),
           tvBarPeriodSecForPill(chartTimeframe),
-          { deferRefresh: true },
         )
         tvBootBarsApplied = true
         hideReplayNotice()
+        const tvBootSafetyTimer = window.setTimeout(() => {
+          if (state.disposed || !tvChartMode || tvBootPaintDone) return
+          console.warn('[ChartBoot] TradingView slow — revealing Lightweight Charts under TV')
+          void revealLightweightChartFallback('TradingView boot timed out')
+        }, 18_000)
+        cleanupFns.push(() => window.clearTimeout(tvBootSafetyTimer))
       } catch (err) {
         console.error('[TradingView]', err)
         tvChartMode = false
@@ -3768,8 +3775,11 @@ export function mountChartWorkspace(
         chartHost.classList.remove('rw-chart-host--tv')
         chartCanvas.classList.remove('rw-chart-canvas--tv')
         rwRoot.classList.remove('rw-root--tv')
+        const detail = err instanceof Error ? err.message : String(err)
         showReplayNotice(
-          'TradingView chart unavailable — using Lightweight Charts. Redeploy with the charting_library submodule for the full TV widget.',
+          detail.includes('timeout') || detail.includes('unavailable')
+            ? `TradingView chart unavailable (${detail}) — using Lightweight Charts.`
+            : `TradingView chart unavailable — using Lightweight Charts. ${detail} Run npm run tv:sync if the charting_library bundle is missing.`,
         )
       }
       if (tvChartMode) {
@@ -3805,6 +3815,7 @@ export function mountChartWorkspace(
     if (state.disposed) {
       trading.dispose()
       state.trading = null
+      await endBootLoading(true)
       return
     }
 
@@ -4233,8 +4244,9 @@ export function mountChartWorkspace(
           ...lwcTimeAxisOptsForInterval(chartTimeframe),
         }
         state.trading.setReplayData(displayBars, allBars, paintOpts)
-        firstChartPaint = false
-      } else if (state.tvChart) {
+        if (!tvChartMode) firstChartPaint = false
+      }
+      if (state.tvChart && tvChartMode) {
         if (!deferTvChartPaint && !skipTvReplayPaintOnce) {
           const tickTvCandles =
             state.tickReplayUnit === 'tick' && tvCandleBarsForTickMode().length >= 2
@@ -4388,36 +4400,85 @@ export function mountChartWorkspace(
       }
     }
 
-    async function paintTvBootChart() {
-      if (!state.tvChart || state.disposed || tvBootPaintDone) return
-      await Promise.race([
-        state.tvChart.whenChartReady(),
-        new Promise<void>((_, reject) => {
-          window.setTimeout(() => reject(new Error('TradingView chart ready timeout')), 20_000)
-        }),
-      ]).catch((err) => {
-        console.warn('[ChartBoot]', err)
-      })
-      if (state.disposed || !state.tvChart || tvBootPaintDone) return
-      await yieldToMain()
+    async function applyTvBootPaint() {
+      if (!state.tvChart || state.disposed) return
       deferTvChartPaint = false
       replayViewportLocked = false
       lockedTvViewport = null
       pendingTvViewportRestore = null
       userViewportPinned = false
-      state.tvChart?.setReplayLockedViewport(null)
-      const bootAtLiveEnd = replay.getState().index >= chartBars.length
-      nextReplayTickFit = bootAtLiveEnd
-      if (bootAtLiveEnd) {
-        state.tvChart.clearReplay()
-      }
-      onReplayTick(replay.slice(), replay.getState().index)
+      state.tvChart.setReplayLockedViewport(null)
+      const idx = replay.getState().index
+      const tvBars = tvBarsForChart(chartBars)
+      const tvRes = intervalPillToTvResolution(chartTimeframe)
+      const tvPeriod = tvBarPeriodSecForPill(chartTimeframe)
+      state.tvChart.primeIntervalFeed(tvBars, tvRes, idx, tvPeriod)
+      nextReplayTickFit = true
+      nextReplayTickForce = true
+      onReplayTick(replay.slice(), idx)
       state.tvChart.flushPendingRefresh()
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          state.tvChart?.flushPendingRefresh()
+          onReplayTick(replay.slice(), idx)
+          requestAnimationFrame(() => resolve())
+        })
+      })
+    }
+
+    async function revealLightweightChartFallback(reason: string) {
+      if (state.disposed || !state.trading || !tvChartMode) return
+      console.warn('[ChartBoot] TV → Lightweight Charts:', reason)
+      tvChartMode = false
+      state.tvChart?.dispose()
+      state.tvChart = null
+      chartTv.hidden = true
+      chartHost.classList.remove('rw-chart-host--tv')
+      chartCanvas.classList.remove('rw-chart-canvas--tv')
+      rwRoot.classList.remove('rw-root--tv')
+      showReplayNotice(
+        `TradingView chart unavailable (${reason}) — using Lightweight Charts.`,
+      )
+      deferTvChartPaint = false
+      nextReplayTickFit = true
+      onReplayTick(replay.slice(), replay.getState().index)
       hideTvReplayMask()
       paintedWithNonZeroHost = true
       syncReplayViewportAfterPaint()
       tvBootPaintDone = true
       await dismissBootAfterPaint()
+    }
+
+    async function paintTvBootChart() {
+      if (!state.tvChart || state.disposed) return
+
+      let bootDismissed = tvBootPaintDone
+
+      const runPaint = async () => {
+        if (!state.tvChart || state.disposed) return
+        await waitForChartHostLayout(chartHost, () => state.disposed)
+        if (state.disposed || !state.tvChart) return
+        await yieldToMain()
+        await applyTvBootPaint()
+        hideTvReplayMask()
+        paintedWithNonZeroHost = true
+        syncReplayViewportAfterPaint()
+        if (!bootDismissed) {
+          bootDismissed = true
+          tvBootPaintDone = true
+          await dismissBootAfterPaint()
+        }
+      }
+
+      void state.tvChart.whenChartReady().then(() => {
+        void runPaint()
+      })
+
+      await Promise.race([
+        state.tvChart.whenChartReady().catch(() => {}),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 8_000)),
+      ])
+      await runPaint()
     }
 
     replay = new ReplayController(chartBars, onReplayTick)
@@ -4447,9 +4508,13 @@ export function mountChartWorkspace(
       if (state.trading) state.trading.scrollReplayCursorIntoView()
     })
     if (state.tvChart) {
-      void paintTvBootChart()
+      await waitForChartHostLayout(chartHost, () => state.disposed)
+      if (!state.disposed) await paintTvBootChart()
     } else {
-      void dismissBootAfterPaint()
+      nextReplayTickFit = true
+      onReplayTick(replay.slice(), replay.getState().index)
+      paintedWithNonZeroHost = true
+      await dismissBootAfterPaint()
     }
 
     function viewportSec(raw: number): number {
@@ -5669,32 +5734,15 @@ export function mountChartWorkspace(
     trading?.chart.resize(chartHost.clientWidth, chartHost.clientHeight)
     if (state.tvChart) {
       if (!tvBootPaintDone) {
-        await Promise.race([
-          state.tvChart.whenChartReady(),
-          new Promise<void>((_, reject) => {
-            window.setTimeout(() => reject(new Error('TradingView chart ready timeout')), 20_000)
-          }),
-        ]).catch((err) => {
-          console.warn('[ChartBoot]', err)
-        })
-        if (state.disposed) return
-        await yieldToMain()
-        deferTvChartPaint = false
-        const bootAtLiveEnd = replay.getState().index >= chartBars.length
-        nextReplayTickFit = bootAtLiveEnd && !replayViewportLocked
-        onReplayTick(replay.slice(), replay.getState().index)
-        state.tvChart.flushPendingRefresh()
-        hideTvReplayMask()
-        if (hostLaidOut) paintedWithNonZeroHost = true
-        syncReplayViewportAfterPaint()
-        tvBootPaintDone = true
+        await paintTvBootChart()
       }
-    } else {
+    } else if (!paintedWithNonZeroHost) {
+      nextReplayTickFit = true
       onReplayTick(replay.slice(), replay.getState().index)
       if (hostLaidOut) paintedWithNonZeroHost = true
     }
 
-    await dismissBootAfterPaint()
+    if (!bootLoadingFinished) await dismissBootAfterPaint()
 
     function resolveReplayPickIndex(y: number, m0: number, d: number, hh: number, mm: number): number {
       const pick = resolveIntervalPick(chartTimeframe)

@@ -22,6 +22,8 @@ import {
   setOAuthStateCookie,
   setSessionCookie,
 } from './sessionCookie.mjs'
+import { recordAuthLogin } from '../telemetry/telemetryRoutes.mjs'
+import { isAdminEmail } from './adminAccess.mjs'
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
@@ -48,7 +50,8 @@ function loginPath() {
   return '/en-US/login'
 }
 
-function homePath() {
+function homePath(email) {
+  if (email && isAdminEmail(email)) return '/en-US/admin'
   return '/en-US/dashboard'
 }
 
@@ -237,8 +240,9 @@ export function mountGoogleAuthRoutes(app, { dataDir }) {
         loggedInAt: Date.now(),
       }
       appendUsersFile(dataDir, user)
+      recordAuthLogin(dataDir, user, 'google')
       setSessionCookie(res, user, { secure })
-      res.redirect(homePath())
+      res.redirect(homePath(user.email))
     } catch (e) {
       console.error('[auth] google callback error:', e?.message || e)
       fail('oauth_failed')

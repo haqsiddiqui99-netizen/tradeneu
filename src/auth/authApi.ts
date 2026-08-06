@@ -7,6 +7,7 @@ export type ServerAuthUser = {
   picture?: string
   provider: string
   loggedInAt: number
+  isAdmin?: boolean
 }
 
 export type RegisterInput = {
@@ -66,7 +67,7 @@ async function parseAuthResponse(res: Response): Promise<AuthApiResult> {
       offline: res.status >= 502,
     }
   }
-  return { ok: true, user: body.user }
+  return { ok: true, user: { ...body.user, isAdmin: body.user.isAdmin === true } }
 }
 
 export async function fetchServerAuthUser(): Promise<ServerAuthUser | null> {
@@ -77,7 +78,10 @@ export async function fetchServerAuthUser(): Promise<ServerAuthUser | null> {
     if (!json || typeof json !== 'object') return null
     const body = json as { ok?: boolean; user?: ServerAuthUser }
     if (!body.ok || !body.user?.email) return null
-    return body.user
+    return {
+      ...body.user,
+      isAdmin: body.user.isAdmin === true,
+    }
   } catch {
     return null
   }

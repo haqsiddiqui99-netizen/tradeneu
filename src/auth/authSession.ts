@@ -14,6 +14,7 @@ export type AuthUser = {
   country?: string
   picture?: string
   provider?: 'local' | 'guest'
+  isAdmin?: boolean
 }
 
 function serverUserToAuthUser(user: ServerAuthUser): AuthUser {
@@ -26,6 +27,7 @@ function serverUserToAuthUser(user: ServerAuthUser): AuthUser {
     country: user.country || undefined,
     picture: user.picture || undefined,
     provider: 'local',
+    isAdmin: user.isAdmin === true,
   }
 }
 
@@ -54,6 +56,7 @@ function readLocalSession(): AuthUser | null {
       country: u.country,
       picture: u.picture,
       provider: u.provider === 'guest' ? 'guest' : 'local',
+      isAdmin: u.isAdmin === true,
     }
   } catch {
     return null
@@ -93,6 +96,10 @@ export function setGuestLoginSession(): void {
   assignSessionsToUser(GUEST_AUTH_EMAIL, { reset: false })
   writeLocalSession(user)
   writeDisplayName('Guest')
+}
+
+export function isAdminUser(user: AuthUser | null | undefined): boolean {
+  return user?.isAdmin === true
 }
 
 export function getAuthUser(): AuthUser | null {

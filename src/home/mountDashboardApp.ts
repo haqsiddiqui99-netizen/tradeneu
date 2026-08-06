@@ -41,6 +41,7 @@ import { mountStrategyPage } from '../views/mountStrategyPage'
 import { mountSettingsPage } from '../views/mountSettingsPage'
 import { mountSubscriptionPage } from '../views/mountSubscriptionPage'
 import { mountProfilePage, type ProfileSessionStats } from '../views/mountProfilePage'
+import { postTelemetryEvent } from '../telemetry/telemetryApi'
 import { DASH_LOCALES, dashLocaleMenuLabel, isDashLocaleCode } from './dashboardLocales'
 import { readDisplayName, readUserAvatar } from './dashboardUserPrefs'
 import {
@@ -695,7 +696,7 @@ function buildRecentSessionsSectionHtml(): string {
 /**
  * TraderLocal-style dark dashboard — session launcher & markets.
  */
-export function mountDashboardApp(root: HTMLElement): void {
+export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   document.documentElement.removeAttribute('data-theme')
   document.title = 'Tradeneu — Dashboard'
 
@@ -723,26 +724,21 @@ export function mountDashboardApp(root: HTMLElement): void {
                 type="button"
                 class="sx-dash-account-btn sx-dash-account-btn--ai"
                 data-sx-account-toggle
-                aria-label="Account menu"
+                aria-label="Guest menu"
                 aria-haspopup="menu"
                 aria-expanded="false"
                 aria-controls="sx-dash-account-panel"
-                title="Account"
+                title="Guest"
               >
                 <span class="sx-dash-account-btn__icon" data-sx-account-avatar aria-hidden="true">
                   <i class="fa-solid fa-user" data-sx-account-avatar-fallback></i>
                 </span>
-                <span class="sx-dash-account-btn__label">Account</span>
+                <span class="sx-dash-account-btn__label" data-sx-account-label>Guest</span>
                 <span class="sx-dash-account-btn__plan sx-dash-account-btn__plan--free" data-sx-account-plan>Free</span>
                 <i class="fa-solid fa-chevron-down sx-dash-account-btn__chev" aria-hidden="true"></i>
               </button>
             </span>
             <div class="sx-dash-account__menu" id="sx-dash-account-panel" role="menu" hidden>
-              <div class="sx-dash-account__identity">
-                <p class="sx-dash-account__name" data-sx-account-name>${escapeHtml(readDisplayName() || 'Account')}</p>
-                <p class="sx-dash-account__email" data-sx-account-email>—</p>
-              </div>
-              <div class="sx-dash-account__divider" role="separator"></div>
               <button type="button" role="menuitem" class="sx-dash-account__item sx-dash-account__item--danger" data-nav="logout">
                 <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
                 <span>Sign out</span>
@@ -831,10 +827,6 @@ export function mountDashboardApp(root: HTMLElement): void {
         class="sx-dash-hnav-mobile absolute left-0 right-0 top-full z-50 hidden max-h-[min(70vh,28rem)] flex-col gap-1 overflow-y-auto border-b border-slate-200 bg-white px-4 py-3 shadow-lg peer-checked:flex md:!hidden"
         aria-label="Mobile"
       >
-        <div class="sx-dash-account-mobile">
-          <p class="sx-dash-account-mobile__name" data-sx-account-name>${escapeHtml(readDisplayName() || 'Account')}</p>
-          <p class="sx-dash-account-mobile__email" data-sx-account-email>—</p>
-        </div>
         <button type="button" data-nav="logout" class="sx-dash-hnav__link sx-dash-hnav__link--block sx-dash-hnav__link--logout">
           <i class="fa-solid fa-arrow-right-from-bracket w-5 shrink-0 text-center text-[0.9rem]" aria-hidden="true"></i>
           Sign out
@@ -1182,19 +1174,11 @@ export function mountDashboardApp(root: HTMLElement): void {
 
   function syncSidebarProfile() {
     const auth = getAuthUser()
-    const name = (readDisplayName() || auth?.name || 'Account').trim() || 'Account'
-    const emailRaw = auth?.email?.trim() || ''
-    const email =
-      !emailRaw
-        ? 'Not signed in'
-        : emailRaw === GUEST_AUTH_EMAIL
-          ? 'Guest account'
-          : emailRaw
-    root.querySelectorAll('[data-sx-account-name]').forEach((el) => {
-      el.textContent = name
-    })
-    root.querySelectorAll('[data-sx-account-email]').forEach((el) => {
-      el.textContent = email
+    const isGuest = !auth?.email?.trim() || auth.email.trim() === GUEST_AUTH_EMAIL
+    const name = (readDisplayName() || auth?.name || 'Guest').trim() || 'Guest'
+    const label = isGuest ? 'Guest' : name
+    root.querySelectorAll('[data-sx-account-label]').forEach((el) => {
+      el.textContent = label
     })
     const nameEl = root.querySelector('#sx-dash-display-name')
     if (nameEl) nameEl.textContent = name
@@ -1375,6 +1359,13 @@ export function mountDashboardApp(root: HTMLElement): void {
         if (!activeSessionId) return
         updateSessionBacktest(activeSessionId, snapshot)
         syncRecentSessionsUi()
+        void postTelemetryEvent('backtest_completed', {
+          sessionId: activeSessionId,
+          strategyId: snapshot.strategyId,
+          netPnl: snapshot.netPnl,
+          totalTrades: snapshot.totalTrades,
+          winRate: snapshot.winRate,
+        })
       },
       onReplayStateChange: (snapshot) => {
         if (!activeSessionId) return

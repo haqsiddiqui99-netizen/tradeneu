@@ -39,6 +39,39 @@ function publicBundleReady() {
   )
 }
 
+/** Skip re-copy when public/ already matches the vendor bundle (avoids EBUSY on Windows). */
+function publicBundleMatchesVendor() {
+  const standaloneDest = path.join(dest, 'charting_library.standalone.js')
+  const standaloneSrcFile = path.join(src, 'charting_library.standalone.js')
+  if (!existsSync(standaloneDest) || !existsSync(standaloneSrcFile)) return false
+  try {
+    const a = statSync(standaloneDest)
+    const b = statSync(standaloneSrcFile)
+    return a.size === b.size && a.mtimeMs >= b.mtimeMs - 1000
+  } catch {
+    return false
+  }
+}
+
+function removeDestTree() {
+  if (!existsSync(dest)) return
+  try {
+    rmSync(dest, { recursive: true, force: true })
+  } catch (err) {
+    const code = err && typeof err === 'object' && 'code' in err ? err.code : ''
+    if (code === 'EBUSY' || code === 'EPERM') {
+      if (publicBundleReady()) {
+        console.warn(
+          `[tv-chart] could not replace public/charting_library (${code}: file in use) — using existing copy`,
+        )
+        return false
+      }
+    }
+    throw err
+  }
+  return true
+}
+
 if (!existsSync(src)) {
   if (publicBundleReady()) {
     console.log('[tv-chart] using committed public/charting_library (submodule not in build context)')
@@ -59,7 +92,16 @@ if (!existsSync(standaloneSrc) || statSync(standaloneSrc).size < 10_000) {
   skip(`Skipping TV chart library sync (${hint})`)
 }
 
-if (existsSync(dest)) rmSync(dest, { recursive: true, force: true })
+if (publicBundleMatchesVendor()) {
+  console.log('[tv-chart] public/charting_library already up to date — skip sync')
+  process.exit(0)
+}
+
+const removed = removeDestTree()
+if (!removed && publicBundleReady()) {
+  process.exit(0)
+}
+
 mkdirSync(path.dirname(dest), { recursive: true })
 cpSync(src, dest, { recursive: true })
 

@@ -8,14 +8,14 @@ import {
 } from './appLocale'
 
 /** SPA page segment (after locale prefix). */
-export type AppPage = 'login' | 'dashboard' | 'chart'
+export type AppPage = 'login' | 'dashboard' | 'chart' | 'admin'
 
 export type ParsedAppPath = {
   localeTag: string
   page: AppPage
 }
 
-const LOCALE_PAGE_RE = /^\/([^/]+)\/(login|dashboard|chart)$/
+const LOCALE_PAGE_RE = /^\/([^/]+)\/(login|dashboard|chart|admin)$/
 
 /** Build a locale-prefixed path, e.g. `/en-US/dashboard`. */
 export function appPath(localeTag: string, page: AppPage): string {
@@ -41,6 +41,7 @@ function legacyTarget(pathname: string): string | null {
     '/dashboard': 'dashboard',
     '/Chart': 'chart',
     '/chart': 'chart',
+    '/admin': 'admin',
   }
   const page = map[p] ?? map[p.toLowerCase()]
   if (!page) return null

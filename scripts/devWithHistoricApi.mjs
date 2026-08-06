@@ -5,6 +5,8 @@
  * Default API port is 3100 (see scripts/historicApiPort.mjs) — avoids Windows Hyper-V reserved 2921–3020.
  */
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
+import http from 'node:http'
 import net from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +17,55 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const historicScript = path.join(root, 'server', 'historicGoldApi.mjs')
 const viteBin = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js')
 const PORT = resolveHistoricApiPort()
+
+function readEnvLocalAdminEmails() {
+  const envPath = path.join(root, '.env.local')
+  try {
+    if (!fs.existsSync(envPath)) return 0
+    const text = fs.readFileSync(envPath, 'utf8')
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const eq = trimmed.indexOf('=')
+      if (eq <= 0) continue
+      const key = trimmed.slice(0, eq).trim()
+      if (key !== 'ADMIN_EMAILS') continue
+      const val = trimmed.slice(eq + 1).trim()
+      if (!val) return 0
+      return val.split(',').map((s) => s.trim()).filter(Boolean).length
+    }
+  } catch {
+    /* noop */
+  }
+  return 0
+}
+
+function fetchHistoricIdentity(port, host = '127.0.0.1') {
+  return new Promise((resolve) => {
+    const req = http.get(`http://${host}:${port}/api/historic/identity`, (res) => {
+      let buf = ''
+      res.on('data', (c) => {
+        buf += c
+      })
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(buf))
+        } catch {
+          resolve(null)
+        }
+      })
+    })
+    req.setTimeout(1500, () => {
+      try {
+        req.destroy()
+      } catch {
+        /* noop */
+      }
+      resolve(null)
+    })
+    req.on('error', () => resolve(null))
+  })
+}
 
 function portOpen(port, host = '127.0.0.1') {
   return new Promise((resolve) => {
@@ -68,6 +119,18 @@ if (alreadyUp) {
     process.exit(1)
   }
   console.log(`[dev] 127.0.0.1:${PORT} — verified Tradeneu historic API. Starting Vite only.`)
+  const expectedAdmins = readEnvLocalAdminEmails()
+  const identity = await fetchHistoricIdentity(PORT)
+  const configured = Number(identity?.adminEmailsConfigured) || 0
+  if (expectedAdmins > 0 && configured === 0) {
+    console.warn(
+      `[dev] ADMIN_EMAILS is set in .env.local but the API on port ${PORT} was started without it.\n` +
+        `  Admin login will fail until you restart the historic API:\n` +
+        `    netstat -ano | findstr :${PORT}\n` +
+        `    taskkill /PID <pid> /F\n` +
+        '  Then run: npm run dev',
+    )
+  }
 } else {
   console.log(`[dev] Starting historic API on 127.0.0.1:${PORT}…`)
   historicChild = spawn(process.execPath, [historicScript], {

@@ -59,8 +59,34 @@ export function fallbackBarCoverage(): BarCoverageBounds {
   }
 }
 
+async function fetchLocalCoverageSpan(symbol: string): Promise<{ firstSec: number; lastSec: number } | null> {
+  try {
+    const res = await fetch(`/api/market/coverage?symbol=${encodeURIComponent(symbol.trim())}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    const body = (await res.json()) as { ok?: boolean; minSec?: number; maxSec?: number }
+    const firstSec = Number(body.minSec)
+    const lastSec = Number(body.maxSec)
+    if (body.ok && Number.isFinite(firstSec) && Number.isFinite(lastSec) && lastSec >= firstSec) {
+      return { firstSec, lastSec }
+    }
+  } catch {
+    /* fall through */
+  }
+  return null
+}
+
 async function coverageForSymbol(symbol: string): Promise<{ firstSec: number; lastSec: number } | null> {
-  const daily = await fetchMarketBarsSeries(symbol, undefined, { range: '10y', interval: '1d' })
+  const localSpan = await fetchLocalCoverageSpan(symbol)
+  if (localSpan) return localSpan
+
+  const daily = await fetchMarketBarsSeries(symbol, undefined, {
+    range: '10y',
+    interval: '1d',
+    minBars: 2,
+  })
   if (daily?.bars.length) {
     const firstSec = Number(daily.bars[0]!.time)
     const lastSec = Number(daily.bars[daily.bars.length - 1]!.time)

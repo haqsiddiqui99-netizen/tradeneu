@@ -16,6 +16,8 @@ import {
   registerUser,
 } from './userStore.mjs'
 import { googleConfigured } from './googleOAuth.mjs'
+import { recordAuthLogin } from '../telemetry/telemetryRoutes.mjs'
+import { isAdminEmail } from './adminAccess.mjs'
 
 function isSecureRequest(req) {
   const proto = req.get('x-forwarded-proto') || req.protocol || 'http'
@@ -68,6 +70,7 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
         picture: session.picture || '',
         provider: session.provider || 'local',
         loggedInAt: session.loggedInAt ?? Date.now(),
+        isAdmin: isAdminEmail(session.email),
       },
     })
   })
@@ -81,7 +84,11 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
       }
       const secure = isSecureRequest(req)
       setSessionCookie(res, sessionUserFromRow(result.user), { secure })
-      res.json({ ok: true, user: publicUser(result.user) })
+      recordAuthLogin(dataDir, result.user, 'local')
+      res.json({
+        ok: true,
+        user: { ...publicUser(result.user), isAdmin: isAdminEmail(result.user.email) },
+      })
     } catch (e) {
       console.error('[auth] register error:', e?.message || e)
       res.status(500).json({ ok: false, error: 'Registration failed on the server. Try again.' })
@@ -99,7 +106,11 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
       }
       const secure = isSecureRequest(req)
       setSessionCookie(res, sessionUserFromRow(result.user), { secure })
-      res.json({ ok: true, user: publicUser(result.user) })
+      recordAuthLogin(dataDir, result.user, 'local')
+      res.json({
+        ok: true,
+        user: { ...publicUser(result.user), isAdmin: isAdminEmail(result.user.email) },
+      })
     } catch (e) {
       console.error('[auth] login error:', e?.message || e)
       res.status(500).json({ ok: false, error: 'Sign-in failed on the server. Try again.' })

@@ -1509,8 +1509,6 @@ button.rw-legend-status-btn:focus-visible {
   cursor: none;
 }
 
-/* Plot layout guide — below OHLC. Never captures input so chart pan/zoom still works
- * and TV iframe pointer events reach bindSelectBarPointerTracking (8bc812a). */
 .rw-select-bar-overlay__hit {
   display: none;
   position: absolute;
@@ -1533,7 +1531,7 @@ button.rw-legend-status-btn:focus-visible {
 .rw-select-bar-overlay__blur {
   display: none;
   position: absolute;
-  left: max(var(--sx, 100%), var(--sb-left, 0px));
+  left: max(var(--sx-wash, var(--sx, 100%)), var(--sb-left, 0px));
   top: var(--sb-blur-top, var(--sb-top, 0));
   right: var(--sb-right, 68px);
   bottom: var(--sb-blur-bottom, var(--sb-bottom, 0));
@@ -1603,7 +1601,6 @@ button.rw-legend-status-btn:focus-visible {
   background: var(--rw-chart, #ffffff);
 }
 
-/* Scissors chrome only while the pointer is over the plot — hide on leave, show on re-enter. */
 .rw-select-bar-overlay--active .rw-select-bar-overlay__line,
 .rw-select-bar-overlay--active .rw-select-bar-overlay__scissors {
   visibility: hidden;
@@ -1698,7 +1695,6 @@ button.rw-legend-status-btn:focus-visible {
   z-index: 3;
 }
 
-/* Time pill lives outside .rw-chart-host so it can paint above the replay dock (z-index:8). */
 .rw-select-bar-time-flyout {
   position: absolute;
   inset: 0;

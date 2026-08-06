@@ -1,7 +1,8 @@
 import './loginGate.css'
-import { dashboardPathForUser } from '../appPaths'
+import { resolveAuthedHomePath } from '../admin/adminApi'
 import { fetchAuthServerStatus, loginUser, registerUser } from '../auth/authApi'
 import { clearAllAuthSessions, getAuthUser, GUEST_AUTH_EMAIL, mirrorServerUser, setGuestLoginSession } from '../auth/authSession'
+import { registerGuestSession } from '../guest/guestSessionApi'
 import { writeDisplayName } from '../home/dashboardUserPrefs'
 import { openLegalDocModal } from '../legal/legalDocModal'
 import {
@@ -307,8 +308,11 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
       const localPart = user.email.split('@')[0]?.trim()
       if (localPart && localPart.length >= 2) writeDisplayName(localPart)
     }
-    if (onEnter) onEnter()
-    else window.location.assign(dashboardPathForUser())
+    if (onEnter) {
+      onEnter()
+      return
+    }
+    void resolveAuthedHomePath().then((path) => window.location.assign(path))
   }
 
   dialTrigger.addEventListener('click', (e) => {
@@ -389,7 +393,9 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
   skipBtn?.addEventListener('click', () => {
     hideToast()
     setGuestLoginSession()
-    enterApp({ name: 'Guest', email: GUEST_AUTH_EMAIL })
+    void registerGuestSession('login').finally(() => {
+      enterApp({ name: 'Guest', email: GUEST_AUTH_EMAIL })
+    })
   })
 
   googleBtn?.addEventListener('click', () => {
@@ -426,8 +432,11 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
 
   if (getAuthUser() && authedHintEl) authedHintEl.hidden = false
   continueBtn?.addEventListener('click', () => {
-    if (onEnter) onEnter()
-    else window.location.assign(dashboardPathForUser())
+    if (onEnter) {
+      onEnter()
+      return
+    }
+    void resolveAuthedHomePath().then((path) => window.location.assign(path))
   })
   signoutBtn?.addEventListener('click', () => {
     void clearAllAuthSessions().then(() => {

@@ -31,9 +31,20 @@ import { getCachedMarketBars, invalidateMarketBarsCache, marketBarsCacheKey } fr
 import { initMarketBarsDiskCache } from './providers/marketBarsDiskCache.mjs'
 import { getCachedMarketTicks, marketTicksCacheKey } from './providers/marketTicksCache.mjs'
 import { resolveMarketTicks } from './providers/marketLocalResolve.mjs'
-import { getLocalStoreStats, marketDbPath, marketLocalEnabled } from './providers/marketLocalDb.mjs'
+import {
+  getLocalBarTimeBounds,
+  getLocalStoreStats,
+  marketDbPath,
+  marketLocalEnabled,
+  normalizeMarketSymbol,
+} from './providers/marketLocalDb.mjs'
 import { mountLocalAuthRoutes } from './auth/localAuth.mjs'
 import { mountGoogleAuthRoutes } from './auth/googleOAuth.mjs'
+import { mountAdminRoutes } from './admin/adminRoutes.mjs'
+import { mountBillingRoutes } from './billing/billingRoutes.mjs'
+import { parseAdminEmails } from './auth/adminAccess.mjs'
+import { mountTelemetryRoutes } from './telemetry/telemetryRoutes.mjs'
+import { mountGuestRoutes } from './guest/guestRoutes.mjs'
 import { scheduleMarketWarmup } from './marketWarmup.mjs'
 import { authStorageStatus } from './auth/userPersistence.mjs'
 
@@ -117,7 +128,12 @@ const app = express()
 /** Lets Vite / dev scripts confirm this port is our historic server, not some other process. */
 app.get('/api/historic/identity', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store')
-  res.json({ ok: true, app: 'suplexity-historic-api' })
+  const adminEmails = parseAdminEmails()
+  res.json({
+    ok: true,
+    app: 'suplexity-historic-api',
+    adminEmailsConfigured: adminEmails.length,
+  })
 })
 
 app.get('/health', (_req, res) => {
@@ -143,6 +159,7 @@ const LEGACY_SPA_REDIRECTS = {
   '/dashboard': '/en-US/dashboard',
   '/Chart': '/en-US/chart',
   '/chart': '/en-US/chart',
+  '/admin': '/en-US/admin',
 }
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next()
@@ -166,6 +183,10 @@ app.use((req, res, next) => {
 
 mountLocalAuthRoutes(app, { dataDir: DATA_DIR })
 mountGoogleAuthRoutes(app, { dataDir: DATA_DIR })
+mountTelemetryRoutes(app, { dataDir: DATA_DIR })
+mountGuestRoutes(app, { dataDir: DATA_DIR })
+mountBillingRoutes(app, { dataDir: DATA_DIR })
+mountAdminRoutes(app, { dataDir: DATA_DIR })
 const authStorage = authStorageStatus()
 if (authStorage.ready) {
   console.log(`[auth] user storage: ${authStorage.backend}`)
@@ -395,6 +416,35 @@ app.get('/api/market/local/stats', (req, res) => {
   }
 })
 
+/** Fast min/max bar times for session date pickers (avoids loading full 10y daily series). */
+app.get('/api/market/coverage', (req, res) => {
+  res.setHeader('Cache-Control', 'private, max-age=300')
+  try {
+    const symbol = normalizeMarketSymbol(req.query.symbol || 'XAUUSD')
+    if (!marketLocalEnabled()) {
+      res.status(404).json({ ok: false, error: 'local_disabled' })
+      return
+    }
+    for (const tf of ['d1', 'h1', 'm1']) {
+      const bounds = getLocalBarTimeBounds(symbol, tf)
+      if (bounds) {
+        res.json({
+          ok: true,
+          symbol,
+          timeframe: tf,
+          source: `local:sqlite:${tf}`,
+          minSec: bounds.minSec,
+          maxSec: bounds.maxSec,
+        })
+        return
+      }
+    }
+    res.status(404).json({ ok: false, error: 'no_local_coverage', symbol })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
+  }
+})
+
 app.get('/api/market/providers', (_req, res) => {
   res.json({
     ok: true,
@@ -498,6 +548,10 @@ if (!process.env.VERCEL) {
       `  Default chart query: range=${process.env.MARKET_CHART_RANGE || process.env.MARKET_YAHOO_RANGE || '5d'} interval=${process.env.MARKET_CHART_INTERVAL || process.env.MARKET_YAHOO_INTERVAL || '1m'} (override with ?range=&interval=)`,
     )
     console.log(`  GET /health  |  GET /api/historic/identity  |  GET /api/market/bars?symbol=AAPL  |  GET /api/market/ticks?symbol=EURUSD&start=&end=  |  GET /api/market/providers`)
+    const adminEmails = parseAdminEmails()
+    console.log(
+      `  Admin operators: ${adminEmails.length ? adminEmails.join(', ') : '(none — set ADMIN_EMAILS in .env.local)'}`,
+    )
     console.log(`  GET /api/auth/me  |  POST /api/auth/register  |  POST /api/auth/login  |  POST /api/auth/logout`)
     console.log(`  Gold CSV: POST/GET/DELETE /api/historic/gold/*`)
   })

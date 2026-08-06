@@ -2,6 +2,7 @@ import type { ChartIndicatorId } from '../chart/chartIndicatorCatalog'
 import type { SessionCreatedPayload } from '../sessionTypes'
 import type { ReplayAccountPersisted } from '../replay/replayPositions'
 import type { PropChallengeState } from '../prop/propTypes'
+import { postTelemetryEvent } from '../telemetry/telemetryApi'
 
 const LS_SESSIONS = 'suplexity-sessions-v1'
 const LS_LAST_SESSION_ID = 'suplexity-last-session-id'
@@ -132,6 +133,12 @@ export function createSession(payload: SessionCreatedPayload): StoredSession {
   }
   const next = sortSessions([session, ...readRawSessions()])
   writeRawSessions(next)
+  void postTelemetryEvent('session_created', {
+    sessionId: session.id,
+    sessionType: session.sessionType,
+    name: session.name,
+    assets: session.assets,
+  })
   return session
 }
 

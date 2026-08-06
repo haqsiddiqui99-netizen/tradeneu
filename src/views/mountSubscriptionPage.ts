@@ -1,5 +1,6 @@
 import './subscriptionPage.css'
 import { createCheckoutOverlay, type CheckoutPlan } from './subscriptionCheckout'
+import { recordCheckoutComplete } from '../billing/billingApi'
 
 export type AccountTier = 'free' | 'intermediate' | 'pro'
 
@@ -377,9 +378,10 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
   }
 
   const checkout = createCheckoutOverlay({
-    onComplete: (order) => {
+    onComplete: (order, method) => {
       const nextTier: AccountTier = order.plan
       opts.writeTier?.(nextTier)
+      void recordCheckoutComplete(order, method)
       opts.onCheckoutComplete?.(nextTier)
     },
     onDismissAfterComplete: () => {

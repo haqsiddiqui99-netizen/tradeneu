@@ -1050,3 +1050,85 @@
 .sx-platform-page--embedded .sx-platform-page__saved {
   color: #059669;
 }
+
+.sx-admin-page .sx-platform-page__body {
+  max-width: 960px;
+}
+
+.sx-admin-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sx-admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.sx-admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sx-admin-table th,
+.sx-admin-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: top;
+}
+
+.sx-admin-table th {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #71717a;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sx-admin-table tr:last-child td {
+  border-bottom: none;
+}
+
+.sx-admin-payload {
+  max-width: 240px;
+  word-break: break-word;
+  color: #a1a1aa;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.sx-admin-events-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sx-admin-events-head .sx-platform-page__section-title {
+  margin-bottom: 0;
+}
+
+.sx-admin-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+.sx-admin-filter select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e4e4e7;
+  font: inherit;
+}
+
+.sx-admin-status {
+  margin-bottom: 16px;
+}

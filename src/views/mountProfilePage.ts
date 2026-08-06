@@ -18,6 +18,8 @@ export type MountProfilePageOptions = {
   readTier: () => 'free' | 'intermediate' | 'pro'
   getSessionStats: () => ProfileSessionStats
   getAuthEmail?: () => string | null
+  showAdminLink?: boolean
+  adminHref?: string
 }
 
 function formatMemberSince(ms: number): string {
@@ -51,6 +53,7 @@ export function mountProfilePage(root: HTMLElement, opts: MountProfilePageOption
         </div>
       </div>
       <div class="sx-platform-page__actions">
+        ${opts.showAdminLink && opts.adminHref ? `<a href="${escapeAttr(opts.adminHref)}" class="sx-platform-page__btn">Admin</a>` : ''}
         <button type="button" class="sx-platform-page__btn" data-sx-profile-settings>Open settings</button>
       </div>
     </header>

@@ -20,7 +20,7 @@ export function buildSessionModalHealthMessage(
     lines.push(
       isProd
         ? 'Market API is unreachable. Sessions on live symbols may load demo or empty bars until /api/market is deployed.'
-        : 'Market API is offline. Run npm run dev (historic API on port 3100) for live Twelve Data bars.',
+        : 'Market API is offline. Run npm run dev (historic API on port 3200) for local SQLite and live bars.',
     )
   } else if (health.twelveDataKeyConfigured === false) {
     lines.push(
