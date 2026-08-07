@@ -47,6 +47,7 @@ import { mountTelemetryRoutes } from './telemetry/telemetryRoutes.mjs'
 import { mountGuestRoutes } from './guest/guestRoutes.mjs'
 import { scheduleMarketWarmup } from './marketWarmup.mjs'
 import { authStorageStatus } from './auth/userPersistence.mjs'
+import { bootstrapAdminUsers } from './auth/bootstrapAdmin.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -150,6 +151,7 @@ app.use(express.json({ limit: '32kb' }))
 
 /** Phase 1–2 URL migration — permanent redirects to locale-prefixed canonical paths. */
 const LEGACY_SPA_REDIRECTS = {
+  '/': '/en-US/login',
   '/loginPage': '/en-US/login',
   '/loginpage': '/en-US/login',
   '/login': '/en-US/login',
@@ -528,7 +530,14 @@ if (!process.env.VERCEL) {
     }
   }
 
-  const server = app.listen(PORT, HOST, () => {
+  void (async () => {
+    try {
+      await bootstrapAdminUsers(DATA_DIR)
+    } catch (err) {
+      console.error('[auth] Admin bootstrap failed:', err?.message || err)
+    }
+
+    const server = app.listen(PORT, HOST, () => {
     const keyOk = Boolean(process.env.TWELVE_DATA_API_KEY?.trim())
     console.log(`[market-data] http://${HOST}:${PORT}`)
     console.log(`  Default MARKET_BAR_CHAIN: ${DEFAULT_CHAIN}`)
@@ -574,4 +583,5 @@ if (!process.env.VERCEL) {
     console.error('[market-data] Server error:', err)
     process.exit(1)
   })
+  })()
 }

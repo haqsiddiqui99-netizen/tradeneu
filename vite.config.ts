@@ -242,7 +242,7 @@ function spaShellRoutesFallback(): Plugin {
 
 export default defineConfig({
   plugins: [historicApiSidecar(), mlApiSidecar(), spaShellRoutesFallback()],
-  base: './',
+  base: '/',
   server: {
     port: 5199,
     strictPort: false,
