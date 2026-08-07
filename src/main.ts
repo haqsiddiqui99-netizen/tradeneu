@@ -12,7 +12,7 @@ import {
 } from './appPaths'
 import { resolveAuthSession, getAuthUser, isAdminUser, isGuestAuthUser } from './auth/authSession'
 import { fetchAdminMe, resolveAuthedHomePath } from './admin/adminApi'
-import { registerGuestSession, startGuestHeartbeat, pingGuestSession } from './guest/guestSessionApi'
+import { startGuestHeartbeat, pingGuestSession } from './guest/guestSessionApi'
 import { mountDashboardApp } from './home/mountDashboardApp'
 import { mountLoginGate } from './login/mountLoginGate'
 import { mountAdminPage } from './views/mountAdminPage'
