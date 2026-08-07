@@ -114,7 +114,7 @@ export class ReplayController {
   }
 
   goStart() {
-    this.setIndex(1)
+    this.setIndex(this.state.loopStartIndex)
   }
 
   goEnd() {
@@ -125,7 +125,7 @@ export class ReplayController {
     if (this.state.playing) return
     this.state.playing = true
     if (this.state.index >= this.bars.length) {
-      this.state.index = this.state.loop ? this.state.loopStartIndex : 1
+      this.state.index = this.state.loopStartIndex
       this.emit()
     }
     this.armPlayback()

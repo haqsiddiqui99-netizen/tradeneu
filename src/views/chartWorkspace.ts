@@ -4487,7 +4487,7 @@ export function mountChartWorkspace(
     const initialReplayIndex =
       savedReplayIndex != null && savedReplayIndex >= 1
         ? Math.min(Math.max(1, Math.round(savedReplayIndex)), chartBars.length)
-        : chartBars.length
+        : sessionReplayStartIndex
     replayViewportLocked = false
     lockedTvViewport = null
     pendingTvViewportRestore = null
@@ -4817,7 +4817,7 @@ export function mountChartWorkspace(
 
         firstChartPaint = true
         paintedWithNonZeroHost = false
-        replay.replaceBarsAt(chartBars, chartBars.length)
+        replay.replaceBarsAt(chartBars, sessionReplayStartIndex)
         replay.setLoopStartIndex(sessionReplayStartIndex)
         state.tvChart?.setSessionBars(
           tvBarsForChart(chartBars),
@@ -7263,7 +7263,7 @@ export function mountChartWorkspace(
         const startIdx = sessionStartReplayIndex(chartBars, session.startDate)
         sessionReplayStartIndex = startIdx
         replay.setLoopStartIndex(startIdx)
-        replay.replaceBarsAt(chartBars, chartBars.length)
+        replay.replaceBarsAt(chartBars, startIdx)
         replayTimeframe = chartTimeframe
         replayStepSourceBars = []
 
