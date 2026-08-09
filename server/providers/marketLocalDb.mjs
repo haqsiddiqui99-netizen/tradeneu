@@ -13,6 +13,7 @@ import {
   localTimeframeToInterval,
   secondStepToTimeframe,
 } from './localSecondBars.mjs'
+import { localBarStepSec, localMaxBarsPerRequest, trimLocalBarRows } from './marketLocalLimits.mjs'
 
 const require = createRequire(import.meta.url)
 
@@ -329,6 +330,7 @@ export function readLocalTicks(symbol, startSec, endSec, limit = 50_000, cursorM
   }
 }
 
+
 /**
  * @param {string} symbol
  * @param {string} timeframe
@@ -342,20 +344,46 @@ export function readLocalBars(symbol, timeframe, startSec, endSec) {
     return { ok: false, error: `local bars: unsupported timeframe ${tf}` }
   }
 
+  const maxBars = localMaxBarsPerRequest()
+  const step = localBarStepSec(tf)
+  const maxSpan = maxBars * step
+
+  let effectiveStart = Number.isFinite(startSec) ? Math.floor(startSec) : null
+  let effectiveEnd = Number.isFinite(endSec) ? Math.floor(endSec) : null
+
+  if (effectiveStart == null || effectiveEnd == null) {
+    const bounds = getLocalBarTimeBounds(sym, tf)
+    if (bounds) {
+      if (effectiveEnd == null) effectiveEnd = bounds.maxSec
+      if (effectiveStart == null) {
+        effectiveStart = Math.max(bounds.minSec, effectiveEnd - maxSpan)
+      }
+    } else if (effectiveStart == null && effectiveEnd != null) {
+      effectiveStart = Math.max(0, effectiveEnd - maxSpan)
+    }
+  }
+
+  if (effectiveStart != null && effectiveEnd != null && effectiveEnd > effectiveStart) {
+    const span = effectiveEnd - effectiveStart
+    if (span > maxSpan) effectiveStart = effectiveEnd - maxSpan
+  }
+
   let sql = `SELECT time_sec, open, high, low, close, volume FROM bars WHERE symbol = ? AND timeframe = ?`
   /** @type {Array<string | number>} */
   const params = [sym, tf]
-  if (Number.isFinite(startSec)) {
+  if (effectiveStart != null) {
     sql += ` AND time_sec >= ?`
-    params.push(Math.floor(startSec))
+    params.push(effectiveStart)
   }
-  if (Number.isFinite(endSec)) {
+  if (effectiveEnd != null) {
     sql += ` AND time_sec <= ?`
-    params.push(Math.floor(endSec))
+    params.push(effectiveEnd)
   }
-  sql += ` ORDER BY time_sec ASC`
+  sql += ` ORDER BY time_sec ASC LIMIT ?`
+  params.push(maxBars + 1)
 
-  const rows = getMarketDb().prepare(sql).all(...params)
+  const rawRows = getMarketDb().prepare(sql).all(...params)
+  const { rows, truncated } = trimLocalBarRows(rawRows, maxBars)
   const minRows = tf.startsWith('s') ? 2 : 16
   if (rows.length < minRows) {
     return { ok: false, error: `local bars: too few rows (${rows.length})` }
@@ -386,8 +414,9 @@ export function readLocalBars(symbol, timeframe, startSec, endSec) {
     ok: true,
     bars,
     timeframe: tfLabel,
-    source: `local:sqlite:${tf}`,
+    source: truncated ? `local:sqlite:${tf}:truncated` : `local:sqlite:${tf}`,
     count: bars.length,
+    truncated,
   }
 }
 

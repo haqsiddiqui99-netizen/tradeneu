@@ -96,7 +96,9 @@ export type TvReplayChartController = {
   setReplayPickPreview: (splitIndex: number, allBars: Bar[]) => void
   clearReplayPickPreview: () => void
   clearReplay: () => void
-  scrollReplayCursorIntoView: () => void
+  scrollReplayCursorIntoView: (anchorRevealIndex?: number) => void
+  setReplayMaskReveal: (count: number) => void
+  usesFullSeriesReplay: () => boolean
   /** Unix seconds at a horizontal anchor in the visible plot (0 = left, 1 = right). */
   viewportAnchorTimeSec: (anchorRatio?: number) => number | null
   /** 1-based replay index for {@link ReplayController} at the visible plot anchor. */
@@ -162,6 +164,8 @@ export function createTvReplayChartController(opts: {
   let lastPickPreviewSplit = -1
   let frozenViewport: TvLockedViewport | null = null
   let replayLockedViewport: TvLockedViewport | null = null
+  let scrollIntoViewRaf = 0
+  let pendingScrollAnchor: number | undefined
   let viewportRestoreRaf = 0
   let pendingIncrementalViewport: TvLockedViewport | null = null
   let pendingIntervalSwapRefresh: {
@@ -172,6 +176,7 @@ export function createTvReplayChartController(opts: {
   } | null = null
   let pendingFullRefresh = false
   let pendingFullRefreshForce = false
+  let refreshInFlight = false
   const rangeListeners: Array<() => void> = []
   let programmaticViewportRestoreDepth = 0
   /** After user pan during play, hold viewport without FxReplay shift until this time. */
@@ -216,7 +221,7 @@ export function createTvReplayChartController(opts: {
   }
 
   const doFullRefresh = () => {
-    if (opts.isDisposed()) return
+    if (opts.isDisposed() || refreshInFlight) return
     lastRefreshAt = Date.now()
     const w = opts.getWidget()
     const c = chart()
@@ -226,12 +231,17 @@ export function createTvReplayChartController(opts: {
     }
     pendingFullRefresh = false
     pendingFullRefreshForce = false
+    refreshInFlight = true
     try {
       opts.replayFeed.requestSubscriberReset()
       w.resetCache()
       c.resetData()
     } catch {
       markPendingFullRefresh(true)
+    } finally {
+      window.setTimeout(() => {
+        refreshInFlight = false
+      }, 120)
     }
   }
 
@@ -729,30 +739,46 @@ export function createTvReplayChartController(opts: {
     return mid >= from - dataSpan && mid <= to + dataSpan
   }
 
-  const scrollReplayCursorIntoView = () => {
-    const allTv = opts.replayFeed.getAllBars()
-    const revealed = opts.replayFeed.getRevealedCount()
-    if (!allTv.length || revealed < 1) return
+  const scrollReplayCursorIntoView = (anchorRevealIndex?: number) => {
+    pendingScrollAnchor = anchorRevealIndex
+    if (scrollIntoViewRaf) return
+    scrollIntoViewRaf = requestAnimationFrame(() => {
+      scrollIntoViewRaf = 0
+      const anchorArg = pendingScrollAnchor
+      pendingScrollAnchor = undefined
 
-    const anchorIdx = Math.min(revealed, allTv.length) - 1
+      const allTv = opts.replayFeed.getAllBars()
+      const revealed = opts.replayFeed.getRevealedCount()
+      if (!allTv.length || revealed < 1) return
 
-    const applyScroll = (): boolean => {
+      const playing = opts.replayFeed.isReplayPlaying()
+      const lastBarIdx = playing
+        ? Math.max(0, Math.min(allTv.length - 1, revealed - 1))
+        : allTv.length - 1
+
+      const anchorIdx =
+        anchorArg != null
+          ? Math.max(0, Math.min(Math.round(anchorArg), lastBarIdx))
+          : Math.min(revealed, allTv.length) - 1
+
       const c = chart()
-      if (!c) return false
+      if (!c) return
 
-      if (isSubMinuteBarPeriod()) {
-        const period = Math.max(1, opts.replayFeed.getBarPeriodSec())
-        const cap = period <= 1 ? 360 : TICK_SWAP_VISIBLE_BARS
-        const visibleBars = Math.min(cap, Math.max(8, revealed))
-        const firstIdx = Math.max(0, anchorIdx - visibleBars + 1)
-        let toIdx = anchorIdx
-        if (anchorIdx < visibleBars - 1) {
-          toIdx = Math.min(allTv.length - 1, visibleBars - 1)
-        }
-        const firstSec = Math.floor(allTv[firstIdx]!.time / 1000)
-        const lastSec = Math.floor(allTv[toIdx]!.time / 1000)
-        const pad = period * Math.max(2, Math.ceil(10 / period))
-        try {
+      beginProgrammaticViewportRestore()
+      try {
+        if (isSubMinuteBarPeriod()) {
+          const period = Math.max(1, opts.replayFeed.getBarPeriodSec())
+          const cap = period <= 1 ? 360 : TICK_SWAP_VISIBLE_BARS
+          const visibleBars = Math.min(cap, Math.max(8, revealed))
+          const firstIdx = Math.max(0, anchorIdx - visibleBars + 1)
+          let toIdx = anchorIdx
+          if (anchorIdx < visibleBars - 1) {
+            toIdx = Math.min(lastBarIdx, visibleBars - 1)
+          }
+          toIdx = Math.min(toIdx, lastBarIdx)
+          const firstSec = Math.floor(allTv[firstIdx]!.time / 1000)
+          const lastSec = Math.floor(allTv[toIdx]!.time / 1000)
+          const pad = period * Math.max(2, Math.ceil(10 / period))
           const ts = c.getTimeScale()
           ts.setBarSpacing(REPLAY_BAR_SPACING)
           ts.setRightOffset(12)
@@ -760,43 +786,29 @@ export function createTvReplayChartController(opts: {
             { from: firstSec - pad, to: lastSec + pad },
             { percentRightMargin: 10 },
           )
-          return true
-        } catch {
-          return false
+          return
         }
-      }
 
-      const visibleBars = 120
-      const lookbackBars = Math.max(8, Math.floor(visibleBars * 0.62))
-      const forwardBars = Math.max(8, visibleBars - lookbackBars)
-      const firstIdx = Math.max(0, anchorIdx - lookbackBars)
-      const toIdx = Math.min(allTv.length - 1, anchorIdx + forwardBars)
-      const firstSec = Math.floor(allTv[firstIdx]!.time / 1000)
-      const lastSec = Math.floor(allTv[toIdx]!.time / 1000)
+        const visibleBars = 120
+        const lookbackBars = Math.max(8, Math.floor(visibleBars * 0.62))
+        const forwardBars = Math.max(8, visibleBars - lookbackBars)
+        const firstIdx = Math.max(0, anchorIdx - lookbackBars)
+        const toIdx = Math.min(lastBarIdx, anchorIdx + forwardBars)
+        const firstSec = Math.floor(allTv[firstIdx]!.time / 1000)
+        const lastSec = Math.floor(allTv[toIdx]!.time / 1000)
 
-      try {
         const ts = c.getTimeScale()
         ts.setBarSpacing(REPLAY_BAR_SPACING)
         ts.setRightOffset(REPLAY_RIGHT_OFFSET)
-      } catch {
-        /* noop */
-      }
-
-      try {
         void c.setVisibleRange(
           { from: firstSec, to: lastSec + 120 },
           { percentRightMargin: 12 },
         )
-        return true
       } catch {
-        return false
+        /* TV may reject tight ranges on small screens */
+      } finally {
+        endProgrammaticViewportRestore()
       }
-    }
-
-    applyScroll()
-    requestAnimationFrame(() => {
-      applyScroll()
-      requestAnimationFrame(() => applyScroll())
     })
   }
 
@@ -1002,8 +1014,9 @@ export function createTvReplayChartController(opts: {
       return
     }
 
-    // Play kickoff with force (unlocked / live-end loop): avoid resetData when streaming works.
+    // Play kickoff after historical explore: resync truncated feed even when viewport is locked.
     if (opts2?.playing && opts2?.force && !opts2?.pickPreview && holdViewport && streamBars) {
+      scheduleFullRefresh(true)
       applyPlaybackViewportRange(lockedViewportNow())
       lastPastCount = pastCount
       ensureRangeHooks()
@@ -1388,7 +1401,7 @@ export function createTvReplayChartController(opts: {
       opts.replayFeed.setSessionBars(bars, resolution, barPeriodSec)
       const pastCountClamped = Math.max(1, Math.min(Math.round(pastCount), bars.length))
       opts.replayFeed.setRevealCount(pastCountClamped)
-      lastPastCount = -1
+      lastPastCount = pastCountClamped
     },
 
     setReplayData(pastBars, allBars, replayOpts) {
@@ -1523,6 +1536,18 @@ export function createTvReplayChartController(opts: {
     },
 
     scrollReplayCursorIntoView,
+
+    setReplayMaskReveal(count: number) {
+      const bars = opts.replayFeed.getAllBars()
+      if (!bars.length) return
+      const pastCountClamped = Math.max(1, Math.min(Math.round(count), bars.length))
+      opts.replayFeed.setReplayRevealForMask(pastCountClamped)
+      lastPastCount = pastCountClamped
+    },
+
+    usesFullSeriesReplay() {
+      return opts.replayFeed.useTvFullSeriesReplay()
+    },
 
     viewportAnchorTimeSec,
 

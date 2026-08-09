@@ -14,9 +14,13 @@ import {
   sessionDateRangeSec,
   sessionFetchStartSec,
   SESSION_CHART_LOOKBACK_SEC,
+  SESSION_FETCH_PRE_ROLL_SEC,
+  filterBarsBySessionDates,
 } from './sessionDateRange'
 
 const DEFAULT_BAR_COUNT = 1500
+/** Cap client-side session bar payload so chart boot stays responsive. */
+const MAX_SESSION_CHART_BARS = 60_000
 
 export type SessionBarsOpts = {
   startDate?: string
@@ -29,7 +33,10 @@ function resolveFetchRange(startDate?: string, endDate?: string): { startSec?: n
   const lookback = (sec: number) => Math.max(0, sec - SESSION_CHART_LOOKBACK_SEC)
   // Fetch session window plus 3h lookback for chart context; prior bar also backfilled server-side via sessionStartSec.
   if (startSec != null && endSec != null) return { startSec: lookback(startSec), endSec }
-  if (startSec != null) return { startSec: lookback(startSec), endSec: nowSec }
+  if (startSec != null) {
+    const capEnd = Math.min(nowSec, startSec + 90 * 86_400)
+    return { startSec: lookback(startSec), endSec: capEnd }
+  }
   if (endSec != null) return { startSec: Math.max(0, endSec - 5 * 86_400), endSec }
   return {}
 }
@@ -87,16 +94,9 @@ export function isForexPairSymbol(symbol: string): boolean {
   return /^[A-Z]{6}$/.test(u)
 }
 
-/** Symbols that load live OHLCV from `/api/market/bars` (Twelve Data) before static / synthetic fallbacks. */
+/** Live mode currently supports gold spot only (XAUUSD). */
 export function usesMarketDataSession(symbol: string): boolean {
-  const u = symbol.trim().toUpperCase()
-  return (
-    isGoldBrowserSymbol(u) ||
-    u === 'BTCUSD' ||
-    isCommodityMarketSymbol(u) ||
-    isForexPairSymbol(u) ||
-    isLikelyUsStockSymbol(u)
-  )
+  return isGoldBrowserSymbol(symbol.trim().toUpperCase())
 }
 
 type RawBar = {
@@ -234,6 +234,60 @@ async function ensurePriorBarInPool(symbol: string, bars: Bar[], startDate?: str
   return mergeBarsByTime(pad.bars, bars)
 }
 
+function barsOverlapSessionWindow(bars: Bar[], sessionStartSec: number, sessionEndSec: number): boolean {
+  if (!bars.length) return false
+  const first = bars[0]!.time
+  const last = bars[bars.length - 1]!.time
+  return last >= sessionStartSec - 86_400 && first <= sessionEndSec + 86_400
+}
+
+/** Trim API bars to session window + pre-roll; cap count for chart boot. */
+export function trimBarsForSessionChart(
+  bars: Bar[],
+  startDate?: string,
+  endDate?: string,
+  maxBars = MAX_SESSION_CHART_BARS,
+): Bar[] {
+  if (!bars.length) return bars
+  const startSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : null
+  const endSec = endDate?.trim() ? parseSessionDateToSec(endDate, 'end') : null
+  let out = bars
+  if (startSec != null && Number.isFinite(startSec)) {
+    const lo = Math.max(0, startSec - SESSION_FETCH_PRE_ROLL_SEC)
+    out = out.filter((b) => b.time >= lo)
+  }
+  if (endSec != null && Number.isFinite(endSec)) {
+    const hi = endSec + 3600
+    out = out.filter((b) => b.time <= hi)
+  }
+  if (out.length > maxBars) out = out.slice(0, maxBars)
+  if (out.length >= 16) return out
+  if (bars.length > maxBars) return bars.slice(0, maxBars)
+  return bars
+}
+
+/** Client-side session filter with trim fallback (matches server trim when filter is strict). */
+export function resolveChartBarsForSession(
+  rawBars: Bar[],
+  startDate?: string,
+  endDate?: string,
+  minBars = 8,
+): Bar[] {
+  if (!rawBars.length) return []
+  const hasDates = Boolean(startDate?.trim() || endDate?.trim())
+  if (!hasDates) return rawBars
+
+  const filtered = filterBarsBySessionDates(rawBars, startDate, endDate, rawBars)
+  if (filtered.length >= minBars) return filtered
+
+  const trimmed = trimBarsForSessionChart(rawBars, startDate, endDate)
+  if (trimmed.length >= minBars) return trimmed
+
+  return filtered.length ? filtered : trimmed
+}
+
+const LIVE_GOLD_HISTORY_SEC = Math.floor(10 * 365.25 * 86400)
+
 async function fetchLiveMarketSeries(
   symbol: string,
   startDate?: string,
@@ -242,21 +296,32 @@ async function fetchLiveMarketSeries(
   const { startSec, endSec } = resolveFetchRange(startDate, endDate)
   const sessionStartSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : undefined
   const hasRange = startSec != null && endSec != null && endSec > startSec
+  const nowSec = Math.floor(Date.now() / 1000)
   const fromMarket = await fetchMarketBarsSeries(symbol, undefined, {
-    range: hasRange ? undefined : '5d',
     interval: '1m',
-    ...(hasRange ? { startSec, endSec, sessionStartSec: sessionStartSec ?? undefined } : {}),
+    ...(hasRange
+      ? { startSec, endSec, sessionStartSec: sessionStartSec ?? undefined }
+      : { startSec: nowSec - LIVE_GOLD_HISTORY_SEC, endSec: nowSec }),
   })
   if (!fromMarket) return null
-  if (hasRange && fromMarket.bars.length) {
-    const first = fromMarket.bars[0]!.time
-    const last = fromMarket.bars[fromMarket.bars.length - 1]!.time
-    if (last < startSec! - 86_400 || first > endSec! + 86_400) {
+
+  const sessionRange = sessionDateRangeSec(startDate, endDate)
+  if (
+    hasRange &&
+    fromMarket.bars.length &&
+    sessionRange.startSec != null &&
+    sessionRange.endSec != null
+  ) {
+    if (!barsOverlapSessionWindow(fromMarket.bars, sessionRange.startSec, sessionRange.endSec)) {
       return null
     }
   }
+
+  const bars = trimBarsForSessionChart(fromMarket.bars, startDate, endDate)
+  if (bars.length < 16) return null
+
   return {
-    bars: fromMarket.bars,
+    bars,
     timeframe: fromMarket.timeframe,
     dataSource: fromMarket.dataSource,
   }
@@ -338,7 +403,19 @@ export async function resolveSessionBars(
 
     const fromFile = await fetchGoldStaticJson()
     if (fromFile) {
-      const bars = await ensurePriorBarInPool(u, fromFile.bars, startDate)
+      let bars = await ensurePriorBarInPool(u, fromFile.bars, startDate)
+      const sessionRange = sessionDateRangeSec(startDate, endDate)
+      if (
+        sessionRange.startSec != null &&
+        sessionRange.endSec != null &&
+        bars.length
+      ) {
+        if (!barsOverlapSessionWindow(bars, sessionRange.startSec, sessionRange.endSec)) {
+          bars = []
+        } else {
+          bars = trimBarsForSessionChart(bars, startDate, endDate)
+        }
+      }
       if (bars.length >= 16) return { ...fromFile, bars }
     }
 

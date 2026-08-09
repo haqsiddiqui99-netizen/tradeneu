@@ -274,6 +274,7 @@ export function normalizeDukascopyRows(rows, startSec, endSec) {
  * @param {number} [opts.startSec]
  * @param {number} [opts.endSec]
  * @param {number} [opts.sessionStartSec]
+ * @param {boolean} [opts.interactive] chart/API request — skip slow CLI (5min timeout)
  */
 export async function fetchDukascopyBars({
   symbol,
@@ -282,6 +283,7 @@ export async function fetchDukascopyBars({
   startSec,
   endSec,
   sessionStartSec,
+  interactive = false,
 }) {
   const instrument = appSymbolToDukascopyInstrument(symbol)
   if (!instrument) {
@@ -305,29 +307,35 @@ export async function fetchDukascopyBars({
   const filterStart = hasRange ? startSec : undefined
   const filterEnd = hasRange ? endSec : undefined
 
-  // CLI first — more reliable on Railway / flaky networks (same as market:sync).
-  const cliFirst = await fetchBarsViaCli({
-    symbol,
-    instrument,
-    timeframe,
-    startSec: cliStart,
-    endSec: cliEnd,
-    filterStartSec: filterStart,
-    filterEndSec: filterEnd,
-  })
+  const tryCli = !interactive && process.env.MARKET_DUKASCOPY_API_SKIP_CLI?.trim().toLowerCase() !== '1'
+
+  // CLI first for sync/batch — more reliable on Railway; skip for interactive chart loads.
+  const cliFirst = tryCli
+    ? await fetchBarsViaCli({
+        symbol,
+        instrument,
+        timeframe,
+        startSec: cliStart,
+        endSec: cliEnd,
+        filterStartSec: filterStart,
+        filterEndSec: filterEnd,
+      })
+    : null
   if (cliFirst) {
     let bars = cliFirst.bars
     if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
       const priorFrom = Math.max(0, sessionStartSec - 7 * 86_400)
-      const priorCli = await fetchBarsViaCli({
-        symbol,
-        instrument,
-        timeframe,
-        startSec: priorFrom,
-        endSec: sessionStartSec,
-        filterStartSec: priorFrom,
-        filterEndSec: sessionStartSec,
-      })
+      const priorCli = tryCli
+        ? await fetchBarsViaCli({
+            symbol,
+            instrument,
+            timeframe,
+            startSec: priorFrom,
+            endSec: sessionStartSec,
+            filterStartSec: priorFrom,
+            filterEndSec: sessionStartSec,
+          })
+        : null
       if (priorCli?.bars.length) {
         let prior = null
         for (const b of priorCli.bars) {
@@ -383,7 +391,7 @@ export async function fetchDukascopyBars({
   }
 
   let bars = normalizeDukascopyRows(rows, hasRange ? startSec : undefined, hasRange ? endSec : undefined)
-  if (bars.length < 16) {
+  if (bars.length < 16 && tryCli) {
     const cliRetry = await fetchBarsViaCli({
       symbol,
       instrument,

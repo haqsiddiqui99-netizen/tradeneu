@@ -1,4 +1,4 @@
-import { isCommodityMarketSymbol, isGoldBrowserSymbol, usesMarketDataSession } from './resolveSessionBars'
+import { isGoldBrowserSymbol, usesMarketDataSession } from './resolveSessionBars'
 import type { MarketDataHealth } from './marketDataHealth'
 
 export type FeedMode = 'loading' | 'live' | 'demo' | 'replay' | 'error'
@@ -65,41 +65,6 @@ function buildTooltip(
   return 'Market data status'
 }
 
-function buildDemoBannerMessage(opts: {
-  isProd: boolean
-  health: MarketDataHealth | null
-  commodity: boolean
-}): string {
-  const lines: string[] = ['Live market data unavailable — showing demo bars.']
-
-  if (opts.commodity) {
-    lines.push('Silver, oil, and other commodities require a Twelve Data Grow+ plan.')
-  }
-
-  if (opts.health && !opts.health.apiReachable) {
-    lines.push(
-      opts.isProd
-        ? 'The market API is unreachable. Confirm Vercel serverless routes are deployed.'
-        : 'Start the historic API (npm run dev or npm run server:historic on port 3100).',
-    )
-  } else if (opts.health && opts.health.twelveDataKeyConfigured === false) {
-    lines.push(
-      opts.isProd
-        ? 'Set TWELVE_DATA_API_KEY in Vercel → Environment Variables, then redeploy.'
-        : 'Add TWELVE_DATA_API_KEY to .env.local at the repo root, then restart the dev server.',
-    )
-  } else if (!opts.commodity) {
-    lines.push(
-      opts.isProd
-        ? 'Verify TWELVE_DATA_API_KEY on Vercel and that your plan includes this symbol.'
-        : 'Check TWELVE_DATA_API_KEY and your Twelve Data plan for this symbol.',
-    )
-  }
-
-  lines.push('Reload after fixing.')
-  return lines.join(' ')
-}
-
 function buildApiErrorBanner(isProd: boolean): string {
   return isProd
     ? 'Market API unreachable. Check deployment and /api/market/providers, then reload.'
@@ -129,14 +94,12 @@ export function resolveFeedStatus(input: ResolveFeedStatusInput): FeedStatus {
     dataSource,
     barCount,
     timeframe,
-    health,
     isProd,
     loading,
     emptyDateRange,
     loadFailed,
   } = input
   const src = dataSource?.trim() || undefined
-  const commodity = isCommodityMarketSymbol(symbol)
   const usesMarket = usesMarketDataSession(symbol)
   const mode = classifyMode(input)
   const tooltip = buildTooltip(mode, src, timeframe, barCount)
@@ -178,7 +141,7 @@ export function resolveFeedStatus(input: ResolveFeedStatusInput): FeedStatus {
       bannerClass: 'rw-data-banner--warning',
       bannerMessage:
         'No bars in the selected date range. Adjust session start/end dates or pick a symbol with data in that window.',
-      showBanner: true,
+      showBanner: emptyMode !== 'demo',
     }
   }
 
@@ -221,16 +184,15 @@ export function resolveFeedStatus(input: ResolveFeedStatusInput): FeedStatus {
     }
   }
 
-  // demo
-  const showBanner = usesMarket || isSyntheticSource(src)
+  // demo — feed pill + chart legend already show demo status
   return {
     mode: 'demo',
     pillLabel: 'Demo',
     pillClass: 'rw-feed-pill--demo',
     tooltip,
-    bannerKind: 'demo',
-    bannerClass: 'rw-data-banner--demo',
-    bannerMessage: buildDemoBannerMessage({ isProd, health, commodity }),
-    showBanner,
+    bannerKind: 'none',
+    bannerClass: '',
+    bannerMessage: '',
+    showBanner: false,
   }
 }

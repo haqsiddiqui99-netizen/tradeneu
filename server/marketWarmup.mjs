@@ -4,7 +4,7 @@
  */
 
 import fs from 'fs'
-import { marketLocalEnabled } from './providers/marketLocalDb.mjs'
+import { marketStoreEnabled } from './providers/marketStore.mjs'
 import { syncSymbolLocal } from './providers/marketLocalSync.mjs'
 
 function warmupEnabled() {
@@ -39,8 +39,8 @@ function log(msg) {
  */
 export function scheduleMarketWarmup() {
   if (!warmupEnabled()) return
-  if (!marketLocalEnabled()) {
-    log('skipped — local SQLite unavailable (better-sqlite3 or MARKET_LOCAL_FIRST=0)')
+  if (!marketStoreEnabled()) {
+    log('skipped — market store unavailable (set DATABASE_URL for Timescale or install better-sqlite3)')
     return
   }
 

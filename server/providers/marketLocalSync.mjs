@@ -20,7 +20,7 @@ import {
   pruneLocalRetention,
   readLocalTicksBulk,
   recordSyncManifest,
-} from './marketLocalDb.mjs'
+} from './marketStore.mjs'
 import { LOCAL_SECOND_STEPS, secondStepToTimeframe } from './localSecondBars.mjs'
 
 const DAY_SEC = 86_400
@@ -202,8 +202,8 @@ export async function syncTicksRange(symbol, startSec, endSec, onProgress = log,
     : chunkRangeSec(startSec, endSec, maxTickChunkSec(), true)
 
   for (const chunk of chunks) {
-    if (missingOnly && localChunkSatisfied(sym, 'ticks', chunk.startSec, chunk.endSec)) {
-      const have = countLocalTicksInRange(sym, chunk.startSec, chunk.endSec)
+    if (missingOnly && (await localChunkSatisfied(sym, 'ticks', chunk.startSec, chunk.endSec))) {
+      const have = await countLocalTicksInRange(sym, chunk.startSec, chunk.endSec)
       skippedChunks += 1
       onProgress(
         `ticks ${sym} ${new Date(chunk.startSec * 1000).toISOString()} → ${new Date(chunk.endSec * 1000).toISOString()}… already have ${have} (skipped)`,
@@ -224,10 +224,10 @@ export async function syncTicksRange(symbol, startSec, endSec, onProgress = log,
       onProgress(`  chunk failed (${out.error || out.code}) — continuing`)
       continue
     }
-    const n = insertTicks(sym, out.ticks)
+    const n = await insertTicks(sym, out.ticks)
     totalInserted += n
     onProgress(`  +${n} ticks (total ${totalInserted})`)
-    recordSyncManifest({
+    await recordSyncManifest({
       symbol: sym,
       dataKind: 'ticks',
       rangeStart: chunk.startSec,
@@ -285,8 +285,8 @@ export async function syncSecondBarsRange(symbol, stepSec, startSec, endSec, onP
   const chunks = secondBarSyncChunks(startSec, endSec, step)
 
   for (const chunk of chunks) {
-    if (missingOnly && localChunkSatisfied(sym, tf, chunk.startSec, chunk.endSec)) {
-      const have = countLocalBarsInRange(sym, tf, chunk.startSec, chunk.endSec)
+    if (missingOnly && (await localChunkSatisfied(sym, tf, chunk.startSec, chunk.endSec))) {
+      const have = await countLocalBarsInRange(sym, tf, chunk.startSec, chunk.endSec)
       skippedChunks += 1
       onProgress(
         `${tf} ${sym} ${new Date(chunk.startSec * 1000).toISOString()} → ${new Date(chunk.endSec * 1000).toISOString()}… already have ${have} (skipped)`,
@@ -294,7 +294,7 @@ export async function syncSecondBarsRange(symbol, stepSec, startSec, endSec, onP
       continue
     }
 
-    const tickCount = countLocalTicksInRange(sym, chunk.startSec, chunk.endSec)
+    const tickCount = await countLocalTicksInRange(sym, chunk.startSec, chunk.endSec)
     if (tickCount < minTicksPerChunk()) {
       emptyChunks += 1
       onProgress(
@@ -306,7 +306,7 @@ export async function syncSecondBarsRange(symbol, stepSec, startSec, endSec, onP
     onProgress(
       `${tf} ${sym} ${new Date(chunk.startSec * 1000).toISOString()} → ${new Date(chunk.endSec * 1000).toISOString()}… aggregating ${tickCount} ticks`,
     )
-    const bulk = readLocalTicksBulk(sym, chunk.startSec, chunk.endSec)
+    const bulk = await readLocalTicksBulk(sym, chunk.startSec, chunk.endSec)
     if (!bulk.ok || !bulk.ticks.length) {
       emptyChunks += 1
       onProgress(`  no local ticks for ${tf} aggregation`)
@@ -323,10 +323,10 @@ export async function syncSecondBarsRange(symbol, stepSec, startSec, endSec, onP
       continue
     }
 
-    const n = insertBars(sym, tf, bars)
+    const n = await insertBars(sym, tf, bars)
     totalInserted += n
     onProgress(`  +${n} ${tf} bars (total ${totalInserted})`)
-    recordSyncManifest({
+    await recordSyncManifest({
       symbol: sym,
       dataKind: `bars:${tf}`,
       rangeStart: chunk.startSec,
@@ -398,8 +398,8 @@ export async function syncBarsRange(symbol, timeframe, startSec, endSec, onProgr
   const chunks = chunkDays(startSec, endSec, daysPerChunk, true)
 
   for (const chunk of chunks) {
-    if (missingOnly && localChunkSatisfied(sym, timeframe, chunk.startSec, chunk.endSec)) {
-      const have = countLocalBarsInRange(sym, timeframe, chunk.startSec, chunk.endSec)
+    if (missingOnly && (await localChunkSatisfied(sym, timeframe, chunk.startSec, chunk.endSec))) {
+      const have = await countLocalBarsInRange(sym, timeframe, chunk.startSec, chunk.endSec)
       skippedChunks += 1
       onProgress(
         `bars ${sym} ${timeframe} ${new Date(chunk.startSec * 1000).toISOString()} → ${new Date(chunk.endSec * 1000).toISOString()}… already have ${have} (skipped)`,
@@ -417,7 +417,7 @@ export async function syncBarsRange(symbol, timeframe, startSec, endSec, onProgr
       onProgress(`  chunk failed (${out.error || 'no bars'}) — continuing`)
       continue
     }
-    const n = insertBars(sym, timeframe, out.bars)
+    const n = await insertBars(sym, timeframe, out.bars)
     totalInserted += n
     onProgress(`  +${n} ${timeframe} bars (total ${totalInserted})`)
   }
@@ -432,7 +432,7 @@ export async function syncBarsRange(symbol, timeframe, startSec, endSec, onProgr
     onProgress(`bars ${timeframe}: ${failedChunks} chunk(s) failed; ${totalInserted} bars stored`)
   }
 
-  recordSyncManifest({
+  await recordSyncManifest({
     symbol: sym,
     dataKind: `bars:${timeframe}`,
     rangeStart: startSec,
@@ -473,9 +473,9 @@ export async function syncSymbolLocal(opts = {}) {
       results.bars,
       await syncSecondBarsForSteps(symbol, startSec, nowSec, onProgress, syncOpts, secondSteps, results.errors),
     )
-    const pruned = pruneLocalRetention(symbol)
+    const pruned = await pruneLocalRetention(symbol)
     onProgress(`Pruned old rows: ticks=${pruned.tickDeleted}, bars=${pruned.barDeleted}`)
-    const stats = getLocalStoreStats(symbol)
+    const stats = await getLocalStoreStats(symbol)
     onProgress(
       `Done ${symbol}: ticks=${stats.tickCount}, ${formatSecondBarStats(stats.barCounts)}, m1=${stats.barCounts.m1}, h1=${stats.barCounts.h1}, d1=${stats.barCounts.d1}, mn1=${stats.barCounts.mn1}`,
     )
@@ -552,10 +552,10 @@ export async function syncSymbolLocal(opts = {}) {
     )
   }
 
-  const pruned = pruneLocalRetention(symbol)
+  const pruned = await pruneLocalRetention(symbol)
   onProgress(`Pruned old rows: ticks=${pruned.tickDeleted}, bars=${pruned.barDeleted}`)
 
-  const stats = getLocalStoreStats(symbol)
+  const stats = await getLocalStoreStats(symbol)
   onProgress(
     `Done ${symbol}: ticks=${stats.tickCount}, ${formatSecondBarStats(stats.barCounts)}, m1=${stats.barCounts.m1}, h1=${stats.barCounts.h1}, d1=${stats.barCounts.d1}, mn1=${stats.barCounts.mn1}`,
   )

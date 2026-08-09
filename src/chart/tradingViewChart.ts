@@ -65,7 +65,12 @@ export type TradingViewChartHandle = {
   setReplayPickPreview: (splitIndex: number, allBars: Bar[]) => void
   clearReplayPickPreview: () => void
   clearReplay: () => void
-  scrollReplayCursorIntoView: () => void
+  scrollReplayCursorIntoView: (anchorRevealIndex?: number) => void
+  setReplayFeedPlaying: (playing: boolean) => void
+  /** Historical replay: reveal count for DOM mask (full series stays loaded in TV). */
+  setReplayMaskReveal: (count: number) => void
+  usesFullSeriesReplay: () => boolean
+  setHistoricalAnchorIndex: (barIndex: number) => void
   viewportAnchorTimeSec: (anchorRatio?: number) => number | null
   replayIndexAtViewportAnchor: (anchorRatio?: number) => number
   lockedViewportCoversBars: (saved: TvLockedViewport, pastBars: Bar[]) => boolean
@@ -171,6 +176,10 @@ export type TradingViewChartOpts = {
   onResolutionChange?: (resolution: string) => void
   /** Set while applyIntervalPick is running (guards datafeed during rebucket). */
   intervalSwapRef?: { inProgress: boolean }
+  /** Past session replay — use static/end-of-day symbol status so TV does not poll live bars. */
+  historicalReplay?: boolean
+  /** 0-based bar index to anchor the first visible window for historical replay. */
+  historicalAnchorIndex?: number
   headerButtons?: TvHeaderButtonDef[]
 }
 
@@ -1346,6 +1355,7 @@ export async function createTradingViewChart(
     sessionStartSec: () => sessionStartSec,
     sessionEndSec: () => sessionEndSec,
     isIntervalSwapInProgress: () => opts.intervalSwapRef?.inProgress === true,
+    isHistoricalReplay: () => opts.historicalReplay === true,
     onDataSourceResolved: (dataSource) => {
       datafeedBundle.setProviderExchangeLabel(dataSource)
       refreshProviderHeader()
@@ -1356,11 +1366,17 @@ export async function createTradingViewChart(
     lastProviderExchangeLabel = datafeedBundle.getProviderExchangeLabel()
   }
   if (opts.initialSessionBars?.bars.length) {
+    datafeedBundle.replayFeed.setSessionBounds(sessionStartSec, sessionEndSec)
+    if (opts.historicalAnchorIndex != null) {
+      datafeedBundle.replayFeed.setHistoricalAnchorIndex(opts.historicalAnchorIndex)
+    }
     datafeedBundle.replayFeed.setSessionBars(
       opts.initialSessionBars.bars,
       opts.initialSessionBars.resolution,
       opts.initialSessionBars.barPeriodSec,
     )
+  } else if (sessionStartSec != null || sessionEndSec != null) {
+    datafeedBundle.replayFeed.setSessionBounds(sessionStartSec, sessionEndSec)
   }
   datafeedBundle.replayFeed.setTvFullSeriesReplay(false)
   const datafeed: TvDatafeed = datafeedBundle.datafeed
@@ -1689,13 +1705,30 @@ export async function createTradingViewChart(
     }
   }
 
-  widget.onChartReady(() => {
+  const CHART_READY_FALLBACK_MS = 12_000
+  window.setTimeout(() => {
+    if (disposed || chartReady) return
+    console.warn('[TradingView] onChartReady fallback — unblocking chart boot')
     chartReady = true
-    replayCtrl?.flushPendingRefresh()
+    if (!opts.historicalReplay) {
+      replayCtrl?.flushPendingRefresh()
+    }
     resolveChartReady?.()
     resolveChartReady = null
+  }, CHART_READY_FALLBACK_MS)
 
-    // Force-hide bid/ask + other optional price lines that survive theme / settings merges.
+  widget.onChartReady(() => {
+    chartReady = true
+    if (!opts.historicalReplay) {
+      replayCtrl?.flushPendingRefresh()
+    }
+    if (opts.historicalReplay && replayCtrl) {
+      replayCtrl.scrollReplayCursorIntoView(
+        opts.historicalAnchorIndex != null ? opts.historicalAnchorIndex + 1 : undefined,
+      )
+    }
+    resolveChartReady?.()
+    resolveChartReady = null
     const hideChartHairlines = () => {
       try {
         widget.applyOverrides(chartChromeOverrides)
@@ -2020,8 +2053,24 @@ export async function createTradingViewChart(
       replayCtrl?.clearReplay()
     },
 
-    scrollReplayCursorIntoView() {
-      replayCtrl?.scrollReplayCursorIntoView()
+    scrollReplayCursorIntoView(anchorRevealIndex?: number) {
+      replayCtrl?.scrollReplayCursorIntoView(anchorRevealIndex)
+    },
+
+    setReplayFeedPlaying(playing: boolean) {
+      datafeedBundle.replayFeed.setReplayPlaying(playing)
+    },
+
+    setReplayMaskReveal(count: number) {
+      replayCtrl?.setReplayMaskReveal(count)
+    },
+
+    usesFullSeriesReplay() {
+      return datafeedBundle.replayFeed.useTvFullSeriesReplay()
+    },
+
+    setHistoricalAnchorIndex(barIndex: number) {
+      datafeedBundle.replayFeed.setHistoricalAnchorIndex(barIndex)
     },
 
     viewportAnchorTimeSec(anchorRatio) {

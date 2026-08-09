@@ -4481,6 +4481,10 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   z-index: 20;
   display: grid;
   place-items: center;
+  pointer-events: none;
+}
+
+.rw-chart-loading--boot {
   pointer-events: auto;
 }
 

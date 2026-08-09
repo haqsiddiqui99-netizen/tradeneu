@@ -32,6 +32,7 @@
     "market:sync:seconds": "node scripts/syncMarketLocal.mjs --second-bars-only",
     "market:sync:seconds:missing": "node scripts/syncMarketLocal.mjs --second-bars-only --missing-only",
     "market:sync:bars:missing": "node scripts/syncMarketLocal.mjs --bars-only --missing-only",
+    "market:timescale:init": "node scripts/initTimescale.mjs",
     "ml:venv": "node scripts/mlRunner.mjs venv",
     "ml:install": "node scripts/mlRunner.mjs install",
     "ml:api": "node scripts/mlRunner.mjs api",
@@ -52,7 +53,8 @@
     "dukascopy-node": "^1.46.4",
     "express": "^5.1.0",
     "lightweight-charts": "^5.2.0",
-    "multer": "^2.0.2"
+    "multer": "^2.0.2",
+    "pg": "^8.22.0"
   },
   "optionalDependencies": {
     "better-sqlite3": "^12.11.1"
