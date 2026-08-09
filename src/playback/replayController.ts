@@ -1,4 +1,5 @@
 import type { Bar } from '../types'
+import { mergeBarsByTime } from '../data/sessionBarWindow'
 
 export type ReplayState = {
   playing: boolean
@@ -212,6 +213,32 @@ export class ReplayController {
     this.state.playing = false
     this.state.index = bars.length > 0 ? Math.max(1, Math.min(Math.round(index), bars.length)) : 1
     this.emit()
+  }
+
+  /** Merge earlier bars; shifts replay index so the cursor stays on the same candle. */
+  prependBars(prefix: Bar[]): number {
+    if (!prefix.length) return 0
+    const before = this.bars.length
+    const merged = mergeBarsByTime(prefix, this.bars)
+    const added = merged.length - before
+    if (added <= 0) return 0
+    this.bars = merged
+    this.state.index += added
+    this.state.loopStartIndex += added
+    this.emit()
+    return added
+  }
+
+  /** Merge later bars; extends replay toward session end B. */
+  appendBars(suffix: Bar[]): number {
+    if (!suffix.length) return 0
+    const before = this.bars.length
+    const merged = mergeBarsByTime(this.bars, suffix)
+    const added = merged.length - before
+    if (added <= 0) return 0
+    this.bars = merged
+    this.emit()
+    return added
   }
 
   dispose() {

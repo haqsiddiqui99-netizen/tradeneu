@@ -1,4 +1,12 @@
 import type { Bar } from '../types'
+import type { UTCTimestamp } from 'lightweight-charts'
+import { mergeBarsByTime } from '../data/sessionBarWindow'
+import {
+  capTvBarsForRequest,
+  filterTvBarsForPeriod,
+  tvBarsStrictlyOverlapPeriod,
+  tvNextTimeForEmptyRequest,
+} from './tradingViewBarLimits'
 import { tvResolutionPeriodSec } from './tradingViewDatafeed'
 import type { TvBar, TvPeriodParams } from './tradingViewTypes'
 
@@ -37,27 +45,6 @@ export type TvReplayFeedState = {
   barPeriodSec: number
 }
 
-function filterBarsForPeriod(bars: TvBar[], periodParams: TvPeriodParams): TvBar[] {
-  if (!bars.length) return []
-  if (periodParams.firstDataRequest) return bars
-
-  const toMs = periodParams.to * 1000
-  let filtered = bars.filter((b) => b.time <= toMs + 60_000)
-  const fromMs = periodParams.from * 1000
-  const inWindow = filtered.filter((b) => b.time >= fromMs)
-  if (inWindow.length >= 2) filtered = inWindow
-
-  const countBack = Math.max(periodParams.countBack || 0, 16)
-  if (countBack > 0 && filtered.length > countBack) {
-    filtered = filtered.slice(-countBack)
-  }
-  // Historical replay bars often sit outside TV's default "now" window.
-  if (!filtered.length) {
-    return countBack > 0 && bars.length > countBack ? bars.slice(-countBack) : bars
-  }
-  return filtered
-}
-
 export class TvReplayFeedController {
   private state: TvReplayFeedState = {
     allBars: [],
@@ -77,10 +64,24 @@ export class TvReplayFeedController {
   private tvFullSeriesReplay = false
   /** True only during coupled replay playback — full series + DOM mask. Paused/seek uses truncated feed. */
   private tvFullSeriesMaskMode = false
+  /** Anchor historical firstDataRequest at session start (not chart tail). */
+  private historicalAnchorIndex = 0
 
   setTvFullSeriesReplay(enabled: boolean) {
     this.tvFullSeriesReplay = enabled
     if (!enabled) this.tvFullSeriesMaskMode = false
+  }
+
+  setHistoricalAnchorIndex(barIndex: number) {
+    this.historicalAnchorIndex = Math.max(
+      0,
+      Math.min(Math.round(barIndex), Math.max(0, this.state.allBars.length - 1)),
+    )
+  }
+
+  /** Hint for TV when a getBars window has no rows — prevents infinite polling. */
+  nextTimeForEmptyRequest(periodParams: TvPeriodParams): number | undefined {
+    return tvNextTimeForEmptyRequest(this.state.allBars, periodParams)
   }
 
   useTvFullSeriesReplay(): boolean {
@@ -165,6 +166,46 @@ export class TvReplayFeedController {
     this.notify()
   }
 
+  private sessionBarsAsBars(): Bar[] {
+    return this.state.allBars.map((b) => ({
+      time: Math.floor(b.time / 1000) as UTCTimestamp,
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+      volume: b.volume ?? 0,
+    }))
+  }
+
+  /** Merge earlier bars; shifts historical anchor and replay reveal cursor. */
+  prependBars(prefix: Bar[]): number {
+    if (!prefix.length) return 0
+    const beforeLen = this.state.allBars.length
+    const merged = mergeBarsByTime(prefix, this.sessionBarsAsBars())
+    const added = merged.length - beforeLen
+    if (added <= 0) return 0
+    this.state.allBars = merged.map(barToTv)
+    this.historicalAnchorIndex += added
+    if (this.tvFullSeriesMaskMode) {
+      this.state.revealedCount += added
+      if (this.state.pickSplitIndex != null) this.state.pickSplitIndex += added
+    }
+    this.notify()
+    return added
+  }
+
+  /** Merge later bars toward session end B. */
+  appendBars(suffix: Bar[]): number {
+    if (!suffix.length) return 0
+    const beforeLen = this.state.allBars.length
+    const merged = mergeBarsByTime(this.sessionBarsAsBars(), suffix)
+    const added = merged.length - beforeLen
+    if (added <= 0) return 0
+    this.state.allBars = merged.map(barToTv)
+    this.notify()
+    return added
+  }
+
   /** Update OHLC for an existing session bar without resetting reveal count. */
   patchBarAtIndex(index: number, bar: Bar) {
     if (!this.state.allBars.length) return
@@ -233,8 +274,20 @@ export class TvReplayFeedController {
     const isFuture = isFutureTicker(ticker)
 
     if (!isFuture && this.useTvFullSeriesMaskMode()) {
-      if (periodParams.firstDataRequest) return this.state.allBars
-      return filterBarsForPeriod(this.state.allBars, periodParams)
+      if (periodParams.firstDataRequest) {
+        return capTvBarsForRequest(
+          this.state.allBars,
+          periodParams,
+          true,
+          this.historicalAnchorIndex,
+        )
+      }
+      return filterTvBarsForPeriod(
+        this.state.allBars,
+        periodParams,
+        true,
+        this.historicalAnchorIndex,
+      )
     }
 
     const revealed =
@@ -245,8 +298,13 @@ export class TvReplayFeedController {
     const past = this.state.allBars.slice(0, revealed)
     const future = this.state.allBars.slice(revealed)
     const source = isFuture ? future : past
-    if (!isFuture && periodParams.firstDataRequest) return source
-    return filterBarsForPeriod(source, periodParams)
+    if (!isFuture && periodParams.firstDataRequest) {
+      return capTvBarsForRequest(source, periodParams, true, this.historicalAnchorIndex)
+    }
+    if (!isFuture && !tvBarsStrictlyOverlapPeriod(source, periodParams)) {
+      return []
+    }
+    return filterTvBarsForPeriod(source, periodParams, true, this.historicalAnchorIndex)
   }
 
   findBarIndexAtOrBeforeTimeSec(timeSec: number, maxIndex?: number): number {

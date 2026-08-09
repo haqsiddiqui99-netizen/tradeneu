@@ -25,7 +25,7 @@ import {
 } from '../chart/tradingViewChart'
 import { mountTickLineOverlay, type TickLineOverlayHandle } from '../chart/tickLineOverlay'
 import type { TvLockedViewport } from '../chart/tradingViewReplayChart'
-import { intervalPillToTvResolution } from '../chart/tradingViewDatafeed'
+import { intervalPillToTvResolution, type LazyFetchBarsRequest } from '../chart/tradingViewDatafeed'
 import {
   createChartIndicatorManager,
   renderChartIndicatorBar,
@@ -60,13 +60,21 @@ import {
 } from '../data/localSecondBars'
 import { providerLabelFromDataSource } from '../data/marketDataSourceLabel'
 import { resolveFeedStatus } from '../data/feedStatus'
-import { inferTimeframeFromBars } from '../data/resolveSessionBars'
+import { inferTimeframeFromBars, fetchSessionBarChunk, resolveChartBarsForSession } from '../data/resolveSessionBars'
 import {
-  filterBarsBySessionDates,
+  chunkRangeAfterLoaded,
+  chunkRangeBeforeLoaded,
+  SESSION_1M_SUGGEST_H1_SPAN_SEC,
+  SESSION_1M_WARN_SPAN_SEC,
+  SESSION_LAZY_LOAD_MARGIN_BARS,
+  sessionSpanSec,
+} from '../data/sessionBarWindow'
+import {
   findReplayBarIndex,
   formatChartCrosshairTime,
   formatChartPickLabelUtc,
   formatSessionModalDate,
+  isHistoricalSessionBars,
   localHmFromSec,
   localYmdFromSec,
   parseSessionDateToSec,
@@ -322,7 +330,7 @@ function filterSessionChartBars(
   rawBars: Bar[],
   session: { startDate?: string; endDate?: string },
 ): Bar[] {
-  return filterBarsBySessionDates(rawBars, session.startDate, session.endDate, rawBars)
+  return resolveChartBarsForSession(rawBars, session.startDate, session.endDate)
 }
 
 /** First open with 1m candles: 180 bars = 3 hours on screen (FXReplay-style intraday default). */
@@ -1443,6 +1451,7 @@ export function mountChartWorkspace(
     replay: null as ReplayController | null,
     tickReplayUnit: 'bar' as 'bar' | 'tick',
     tickReplayWindowed: false,
+    sessionBarsWindowed: false,
     clockTimer: null as ReturnType<typeof setInterval> | null,
     ro: null as ResizeObserver | null,
     exitSelectBarChartMode: null as null | (() => void),
@@ -2403,6 +2412,12 @@ export function mountChartWorkspace(
     let dukascopyTicksReady = false
     let useFullSessionTicks = readFullSessionTicks()
     let tickBarsWindowed = false
+    let sessionBarsWindowed = Boolean(series.windowed)
+    let sessionBarExtendBusy = false
+    let sessionLazyFetchKey = ''
+    const sessionLazyFetchRef: { fn: ((req: LazyFetchBarsRequest) => Promise<boolean>) | null } = {
+      fn: null,
+    }
     let fullTickLoadGen = 0
     let lastTickChartPaintAt = 0
     let skipTvReplayPaintOnce = false
@@ -3728,6 +3743,7 @@ export function mountChartWorkspace(
           dataSource: series.dataSource,
           sessionStartSec: startSec,
           sessionEndSec: endSec,
+          lazyFetchBars: (req) => sessionLazyFetchRef.fn?.(req) ?? Promise.resolve(false),
           initialSessionBars: {
             bars: tvBarsForChart(chartBars),
             resolution: intervalPillToTvResolution(chartTimeframe),
@@ -3756,7 +3772,9 @@ export function mountChartWorkspace(
           tvBarsForChart(chartBars),
           intervalPillToTvResolution(chartTimeframe),
           tvBarPeriodSecForPill(chartTimeframe),
+          { deferRefresh: true },
         )
+        state.tvChart.setHistoricalAnchorIndex(Math.max(0, sessionReplayStartIndex - 1))
         tvBootBarsApplied = true
         hideReplayNotice()
         const tvBootSafetyTimer = window.setTimeout(() => {
@@ -4335,7 +4353,11 @@ export function mountChartWorkspace(
       }
       if (replayStatusEl) {
         const mode = activeSession.sessionType === 'prop' ? 'Prop challenge' : 'Backtest'
-        const windowHint = state.tickReplayWindowed ? ' · windowed' : ''
+        const windowHint = state.tickReplayWindowed
+          ? ' · windowed'
+          : state.sessionBarsWindowed
+            ? ' · chunked'
+            : ''
         if (decoupled) {
           replayStatusEl.textContent = `${mode} · ${replayTimeframe} step ${index} / ${replay.getBars().length} · ${chartTimeframe} chart${windowHint} · ${feedLabel}`
         } else {
@@ -4345,6 +4367,9 @@ export function mountChartWorkspace(
       }
       if (state.replay?.getState().playing && state.tickReplayWindowed) {
         void maybeExtendWindowedReplay(index)
+      }
+      if (state.replay?.getState().playing && state.sessionBarsWindowed) {
+        void maybeExtendSessionBars(index)
       }
       if (decoupled && replayPlaying) {
         if (
@@ -4408,22 +4433,28 @@ export function mountChartWorkspace(
       pendingTvViewportRestore = null
       userViewportPinned = false
       state.tvChart.setReplayLockedViewport(null)
-      const idx = replay.getState().index
+      const historical = isHistoricalSessionBars(chartBars)
+      const idx = historical ? sessionReplayStartIndex : replay.getState().index
       const tvBars = tvBarsForChart(chartBars)
       const tvRes = intervalPillToTvResolution(chartTimeframe)
       const tvPeriod = tvBarPeriodSecForPill(chartTimeframe)
+      state.tvChart.setHistoricalAnchorIndex(Math.max(0, sessionReplayStartIndex - 1))
       state.tvChart.primeIntervalFeed(tvBars, tvRes, idx, tvPeriod)
       nextReplayTickFit = true
-      nextReplayTickForce = true
+      nextReplayTickForce = !historical
       onReplayTick(replay.slice(), idx)
-      state.tvChart.flushPendingRefresh()
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => {
-          state.tvChart?.flushPendingRefresh()
-          onReplayTick(replay.slice(), idx)
-          requestAnimationFrame(() => resolve())
+      if (!historical) {
+        state.tvChart.flushPendingRefresh()
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => {
+            state.tvChart?.flushPendingRefresh()
+            onReplayTick(replay.slice(), idx)
+            requestAnimationFrame(() => resolve())
+          })
         })
-      })
+      } else {
+        requestAnimationFrame(() => state.tvChart?.scrollReplayCursorIntoView())
+      }
     }
 
     async function revealLightweightChartFallback(reason: string) {
@@ -4461,6 +4492,7 @@ export function mountChartWorkspace(
         await yieldToMain()
         await applyTvBootPaint()
         hideTvReplayMask()
+        maybeShowSessionWindowedNotice()
         paintedWithNonZeroHost = true
         syncReplayViewportAfterPaint()
         if (!bootDismissed) {
@@ -4483,11 +4515,122 @@ export function mountChartWorkspace(
 
     replay = new ReplayController(chartBars, onReplayTick)
     replay.setLoopStartIndex(sessionReplayStartIndex)
+
+    async function lazyFetchSessionBars(req: LazyFetchBarsRequest): Promise<boolean> {
+      if (!sessionBarsWindowed || sessionBarExtendBusy) return false
+      if (chartTimeframe !== '1m' && inferTimeframeFromBars(replay.getBars()) !== '1m') return false
+
+      const full = sessionDateRangeSec(activeSession.startDate, activeSession.endDate)
+      if (full.startSec == null || full.endSec == null) return false
+
+      const sessionStartSec = activeSession.startDate?.trim()
+        ? parseSessionDateToSec(activeSession.startDate, 'start') ?? undefined
+        : undefined
+
+      const range =
+        req.direction === 'before'
+          ? chunkRangeBeforeLoaded(req.loadedFirstSec, full.startSec)
+          : chunkRangeAfterLoaded(req.loadedLastSec, full.endSec)
+      if (!range) return false
+
+      const key = `${req.direction}:${range.startSec}:${range.endSec}`
+      if (sessionLazyFetchKey === key) return false
+
+      sessionBarExtendBusy = true
+      sessionLazyFetchKey = key
+      try {
+        const chunk = await fetchSessionBarChunk(
+          currentChartSymbol,
+          range.startSec,
+          range.endSec,
+          sessionStartSec,
+        )
+        if (!chunk?.bars.length || state.disposed) return false
+
+        const merged = filterSessionChartBars(chunk.bars, activeSession)
+        if (!merged.length) return false
+
+        if (req.direction === 'before') {
+          const added = replay.prependBars(merged)
+          if (added <= 0) return false
+          state.tvChart?.prependSessionBars(merged)
+          sessionReplayStartIndex += added
+        } else {
+          const added = replay.appendBars(merged)
+          if (added <= 0) return false
+          state.tvChart?.appendSessionBars(merged)
+        }
+        chartBars = replay.getBars()
+        if (inferTimeframeFromBars(chartBars) === '1m') {
+          source1mBars = chartBars.slice()
+        }
+        return true
+      } catch (err) {
+        console.warn('[SessionBars] lazy fetch', err)
+        return false
+      } finally {
+        sessionBarExtendBusy = false
+      }
+    }
+
+    async function maybeExtendSessionBars(replayIndex: number) {
+      if (!sessionBarsWindowed || !state.replay?.getState().playing) return
+      if (sessionBarExtendBusy) return
+      const pick = resolveIntervalPick(chartTimeframe)
+      if (pick && intervalPickNeedsSubMinuteTicks(pick)) return
+
+      const bars = replay.getBars()
+      if (!bars.length) return
+      if (replayIndex < bars.length - SESSION_LAZY_LOAD_MARGIN_BARS) return
+
+      const loadedFirstSec = bars[0]!.time
+      const loadedLastSec = bars[bars.length - 1]!.time
+      const full = sessionDateRangeSec(activeSession.startDate, activeSession.endDate)
+      if (full.endSec == null || loadedLastSec >= full.endSec - 60) return
+
+      await lazyFetchSessionBars({
+        direction: 'after',
+        periodParams: {
+          from: loadedLastSec,
+          to: full.endSec,
+          countBack: 500,
+          firstDataRequest: false,
+        },
+        loadedFirstSec,
+        loadedLastSec,
+      })
+    }
+
+    function maybeShowSessionWindowedNotice() {
+      if (!sessionBarsWindowed) return
+      if (chartTimeframe !== '1m' && inferTimeframeFromBars(chartBars) !== '1m') return
+      const span = sessionSpanSec(activeSession.startDate, activeSession.endDate)
+      if (span < SESSION_1M_WARN_SPAN_SEC) return
+
+      const days = Math.round(span / 86_400)
+      const base = `Long 1m session (~${days} days) — loading in 2-week chunks. Pan left or replay to load more.`
+      if (span >= SESSION_1M_SUGGEST_H1_SPAN_SEC) {
+        showReplayNoticeAction(
+          `${base} For smoother navigation, try 1h or 1D.`,
+          'Switch to 1h',
+          () => void applyIntervalPick({ pill: '1h', kind: 'time', stepSec: 3600, label: '1 hour' }),
+        )
+      } else {
+        showReplayNotice(base)
+      }
+    }
+
+    sessionLazyFetchRef.fn = lazyFetchSessionBars
+    state.sessionBarsWindowed = sessionBarsWindowed
+
     const savedReplayIndex = restoredReplay?.replayBarIndex
+    const historicalSession = isHistoricalSessionBars(chartBars)
     const initialReplayIndex =
-      savedReplayIndex != null && savedReplayIndex >= 1
-        ? Math.min(Math.max(1, Math.round(savedReplayIndex)), chartBars.length)
-        : sessionReplayStartIndex
+      historicalSession
+        ? sessionReplayStartIndex
+        : savedReplayIndex != null && savedReplayIndex >= 1
+          ? Math.min(Math.max(1, Math.round(savedReplayIndex)), chartBars.length)
+          : sessionReplayStartIndex
     replayViewportLocked = false
     lockedTvViewport = null
     pendingTvViewportRestore = null

@@ -22,6 +22,7 @@
     "import:xau": "node scripts/import-xau-csv.mjs",
     "server:historic": "node server/historicGoldApi.mjs",
     "admin:seed": "node scripts/seedAdminUser.mjs",
+    "market:sync": "node scripts/syncMarketLocal.mjs",
     "market:sync:bars": "node scripts/syncMarketLocal.mjs --bars-only",
     "market:sync:ticks": "node scripts/syncMarketLocal.mjs --ticks-only",
     "market:sync:ticks:missing": "node scripts/syncMarketLocal.mjs --ticks-only --missing-only",

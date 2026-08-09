@@ -1,5 +1,5 @@
 import type { Bar } from '../types'
-import { fetchMarketBarsSeries } from './marketDataClient'
+import { fetchMarketBarsSeries, type MarketBarsSeries } from './marketDataClient'
 import {
   generateBtcUsdDemoMinuteBars,
   generateGoldSpotMinuteBars,
@@ -9,14 +9,23 @@ import {
   seedFromSymbol,
 } from './mockBars'
 import {
+  filterBarsBySessionDates,
   minuteBarCountForRange,
   parseSessionDateToSec,
   sessionDateRangeSec,
   sessionFetchStartSec,
   SESSION_CHART_LOOKBACK_SEC,
+  SESSION_FETCH_PRE_ROLL_SEC,
 } from './sessionDateRange'
+import {
+  fetchLookbackStartSec,
+  initialSessionFetchEndSec,
+  sessionUsesWindowedLoad,
+} from './sessionBarWindow'
 
 const DEFAULT_BAR_COUNT = 1500
+/** Cap client-side session bar payload so chart boot stays responsive. */
+export const MAX_SESSION_CHART_BARS = 60_000
 
 export type SessionBarsOpts = {
   startDate?: string
@@ -29,9 +38,64 @@ function resolveFetchRange(startDate?: string, endDate?: string): { startSec?: n
   const lookback = (sec: number) => Math.max(0, sec - SESSION_CHART_LOOKBACK_SEC)
   // Fetch session window plus 3h lookback for chart context; prior bar also backfilled server-side via sessionStartSec.
   if (startSec != null && endSec != null) return { startSec: lookback(startSec), endSec }
-  if (startSec != null) return { startSec: lookback(startSec), endSec: nowSec }
+  if (startSec != null) {
+    const capEnd = Math.min(nowSec, startSec + 90 * 86_400)
+    return { startSec: lookback(startSec), endSec: capEnd }
+  }
   if (endSec != null) return { startSec: Math.max(0, endSec - 5 * 86_400), endSec }
   return {}
+}
+
+function barsOverlapSessionWindow(bars: Bar[], sessionStartSec: number, sessionEndSec: number): boolean {
+  if (!bars.length) return false
+  const first = bars[0]!.time
+  const last = bars[bars.length - 1]!.time
+  return last >= sessionStartSec - 86_400 && first <= sessionEndSec + 86_400
+}
+
+/** Trim API bars to session window + pre-roll; cap count for chart boot. */
+export function trimBarsForSessionChart(
+  bars: Bar[],
+  startDate?: string,
+  endDate?: string,
+  maxBars = MAX_SESSION_CHART_BARS,
+): Bar[] {
+  if (!bars.length) return bars
+  const startSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : null
+  const endSec = endDate?.trim() ? parseSessionDateToSec(endDate, 'end') : null
+  let out = bars
+  if (startSec != null && Number.isFinite(startSec)) {
+    const lo = Math.max(0, startSec - SESSION_FETCH_PRE_ROLL_SEC)
+    out = out.filter((b) => b.time >= lo)
+  }
+  if (endSec != null && Number.isFinite(endSec)) {
+    const hi = endSec + 3600
+    out = out.filter((b) => b.time <= hi)
+  }
+  if (out.length > maxBars) out = out.slice(0, maxBars)
+  if (out.length >= 16) return out
+  if (bars.length > maxBars) return bars.slice(0, maxBars)
+  return bars
+}
+
+/** Client-side session filter with trim fallback (matches server trim when filter is strict). */
+export function resolveChartBarsForSession(
+  rawBars: Bar[],
+  startDate?: string,
+  endDate?: string,
+  minBars = 8,
+): Bar[] {
+  if (!rawBars.length) return []
+  const hasDates = Boolean(startDate?.trim() || endDate?.trim())
+  if (!hasDates) return rawBars
+
+  const filtered = filterBarsBySessionDates(rawBars, startDate, endDate, rawBars)
+  if (filtered.length >= minBars) return filtered
+
+  const trimmed = trimBarsForSessionChart(rawBars, startDate, endDate)
+  if (trimmed.length >= minBars) return trimmed
+
+  return filtered.length ? filtered : trimmed
 }
 
 function syntheticParams(
@@ -52,6 +116,8 @@ export type ResolvedSeries = {
   timeframe: string
   /** Where bars came from (e.g. twelvedata:BTC/USD, upload:server-data, synthetic:…). */
   dataSource?: string
+  /** True when only the first window was fetched; more bars load on pan / replay. */
+  windowed?: boolean
 }
 
 /** Symbols that use gold browser history (static JSON or gold generator). */
@@ -218,6 +284,8 @@ function mergeBarsByTime(...groups: Bar[][]): Bar[] {
   return out
 }
 
+export { mergeBarsByTime }
+
 /** When the main fetch begins exactly at session start, load one earlier candle for chart context. */
 async function ensurePriorBarInPool(symbol: string, bars: Bar[], startDate?: string): Promise<Bar[]> {
   const startSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : null
@@ -234,31 +302,91 @@ async function ensurePriorBarInPool(symbol: string, bars: Bar[], startDate?: str
   return mergeBarsByTime(pad.bars, bars)
 }
 
+async function fetchMarketBarRange(
+  symbol: string,
+  startSec: number,
+  endSec: number,
+  sessionStartSec?: number,
+): Promise<MarketBarsSeries | null> {
+  return fetchMarketBarsSeries(symbol, undefined, {
+    interval: '1m',
+    startSec,
+    endSec,
+    sessionStartSec: sessionStartSec ?? undefined,
+  })
+}
+
+/** Fetch a time slice for lazy session extension (pan left / replay toward B). */
+export async function fetchSessionBarChunk(
+  symbol: string,
+  startSec: number,
+  endSec: number,
+  sessionStartSec?: number,
+): Promise<ResolvedSeries | null> {
+  const fromMarket = await fetchMarketBarRange(symbol, startSec, endSec, sessionStartSec)
+  if (!fromMarket?.bars.length) return null
+  return {
+    bars: fromMarket.bars,
+    timeframe: fromMarket.timeframe,
+    dataSource: fromMarket.dataSource,
+  }
+}
+
 async function fetchLiveMarketSeries(
   symbol: string,
   startDate?: string,
   endDate?: string,
 ): Promise<ResolvedSeries | null> {
-  const { startSec, endSec } = resolveFetchRange(startDate, endDate)
+  const sessionRange = sessionDateRangeSec(startDate, endDate)
   const sessionStartSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : undefined
-  const hasRange = startSec != null && endSec != null && endSec > startSec
-  const fromMarket = await fetchMarketBarsSeries(symbol, undefined, {
-    range: hasRange ? undefined : '5d',
-    interval: '1m',
-    ...(hasRange ? { startSec, endSec, sessionStartSec: sessionStartSec ?? undefined } : {}),
-  })
+  const hasRange =
+    sessionRange.startSec != null &&
+    sessionRange.endSec != null &&
+    sessionRange.endSec > sessionRange.startSec
+
+  let startSec: number | undefined
+  let endSec: number | undefined
+  let windowed = false
+
+  if (hasRange) {
+    const sStart = sessionRange.startSec!
+    const sEnd = sessionRange.endSec!
+    windowed = sessionUsesWindowedLoad(startDate, endDate)
+    startSec = fetchLookbackStartSec(sStart)
+    endSec = windowed ? initialSessionFetchEndSec(sStart, sEnd) : sEnd
+  } else {
+    const range = resolveFetchRange(startDate, endDate)
+    startSec = range.startSec
+    endSec = range.endSec
+  }
+
+  const fromMarket = await fetchMarketBarRange(
+    symbol,
+    startSec!,
+    endSec!,
+    sessionStartSec ?? undefined,
+  )
   if (!fromMarket) return null
-  if (hasRange && fromMarket.bars.length) {
-    const first = fromMarket.bars[0]!.time
-    const last = fromMarket.bars[fromMarket.bars.length - 1]!.time
-    if (last < startSec! - 86_400 || first > endSec! + 86_400) {
+
+  if (
+    hasRange &&
+    fromMarket.bars.length &&
+    sessionRange.startSec != null &&
+    sessionRange.endSec != null
+  ) {
+    if (!barsOverlapSessionWindow(fromMarket.bars, sessionRange.startSec, sessionRange.endSec)) {
       return null
     }
   }
+
+  const bars = trimBarsForSessionChart(fromMarket.bars, startDate, endDate)
+  if (bars.length < 16) return null
+
   return {
-    bars: fromMarket.bars,
+    bars,
     timeframe: fromMarket.timeframe,
     dataSource: fromMarket.dataSource,
+    windowed,
   }
 }
 
@@ -338,7 +466,19 @@ export async function resolveSessionBars(
 
     const fromFile = await fetchGoldStaticJson()
     if (fromFile) {
-      const bars = await ensurePriorBarInPool(u, fromFile.bars, startDate)
+      let bars = await ensurePriorBarInPool(u, fromFile.bars, startDate)
+      const sessionRange = sessionDateRangeSec(startDate, endDate)
+      if (
+        sessionRange.startSec != null &&
+        sessionRange.endSec != null &&
+        bars.length
+      ) {
+        if (!barsOverlapSessionWindow(bars, sessionRange.startSec, sessionRange.endSec)) {
+          bars = []
+        } else {
+          bars = trimBarsForSessionChart(bars, startDate, endDate)
+        }
+      }
       if (bars.length >= 16) return { ...fromFile, bars }
     }
 

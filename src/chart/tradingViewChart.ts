@@ -2,6 +2,7 @@ import {
   createTradeneuTvDatafeed,
   disposeTradeneuTvDatafeed,
   tvResolutionMatches,
+  type LazyFetchBarsRequest,
 } from './tradingViewDatafeed'
 import type { TvDatafeed } from './tradingViewTypes'
 import type { Bar } from '../types'
@@ -66,6 +67,11 @@ export type TradingViewChartHandle = {
   clearReplayPickPreview: () => void
   clearReplay: () => void
   scrollReplayCursorIntoView: () => void
+  setHistoricalAnchorIndex: (barIndex: number) => void
+  /** Merge earlier session bars (pan-left lazy load). */
+  prependSessionBars: (bars: Bar[]) => number
+  /** Merge later session bars (replay toward B). */
+  appendSessionBars: (bars: Bar[]) => number
   viewportAnchorTimeSec: (anchorRatio?: number) => number | null
   replayIndexAtViewportAnchor: (anchorRatio?: number) => number
   lockedViewportCoversBars: (saved: TvLockedViewport, pastBars: Bar[]) => boolean
@@ -172,6 +178,8 @@ export type TradingViewChartOpts = {
   /** Set while applyIntervalPick is running (guards datafeed during rebucket). */
   intervalSwapRef?: { inProgress: boolean }
   headerButtons?: TvHeaderButtonDef[]
+  /** Fetch older/newer chunks when TV pans past loaded session bars. */
+  lazyFetchBars?: (req: LazyFetchBarsRequest) => Promise<boolean>
 }
 
 type TvSubscription = {
@@ -1346,6 +1354,7 @@ export async function createTradingViewChart(
     sessionStartSec: () => sessionStartSec,
     sessionEndSec: () => sessionEndSec,
     isIntervalSwapInProgress: () => opts.intervalSwapRef?.inProgress === true,
+    lazyFetchBars: opts.lazyFetchBars,
     onDataSourceResolved: (dataSource) => {
       datafeedBundle.setProviderExchangeLabel(dataSource)
       refreshProviderHeader()
@@ -2022,6 +2031,26 @@ export async function createTradingViewChart(
 
     scrollReplayCursorIntoView() {
       replayCtrl?.scrollReplayCursorIntoView()
+    },
+
+    setHistoricalAnchorIndex(barIndex: number) {
+      datafeedBundle.replayFeed.setHistoricalAnchorIndex(barIndex)
+    },
+
+    prependSessionBars(bars) {
+      const added = datafeedBundle.replayFeed.prependBars(bars)
+      if (added > 0) {
+        try {
+          widget.resetCache()
+        } catch {
+          /* ignore */
+        }
+      }
+      return added
+    },
+
+    appendSessionBars(bars) {
+      return datafeedBundle.replayFeed.appendBars(bars)
     },
 
     viewportAnchorTimeSec(anchorRatio) {
