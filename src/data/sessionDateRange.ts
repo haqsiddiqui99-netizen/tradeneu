@@ -224,14 +224,6 @@ export function filterBarsBySessionDates(
   return session
 }
 
-/** True when the loaded series ends well before wall-clock now (past replay session). */
-export function isHistoricalSessionBars(bars: Bar[]): boolean {
-  if (!bars.length) return false
-  const lastSec = Number(bars[bars.length - 1]!.time)
-  if (!Number.isFinite(lastSec)) return false
-  return lastSec < Math.floor(Date.now() / 1000) - 3600
-}
-
 /** 1-based replay index at the first in-session bar (includes the prior context candle in the slice). */
 export function sessionStartReplayIndex(bars: Bar[], startIso?: string): number {
   if (!bars.length) return 1

@@ -34,13 +34,10 @@ import { resolveMarketTicks } from './providers/marketLocalResolve.mjs'
 import {
   getLocalBarTimeBounds,
   getLocalStoreStats,
-  initMarketStore,
   marketDbPath,
   marketLocalEnabled,
-  marketStoreBackend,
   normalizeMarketSymbol,
-  resolveDefaultMarketBarChain,
-} from './providers/marketStore.mjs'
+} from './providers/marketLocalDb.mjs'
 import { mountLocalAuthRoutes } from './auth/localAuth.mjs'
 import { mountGoogleAuthRoutes } from './auth/googleOAuth.mjs'
 import { mountAdminRoutes } from './admin/adminRoutes.mjs'
@@ -254,7 +251,7 @@ app.delete('/api/historic/gold/upload', (req, res) => {
   }
 })
 
-const DEFAULT_CHAIN = resolveDefaultMarketBarChain()
+const DEFAULT_CHAIN = process.env.MARKET_BAR_CHAIN?.trim() || 'local,dukascopy,twelvedata'
 
 function barsHttpCacheSec(endSec) {
   const nowSec = Math.floor(Date.now() / 1000)
@@ -407,15 +404,14 @@ app.get('/api/market/ticks', async (req, res) => {
   }
 })
 
-app.get('/api/market/local/stats', async (req, res) => {
+app.get('/api/market/local/stats', (req, res) => {
   try {
     const symbol = String(req.query.symbol || 'XAUUSD').trim().toUpperCase()
     res.json({
       ok: true,
       enabled: marketLocalEnabled(),
-      backend: marketStoreBackend(),
-      dbPath: marketStoreBackend() === 'sqlite' ? marketDbPath() : null,
-      stats: await getLocalStoreStats(symbol),
+      dbPath: marketDbPath(),
+      stats: getLocalStoreStats(symbol),
     })
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e?.message || e) })
@@ -423,7 +419,7 @@ app.get('/api/market/local/stats', async (req, res) => {
 })
 
 /** Fast min/max bar times for session date pickers (avoids loading full 10y daily series). */
-app.get('/api/market/coverage', async (req, res) => {
+app.get('/api/market/coverage', (req, res) => {
   res.setHeader('Cache-Control', 'private, max-age=300')
   try {
     const symbol = normalizeMarketSymbol(req.query.symbol || 'XAUUSD')
@@ -431,15 +427,14 @@ app.get('/api/market/coverage', async (req, res) => {
       res.status(404).json({ ok: false, error: 'local_disabled' })
       return
     }
-    const backend = marketStoreBackend()
     for (const tf of ['d1', 'h1', 'm1']) {
-      const bounds = await getLocalBarTimeBounds(symbol, tf)
+      const bounds = getLocalBarTimeBounds(symbol, tf)
       if (bounds) {
         res.json({
           ok: true,
           symbol,
           timeframe: tf,
-          source: backend === 'timescale' ? `local:timescale:${tf}` : `local:sqlite:${tf}`,
+          source: `local:sqlite:${tf}`,
           minSec: bounds.minSec,
           maxSec: bounds.maxSec,
         })
@@ -467,11 +462,6 @@ app.get('/api/market/providers', (_req, res) => {
           'Local SQLite market store (server-data/market.db) — sync with npm run market:sync; served before Dukascopy when MARKET_LOCAL_FIRST=1',
       },
       {
-        id: 'timescale',
-        description:
-          'TimescaleDB / PostgreSQL market store (DATABASE_URL or TIMESCALE_DATABASE_URL) — hypertables for ticks + OHLCV; chain step timescale',
-      },
-      {
         id: 'dukascopy_ticks',
         description:
           'Dukascopy historical quote ticks (bid/ask) — GET /api/market/ticks for FX/metals/crypto',
@@ -490,9 +480,6 @@ app.get('/api/market/providers', (_req, res) => {
       DUKASCOPY_MAX_TICK_RANGE_SEC: process.env.DUKASCOPY_MAX_TICK_RANGE_SEC || null,
       MARKET_TICKS_CACHE_TTL_MS: process.env.MARKET_TICKS_CACHE_TTL_MS || null,
       MARKET_LOCAL_FIRST: process.env.MARKET_LOCAL_FIRST ?? '(default:on)',
-      MARKET_STORE: process.env.MARKET_STORE || '(auto)',
-      DATABASE_URL: process.env.DATABASE_URL || process.env.TIMESCALE_DATABASE_URL ? '(set)' : null,
-      MARKET_TIMESCALE_FIRST: process.env.MARKET_TIMESCALE_FIRST ?? '(default:on when DATABASE_URL set)',
       MARKET_FALLBACK_DUKASCOPY: process.env.MARKET_FALLBACK_DUKASCOPY ?? '(default:on)',
       MARKET_DB_PATH: process.env.MARKET_DB_PATH || null,
       MARKET_SYNC_SYMBOLS: process.env.MARKET_SYNC_SYMBOLS || 'XAUUSD',
@@ -550,26 +537,14 @@ if (!process.env.VERCEL) {
       console.error('[auth] Admin bootstrap failed:', err?.message || err)
     }
 
-    try {
-      const store = await initMarketStore()
-      console.log(`[market-store] backend=${store.backend}`)
-    } catch (err) {
-      console.error('[market-store] init failed:', err?.message || err)
-    }
-
     const server = app.listen(PORT, HOST, () => {
     const keyOk = Boolean(process.env.TWELVE_DATA_API_KEY?.trim())
-    const backend = marketStoreBackend()
     console.log(`[market-data] http://${HOST}:${PORT}`)
     console.log(`  Default MARKET_BAR_CHAIN: ${DEFAULT_CHAIN}`)
     console.log(`  Data dir: ${DATA_DIR}`)
     console.log(`  Dukascopy cache: ${process.env.DUKASCOPY_CACHE_PATH?.trim() || 'server-data/dukascopy-cache'}`)
     console.log(`  Disk bars cache: ${process.env.MARKET_BARS_DISK_CACHE_PATH?.trim() || path.join(DATA_DIR, 'market-bars-cache')}`)
-    if (backend === 'timescale') {
-      console.log(`  Market store: TimescaleDB (local-first: ${marketLocalEnabled() ? 'on' : 'off'})`)
-    } else {
-      console.log(`  Local SQLite: ${marketDbPath()} (local-first: ${marketLocalEnabled() ? 'on' : 'off'})`)
-    }
+    console.log(`  Local SQLite: ${marketDbPath()} (local-first: ${marketLocalEnabled() ? 'on' : 'off'})`)
     scheduleMarketWarmup()
     if (!keyOk) {
       console.warn(

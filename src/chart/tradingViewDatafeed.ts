@@ -6,7 +6,6 @@ import {
   baseTicker,
   isFutureTicker,
 } from './tradingViewReplayFeed'
-import { capTvBarsForRequest, filterTvBarsForPeriod, tvNextTimeForEmptyRequest } from './tradingViewBarLimits'
 import { providerLabelFromDataSource } from '../data/marketDataSourceLabel'
 import type {
   TvBar,
@@ -101,22 +100,18 @@ export function intervalPillToTvResolution(pill: string): string {
 
 function tvResolutionToMarketParams(resolution: string): { interval: string; range: string } {
   const secMatch = /^(\d+)S$/i.exec(resolution.trim())
-  if (secMatch) return { interval: `${secMatch[1]}s`, range: '10y' }
-  if (resolution === '1D') return { interval: '1d', range: '10y' }
+  if (secMatch) return { interval: `${secMatch[1]}s`, range: '5d' }
+  if (resolution === '1D') return { interval: '1d', range: '5y' }
   if (resolution === '1W') return { interval: '1w', range: '10y' }
   if (resolution === '1M') return { interval: '1M', range: 'max' }
   const mins = Number.parseInt(resolution, 10)
   if (Number.isFinite(mins)) {
-    if (mins <= 1) return { interval: '1m', range: '10y' }
-    if (mins <= 5) return { interval: '5m', range: '10y' }
-    if (mins <= 15) return { interval: '15m', range: '10y' }
-    return { interval: '1h', range: '10y' }
+    if (mins <= 1) return { interval: '1m', range: '5d' }
+    if (mins <= 5) return { interval: '5m', range: '1mo' }
+    if (mins <= 15) return { interval: '15m', range: '3mo' }
+    return { interval: '1h', range: '1y' }
   }
-  return { interval: '1h', range: '10y' }
-}
-
-function periodParamToSec(raw: number): number {
-  return raw > 1e11 ? Math.floor(raw / 1000) : Math.floor(raw)
+  return { interval: '1h', range: '1y' }
 }
 
 function toTvBar(bar: Bar): TvBar {
@@ -144,11 +139,7 @@ function catalogExchange(asset: CatalogAsset): string {
   return catalogMarketDataLabel(asset.symbol)
 }
 
-function symbolInfoFor(
-  symbol: string,
-  exchangeOverride?: string,
-  dataStatus: 'pulsed' | 'endofday' = 'pulsed',
-): TvLibrarySymbolInfo {
+function symbolInfoFor(symbol: string, exchangeOverride?: string): TvLibrarySymbolInfo {
   const s = symbol.trim().toUpperCase()
   const asset = findAsset(s)
   const isGold = /XAU|GOLD/i.test(s)
@@ -172,7 +163,7 @@ function symbolInfoFor(
     has_weekly_and_monthly: true,
     supported_resolutions: [...SUPPORTED_RESOLUTIONS],
     volume_precision: 0,
-    data_status: dataStatus,
+    data_status: 'pulsed',
   }
 }
 
@@ -251,8 +242,6 @@ export type TradeneuTvDatafeedOpts = {
   onDataSourceResolved?: (dataSource: string) => void
   /** True while app is rebucketing replay bars for a new TV interval. */
   isIntervalSwapInProgress?: () => boolean
-  /** Past replay session — TV must not treat the symbol as live/pulsed. */
-  isHistoricalReplay?: () => boolean
 }
 
 export type TradeneuTvDatafeedBundle = {
@@ -265,11 +254,6 @@ export type TradeneuTvDatafeedBundle = {
 export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): TradeneuTvDatafeedBundle {
   const replayFeed = new TvReplayFeedController()
   let providerExchangeLabel: string | undefined
-  let lastGetBarsKey = ''
-  let lastGetBarsAt = 0
-  let lastGetBarsPayload: { bars: TvBar[]; nextTime?: number } | null = null
-  let getBarsBurst = 0
-  let getBarsBurstResetTimer: ReturnType<typeof setTimeout> | null = null
 
   const setProviderExchangeLabel = (dataSource?: string) => {
     const label = providerLabelFromDataSource(dataSource)
@@ -292,65 +276,16 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
         onError('Invalid symbol')
         return
       }
-      setTimeout(
-        () =>
-          onResolve(
-            symbolInfoFor(
-              base,
-              providerExchangeLabel,
-              opts.isHistoricalReplay?.() ? 'endofday' : 'pulsed',
-            ),
-          ),
-        0,
-      )
+      setTimeout(() => onResolve(symbolInfoFor(base, providerExchangeLabel)), 0)
     },
 
     getBars(symbolInfo, resolution, periodParams, onResult, onError) {
-      const reqKey = `${symbolInfo.ticker}|${resolution}|${periodParams.from}|${periodParams.to}|${periodParams.countBack}|${periodParams.firstDataRequest ? 1 : 0}`
-      const now = Date.now()
-      if (reqKey === lastGetBarsKey && now - lastGetBarsAt < 120 && lastGetBarsPayload) {
-        const cached = lastGetBarsPayload
-        onResult(cached.bars, {
-          noData: !cached.bars.length,
-          ...(cached.nextTime != null ? { nextTime: cached.nextTime } : {}),
-        })
-        return
-      }
-
-      getBarsBurst += 1
-      if (!getBarsBurstResetTimer) {
-        getBarsBurstResetTimer = setTimeout(() => {
-          getBarsBurst = 0
-          getBarsBurstResetTimer = null
-        }, 3000)
-      }
-      if (getBarsBurst > 100) {
-        console.warn('[TradingView] getBars storm — throttling duplicate empty responses')
-        const nextTime = replayFeed.hasSessionBars()
-          ? replayFeed.nextTimeForEmptyRequest(periodParams)
-          : undefined
-        onResult([], { noData: true, ...(nextTime != null ? { nextTime } : {}) })
-        return
-      }
-
       void loadBars(symbolInfo.ticker, resolution, periodParams, opts, replayFeed)
         .then((bars) => {
-          let nextTime: number | undefined
           if (!bars.length) {
-            if (replayFeed.hasSessionBars()) {
-              nextTime = replayFeed.nextTimeForEmptyRequest(periodParams)
-            } else {
-              nextTime = tvNextTimeForEmptyRequest(bars, periodParams)
-            }
-          }
-          lastGetBarsKey = reqKey
-          lastGetBarsAt = Date.now()
-          lastGetBarsPayload = { bars, nextTime }
-          if (!bars.length) {
-            onResult([], {
-              noData: true,
-              ...(nextTime != null ? { nextTime } : {}),
-            })
+            // Always noData when empty — returning noData:false during swaps left TV
+            // spinning forever waiting for bars that never arrived.
+            onResult([], { noData: true })
             return
           }
           onResult(bars, { noData: false })
@@ -406,29 +341,14 @@ async function loadBars(
   const market = tvResolutionToMarketParams(resolution)
   const sessionStart = opts.sessionStartSec?.()
   const sessionEnd = opts.sessionEndSec?.()
+  const countBack = Math.max(periodParams.countBack || 0, 16)
   const fetchSymbol = baseTicker(symbol)
 
   const fetchOpts: Parameters<typeof fetchMarketBarsSeries>[2] = {
+    range: market.range,
     interval: market.interval,
     minBars: 1,
     noCache: !periodParams.firstDataRequest,
-  }
-  if (
-    periodParams.from != null &&
-    periodParams.to != null &&
-    Number.isFinite(periodParams.from) &&
-    Number.isFinite(periodParams.to)
-  ) {
-    const fromSec = periodParamToSec(periodParams.from)
-    const toSec = periodParamToSec(periodParams.to)
-    if (toSec > fromSec) {
-      fetchOpts.startSec = fromSec
-      fetchOpts.endSec = toSec
-    } else {
-      fetchOpts.range = market.range
-    }
-  } else {
-    fetchOpts.range = market.range
   }
   if (sessionStart != null && Number.isFinite(sessionStart)) {
     fetchOpts.startSec = sessionStart
@@ -447,8 +367,21 @@ async function loadBars(
   let bars = series.bars.map(toTvBar).sort((a, b) => a.time - b.time)
 
   if (periodParams.firstDataRequest) {
-    return capTvBarsForRequest(bars, periodParams)
+    return bars
   }
 
-  return filterTvBarsForPeriod(bars, periodParams)
+  const toMs = periodParams.to * 1000
+  bars = bars.filter((b) => b.time <= toMs + 60_000)
+
+  const fromMs = periodParams.from * 1000
+  const inWindow = bars.filter((b) => b.time >= fromMs)
+  if (inWindow.length >= 2) {
+    bars = inWindow
+  }
+
+  if (countBack > 0 && bars.length > countBack) {
+    bars = bars.slice(-countBack)
+  }
+
+  return bars
 }

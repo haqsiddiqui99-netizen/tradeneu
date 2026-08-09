@@ -18,7 +18,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
-import { closeMarketStore, initMarketStore, marketDbPath, marketStoreBackend } from '../server/providers/marketStore.mjs'
+import { closeMarketDb, marketDbPath } from '../server/providers/marketLocalDb.mjs'
 import { syncSymbolLocal } from '../server/providers/marketLocalSync.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -111,7 +111,7 @@ async function main() {
     return
   }
 
-  console.log(`[market-sync] backend: ${marketStoreBackend()}, path: ${marketStoreBackend() === 'sqlite' ? marketDbPath() : '(timescale)'}`)
+  console.log(`[market-sync] DB: ${marketDbPath()}`)
   console.log(`[market-sync] Symbols: ${symbols.join(', ')}`)
   if (args.missingOnly) console.log('[market-sync] Mode: missing-only (skip chunks already in SQLite)')
   if (args.secondBarsOnly) {
@@ -123,7 +123,6 @@ async function main() {
   const started = Date.now()
   let failed = 0
   try {
-    await initMarketStore()
     for (const symbol of symbols) {
       console.log(`[market-sync] ——— ${symbol} ———`)
       try {
@@ -153,7 +152,7 @@ async function main() {
     console.error('[market-sync] Failed:', err instanceof Error ? err.message : err)
     process.exitCode = 1
   } finally {
-    await closeMarketStore()
+    closeMarketDb()
   }
 }
 

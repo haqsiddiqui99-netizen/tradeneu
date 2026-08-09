@@ -99,7 +99,7 @@ export type TvDatafeed = {
     symbolInfo: TvLibrarySymbolInfo,
     resolution: TvResolution,
     periodParams: TvPeriodParams,
-    onResult: (bars: TvBar[], meta: { noData: boolean; nextTime?: number }) => void,
+    onResult: (bars: TvBar[], meta: { noData: boolean }) => void,
     onError: (reason: string) => void,
   ) => void
   subscribeBars: (

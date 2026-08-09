@@ -1,11 +1,10 @@
 /**
- * Unified server-side market history (TimescaleDB / local SQLite + Dukascopy + Twelve Data + optional gold CSV upload).
- * Sends `chain=timescale,dukascopy,twelvedata` (when Timescale is configured) or `local,dukascopy,twelvedata`
- * by default so `/api/market/bars` serves pre-synced bars before remote providers
- * (override with `VITE_MARKET_BAR_CHAIN` or `chain`).
+ * Unified server-side market history (local SQLite + Dukascopy + Twelve Data + optional gold CSV upload).
+ * Sends `chain=local,dukascopy,twelvedata` by default so `/api/market/bars` serves pre-synced
+ * second bars from SQLite before remote providers (override with `VITE_MARKET_BAR_CHAIN` or `chain`).
  */
 
-/** Default provider chain — overridden server-side when Timescale DATABASE_URL is set. */
+/** Default provider chain — local SQLite (disk) first, then Dukascopy, Twelve Data fallback. */
 export const DEFAULT_MARKET_BAR_CHAIN = 'local,dukascopy,twelvedata'
 
 import type { Bar } from '../types'
@@ -99,25 +98,11 @@ function pruneSeriesCache() {
   }
 }
 
-/** Default abort for open-ended / live bar fetches. */
+/** Abort hung Dukascopy / historic API fetches so saved-session chart boot can fall back. */
 const BARS_FETCH_TIMEOUT_MS = Math.max(
   5_000,
   Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_FETCH_TIMEOUT_MS ?? '15000'), 10) || 15_000,
 )
-
-/** Session-range fetches (e.g. 10 days of m1) can take 60s+ on cold local DB — do not abort early. */
-const BARS_FETCH_SESSION_TIMEOUT_MS = Math.max(
-  BARS_FETCH_TIMEOUT_MS,
-  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_SESSION_TIMEOUT_MS ?? '120000'), 10) ||
-    120_000,
-)
-
-function barsFetchTimeoutMs(opts?: MarketBarsFetchOpts): number {
-  if (opts?.startSec != null && opts?.endSec != null && opts.endSec > opts.startSec) {
-    return BARS_FETCH_SESSION_TIMEOUT_MS
-  }
-  return BARS_FETCH_TIMEOUT_MS
-}
 
 export async function fetchMarketBarsSeries(
   symbol: string,
@@ -135,8 +120,7 @@ export async function fetchMarketBarsSeries(
     }
   }
   const ac = new AbortController()
-  const fetchTimeoutMs = barsFetchTimeoutMs(opts)
-  const timer = window.setTimeout(() => ac.abort(), fetchTimeoutMs)
+  const timer = window.setTimeout(() => ac.abort(), BARS_FETCH_TIMEOUT_MS)
   try {
     const res = await fetch(marketBarsUrl(symbol, chainParam, opts), {
       credentials: 'same-origin',
