@@ -85,13 +85,13 @@ function marketTicksUrl(
     params.set('limit', String(Math.max(1, Math.floor(opts.limit))))
   }
   const query = params.toString()
-  const path = `api/market/ticks?${query}`
+  const path = `/api/market/ticks?${query}`
   const base = apiOrigin()
-  if (base) return `${base}/${path}`
+  if (base) return `${base}${path}`
   if (typeof window !== 'undefined' && window.location?.origin) {
-    return `${window.location.origin}/${path}`
+    return `${window.location.origin}${path}`
   }
-  return `/${path}`
+  return path
 }
 
 function ticksCacheKey(

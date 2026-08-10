@@ -45,7 +45,7 @@ import { mountBillingRoutes } from './billing/billingRoutes.mjs'
 import { parseAdminEmails } from './auth/adminAccess.mjs'
 import { mountTelemetryRoutes } from './telemetry/telemetryRoutes.mjs'
 import { mountGuestRoutes } from './guest/guestRoutes.mjs'
-import { scheduleMarketWarmup } from './marketWarmup.mjs'
+import { getMarketWarmupStatus, isMarketWarmupEnabled, scheduleMarketWarmup } from './marketWarmup.mjs'
 import { authStorageStatus } from './auth/userPersistence.mjs'
 import { bootstrapAdminUsers } from './auth/bootstrapAdmin.mjs'
 
@@ -418,6 +418,81 @@ app.get('/api/market/local/stats', (req, res) => {
   }
 })
 
+/** Railway volume + warmup diagnostics — open in browser to verify SQLite persistence. */
+app.get('/api/market/storage', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  try {
+    const symbol = normalizeMarketSymbol(req.query.symbol || 'XAUUSD')
+    const dbPath = marketDbPath()
+    let dbExists = false
+    let dbSizeBytes = 0
+    let dataDirWritable = false
+    try {
+      dbExists = fs.existsSync(dbPath)
+      if (dbExists) dbSizeBytes = fs.statSync(dbPath).size
+      fs.accessSync(DATA_DIR, fs.constants.W_OK)
+      dataDirWritable = true
+    } catch {
+      /* ignore */
+    }
+    const m1Bounds = marketLocalEnabled() ? getLocalBarTimeBounds(symbol, 'm1') : null
+    const volumeRoot = fs.existsSync('/data')
+    const onRailway = Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_VOLUME_MOUNT_PATH)
+    const ready =
+      marketLocalEnabled() &&
+      dbExists &&
+      dbSizeBytes > 0 &&
+      Boolean(m1Bounds) &&
+      (volumeRoot || !onRailway)
+
+    res.json({
+      ok: true,
+      ready,
+      volume: {
+        mountPath: '/data',
+        mounted: volumeRoot,
+        railway: onRailway,
+        dataDir: DATA_DIR,
+        writable: dataDirWritable,
+      },
+      sqlite: {
+        enabled: marketLocalEnabled(),
+        path: dbPath,
+        exists: dbExists,
+        sizeBytes: dbSizeBytes,
+      },
+      symbol,
+      m1: m1Bounds
+        ? {
+            minSec: m1Bounds.minSec,
+            maxSec: m1Bounds.maxSec,
+            minIso: new Date(m1Bounds.minSec * 1000).toISOString(),
+            maxIso: new Date(m1Bounds.maxSec * 1000).toISOString(),
+          }
+        : null,
+      warmup: getMarketWarmupStatus(),
+      hints: ready
+        ? []
+        : [
+            !volumeRoot && onRailway
+              ? 'Mount a Railway volume at /data on the tradeneu service (Settings → Volumes → Mount path /data).'
+              : null,
+            !marketLocalEnabled()
+              ? 'Local SQLite disabled — ensure better-sqlite3 built and MARKET_LOCAL_FIRST is not 0.'
+              : null,
+            !dbExists || dbSizeBytes === 0
+              ? 'market.db missing or empty — set MARKET_WARMUP_SYNC=1 and redeploy; check Deploy Logs for [market-warmup].'
+              : null,
+            !m1Bounds
+              ? `No m1 bars for ${symbol} — wait for warmup or run market:sync locally and copy DB to the volume.`
+              : null,
+          ].filter(Boolean),
+    })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) })
+  }
+})
+
 /** Fast min/max bar times for session date pickers (avoids loading full 10y daily series). */
 app.get('/api/market/coverage', (req, res) => {
   res.setHeader('Cache-Control', 'private, max-age=300')
@@ -542,7 +617,10 @@ void (async () => {
     console.log(`  Data dir: ${DATA_DIR}`)
     console.log(`  Dukascopy cache: ${process.env.DUKASCOPY_CACHE_PATH?.trim() || 'server-data/dukascopy-cache'}`)
     console.log(`  Disk bars cache: ${process.env.MARKET_BARS_DISK_CACHE_PATH?.trim() || path.join(DATA_DIR, 'market-bars-cache')}`)
+    const volumeMounted = fs.existsSync('/data')
+    console.log(`  Volume /data: ${volumeMounted ? 'mounted' : 'not mounted'} → data dir ${DATA_DIR}`)
     console.log(`  Local SQLite: ${marketDbPath()} (local-first: ${marketLocalEnabled() ? 'on' : 'off'})`)
+    console.log(`  MARKET_WARMUP_SYNC: ${isMarketWarmupEnabled() ? 'on' : 'off'} — GET /api/market/storage to verify`)
     scheduleMarketWarmup()
     if (!keyOk) {
       console.warn(

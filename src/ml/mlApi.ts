@@ -24,7 +24,11 @@ function mlUrl(path: string): string {
   const p = path.startsWith('/') ? path : `/${path}`
   const b = mlBase()
   if (b) return `${b}${p}`
-  return new URL(`api/ml${p}`, document.baseURI).href
+  const apiPath = `/api/ml${p}`
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}${apiPath}`
+  }
+  return apiPath
 }
 
 export async function fetchMlHealth(): Promise<MlHealth | null> {

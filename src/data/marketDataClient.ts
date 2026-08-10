@@ -28,10 +28,13 @@ function marketBarsUrl(symbol: string, chain: string, opts?: MarketBarsFetchOpts
   if (opts?.sessionStartSec != null && Number.isFinite(opts.sessionStartSec)) {
     params.set('sessionStart', String(Math.floor(opts.sessionStartSec)))
   }
-  const path = `api/market/bars?${params.toString()}`
+  const path = `/api/market/bars?${params.toString()}`
   const base = apiOrigin()
-  if (base) return `${base}/${path}`
-  return new URL(path, document.baseURI).href
+  if (base) return `${base}${path}`
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}${path}`
+  }
+  return path
 }
 
 export type MarketBarsSeries = { bars: Bar[]; timeframe: string; dataSource?: string }
@@ -127,7 +130,13 @@ export async function fetchMarketBarsSeries(
       cache: 'no-store',
       signal: ac.signal,
     })
-    if (!res.ok) return null
+    if (!res.ok) {
+      console.warn('[Tradeneu] /api/market/bars request failed', {
+        status: res.status,
+        url: res.url,
+      })
+      return null
+    }
     const json: unknown = await res.json()
     if (!json || typeof json !== 'object' || !('ok' in json) || (json as { ok: unknown }).ok !== true) return null
     const bars = (json as { bars?: unknown }).bars
