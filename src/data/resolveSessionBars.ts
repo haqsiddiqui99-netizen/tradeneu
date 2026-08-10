@@ -326,12 +326,14 @@ async function fetchMarketBarRange(
   let result = await fetchMarketBarsSeries(symbol, undefined, opts)
   if (result) return result
 
-  // Warmup or on-demand sync may finish seconds after the first miss.
-  await sleepMs(1500)
+  // Do not wait on SQLite backfill — remote chain answers faster on Railway.
+  result = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, { ...opts, noCache: true })
+  if (result) return result
+
+  await sleepMs(800)
   result = await fetchMarketBarsSeries(symbol, undefined, { ...opts, noCache: true })
   if (result) return result
 
-  // Bypass partial local clamp — fetch live from Dukascopy / Twelve Data.
   return fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, { ...opts, noCache: true })
 }
 
@@ -387,18 +389,7 @@ async function fetchLiveMarketSeries(
   )
   if (!fromMarket) return null
 
-  if (
-    hasRange &&
-    fromMarket.bars.length &&
-    sessionRange.startSec != null &&
-    sessionRange.endSec != null
-  ) {
-    if (!barsOverlapSessionWindow(fromMarket.bars, sessionRange.startSec, sessionRange.endSec)) {
-      return null
-    }
-  }
-
-  const bars = trimBarsForSessionChart(fromMarket.bars, startDate, endDate)
+  const bars = resolveChartBarsForSession(fromMarket.bars, startDate, endDate)
   if (bars.length < 16) return null
 
   return {

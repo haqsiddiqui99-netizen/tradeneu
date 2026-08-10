@@ -53,6 +53,31 @@ function localRangeSatisfied(symbol, chartInterval, startSec, endSec, local) {
   return localChunkSatisfied(symbol, tf, startSec, endSec)
 }
 
+/** True when returned local bars overlap the requested unix window (±1 day slack). */
+function localBarsOverlapRequest(startSec, endSec, local) {
+  if (!local?.bars?.length) return false
+  if (!Number.isFinite(startSec) || !Number.isFinite(endSec)) return true
+  const first = local.bars[0].time
+  const last = local.bars[local.bars.length - 1].time
+  return last >= startSec - 86_400 && first <= endSec + 86_400
+}
+
+/**
+ * Serve SQLite immediately when bars overlap the request — even if the full chunk
+ * is not backfilled yet (windowed session boot at A).
+ */
+function localBarsUsableNow(symbol, chartInterval, startSec, endSec, local) {
+  if (!local?.ok || !local.bars?.length) return false
+  if (local.bars.length < minLocalBarsForInterval(chartInterval)) return false
+  if (localRangeSatisfied(symbol, chartInterval, startSec, endSec, local)) return true
+  return localBarsOverlapRequest(startSec, endSec, local)
+}
+
+function kickLocalBarsSync(symbol, chartInterval, startSec, endSec) {
+  if (startSec == null || endSec == null) return
+  void ensureLocalBarsSynced(symbol, chartInterval, startSec, endSec)
+}
+
 async function ensureLocalBarsSynced(symbol, chartInterval, startSec, endSec) {
   if (!onDemandSyncEnabled() || !marketLocalEnabled()) return false
   if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return false
@@ -161,38 +186,31 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
       const reqStart = Number.isFinite(startSec) ? startSec : undefined
       const reqEnd = Number.isFinite(endSec) ? endSec : undefined
       try {
-        let local = tryResolveLocalBars({
+        const local = tryResolveLocalBars({
           symbol,
           chartInterval: cInterval,
           startSec: reqStart,
           endSec: reqEnd,
         })
-        if (local?.ok && localRangeSatisfied(symbol, cInterval, reqStart, reqEnd, local)) {
+        if (local?.ok && localBarsUsableNow(symbol, cInterval, reqStart, reqEnd, local)) {
+          if (
+            reqStart != null &&
+            reqEnd != null &&
+            !localRangeSatisfied(symbol, cInterval, reqStart, reqEnd, local)
+          ) {
+            kickLocalBarsSync(symbol, cInterval, reqStart, reqEnd)
+          }
+          const partial = !localRangeSatisfied(symbol, cInterval, reqStart, reqEnd, local)
           return {
             ok: true,
             bars: local.bars,
             timeframe: local.timeframe,
             source: local.source,
-            chain: tried.join('→'),
+            chain: partial ? [...tried, 'local(partial)'].join('→') : tried.join('→'),
           }
         }
         if (reqStart != null && reqEnd != null) {
-          await ensureLocalBarsSynced(symbol, cInterval, reqStart, reqEnd)
-          local = tryResolveLocalBars({
-            symbol,
-            chartInterval: cInterval,
-            startSec: reqStart,
-            endSec: reqEnd,
-          })
-          if (local?.ok && localRangeSatisfied(symbol, cInterval, reqStart, reqEnd, local)) {
-            return {
-              ok: true,
-              bars: local.bars,
-              timeframe: local.timeframe,
-              source: local.source,
-              chain: [...tried, 'local(sync)'].join('→'),
-            }
-          }
+          kickLocalBarsSync(symbol, cInterval, reqStart, reqEnd)
         }
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err)
