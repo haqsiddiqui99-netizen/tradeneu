@@ -838,6 +838,10 @@ export function createTvReplayChartController(opts: {
     const pastCount = pastBars.length
     if (opts2?.force) lastPastCount = -1
 
+    if (!opts2?.pickPreview && pastCount < allBars.length) {
+      opts.replayFeed.setHistoricalAnchorIndex(Math.max(0, pastCount - 1))
+    }
+
     const streamBars = canStreamRealtimeBars()
 
     const incremental =
@@ -972,12 +976,13 @@ export function createTvReplayChartController(opts: {
       return
     }
 
-    // Playback steps: prefer realtime bar emit; locked viewport uses resetData so TV stays in sync.
+    // Playback steps: shift viewport first, then resetData so TV loads bars for the new window.
     if (opts2?.playing && !opts2?.pickPreview && !opts2?.force && replayStepForward) {
       const lockedPlay = !!(opts2?.preserveViewport && holdViewport)
       if (lockedPlay) {
-        scheduleFullRefresh(true)
-        applyHeldViewportAfterBar()
+        commitPlaybackViewport(lockedViewportNow(), pastBars, prevPastCount, pastCount, opts2)
+        const shifted = replayLockedViewport ?? holdViewport!
+        doFullRefreshWithLockedViewport(shifted, false)
       } else if (streamBars) {
         for (let i = prevPastCount; i < pastCount; i++) {
           opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
@@ -997,8 +1002,9 @@ export function createTvReplayChartController(opts: {
     if (playingRevealJump && !replayStepForward) {
       opts.replayFeed.setRevealCountIfChanged(pastCount)
       if (opts2?.preserveViewport && holdViewport) {
-        scheduleFullRefresh(true)
-        applyHeldViewportAfterBar()
+        commitPlaybackViewport(lockedViewportNow(), pastBars, prevPastCount, pastCount, opts2)
+        const shifted = replayLockedViewport ?? holdViewport!
+        doFullRefreshWithLockedViewport(shifted, false)
       } else {
         for (let i = prevPastCount; i < pastCount; i++) {
           opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
@@ -1011,10 +1017,9 @@ export function createTvReplayChartController(opts: {
       return
     }
 
-    // Play kickoff with locked viewport: sync truncated feed before streaming steps.
+    // Play kickoff with locked viewport: sync truncated feed at the locked range.
     if (opts2?.playing && opts2?.force && !opts2?.pickPreview && holdViewport) {
-      scheduleFullRefresh(true)
-      applyPlaybackViewportRange(lockedViewportNow())
+      doFullRefreshWithLockedViewport(holdViewport, false)
       lastPastCount = pastCount
       ensureRangeHooks()
       return
