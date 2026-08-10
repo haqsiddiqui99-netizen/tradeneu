@@ -298,28 +298,13 @@ export class TvReplayFeedController {
     const past = this.state.allBars.slice(0, revealed)
     const future = this.state.allBars.slice(revealed)
     const source = isFuture ? future : past
-    const replayActive =
-      !isFuture &&
-      this.state.allBars.length > 0 &&
-      revealed < this.state.allBars.length
-    const anchorIndex = replayActive
-      ? Math.max(0, revealed - 1)
-      : this.historicalAnchorIndex
-
     if (!isFuture && periodParams.firstDataRequest) {
-      return capTvBarsForRequest(source, periodParams, true, anchorIndex)
+      return capTvBarsForRequest(source, periodParams, true, this.historicalAnchorIndex)
     }
     if (!isFuture && !tvBarsStrictlyOverlapPeriod(source, periodParams)) {
-      if (replayActive && source.length) {
-        return capTvBarsForRequest(source, periodParams, true, anchorIndex)
-      }
       return []
     }
-    const filtered = filterTvBarsForPeriod(source, periodParams, true, anchorIndex)
-    if (!filtered.length && replayActive && source.length) {
-      return capTvBarsForRequest(source, periodParams, true, anchorIndex)
-    }
-    return filtered
+    return filterTvBarsForPeriod(source, periodParams, true, this.historicalAnchorIndex)
   }
 
   findBarIndexAtOrBeforeTimeSec(timeSec: number, maxIndex?: number): number {
