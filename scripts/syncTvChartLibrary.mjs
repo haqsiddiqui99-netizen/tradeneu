@@ -2,7 +2,7 @@
  * Copy TradingView Advanced Charts static assets from the git submodule into public/.
  * Run automatically before build; also available as `npm run tv:sync`.
  *
- * Default: skip with exit 0 when the submodule is absent (CI / Vercel without TV access).
+ * Default: skip with exit 0 when the submodule is absent (CI without TV access).
  * Pass --strict to fail (local dev when VITE_USE_TV_CHART=1).
  */
 import { copyFileSync, cpSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs'

@@ -59,7 +59,7 @@ function buildReply(userText: string, sessions: StoredSession[]): string {
     const total = withJournal.reduce((n, s) => n + (s.replayState?.account.closedTrades.length ?? 0), 0)
     return `${total} closed paper trade${total === 1 ? '' : 's'} across ${withJournal.length} session${withJournal.length === 1 ? '' : 's'}. Check the journal panel in the chart side rail.`
   }
-  if (/twelve|data|live|demo|api|vercel|deploy/.test(q)) {
+  if (/twelve|data|live|demo|api|railway|deploy/.test(q)) {
     return 'Live bars need TWELVE_DATA_API_KEY on the server. Without it, charts show demo or bundled replay data. Check the chart feed pill for market API status.'
   }
   if (/battle|compare/.test(q)) {

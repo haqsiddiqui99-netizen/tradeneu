@@ -1,7 +1,7 @@
 /**
  * Google OAuth 2.0 redirect flow.
  *
- * Required env (set in .env.local or Vercel):
+ * Required env (set in .env.local or Railway Variables):
  *   GOOGLE_CLIENT_ID
  *   GOOGLE_CLIENT_SECRET
  *   AUTH_SESSION_SECRET   — min 16 chars, random string

@@ -213,11 +213,11 @@ export function mountStockApp(root: HTMLElement, opts?: MountStockOpts): () => v
       if (!health.apiReachable) {
         showErr(
           import.meta.env.PROD
-            ? `${base} — Market API unreachable. Set TWELVE_DATA_API_KEY on Vercel and redeploy.`
+            ? `${base} — Market API unreachable. Check the Railway deployment and /data volume, then redeploy.`
             : `${base} — Start the dev server (npm run dev) so /api/market/bars is available.`,
         )
       } else if (health.twelveDataKeyConfigured === false) {
-        showErr(`${base} — Add TWELVE_DATA_API_KEY to .env.local (dev) or Vercel env (prod).`)
+        showErr(`${base} — Add TWELVE_DATA_API_KEY to .env.local (dev) or Railway Variables (prod fallback).`)
       } else {
         showErr(base)
       }

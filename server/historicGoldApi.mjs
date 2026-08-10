@@ -79,11 +79,10 @@ function loadEnvLocal() {
 }
 loadEnvLocal()
 
-/** Persistent data root: Railway volume `/data`, Vercel `/tmp`, else repo `server-data`. */
+/** Persistent data root: Railway volume `/data`, else repo `server-data`. */
 function resolveDataDir() {
   const fromEnv = process.env.MARKET_DATA_DIR?.trim()
   if (fromEnv) return fromEnv
-  if (process.env.VERCEL) return path.join('/tmp', 'suplexity-server-data')
   if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_VOLUME_MOUNT_PATH) {
     return path.join('/data', 'server-data')
   }
@@ -499,45 +498,43 @@ app.get('/api/market/providers', (_req, res) => {
 
 export default app
 
-/** Standalone / Railway — skipped on Vercel (see `api/index.mjs`). */
-if (!process.env.VERCEL) {
-  const PORT = resolveHistoricApiPort()
-  const isProdServe =
-    process.env.SERVE_SPA === '1' ||
-    process.env.NODE_ENV === 'production' ||
-    Boolean(process.env.RAILWAY_ENVIRONMENT)
-  const HOST =
-    process.env.HISTORIC_API_HOST?.trim() || (isProdServe ? '0.0.0.0' : '127.0.0.1')
+const PORT = resolveHistoricApiPort()
+const isProdServe =
+  process.env.SERVE_SPA === '1' ||
+  process.env.NODE_ENV === 'production' ||
+  Boolean(process.env.RAILWAY_ENVIRONMENT)
+const HOST =
+  process.env.HISTORIC_API_HOST?.trim() || (isProdServe ? '0.0.0.0' : '127.0.0.1')
 
-  // Production: serve Vite build + SPA routes from the same process as /api.
-  if (isProdServe) {
-    const distDir = path.join(__dirname, '..', 'dist')
-    const indexHtml = path.join(distDir, 'index.html')
-    if (fs.existsSync(distDir) && fs.existsSync(indexHtml)) {
-      app.use(express.static(distDir, { index: false, maxAge: '1h' }))
-      app.get(/^(?!\/api\/).*/, (req, res, next) => {
-        if (req.method !== 'GET' && req.method !== 'HEAD') return next()
-        const p = req.path.toLowerCase()
-        if (p.startsWith('/charting_library/')) return next()
-        if (/\.(js|css|map|woff2?|ttf|png|svg|ico|json|txt|webmanifest)(\?|$)/.test(p)) return next()
-        res.sendFile(indexHtml, (err) => {
-          if (err) next(err)
-        })
+// Production: serve Vite build + SPA routes from the same process as /api.
+if (isProdServe) {
+  const distDir = path.join(__dirname, '..', 'dist')
+  const indexHtml = path.join(distDir, 'index.html')
+  if (fs.existsSync(distDir) && fs.existsSync(indexHtml)) {
+    app.use(express.static(distDir, { index: false, maxAge: '1h' }))
+    app.get(/^(?!\/api\/).*/, (req, res, next) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next()
+      const p = req.path.toLowerCase()
+      if (p.startsWith('/charting_library/')) return next()
+      if (/\.(js|css|map|woff2?|ttf|png|svg|ico|json|txt|webmanifest)(\?|$)/.test(p)) return next()
+      res.sendFile(indexHtml, (err) => {
+        if (err) next(err)
       })
-      console.log(`[market-data] Serving SPA from ${distDir}`)
-    } else {
-      console.warn(`[market-data] dist/ missing — API only (run npm run build)`)
-    }
+    })
+    console.log(`[market-data] Serving SPA from ${distDir}`)
+  } else {
+    console.warn(`[market-data] dist/ missing — API only (run npm run build)`)
+  }
+}
+
+void (async () => {
+  try {
+    await bootstrapAdminUsers(DATA_DIR)
+  } catch (err) {
+    console.error('[auth] Admin bootstrap failed:', err?.message || err)
   }
 
-  void (async () => {
-    try {
-      await bootstrapAdminUsers(DATA_DIR)
-    } catch (err) {
-      console.error('[auth] Admin bootstrap failed:', err?.message || err)
-    }
-
-    const server = app.listen(PORT, HOST, () => {
+  const server = app.listen(PORT, HOST, () => {
     const keyOk = Boolean(process.env.TWELVE_DATA_API_KEY?.trim())
     console.log(`[market-data] http://${HOST}:${PORT}`)
     console.log(`  Default MARKET_BAR_CHAIN: ${DEFAULT_CHAIN}`)
@@ -583,5 +580,4 @@ if (!process.env.VERCEL) {
     console.error('[market-data] Server error:', err)
     process.exit(1)
   })
-  })()
-}
+})()

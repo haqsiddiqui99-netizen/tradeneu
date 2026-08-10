@@ -36,9 +36,15 @@ function isTwelveDataLive(src?: string): boolean {
   return Boolean(src && /twelvedata/i.test(src) && !isSyntheticSource(src))
 }
 
+function isLocalMarketSource(src?: string): boolean {
+  const s = src?.trim().toLowerCase() ?? ''
+  return Boolean(s && (s.startsWith('local:') || s.includes('dukascopy')))
+}
+
 function isReplaySource(symbol: string, src?: string): boolean {
   if (isTwelveDataLive(src)) return false
   if (isSyntheticSource(src)) return false
+  if (isLocalMarketSource(src)) return true
   if (src && /upload:/i.test(src)) return true
   if (isGoldBrowserSymbol(symbol) && !isTwelveDataLive(src) && !isSyntheticSource(src)) {
     return true
@@ -79,19 +85,19 @@ function buildDemoBannerMessage(opts: {
   if (opts.health && !opts.health.apiReachable) {
     lines.push(
       opts.isProd
-        ? 'The market API is unreachable. Confirm Vercel serverless routes are deployed.'
+        ? 'The market API is unreachable. Confirm the Railway service is running and /api/market responds.'
         : 'Start the historic API (npm run dev or npm run server:historic on port 3100).',
     )
   } else if (opts.health && opts.health.twelveDataKeyConfigured === false) {
     lines.push(
       opts.isProd
-        ? 'Set TWELVE_DATA_API_KEY in Vercel → Environment Variables, then redeploy.'
+        ? 'Set TWELVE_DATA_API_KEY in Railway → Variables (optional fallback provider), then redeploy.'
         : 'Add TWELVE_DATA_API_KEY to .env.local at the repo root, then restart the dev server.',
     )
   } else if (!opts.commodity) {
     lines.push(
       opts.isProd
-        ? 'Verify TWELVE_DATA_API_KEY on Vercel and that your plan includes this symbol.'
+        ? 'Local SQLite on the Railway volume serves XAUUSD history — ensure MARKET_WARMUP_SYNC ran and the /data volume is mounted.'
         : 'Check TWELVE_DATA_API_KEY and your Twelve Data plan for this symbol.',
     )
   }
@@ -102,7 +108,7 @@ function buildDemoBannerMessage(opts: {
 
 function buildApiErrorBanner(isProd: boolean): string {
   return isProd
-    ? 'Market API unreachable. Check deployment and /api/market/providers, then reload.'
+    ? 'Market API unreachable. Check the Railway deployment and /api/market/providers, then reload.'
     : 'Market API unreachable. Run npm run dev (or npm run server:historic) and reload.'
 }
 
@@ -117,6 +123,7 @@ function classifyMode(input: ResolveFeedStatusInput): FeedMode {
   }
   if (isTwelveDataLive(src)) return 'live'
   if (isSyntheticSource(src)) return 'demo'
+  if (isLocalMarketSource(src)) return 'replay'
   if (isReplaySource(symbol, src)) return 'replay'
   if (emptyDateRange && usesMarketDataSession(symbol)) return 'demo'
   if (!usesMarketDataSession(symbol)) return 'replay'

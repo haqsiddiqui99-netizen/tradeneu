@@ -19,7 +19,8 @@ function warmupEnabled() {
 }
 
 function parseSymbols() {
-  const raw = process.env.MARKET_SYNC_SYMBOLS?.trim() || 'XAUUSD'
+  const raw =
+    process.env.MARKET_SYNC_SYMBOLS?.trim() || 'XAUUSD,EURUSD,GBPUSD,USDJPY,BTCUSD,XAGUSD'
   return [
     ...new Set(
       raw

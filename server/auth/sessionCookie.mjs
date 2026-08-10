@@ -7,7 +7,7 @@ const MAX_AGE_SEC = 60 * 60 * 24 * 30 // 30 days
 function sessionSecret() {
   const s = process.env.AUTH_SESSION_SECRET?.trim()
   if (s && s.length >= 16) return s
-  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+  if (process.env.NODE_ENV === 'production') {
     console.warn('[auth] AUTH_SESSION_SECRET is missing or too short — using ephemeral dev fallback')
   }
   return 'suplexity-dev-session-secret-change-me'

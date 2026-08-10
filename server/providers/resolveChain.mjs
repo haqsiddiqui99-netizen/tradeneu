@@ -13,13 +13,76 @@ import {
 } from './dukascopy.mjs'
 import { fetchTwelveDataTimeSeries, isTwelveDataMappableSymbol } from './twelveData.mjs'
 import { tryResolveLocalBars } from './marketLocalResolve.mjs'
+import { syncBarsRange } from './marketLocalSync.mjs'
+import {
+  chartIntervalToLocalTimeframe,
+  localChunkSatisfied,
+  marketLocalEnabled,
+} from './marketLocalDb.mjs'
 
 function minLocalBarsForInterval(chartInterval) {
   const s = String(chartInterval || '').trim().toLowerCase()
   if (/^\d+s$/.test(s)) return 2
   return 16
 }
-import { chartIntervalToLocalTimeframe, marketLocalEnabled } from './marketLocalDb.mjs'
+
+/** Dedupe concurrent on-demand SQLite backfills for the same symbol/range. */
+const onDemandSyncInflight = new Map()
+
+function onDemandSyncEnabled() {
+  const v = process.env.MARKET_ON_DEMAND_SYNC?.trim().toLowerCase()
+  if (v === '0' || v === 'false' || v === 'no') return false
+  return true
+}
+
+function resolveChartInterval(symbol, chartInterval) {
+  return typeof chartInterval === 'string' && chartInterval.trim()
+    ? chartInterval.trim()
+    : isGoldDefaultRangeSymbol(symbol)
+      ? GOLD_CHART_INTERVAL
+      : DEFAULT_INTERVAL
+}
+
+/** True when SQLite covers the requested window (rejects stale :clamped partial windows). */
+function localRangeSatisfied(symbol, chartInterval, startSec, endSec, local) {
+  if (!local?.ok || !local.bars?.length) return false
+  if (local.bars.length < minLocalBarsForInterval(chartInterval)) return false
+  if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return true
+  const tf = chartIntervalToLocalTimeframe(chartInterval)
+  if (!tf || !marketLocalEnabled()) return true
+  return localChunkSatisfied(symbol, tf, startSec, endSec)
+}
+
+async function ensureLocalBarsSynced(symbol, chartInterval, startSec, endSec) {
+  if (!onDemandSyncEnabled() || !marketLocalEnabled()) return false
+  if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return false
+  if (!isDukascopyMappableSymbol(symbol)) return false
+  const tf = chartIntervalToLocalTimeframe(chartInterval)
+  if (!tf || tf.startsWith('s')) return false
+
+  const key = `${symbol}|${tf}|${Math.floor(startSec)}|${Math.floor(endSec)}`
+  if (onDemandSyncInflight.has(key)) return onDemandSyncInflight.get(key)
+
+  const job = syncBarsRange(
+    symbol,
+    tf,
+    Math.floor(startSec),
+    Math.floor(endSec),
+    (msg) => console.log(`[market-on-demand] ${msg}`),
+    { missingOnly: true },
+  )
+    .then(() => true)
+    .catch((err) => {
+      console.warn(`[market-on-demand] ${symbol} ${tf}:`, err instanceof Error ? err.message : err)
+      return false
+    })
+    .finally(() => {
+      onDemandSyncInflight.delete(key)
+    })
+
+  onDemandSyncInflight.set(key, job)
+  return job
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = path.join(__dirname, '..', '..', 'server-data')
@@ -93,27 +156,42 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
         tried.push('local(skip:disabled)')
         continue
       }
-      const cInterval =
-        typeof chartInterval === 'string' && chartInterval.trim()
-          ? chartInterval.trim()
-          : isGoldDefaultRangeSymbol(symbol)
-            ? GOLD_CHART_INTERVAL
-            : DEFAULT_INTERVAL
+      const cInterval = resolveChartInterval(symbol, chartInterval)
       tried.push('local')
+      const reqStart = Number.isFinite(startSec) ? startSec : undefined
+      const reqEnd = Number.isFinite(endSec) ? endSec : undefined
       try {
-        const local = tryResolveLocalBars({
+        let local = tryResolveLocalBars({
           symbol,
           chartInterval: cInterval,
-          startSec: Number.isFinite(startSec) ? startSec : undefined,
-          endSec: Number.isFinite(endSec) ? endSec : undefined,
+          startSec: reqStart,
+          endSec: reqEnd,
         })
-        if (local?.ok && local.bars?.length >= minLocalBarsForInterval(cInterval)) {
+        if (local?.ok && localRangeSatisfied(symbol, cInterval, reqStart, reqEnd, local)) {
           return {
             ok: true,
             bars: local.bars,
             timeframe: local.timeframe,
             source: local.source,
             chain: tried.join('→'),
+          }
+        }
+        if (reqStart != null && reqEnd != null) {
+          await ensureLocalBarsSynced(symbol, cInterval, reqStart, reqEnd)
+          local = tryResolveLocalBars({
+            symbol,
+            chartInterval: cInterval,
+            startSec: reqStart,
+            endSec: reqEnd,
+          })
+          if (local?.ok && localRangeSatisfied(symbol, cInterval, reqStart, reqEnd, local)) {
+            return {
+              ok: true,
+              bars: local.bars,
+              timeframe: local.timeframe,
+              source: local.source,
+              chain: [...tried, 'local(sync)'].join('→'),
+            }
           }
         }
       } catch (err) {
@@ -164,12 +242,7 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
       }
       if (dc.error) lastError = dc.error
       if (chainUsesLocal && marketLocalEnabled()) {
-        const cInterval =
-          typeof chartInterval === 'string' && chartInterval.trim()
-            ? chartInterval.trim()
-            : isGoldDefaultRangeSymbol(symbol)
-              ? GOLD_CHART_INTERVAL
-              : DEFAULT_INTERVAL
+        const cInterval = resolveChartInterval(symbol, chartInterval)
         try {
           const local = tryResolveLocalBars({
             symbol,
@@ -177,7 +250,16 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
             startSec: Number.isFinite(startSec) ? startSec : undefined,
             endSec: Number.isFinite(endSec) ? endSec : undefined,
           })
-          if (local?.ok && local.bars?.length >= minLocalBarsForInterval(cInterval)) {
+          if (
+            local?.ok &&
+            localRangeSatisfied(
+              symbol,
+              cInterval,
+              Number.isFinite(startSec) ? startSec : undefined,
+              Number.isFinite(endSec) ? endSec : undefined,
+              local,
+            )
+          ) {
             return {
               ok: true,
               bars: local.bars,

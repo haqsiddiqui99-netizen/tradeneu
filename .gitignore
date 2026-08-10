@@ -18,7 +18,6 @@ ml-service/data/*.db
 dist
 dist-ssr
 public/charting_library
-.vercel
 *.local
 
 # Editor directories and files

@@ -302,18 +302,37 @@ async function ensurePriorBarInPool(symbol: string, bars: Bar[], startDate?: str
   return mergeBarsByTime(pad.bars, bars)
 }
 
+/** Remote-only chain — skips stale/partial local SQLite on retry. */
+const REMOTE_BAR_CHAIN = 'dukascopy,twelvedata'
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
 async function fetchMarketBarRange(
   symbol: string,
   startSec: number,
   endSec: number,
   sessionStartSec?: number,
 ): Promise<MarketBarsSeries | null> {
-  return fetchMarketBarsSeries(symbol, undefined, {
-    interval: '1m',
+  const opts = {
+    interval: '1m' as const,
     startSec,
     endSec,
     sessionStartSec: sessionStartSec ?? undefined,
-  })
+    minBars: 16,
+  }
+
+  let result = await fetchMarketBarsSeries(symbol, undefined, opts)
+  if (result) return result
+
+  // Warmup or on-demand sync may finish seconds after the first miss.
+  await sleepMs(1500)
+  result = await fetchMarketBarsSeries(symbol, undefined, { ...opts, noCache: true })
+  if (result) return result
+
+  // Bypass partial local clamp — fetch live from Dukascopy / Twelve Data.
+  return fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, { ...opts, noCache: true })
 }
 
 /** Fetch a time slice for lazy session extension (pan left / replay toward B). */

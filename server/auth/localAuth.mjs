@@ -1,6 +1,6 @@
 /**
- * Email + password auth — users stored in server-data/users.json (local)
- * or Vercel Blob (production). Requires AUTH_SESSION_SECRET in env (min 16 chars).
+ * Email + password auth — file-backed user store on server-data/ or Railway /data volume.
+ * Requires AUTH_SESSION_SECRET in env (min 16 chars).
  */
 
 import {
