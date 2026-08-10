@@ -304,6 +304,8 @@ async function ensurePriorBarInPool(symbol: string, bars: Bar[], startDate?: str
 
 /** Remote-only chain — skips stale/partial local SQLite on retry. */
 const REMOTE_BAR_CHAIN = 'dukascopy,twelvedata'
+/** Fast path for dated historical sessions — SQLite on Railway volume. */
+const LOCAL_ONLY_BAR_CHAIN = 'local'
 
 function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
@@ -315,6 +317,8 @@ async function fetchMarketBarRange(
   endSec: number,
   sessionStartSec?: number,
 ): Promise<MarketBarsSeries | null> {
+  const nowSec = Math.floor(Date.now() / 1000)
+  const isHistorical = Number.isFinite(endSec) && endSec < nowSec - 3600
   const opts = {
     interval: '1m' as const,
     startSec,
@@ -323,7 +327,13 @@ async function fetchMarketBarRange(
     minBars: 16,
   }
 
-  let result = await fetchMarketBarsSeries(symbol, undefined, opts)
+  // Historical sessions: hit SQLite directly first (ms on Railway when volume is warm).
+  if (isHistorical) {
+    let result = await fetchMarketBarsSeries(symbol, LOCAL_ONLY_BAR_CHAIN, { ...opts, noCache: true })
+    if (result) return result
+  }
+
+  let result = await fetchMarketBarsSeries(symbol, undefined, { ...opts, noCache: isHistorical })
   if (result) return result
 
   // Do not wait on SQLite backfill — remote chain answers faster on Railway.
@@ -389,8 +399,13 @@ async function fetchLiveMarketSeries(
   )
   if (!fromMarket) return null
 
-  const bars = resolveChartBarsForSession(fromMarket.bars, startDate, endDate)
-  if (bars.length < 16) return null
+  let bars = resolveChartBarsForSession(fromMarket.bars, startDate, endDate)
+  if (bars.length < 16) {
+    const trimmed = trimBarsForSessionChart(fromMarket.bars, startDate, endDate)
+    if (trimmed.length >= 16) bars = trimmed
+    else if (fromMarket.bars.length >= 16) bars = fromMarket.bars.slice(0, MAX_SESSION_CHART_BARS)
+    else return null
+  }
 
   return {
     bars,
@@ -473,6 +488,10 @@ export async function resolveSessionBars(
   if (isGoldBrowserSymbol(u)) {
     const live = await fetchLiveMarketSeries(u, startDate, endDate)
     if (live) return live
+    console.warn('[Tradeneu] Live XAUUSD bars unavailable — using demo fallback', {
+      startDate,
+      endDate,
+    })
 
     const fromFile = await fetchGoldStaticJson()
     if (fromFile) {

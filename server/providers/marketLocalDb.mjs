@@ -441,7 +441,7 @@ export function countLocalBarsInRange(symbol, timeframe, startSec, endSec) {
   const row = getMarketDb()
     .prepare(
       `SELECT COUNT(*) AS n FROM bars
-       WHERE symbol = ? AND timeframe = ? AND time_sec >= ? AND time_sec < ?`,
+       WHERE symbol = ? AND timeframe = ? AND time_sec >= ? AND time_sec <= ?`,
     )
     .get(sym, tf, Math.floor(startSec), Math.floor(endSec))
   return row?.n ?? 0

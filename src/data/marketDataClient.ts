@@ -124,6 +124,7 @@ export async function fetchMarketBarsSeries(
   try {
     const res = await fetch(marketBarsUrl(symbol, chainParam, opts), {
       credentials: 'same-origin',
+      cache: 'no-store',
       signal: ac.signal,
     })
     if (!res.ok) return null

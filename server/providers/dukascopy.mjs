@@ -127,6 +127,14 @@ function dukascopyFetchTimeoutMs() {
   )
 }
 
+/** Interactive `/api/market/bars` — prefer in-process API (fast); CLI stays for batch sync. */
+function apiSkipCli() {
+  const v = process.env.MARKET_API_SKIP_CLI?.trim().toLowerCase()
+  if (v === '1' || v === 'true' || v === 'yes') return true
+  if (v === '0' || v === 'false' || v === 'no') return false
+  return Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production')
+}
+
 /** CLI supports a subset of bar timeframes (see dukascopy-node `-t`). */
 function cliBarTimeframe(timeframe) {
   const tf = String(timeframe || '').trim().toLowerCase()
@@ -305,53 +313,55 @@ export async function fetchDukascopyBars({
   const filterStart = hasRange ? startSec : undefined
   const filterEnd = hasRange ? endSec : undefined
 
-  // CLI first — more reliable on Railway / flaky networks (same as market:sync).
-  const cliFirst = await fetchBarsViaCli({
-    symbol,
-    instrument,
-    timeframe,
-    startSec: cliStart,
-    endSec: cliEnd,
-    filterStartSec: filterStart,
-    filterEndSec: filterEnd,
-  })
-  if (cliFirst) {
-    let bars = cliFirst.bars
-    if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
-      const priorFrom = Math.max(0, sessionStartSec - 7 * 86_400)
-      const priorCli = await fetchBarsViaCli({
-        symbol,
-        instrument,
-        timeframe,
-        startSec: priorFrom,
-        endSec: sessionStartSec,
-        filterStartSec: priorFrom,
-        filterEndSec: sessionStartSec,
-      })
-      if (priorCli?.bars.length) {
-        let prior = null
-        for (const b of priorCli.bars) {
-          if (b.time < sessionStartSec) prior = b
-        }
-        if (prior && prior.time < bars[0].time) {
-          bars = [prior, ...bars]
+  if (!apiSkipCli()) {
+    // CLI first for dev / explicit opt-in — batch-style download (slow on long ranges).
+    const cliFirst = await fetchBarsViaCli({
+      symbol,
+      instrument,
+      timeframe,
+      startSec: cliStart,
+      endSec: cliEnd,
+      filterStartSec: filterStart,
+      filterEndSec: filterEnd,
+    })
+    if (cliFirst) {
+      let bars = cliFirst.bars
+      if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
+        const priorFrom = Math.max(0, sessionStartSec - 7 * 86_400)
+        const priorCli = await fetchBarsViaCli({
+          symbol,
+          instrument,
+          timeframe,
+          startSec: priorFrom,
+          endSec: sessionStartSec,
+          filterStartSec: priorFrom,
+          filterEndSec: sessionStartSec,
+        })
+        if (priorCli?.bars.length) {
+          let prior = null
+          for (const b of priorCli.bars) {
+            if (b.time < sessionStartSec) prior = b
+          }
+          if (prior && prior.time < bars[0].time) {
+            bars = [prior, ...bars]
+          }
         }
       }
-    }
-    const app = String(symbol).trim()
-    return {
-      ok: true,
-      bars,
-      timeframe: dcTimeframeToLabel(timeframe),
-      source: cliFirst.source,
-      dukascopy_request: {
-        instrument,
-        app_symbol: app,
-        timeframe,
-        transport: 'cli',
-        startSec: cliStart,
-        endSec: cliEnd,
-      },
+      const app = String(symbol).trim()
+      return {
+        ok: true,
+        bars,
+        timeframe: dcTimeframeToLabel(timeframe),
+        source: cliFirst.source,
+        dukascopy_request: {
+          instrument,
+          app_symbol: app,
+          timeframe,
+          transport: 'cli',
+          startSec: cliStart,
+          endSec: cliEnd,
+        },
+      }
     }
   }
 

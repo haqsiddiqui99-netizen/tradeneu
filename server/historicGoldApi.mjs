@@ -302,6 +302,7 @@ app.get('/api/market/bars', async (req, res) => {
       { endSec: Number.isFinite(endSec) ? endSec : undefined },
     )
     if (!out.ok) {
+      res.setHeader('Cache-Control', 'no-store')
       res.status(404).json({
         ok: false,
         error: out.error,

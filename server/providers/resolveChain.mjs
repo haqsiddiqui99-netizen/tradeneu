@@ -69,6 +69,8 @@ function localBarsOverlapRequest(startSec, endSec, local) {
 function localBarsUsableNow(symbol, chartInterval, startSec, endSec, local) {
   if (!local?.ok || !local.bars?.length) return false
   if (local.bars.length < minLocalBarsForInterval(chartInterval)) return false
+  // Direct SQL read for start/end — already scoped; do not re-check 500-bar chunk rules.
+  if (!String(local.source || '').includes(':clamped')) return true
   if (localRangeSatisfied(symbol, chartInterval, startSec, endSec, local)) return true
   return localBarsOverlapRequest(startSec, endSec, local)
 }
