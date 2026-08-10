@@ -4705,9 +4705,12 @@ export function mountChartWorkspace(
       }
 
       userViewportPinned = true
+      const snap = state.tvChart?.captureLockedViewport() ?? null
+      if (snap) {
+        lockedTvViewport = snap
+        pendingTvViewportRestore = snap
+      }
       replayViewportLocked = false
-      lockedTvViewport = null
-      pendingTvViewportRestore = null
       state.tvChart?.setReplayLockedViewport(null)
     }
 
@@ -7473,22 +7476,8 @@ export function mountChartWorkspace(
 
     function beginReplayPlayback() {
       if (!selectBarChartActive) {
-        // Only lock pan/zoom after scissors cut or explicit user pin — not on every Play.
-        // Auto-pinning a wide viewport shifts the chart into empty time without revealing bars.
-        if (userViewportPinned && lockedTvViewport) {
-          replayViewportLocked = true
-          pendingTvViewportRestore = lockedTvViewport
-          state.tvChart?.setReplayLockedViewport(lockedTvViewport)
-        } else if (replayViewportLocked && lockedTvViewport) {
-          pendingTvViewportRestore = lockedTvViewport
-          state.tvChart?.setReplayLockedViewport(lockedTvViewport)
-        } else {
-          replayViewportLocked = false
-          lockedTvViewport = null
-          pendingTvViewportRestore = null
-          state.tvChart?.setReplayLockedViewport(null)
-          state.tvChart?.scrollReplayCursorIntoView()
-        }
+        // FxReplay-style: lock wherever the chart is now — bars reveal in place during playback.
+        pinChartViewportForReplay()
         userViewportPinned = false
       } else if (
         replayViewportLocked &&
