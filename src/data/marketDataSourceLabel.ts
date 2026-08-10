@@ -2,7 +2,7 @@
 export function providerLabelFromDataSource(dataSource?: string): string {
   const s = dataSource?.trim().toLowerCase() ?? ''
   if (!s) return ''
-  if (s.startsWith('local:sqlite:') || s.startsWith('local:')) return 'Local'
+  if (s.startsWith('local:sqlite:') || s.startsWith('local:')) return 'Tradeneu'
   if (s.startsWith('dukascopy:') || s.includes('dukascopy')) return 'Dukascopy'
   if (s.startsWith('twelvedata:') || s.includes('twelvedata')) return 'Twelve Data'
   if (s.startsWith('upload:')) return 'Replay data'

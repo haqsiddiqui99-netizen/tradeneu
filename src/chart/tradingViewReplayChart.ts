@@ -264,6 +264,13 @@ export function createTvReplayChartController(opts: {
       if (!cc) return
       beginProgrammaticViewportRestore()
       try {
+        const ts = cc.getTimeScale()
+        if (target.barSpacing != null && Number.isFinite(target.barSpacing)) {
+          ts.setBarSpacing(target.barSpacing)
+        }
+        if (target.rightOffset != null && Number.isFinite(target.rightOffset)) {
+          ts.setRightOffset(target.rightOffset)
+        }
         void cc.setVisibleRange({
           from: normalizeChartTimeSec(target.from),
           to: normalizeChartTimeSec(target.to),
