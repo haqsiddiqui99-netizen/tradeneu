@@ -879,10 +879,17 @@ export function createTvReplayChartController(opts: {
       replayLockedViewport ?? holdViewport!
 
     const applyHeldViewportAfterBar = () => {
-      if (!holdViewport) return
       cancelViewportRestoreTimers()
+      if (!holdViewport) {
+        if (opts2?.playing) scrollReplayCursorIntoView()
+        return
+      }
       const lockedNow = lockedViewportNow()
       if (opts2?.playing && opts2?.preserveViewport) {
+        if (!viewportCoversReveal(holdViewport, pastBars)) {
+          scrollReplayCursorIntoView()
+          return
+        }
         if (Date.now() < suppressPlaybackShiftUntil) {
           applyPlaybackViewportRange(lockedNow)
           return
@@ -966,7 +973,11 @@ export function createTvReplayChartController(opts: {
           opts.replayFeed.emitRealtimeBar(barToTv(last))
         }
       }
-      applyPlaybackViewportRange(lockedViewportNow())
+      if (viewportCoversReveal(holdViewport, pastBars)) {
+        applyPlaybackViewportRange(lockedViewportNow())
+      } else {
+        scrollReplayCursorIntoView()
+      }
       lastPastCount = pastCount
       ensureRangeHooks()
       return
@@ -978,10 +989,10 @@ export function createTvReplayChartController(opts: {
         for (let i = prevPastCount; i < pastCount; i++) {
           opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
         }
-        if (holdViewport) applyHeldViewportAfterBar()
+        applyHeldViewportAfterBar()
       } else {
         scheduleFullRefresh(true)
-        if (holdViewport) applyHeldViewportAfterBar()
+        applyHeldViewportAfterBar()
       }
       if (!cursorSuppressed) scheduleCursorLine(pastBars)
       lastPastCount = pastCount
@@ -1004,7 +1015,16 @@ export function createTvReplayChartController(opts: {
 
     // Play kickoff with force (unlocked / live-end loop): avoid resetData when streaming works.
     if (opts2?.playing && opts2?.force && !opts2?.pickPreview && holdViewport && streamBars) {
-      applyPlaybackViewportRange(lockedViewportNow())
+      if (prevPastCount > 0 && pastCount > prevPastCount) {
+        for (let i = prevPastCount; i < pastCount; i++) {
+          opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
+        }
+      }
+      if (viewportCoversReveal(holdViewport, pastBars)) {
+        applyPlaybackViewportRange(lockedViewportNow())
+      } else {
+        scrollReplayCursorIntoView()
+      }
       lastPastCount = pastCount
       ensureRangeHooks()
       return

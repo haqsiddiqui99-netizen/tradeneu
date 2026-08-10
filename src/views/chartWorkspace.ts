@@ -7473,7 +7473,22 @@ export function mountChartWorkspace(
 
     function beginReplayPlayback() {
       if (!selectBarChartActive) {
-        pinChartViewportForReplay()
+        // Only lock pan/zoom after scissors cut or explicit user pin — not on every Play.
+        // Auto-pinning a wide viewport shifts the chart into empty time without revealing bars.
+        if (userViewportPinned && lockedTvViewport) {
+          replayViewportLocked = true
+          pendingTvViewportRestore = lockedTvViewport
+          state.tvChart?.setReplayLockedViewport(lockedTvViewport)
+        } else if (replayViewportLocked && lockedTvViewport) {
+          pendingTvViewportRestore = lockedTvViewport
+          state.tvChart?.setReplayLockedViewport(lockedTvViewport)
+        } else {
+          replayViewportLocked = false
+          lockedTvViewport = null
+          pendingTvViewportRestore = null
+          state.tvChart?.setReplayLockedViewport(null)
+          state.tvChart?.scrollReplayCursorIntoView()
+        }
         userViewportPinned = false
       } else if (
         replayViewportLocked &&
