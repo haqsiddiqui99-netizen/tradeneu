@@ -895,7 +895,7 @@ export function createTvReplayChartController(opts: {
 
     const refreshWithLockedViewport = () => {
       if (!holdViewport) return
-      if (opts2?.playing && opts2?.preserveViewport && streamBars && pastCount === prevPastCount) {
+      if (opts2?.playing && opts2?.preserveViewport && streamBars) {
         applyPlaybackViewportRange(lockedViewportNow())
         return
       }
@@ -972,13 +972,9 @@ export function createTvReplayChartController(opts: {
       return
     }
 
-    // Playback steps: prefer realtime bar emit; locked viewport uses resetData so TV stays in sync.
+    // Playback steps: prefer realtime bar emit; reserve resetData for rewind/seek only.
     if (opts2?.playing && !opts2?.pickPreview && !opts2?.force && replayStepForward) {
-      const lockedPlay = !!(opts2?.preserveViewport && holdViewport)
-      if (lockedPlay) {
-        scheduleFullRefresh(true)
-        applyHeldViewportAfterBar()
-      } else if (streamBars) {
+      if (streamBars) {
         for (let i = prevPastCount; i < pastCount; i++) {
           opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
         }
@@ -996,24 +992,23 @@ export function createTvReplayChartController(opts: {
     // Decoupled / multi-bar reveal (e.g. 1m chart + 5m replay step reveals ~5 bars).
     if (playingRevealJump && !replayStepForward) {
       opts.replayFeed.setRevealCountIfChanged(pastCount)
-      if (opts2?.preserveViewport && holdViewport) {
-        scheduleFullRefresh(true)
-        applyHeldViewportAfterBar()
-      } else {
-        for (let i = prevPastCount; i < pastCount; i++) {
-          opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
-        }
-        if (holdViewport) applyHeldViewportAfterBar()
-        else if (!cursorSuppressed) scheduleCursorLine(pastBars)
+      for (let i = prevPastCount; i < pastCount; i++) {
+        opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
       }
+      if (holdViewport) applyHeldViewportAfterBar()
+      else if (!cursorSuppressed) scheduleCursorLine(pastBars)
       lastPastCount = pastCount
       ensureRangeHooks()
       return
     }
 
-    // Play kickoff with locked viewport: sync truncated feed before streaming steps.
-    if (opts2?.playing && opts2?.force && !opts2?.pickPreview && holdViewport) {
-      scheduleFullRefresh(true)
+    // Play kickoff with force (unlocked / live-end loop): avoid resetData when streaming works.
+    if (opts2?.playing && opts2?.force && !opts2?.pickPreview && holdViewport && streamBars) {
+      if (prevPastCount > 0 && pastCount > prevPastCount) {
+        for (let i = prevPastCount; i < pastCount; i++) {
+          opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
+        }
+      }
       applyPlaybackViewportRange(lockedViewportNow())
       lastPastCount = pastCount
       ensureRangeHooks()

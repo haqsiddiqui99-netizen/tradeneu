@@ -7489,7 +7489,6 @@ export function mountChartWorkspace(
       }
 
       replayPlayKickoff = true
-      nextReplayTickForce = true
       replay.play()
     }
 
