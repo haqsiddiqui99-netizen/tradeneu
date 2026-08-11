@@ -689,6 +689,41 @@ export function createTvReplayChartController(opts: {
     return raw > 1e11 ? Math.floor(raw / 1000) : Math.floor(raw)
   }
 
+  const shiftLockedViewport = (saved: TvLockedViewport, deltaSec: number): TvLockedViewport => {
+    const from = normalizeChartTimeSec(saved.from)
+    const to = normalizeChartTimeSec(saved.to)
+    return { ...saved, from: from + deltaSec, to: to + deltaSec }
+  }
+
+  /** Sum of actual open-time deltas for bars revealed this step (keeps pan in sync with replay). */
+  const playbackShiftSec = (pastBars: Bar[], prevPastCount: number, pastCount: number): number => {
+    if (pastCount <= prevPastCount) return 0
+    let shift = 0
+    for (let i = Math.max(1, prevPastCount); i < pastCount; i++) {
+      const cur = Number(pastBars[i]!.time)
+      const prev = Number(pastBars[i - 1]!.time)
+      const d = cur - prev
+      if (Number.isFinite(d) && d > 0) shift += d
+    }
+    if (shift > 0) return shift
+    return barStepSec(pastBars) * (pastCount - prevPastCount)
+  }
+
+  const cursorDriftedOffScreen = (
+    saved: TvLockedViewport,
+    pastBars: Bar[],
+    pastCount: number,
+  ): boolean => {
+    if (!pastBars.length || pastCount < 1) return false
+    const lastSec = Number(pastBars[pastCount - 1]!.time)
+    if (!Number.isFinite(lastSec)) return false
+    const from = normalizeChartTimeSec(saved.from)
+    const to = normalizeChartTimeSec(saved.to)
+    const viewSpan = Math.max(60, to - from)
+    const margin = Math.max(30, viewSpan * 0.06)
+    return lastSec > to - margin || lastSec < from + margin
+  }
+
   /** Keep the forming candle at ~72% across the visible window (FxReplay-style). */
   const anchorLockedViewportToCursor = (
     saved: TvLockedViewport,
@@ -707,7 +742,7 @@ export function createTvReplayChartController(opts: {
     return { ...saved, from: newFrom, to: newTo }
   }
 
-  /** FxReplay-style: keep the forming candle at a stable screen X during playback. */
+  /** Pan one bar-period per step; re-anchor only when the cursor drifts off-screen. */
   const advancePlaybackViewport = (
     saved: TvLockedViewport,
     pastBars: Bar[],
@@ -717,7 +752,12 @@ export function createTvReplayChartController(opts: {
     force?: boolean,
   ): TvLockedViewport => {
     if (!playing || force || pastCount <= prevPastCount || !pastBars.length) return saved
-    return anchorLockedViewportToCursor(saved, pastBars, pastCount)
+    const delta = playbackShiftSec(pastBars, prevPastCount, pastCount)
+    const shifted = shiftLockedViewport(saved, delta)
+    if (cursorDriftedOffScreen(shifted, pastBars, pastCount)) {
+      return anchorLockedViewportToCursor(saved, pastBars, pastCount)
+    }
+    return shifted
   }
 
   const commitPlaybackViewport = (
