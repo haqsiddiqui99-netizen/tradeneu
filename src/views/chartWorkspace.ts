@@ -80,6 +80,7 @@ import {
   parseSessionDateToSec,
   sessionStartReplayIndex,
   sessionDateRangeSec,
+  sessionWindowHasBars,
 } from '../data/sessionDateRange'
 import { createChartIntervalMenu, type IntervalPick } from './chartIntervalMenu'
 import {
@@ -2391,8 +2392,8 @@ export function mountChartWorkspace(
     }
     let sessionReplayStartIndex = sessionStartReplayIndex(chartBars, activeSession.startDate)
     const emptyDateRange =
-      chartBars.length < 8 &&
-      Boolean(activeSession.startDate?.trim() || activeSession.endDate?.trim())
+      Boolean(activeSession.startDate?.trim() || activeSession.endDate?.trim()) &&
+      !sessionWindowHasBars(chartBars, activeSession.startDate, activeSession.endDate)
     applyFeedUi({
       symbol: currentChartSymbol,
       dataSource: series.dataSource,
@@ -4453,7 +4454,11 @@ export function mountChartWorkspace(
           })
         })
       } else {
-        requestAnimationFrame(() => state.tvChart?.scrollReplayCursorIntoView())
+        state.tvChart.flushPendingRefresh()
+        requestAnimationFrame(() => {
+          state.tvChart?.flushPendingRefresh()
+          state.tvChart?.scrollReplayCursorIntoView()
+        })
       }
     }
 
@@ -4908,8 +4913,8 @@ export function mountChartWorkspace(
         chartBars = filterSessionChartBars(series.bars, activeSession)
         const sessionReplayStartIndex = sessionStartReplayIndex(chartBars, activeSession.startDate)
         const emptyDateRange =
-          chartBars.length < 8 &&
-          Boolean(activeSession.startDate?.trim() || activeSession.endDate?.trim())
+          Boolean(activeSession.startDate?.trim() || activeSession.endDate?.trim()) &&
+          !sessionWindowHasBars(chartBars, activeSession.startDate, activeSession.endDate)
         applyFeedUi({
           symbol: s,
           dataSource: series.dataSource,

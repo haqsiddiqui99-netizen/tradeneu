@@ -18,11 +18,9 @@ import {
   SESSION_FETCH_PRE_ROLL_SEC,
 } from './sessionDateRange'
 import {
-  fetchLookbackStartSec,
   initialSessionFetchEndSec,
   sessionUsesWindowedLoad,
 } from './sessionBarWindow'
-
 const DEFAULT_BAR_COUNT = 1500
 /** Cap client-side session bar payload so chart boot stays responsive. */
 export const MAX_SESSION_CHART_BARS = 60_000
@@ -311,6 +309,12 @@ function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
+function minBarsForFetchWindow(startSec: number, endSec: number): number {
+  const span = Math.max(60, endSec - startSec)
+  const expected = Math.ceil(span / 60) + 1
+  return Math.min(16, Math.max(2, expected))
+}
+
 async function fetchMarketBarRange(
   symbol: string,
   startSec: number,
@@ -324,7 +328,7 @@ async function fetchMarketBarRange(
     startSec,
     endSec,
     sessionStartSec: sessionStartSec ?? undefined,
-    minBars: 16,
+    minBars: minBarsForFetchWindow(startSec, endSec),
   }
 
   // Historical sessions: hit SQLite directly first (ms on Railway when volume is warm).
@@ -383,7 +387,8 @@ async function fetchLiveMarketSeries(
     const sStart = sessionRange.startSec!
     const sEnd = sessionRange.endSec!
     windowed = sessionUsesWindowedLoad(startDate, endDate)
-    startSec = fetchLookbackStartSec(sStart)
+    // 7-day preroll for the API — 3h alone fails 1h sessions near holidays (e.g. Jan 1–2).
+    startSec = sessionFetchStartSec(sStart)
     endSec = windowed ? initialSessionFetchEndSec(sStart, sEnd) : sEnd
   } else {
     const range = resolveFetchRange(startDate, endDate)

@@ -122,8 +122,8 @@ export function hasSessionDateRange(startDate?: string, endDate?: string): boole
 /** Look back far enough to load the candle immediately before session start (weekend gaps on 1m). */
 export const SESSION_FETCH_PRE_ROLL_SEC = 7 * 86_400
 
-/** 1m bars of chart context before session start (3 hours). */
-export const SESSION_CHART_LOOKBACK_BARS = 180
+/** 1m bars of chart context before session start (24 hours). */
+export const SESSION_CHART_LOOKBACK_BARS = 24 * 60
 
 export const SESSION_CHART_LOOKBACK_SEC = SESSION_CHART_LOOKBACK_BARS * 60
 
@@ -202,7 +202,16 @@ export function filterBarsBySessionDates(
   if (endSec != null && Number.isFinite(endSec)) {
     session = session.filter((b) => b.time <= endSec)
   }
-  if (!session.length) return []
+  if (!session.length) {
+    if (startSec != null && Number.isFinite(startSec)) {
+      const prior = pool.filter((b) => b.time < startSec)
+      if (prior.length) {
+        const lookbackFrom = Math.max(0, prior.length - SESSION_CHART_LOOKBACK_BARS)
+        return prior.slice(lookbackFrom)
+      }
+    }
+    return []
+  }
 
   if (startSec != null && Number.isFinite(startSec)) {
     const firstInPool = pool.findIndex((b) => b.time >= startSec)
@@ -222,6 +231,21 @@ export function filterBarsBySessionDates(
   }
 
   return session
+}
+
+/** True when at least one bar falls inside the session start/end window (±1 min slack). */
+export function sessionWindowHasBars(
+  bars: Bar[],
+  startIso?: string,
+  endIso?: string,
+): boolean {
+  if (!bars.length) return false
+  const startSec = startIso?.trim() ? parseSessionDateToSec(startIso, 'start') : null
+  const endSec = endIso?.trim() ? parseSessionDateToSec(endIso, 'end') : null
+  if (startSec == null && endSec == null) return bars.length > 0
+  const lo = startSec != null && Number.isFinite(startSec) ? startSec : -Infinity
+  const hi = endSec != null && Number.isFinite(endSec) ? endSec : Infinity
+  return bars.some((b) => b.time >= lo && b.time <= hi)
 }
 
 /** True when the loaded series ends well before wall-clock now (dated historical session). */
