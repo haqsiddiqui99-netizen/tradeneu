@@ -689,13 +689,25 @@ export function createTvReplayChartController(opts: {
     return raw > 1e11 ? Math.floor(raw / 1000) : Math.floor(raw)
   }
 
-  const shiftLockedViewport = (saved: TvLockedViewport, deltaSec: number): TvLockedViewport => {
+  /** Keep the forming candle at ~72% across the visible window (FxReplay-style). */
+  const anchorLockedViewportToCursor = (
+    saved: TvLockedViewport,
+    pastBars: Bar[],
+    pastCount: number,
+  ): TvLockedViewport => {
+    if (!pastBars.length || pastCount < 1) return saved
+    const lastSec = Number(pastBars[pastCount - 1]!.time)
+    if (!Number.isFinite(lastSec)) return saved
     const from = normalizeChartTimeSec(saved.from)
     const to = normalizeChartTimeSec(saved.to)
-    return { ...saved, from: from + deltaSec, to: to + deltaSec }
+    const viewSpan = Math.max(60, to - from)
+    const anchorRatio = 0.72
+    const newFrom = lastSec - viewSpan * anchorRatio
+    const newTo = newFrom + viewSpan
+    return { ...saved, from: newFrom, to: newTo }
   }
 
-  /** FxReplay-style: pan one bar per step so the forming candle stays at the same screen X. */
+  /** FxReplay-style: keep the forming candle at a stable screen X during playback. */
   const advancePlaybackViewport = (
     saved: TvLockedViewport,
     pastBars: Bar[],
@@ -704,10 +716,8 @@ export function createTvReplayChartController(opts: {
     playing?: boolean,
     force?: boolean,
   ): TvLockedViewport => {
-    if (!playing || force) return saved
-    const steps = pastCount - prevPastCount
-    if (steps <= 0) return saved
-    return shiftLockedViewport(saved, barStepSec(pastBars) * steps)
+    if (!playing || force || pastCount <= prevPastCount || !pastBars.length) return saved
+    return anchorLockedViewportToCursor(saved, pastBars, pastCount)
   }
 
   const commitPlaybackViewport = (
@@ -891,12 +901,8 @@ export function createTvReplayChartController(opts: {
         if (opts2?.playing) scrollReplayCursorIntoView()
         return
       }
-      const lockedNow = lockedViewportNow()
       if (opts2?.playing && opts2?.preserveViewport) {
-        if (!viewportCoversReveal(holdViewport, pastBars)) {
-          scrollReplayCursorIntoView()
-          return
-        }
+        const lockedNow = lockedViewportNow()
         if (Date.now() < suppressPlaybackShiftUntil) {
           applyPlaybackViewportRange(lockedNow)
           return
@@ -980,11 +986,7 @@ export function createTvReplayChartController(opts: {
           opts.replayFeed.emitRealtimeBar(barToTv(last))
         }
       }
-      if (viewportCoversReveal(holdViewport, pastBars)) {
-        applyPlaybackViewportRange(lockedViewportNow())
-      } else {
-        scrollReplayCursorIntoView()
-      }
+      applyPlaybackViewportRange(lockedViewportNow())
       lastPastCount = pastCount
       ensureRangeHooks()
       return
@@ -1027,11 +1029,9 @@ export function createTvReplayChartController(opts: {
           opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
         }
       }
-      if (viewportCoversReveal(holdViewport, pastBars)) {
-        applyPlaybackViewportRange(lockedViewportNow())
-      } else {
-        scrollReplayCursorIntoView()
-      }
+      const aligned = anchorLockedViewportToCursor(holdViewport, pastBars, pastCount)
+      replayLockedViewport = aligned
+      applyPlaybackViewportRange(aligned)
       lastPastCount = pastCount
       ensureRangeHooks()
       return
