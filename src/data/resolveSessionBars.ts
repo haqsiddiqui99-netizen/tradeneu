@@ -14,6 +14,7 @@ import {
   parseSessionDateToSec,
   sessionDateRangeSec,
   sessionFetchStartSec,
+  sessionWindowHasBars,
   SESSION_CHART_LOOKBACK_SEC,
   SESSION_FETCH_PRE_ROLL_SEC,
 } from './sessionDateRange'
@@ -309,6 +310,14 @@ function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
+function barsCoverSessionWindow(
+  bars: Bar[],
+  sessionStartSec: number,
+  sessionEndSec: number,
+): boolean {
+  return bars.some((b) => b.time >= sessionStartSec && b.time <= sessionEndSec)
+}
+
 function minBarsForFetchWindow(startSec: number, endSec: number): number {
   const span = Math.max(60, endSec - startSec)
   const expected = Math.ceil(span / 60) + 1
@@ -320,6 +329,7 @@ async function fetchMarketBarRange(
   startSec: number,
   endSec: number,
   sessionStartSec?: number,
+  sessionEndSec?: number,
 ): Promise<MarketBarsSeries | null> {
   const nowSec = Math.floor(Date.now() / 1000)
   const isHistorical = Number.isFinite(endSec) && endSec < nowSec - 3600
@@ -331,24 +341,38 @@ async function fetchMarketBarRange(
     minBars: minBarsForFetchWindow(startSec, endSec),
   }
 
+  const needSessionCover =
+    sessionStartSec != null &&
+    Number.isFinite(sessionStartSec) &&
+    sessionEndSec != null &&
+    Number.isFinite(sessionEndSec) &&
+    sessionEndSec > sessionStartSec
+
+  const usable = (result: MarketBarsSeries | null): result is MarketBarsSeries => {
+    if (!result?.bars.length) return false
+    if (!needSessionCover) return true
+    return barsCoverSessionWindow(result.bars, sessionStartSec!, sessionEndSec!)
+  }
+
   // Historical sessions: hit SQLite directly first (ms on Railway when volume is warm).
   if (isHistorical) {
-    let result = await fetchMarketBarsSeries(symbol, LOCAL_ONLY_BAR_CHAIN, { ...opts, noCache: true })
-    if (result) return result
+    const local = await fetchMarketBarsSeries(symbol, LOCAL_ONLY_BAR_CHAIN, { ...opts, noCache: true })
+    if (usable(local)) return local
   }
 
   let result = await fetchMarketBarsSeries(symbol, undefined, { ...opts, noCache: isHistorical })
-  if (result) return result
+  if (usable(result)) return result
 
   // Do not wait on SQLite backfill — remote chain answers faster on Railway.
   result = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, { ...opts, noCache: true })
-  if (result) return result
+  if (usable(result)) return result
 
   await sleepMs(800)
   result = await fetchMarketBarsSeries(symbol, undefined, { ...opts, noCache: true })
-  if (result) return result
+  if (usable(result)) return result
 
-  return fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, { ...opts, noCache: true })
+  result = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, { ...opts, noCache: true })
+  return usable(result) ? result : null
 }
 
 /** Fetch a time slice for lazy session extension (pan left / replay toward B). */
@@ -401,6 +425,7 @@ async function fetchLiveMarketSeries(
     startSec!,
     endSec!,
     sessionStartSec ?? undefined,
+    hasRange ? sessionRange.endSec : undefined,
   )
   if (!fromMarket) return null
 
@@ -411,6 +436,8 @@ async function fetchLiveMarketSeries(
     else if (fromMarket.bars.length >= 16) bars = fromMarket.bars.slice(0, MAX_SESSION_CHART_BARS)
     else return null
   }
+
+  if (hasRange && !sessionWindowHasBars(bars, startDate, endDate)) return null
 
   return {
     bars,

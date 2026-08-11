@@ -502,7 +502,7 @@ app.get('/api/market/coverage', (req, res) => {
       res.status(404).json({ ok: false, error: 'local_disabled' })
       return
     }
-    for (const tf of ['d1', 'h1', 'm1']) {
+    for (const tf of ['m1', 'h1', 'd1']) {
       const bounds = getLocalBarTimeBounds(symbol, tf)
       if (bounds) {
         res.json({
