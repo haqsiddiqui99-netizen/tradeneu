@@ -4434,8 +4434,12 @@ export function mountChartWorkspace(
       pendingTvViewportRestore = null
       userViewportPinned = false
       state.tvChart.setReplayLockedViewport(null)
-      const historical = isHistoricalSessionBars(chartBars)
-      const idx = historical ? sessionReplayStartIndex : replay.getState().index
+      const spanSec = sessionSpanSec(activeSession.startDate, activeSession.endDate)
+      const shortHistoricalSession =
+        spanSec > 0 && spanSec <= 2 * 86_400 && isHistoricalSessionBars(chartBars)
+      const historical = isHistoricalSessionBars(chartBars) && !shortHistoricalSession
+      const idx =
+        historical || shortHistoricalSession ? sessionReplayStartIndex : replay.getState().index
       const tvBars = tvBarsForChart(chartBars)
       const tvRes = intervalPillToTvResolution(chartTimeframe)
       const tvPeriod = tvBarPeriodSecForPill(chartTimeframe)
@@ -4450,6 +4454,7 @@ export function mountChartWorkspace(
           requestAnimationFrame(() => {
             state.tvChart?.flushPendingRefresh()
             onReplayTick(replay.slice(), idx)
+            state.tvChart?.scrollReplayCursorIntoView()
             requestAnimationFrame(() => resolve())
           })
         })

@@ -282,6 +282,22 @@ export class TvReplayFeedController {
           this.historicalAnchorIndex,
         )
       }
+      if (!tvBarsStrictlyOverlapPeriod(this.state.allBars, periodParams)) {
+        const source = this.state.allBars
+        if (source.length) {
+          const fromMs = periodParams.from * 1000
+          const lastMs = source[source.length - 1]!.time
+          if (fromMs > lastMs) {
+            return capTvBarsForRequest(source, periodParams, true, this.historicalAnchorIndex)
+          }
+        }
+        return filterTvBarsForPeriod(
+          this.state.allBars,
+          periodParams,
+          true,
+          this.historicalAnchorIndex,
+        )
+      }
       return filterTvBarsForPeriod(
         this.state.allBars,
         periodParams,
@@ -302,6 +318,14 @@ export class TvReplayFeedController {
       return capTvBarsForRequest(source, periodParams, true, this.historicalAnchorIndex)
     }
     if (!isFuture && !tvBarsStrictlyOverlapPeriod(source, periodParams)) {
+      // TV often polls wall-clock "now" while replay data is historical — serve the anchored slice once.
+      if (source.length) {
+        const fromMs = periodParams.from * 1000
+        const lastMs = source[source.length - 1]!.time
+        if (fromMs > lastMs) {
+          return capTvBarsForRequest(source, periodParams, true, this.historicalAnchorIndex)
+        }
+      }
       return []
     }
     return filterTvBarsForPeriod(source, periodParams, true, this.historicalAnchorIndex)

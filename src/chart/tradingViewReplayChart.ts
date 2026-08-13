@@ -250,35 +250,48 @@ export function createTvReplayChartController(opts: {
     pendingIncrementalViewport = null
   }
 
-  const applyPlaybackViewportRange = (saved: TvLockedViewport) => {
+  const paintPlaybackViewport = (target: TvLockedViewport) => {
+    const cc = chart()
+    if (!cc || opts.isDisposed()) return
+    beginProgrammaticViewportRestore()
+    try {
+      const ts = cc.getTimeScale()
+      if (target.barSpacing != null && Number.isFinite(target.barSpacing)) {
+        ts.setBarSpacing(target.barSpacing)
+      }
+      if (target.rightOffset != null && Number.isFinite(target.rightOffset)) {
+        ts.setRightOffset(target.rightOffset)
+      }
+      void cc.setVisibleRange({
+        from: normalizeChartTimeSec(target.from),
+        to: normalizeChartTimeSec(target.to),
+      })
+    } catch {
+      /* TV may reject tight ranges on small screens */
+    }
+    endProgrammaticViewportRestore()
+  }
+
+  const applyPlaybackViewportRange = (saved: TvLockedViewport, immediate = false) => {
     const c = chart()
     if (!c) return
     pendingIncrementalViewport = saved
+    if (immediate) {
+      if (viewportRestoreRaf) {
+        cancelAnimationFrame(viewportRestoreRaf)
+        viewportRestoreRaf = 0
+      }
+      pendingIncrementalViewport = null
+      paintPlaybackViewport(saved)
+      return
+    }
     if (viewportRestoreRaf) return
     viewportRestoreRaf = requestAnimationFrame(() => {
       viewportRestoreRaf = 0
       const target = pendingIncrementalViewport
       pendingIncrementalViewport = null
-      if (!target || opts.isDisposed()) return
-      const cc = chart()
-      if (!cc) return
-      beginProgrammaticViewportRestore()
-      try {
-        const ts = cc.getTimeScale()
-        if (target.barSpacing != null && Number.isFinite(target.barSpacing)) {
-          ts.setBarSpacing(target.barSpacing)
-        }
-        if (target.rightOffset != null && Number.isFinite(target.rightOffset)) {
-          ts.setRightOffset(target.rightOffset)
-        }
-        void cc.setVisibleRange({
-          from: normalizeChartTimeSec(target.from),
-          to: normalizeChartTimeSec(target.to),
-        })
-      } catch {
-        /* TV may reject tight ranges on small screens */
-      }
-      endProgrammaticViewportRestore()
+      if (!target) return
+      paintPlaybackViewport(target)
     })
   }
 
@@ -689,41 +702,6 @@ export function createTvReplayChartController(opts: {
     return raw > 1e11 ? Math.floor(raw / 1000) : Math.floor(raw)
   }
 
-  const shiftLockedViewport = (saved: TvLockedViewport, deltaSec: number): TvLockedViewport => {
-    const from = normalizeChartTimeSec(saved.from)
-    const to = normalizeChartTimeSec(saved.to)
-    return { ...saved, from: from + deltaSec, to: to + deltaSec }
-  }
-
-  /** Sum of actual open-time deltas for bars revealed this step (keeps pan in sync with replay). */
-  const playbackShiftSec = (pastBars: Bar[], prevPastCount: number, pastCount: number): number => {
-    if (pastCount <= prevPastCount) return 0
-    let shift = 0
-    for (let i = Math.max(1, prevPastCount); i < pastCount; i++) {
-      const cur = Number(pastBars[i]!.time)
-      const prev = Number(pastBars[i - 1]!.time)
-      const d = cur - prev
-      if (Number.isFinite(d) && d > 0) shift += d
-    }
-    if (shift > 0) return shift
-    return barStepSec(pastBars) * (pastCount - prevPastCount)
-  }
-
-  const cursorDriftedOffScreen = (
-    saved: TvLockedViewport,
-    pastBars: Bar[],
-    pastCount: number,
-  ): boolean => {
-    if (!pastBars.length || pastCount < 1) return false
-    const lastSec = Number(pastBars[pastCount - 1]!.time)
-    if (!Number.isFinite(lastSec)) return false
-    const from = normalizeChartTimeSec(saved.from)
-    const to = normalizeChartTimeSec(saved.to)
-    const viewSpan = Math.max(60, to - from)
-    const margin = Math.max(30, viewSpan * 0.06)
-    return lastSec > to - margin || lastSec < from + margin
-  }
-
   /** Keep the forming candle at ~72% across the visible window (FxReplay-style). */
   const anchorLockedViewportToCursor = (
     saved: TvLockedViewport,
@@ -742,7 +720,7 @@ export function createTvReplayChartController(opts: {
     return { ...saved, from: newFrom, to: newTo }
   }
 
-  /** Pan one bar-period per step; re-anchor only when the cursor drifts off-screen. */
+  /** During playback, anchor every step so 10x replay cannot outrun async setVisibleRange. */
   const advancePlaybackViewport = (
     saved: TvLockedViewport,
     pastBars: Bar[],
@@ -751,13 +729,9 @@ export function createTvReplayChartController(opts: {
     playing?: boolean,
     force?: boolean,
   ): TvLockedViewport => {
-    if (!playing || force || pastCount <= prevPastCount || !pastBars.length) return saved
-    const delta = playbackShiftSec(pastBars, prevPastCount, pastCount)
-    const shifted = shiftLockedViewport(saved, delta)
-    if (cursorDriftedOffScreen(shifted, pastBars, pastCount)) {
-      return anchorLockedViewportToCursor(saved, pastBars, pastCount)
-    }
-    return shifted
+    if (!playing || pastCount <= prevPastCount || !pastBars.length) return saved
+    if (force) return anchorLockedViewportToCursor(saved, pastBars, pastCount)
+    return anchorLockedViewportToCursor(saved, pastBars, pastCount)
   }
 
   const commitPlaybackViewport = (
@@ -769,7 +743,7 @@ export function createTvReplayChartController(opts: {
   ) => {
     const next = advancePlaybackViewport(saved, pastBars, prevPastCount, pastCount, opts2?.playing, opts2?.force)
     replayLockedViewport = next
-    applyPlaybackViewportRange(next)
+    applyPlaybackViewportRange(next, opts2?.playing === true)
   }
 
   /** Locked pan/zoom is invalid when the viewport spans hours but only a few bars are revealed. */
@@ -944,7 +918,7 @@ export function createTvReplayChartController(opts: {
       if (opts2?.playing && opts2?.preserveViewport) {
         const lockedNow = lockedViewportNow()
         if (Date.now() < suppressPlaybackShiftUntil) {
-          applyPlaybackViewportRange(lockedNow)
+          applyPlaybackViewportRange(lockedNow, true)
           return
         }
         commitPlaybackViewport(lockedNow, pastBars, prevPastCount, pastCount, opts2)
