@@ -24,6 +24,9 @@ export function baseTicker(ticker: string): string {
   return ticker.replace(/__RW_FUT$/i, '').trim().toUpperCase()
 }
 
+/** Short historical sessions — serve anchored full series when TV polls mismatched windows. */
+export const COMPACT_HISTORICAL_MAX_BARS = 5000
+
 export function barToTv(bar: Bar): TvBar {
   return {
     time: Number(bar.time) * 1000,
@@ -70,6 +73,50 @@ export class TvReplayFeedController {
   setTvFullSeriesReplay(enabled: boolean) {
     this.tvFullSeriesReplay = enabled
     if (!enabled) this.tvFullSeriesMaskMode = false
+  }
+
+  /** Dated session ends well before wall-clock now — TV will poll unrelated time windows. */
+  private isHistoricalReplaySeries(): boolean {
+    const bars = this.state.allBars
+    if (!bars.length) return false
+    const lastBarSec = Math.floor(bars[bars.length - 1]!.time / 1000)
+    const nowSec = Math.floor(Date.now() / 1000)
+    return lastBarSec < nowSec - 3600
+  }
+
+  private isCompactHistoricalSeries(): boolean {
+    return (
+      this.isHistoricalReplaySeries() &&
+      this.state.allBars.length > 0 &&
+      this.state.allBars.length <= COMPACT_HISTORICAL_MAX_BARS
+    )
+  }
+
+  /** Last-resort bar payload — never leave TV spinning on empty getBars for dated replay. */
+  private anchoredHistoricalBars(periodParams: TvPeriodParams): TvBar[] {
+    if (!this.state.allBars.length) return []
+    return capTvBarsForRequest(
+      this.state.allBars,
+      periodParams,
+      true,
+      this.historicalAnchorIndex,
+    )
+  }
+
+  /** Serve anchored bars when TV requests a window outside loaded replay data. */
+  private anchoredBarsForMismatchedWindow(
+    source: TvBar[],
+    periodParams: TvPeriodParams,
+  ): TvBar[] {
+    if (!source.length) return []
+    const fromMs = periodParams.from * 1000
+    const toMs = periodParams.to * 1000
+    const firstMs = source[0]!.time
+    const lastMs = source[source.length - 1]!.time
+    if (fromMs > lastMs || toMs < firstMs || this.isCompactHistoricalSeries()) {
+      return capTvBarsForRequest(source, periodParams, true, this.historicalAnchorIndex)
+    }
+    return []
   }
 
   setHistoricalAnchorIndex(barIndex: number) {
@@ -272,38 +319,23 @@ export class TvReplayFeedController {
     if (!this.state.allBars.length) return []
 
     const isFuture = isFutureTicker(ticker)
+    const historical = !isFuture && this.isHistoricalReplaySeries()
 
     if (!isFuture && this.useTvFullSeriesMaskMode()) {
       if (periodParams.firstDataRequest) {
-        return capTvBarsForRequest(
-          this.state.allBars,
-          periodParams,
-          true,
-          this.historicalAnchorIndex,
-        )
+        return this.anchoredHistoricalBars(periodParams)
       }
       if (!tvBarsStrictlyOverlapPeriod(this.state.allBars, periodParams)) {
-        const source = this.state.allBars
-        if (source.length) {
-          const fromMs = periodParams.from * 1000
-          const lastMs = source[source.length - 1]!.time
-          if (fromMs > lastMs) {
-            return capTvBarsForRequest(source, periodParams, true, this.historicalAnchorIndex)
-          }
-        }
-        return filterTvBarsForPeriod(
-          this.state.allBars,
-          periodParams,
-          true,
-          this.historicalAnchorIndex,
-        )
+        const anchored = this.anchoredBarsForMismatchedWindow(this.state.allBars, periodParams)
+        if (anchored.length) return anchored
       }
-      return filterTvBarsForPeriod(
+      const filtered = filterTvBarsForPeriod(
         this.state.allBars,
         periodParams,
         true,
         this.historicalAnchorIndex,
       )
+      return filtered.length ? filtered : historical ? this.anchoredHistoricalBars(periodParams) : []
     }
 
     const revealed =
@@ -314,21 +346,22 @@ export class TvReplayFeedController {
     const past = this.state.allBars.slice(0, revealed)
     const future = this.state.allBars.slice(revealed)
     const source = isFuture ? future : past
+    const serveSource =
+      historical && this.isCompactHistoricalSeries() ? this.state.allBars : source
+
     if (!isFuture && periodParams.firstDataRequest) {
-      return capTvBarsForRequest(source, periodParams, true, this.historicalAnchorIndex)
+      const boot = capTvBarsForRequest(serveSource, periodParams, true, this.historicalAnchorIndex)
+      if (boot.length) return boot
+      return historical ? this.anchoredHistoricalBars(periodParams) : []
     }
-    if (!isFuture && !tvBarsStrictlyOverlapPeriod(source, periodParams)) {
-      // TV often polls wall-clock "now" while replay data is historical — serve the anchored slice once.
-      if (source.length) {
-        const fromMs = periodParams.from * 1000
-        const lastMs = source[source.length - 1]!.time
-        if (fromMs > lastMs) {
-          return capTvBarsForRequest(source, periodParams, true, this.historicalAnchorIndex)
-        }
-      }
-      return []
+    if (!isFuture && !tvBarsStrictlyOverlapPeriod(serveSource, periodParams)) {
+      const anchored = this.anchoredBarsForMismatchedWindow(serveSource, periodParams)
+      if (anchored.length) return anchored
+      return historical ? this.anchoredHistoricalBars(periodParams) : []
     }
-    return filterTvBarsForPeriod(source, periodParams, true, this.historicalAnchorIndex)
+    const filtered = filterTvBarsForPeriod(serveSource, periodParams, true, this.historicalAnchorIndex)
+    if (filtered.length) return filtered
+    return historical ? this.anchoredHistoricalBars(periodParams) : []
   }
 
   findBarIndexAtOrBeforeTimeSec(timeSec: number, maxIndex?: number): number {

@@ -315,11 +315,16 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
         }, 3000)
       }
       if (getBarsBurst > 100) {
-        console.warn('[TradingView] getBars storm — throttling duplicate empty responses')
-        const nextTime = replayFeed.hasSessionBars()
-          ? replayFeed.nextTimeForEmptyRequest(periodParams)
-          : undefined
-        onResult([], { noData: true, ...(nextTime != null ? { nextTime } : {}) })
+        if (getBarsBurst === 101) {
+          console.warn('[TradingView] getBars storm — serving anchored session bars')
+        }
+        const stormBars = replayFeed.hasSessionBars()
+          ? replayFeed.getBarsForRequest(symbolInfo.ticker, {
+              ...periodParams,
+              firstDataRequest: true,
+            })
+          : []
+        onResult(stormBars, { noData: !stormBars.length })
         return
       }
 
@@ -339,7 +344,7 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
           if (!bars.length) {
             onResult([], {
               noData: true,
-              ...(nextTime != null ? { nextTime } : {}),
+              ...(nextTime != null ? { nextTime: nextTime } : {}),
             })
             return
           }
@@ -422,7 +427,7 @@ async function loadBars(
     const feedRes = replayFeed.getResolution()
     // Never hand denser bars (e.g. 1m) to a coarser TV resolution (4h/240).
     // That freezes the charting library on the main thread ("Page Unresponsive").
-    if (!tvResolutionMatches(resolution, feedRes)) {
+    if (!tvResolutionMatches(resolution, feedRes) && !periodParams.firstDataRequest) {
       return []
     }
     let bars = replayFeed.getBarsForRequest(symbol, periodParams)
@@ -436,6 +441,9 @@ async function loadBars(
       if (fetched) {
         bars = replayFeed.getBarsForRequest(symbol, periodParams)
       }
+    }
+    if (!bars.length && periodParams.firstDataRequest) {
+      bars = replayFeed.getBarsForRequest(symbol, { ...periodParams, firstDataRequest: true })
     }
     return bars
   }

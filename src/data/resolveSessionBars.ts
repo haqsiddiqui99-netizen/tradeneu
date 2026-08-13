@@ -14,9 +14,9 @@ import {
   parseSessionDateToSec,
   sessionDateRangeSec,
   sessionFetchStartSec,
-  sessionWindowHasBars,
   SESSION_CHART_LOOKBACK_SEC,
   SESSION_FETCH_PRE_ROLL_SEC,
+  sessionWindowHasBars,
 } from './sessionDateRange'
 import {
   initialSessionFetchEndSec,
@@ -411,8 +411,10 @@ async function fetchLiveMarketSeries(
     const sStart = sessionRange.startSec!
     const sEnd = sessionRange.endSec!
     windowed = sessionUsesWindowedLoad(startDate, endDate)
-    // 7-day preroll for the API — 3h alone fails 1h sessions near holidays (e.g. Jan 1–2).
-    startSec = sessionFetchStartSec(sStart)
+    const spanSec = sEnd - sStart
+    const prerollSec =
+      spanSec <= 86_400 ? SESSION_CHART_LOOKBACK_SEC : SESSION_FETCH_PRE_ROLL_SEC
+    startSec = Math.max(0, sStart - prerollSec)
     endSec = windowed ? initialSessionFetchEndSec(sStart, sEnd) : sEnd
   } else {
     const range = resolveFetchRange(startDate, endDate)
@@ -437,7 +439,30 @@ async function fetchLiveMarketSeries(
     else return null
   }
 
-  if (hasRange && !sessionWindowHasBars(bars, startDate, endDate)) return null
+  if (hasRange && !sessionWindowHasBars(bars, startDate, endDate)) {
+    const sStart = sessionRange.startSec!
+    const sEnd = sessionRange.endSec!
+    console.warn('[Tradeneu] Loaded bars missing session window — retrying session slice', {
+      startDate,
+      endDate,
+      barCount: bars.length,
+    })
+    const sessionOnly = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, {
+      interval: '1m',
+      startSec: Math.max(0, sStart - SESSION_CHART_LOOKBACK_SEC),
+      endSec: sEnd,
+      sessionStartSec: sessionStartSec ?? undefined,
+      minBars: minBarsForFetchWindow(sStart, sEnd),
+      noCache: true,
+    })
+    if (sessionOnly?.bars.length) {
+      const retryBars = resolveChartBarsForSession(sessionOnly.bars, startDate, endDate)
+      if (sessionWindowHasBars(retryBars, startDate, endDate) && retryBars.length >= 16) {
+        bars = retryBars
+      }
+    }
+    if (!sessionWindowHasBars(bars, startDate, endDate) && bars.length < 16) return null
+  }
 
   return {
     bars,

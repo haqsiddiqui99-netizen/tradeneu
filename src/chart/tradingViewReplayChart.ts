@@ -930,7 +930,7 @@ export function createTvReplayChartController(opts: {
     const refreshWithLockedViewport = () => {
       if (!holdViewport) return
       if (opts2?.playing && opts2?.preserveViewport && streamBars) {
-        applyPlaybackViewportRange(lockedViewportNow())
+        applyPlaybackViewportRange(lockedViewportNow(), true)
         return
       }
       doFullRefreshWithLockedViewport(holdViewport, !skipViewportRestoreRetries)
@@ -1000,7 +1000,7 @@ export function createTvReplayChartController(opts: {
           opts.replayFeed.emitRealtimeBar(barToTv(last))
         }
       }
-      applyPlaybackViewportRange(lockedViewportNow())
+      applyPlaybackViewportRange(lockedViewportNow(), true)
       lastPastCount = pastCount
       ensureRangeHooks()
       return

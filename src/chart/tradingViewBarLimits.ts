@@ -93,8 +93,7 @@ export function filterTvBarsForPeriod(
     }
   }
   if (!filtered.length) {
-    if (!tvBarsStrictlyOverlapPeriod(bars, periodParams)) return []
-    return []
+    return capTvBarsForRequest(bars, periodParams, preferStart, anchorIndex)
   }
   return filtered
 }

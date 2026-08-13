@@ -68,6 +68,10 @@ export type TradingViewChartHandle = {
   clearReplay: () => void
   scrollReplayCursorIntoView: () => void
   setHistoricalAnchorIndex: (barIndex: number) => void
+  /** Full-series TV replay for short dated sessions (≤5000 bars). */
+  setTvFullSeriesReplay: (enabled: boolean) => void
+  /** Replay mask reveal count — keeps full series in TV while hiding future bars. */
+  setReplayRevealForMask: (count: number) => void
   /** Merge earlier session bars (pan-left lazy load). */
   prependSessionBars: (bars: Bar[]) => number
   /** Merge later session bars (replay toward B). */
@@ -2035,6 +2039,14 @@ export async function createTradingViewChart(
 
     setHistoricalAnchorIndex(barIndex: number) {
       datafeedBundle.replayFeed.setHistoricalAnchorIndex(barIndex)
+    },
+
+    setTvFullSeriesReplay(enabled: boolean) {
+      datafeedBundle.replayFeed.setTvFullSeriesReplay(enabled)
+    },
+
+    setReplayRevealForMask(count: number) {
+      datafeedBundle.replayFeed.setReplayRevealForMask(count)
     },
 
     prependSessionBars(bars) {

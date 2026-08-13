@@ -4444,10 +4444,20 @@ export function mountChartWorkspace(
       const tvRes = intervalPillToTvResolution(chartTimeframe)
       const tvPeriod = tvBarPeriodSecForPill(chartTimeframe)
       state.tvChart.setHistoricalAnchorIndex(Math.max(0, sessionReplayStartIndex - 1))
-      state.tvChart.primeIntervalFeed(tvBars, tvRes, idx, tvPeriod)
+      if (shortHistoricalSession) {
+        state.tvChart.setTvFullSeriesReplay(true)
+        state.tvChart.primeIntervalFeed(tvBars, tvRes, tvBars.length, tvPeriod)
+        state.tvChart.setReplayRevealForMask(idx)
+      } else {
+        state.tvChart.setTvFullSeriesReplay(false)
+        state.tvChart.primeIntervalFeed(tvBars, tvRes, idx, tvPeriod)
+      }
       nextReplayTickFit = true
       nextReplayTickForce = !historical
       onReplayTick(replay.slice(), idx)
+      if (shortHistoricalSession) {
+        state.tvChart.setReplayRevealForMask(idx)
+      }
       if (!historical) {
         state.tvChart.flushPendingRefresh()
         await new Promise<void>((resolve) => {
