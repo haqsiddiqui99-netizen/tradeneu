@@ -80,6 +80,17 @@ export function localTimezoneLabel(): string {
 export function parseSessionDateToSec(iso: string, edge: 'start' | 'end'): number | null {
   const s = iso.trim()
   if (!s) return null
+  const dtMatch = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s)
+  if (dtMatch) {
+    const y = Number(dtMatch[1])
+    const m0 = Number(dtMatch[2]) - 1
+    const d = Number(dtMatch[3])
+    const hh = Number(dtMatch[4])
+    const mm = Number(dtMatch[5])
+    const ss = edge === 'end' ? 59 : 0
+    const t = new Date(y, m0, d, hh, mm, ss).getTime()
+    return Number.isFinite(t) ? t / 1000 : null
+  }
   if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
     const t = Date.parse(s)
     return Number.isFinite(t) ? t / 1000 : null

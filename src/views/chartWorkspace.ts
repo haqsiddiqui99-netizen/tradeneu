@@ -4458,31 +4458,31 @@ export function mountChartWorkspace(
       if (shortHistoricalSession) {
         state.tvChart.setReplayRevealForMask(idx)
       }
-      const needsHistoricalViewport =
-        shortHistoricalSession || isHistoricalSessionBars(chartBars)
-      if (needsHistoricalViewport) {
-        state.tvChart.scrollReplayCursorIntoView()
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+
+      const sessionStartSec = activeSession.startDate?.trim()
+        ? parseSessionDateToSec(activeSession.startDate, 'start')
+        : null
+      const anchorSessionViewport = () => {
+        if (sessionStartSec != null && Number.isFinite(sessionStartSec)) {
+          state.tvChart?.scrollToWallTimeSec(sessionStartSec)
+        } else {
+          state.tvChart?.scrollReplayCursorIntoView()
+        }
       }
-      if (!historical) {
-        state.tvChart.flushPendingRefresh()
-        await new Promise<void>((resolve) => {
+
+      state.tvChart.flushPendingRefresh()
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          state.tvChart?.flushPendingRefresh()
+          onReplayTick(replay.slice(), idx)
+          anchorSessionViewport()
           requestAnimationFrame(() => {
-            state.tvChart?.flushPendingRefresh()
-            onReplayTick(replay.slice(), idx)
-            if (!needsHistoricalViewport) {
-              state.tvChart?.scrollReplayCursorIntoView()
-            }
+            anchorSessionViewport()
+            window.setTimeout(() => anchorSessionViewport(), 200)
             requestAnimationFrame(() => resolve())
           })
         })
-      } else {
-        state.tvChart.flushPendingRefresh()
-        requestAnimationFrame(() => {
-          state.tvChart?.flushPendingRefresh()
-          if (!needsHistoricalViewport) state.tvChart?.scrollReplayCursorIntoView()
-        })
-      }
+      })
     }
 
     async function revealLightweightChartFallback(reason: string) {

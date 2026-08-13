@@ -97,6 +97,8 @@ export type TvReplayChartController = {
   clearReplayPickPreview: () => void
   clearReplay: () => void
   scrollReplayCursorIntoView: () => void
+  /** Pan the TV chart so `timeSec` (unix seconds) sits at the replay anchor (~62% across). */
+  scrollToWallTimeSec: (timeSec: number) => void
   /** Unix seconds at a horizontal anchor in the visible plot (0 = left, 1 = right). */
   viewportAnchorTimeSec: (anchorRatio?: number) => number | null
   /** 1-based replay index for {@link ReplayController} at the visible plot anchor. */
@@ -761,11 +763,24 @@ export function createTvReplayChartController(opts: {
   }
 
   const scrollReplayCursorIntoView = () => {
-    const allTv = opts.replayFeed.getAllBars()
     const revealed = opts.replayFeed.getRevealedCount()
+    const allTv = opts.replayFeed.getAllBars()
     if (!allTv.length || revealed < 1) return
-
     const anchorIdx = Math.min(revealed, allTv.length) - 1
+    applyViewportAroundBarIndex(anchorIdx)
+  }
+
+  const scrollToWallTimeSec = (timeSec: number) => {
+    const allTv = opts.replayFeed.getAllBars()
+    if (!allTv.length || !Number.isFinite(timeSec)) return
+    const anchorIdx = opts.replayFeed.findBarIndexAtOrBeforeTimeSec(timeSec)
+    applyViewportAroundBarIndex(anchorIdx)
+  }
+
+  const applyViewportAroundBarIndex = (anchorIdx: number) => {
+    const allTv = opts.replayFeed.getAllBars()
+    if (!allTv.length) return
+    const anchor = Math.max(0, Math.min(anchorIdx, allTv.length - 1))
 
     const applyScroll = (): boolean => {
       const c = chart()
@@ -774,10 +789,10 @@ export function createTvReplayChartController(opts: {
       if (isSubMinuteBarPeriod()) {
         const period = Math.max(1, opts.replayFeed.getBarPeriodSec())
         const cap = period <= 1 ? 360 : TICK_SWAP_VISIBLE_BARS
-        const visibleBars = Math.min(cap, Math.max(8, revealed))
-        const firstIdx = Math.max(0, anchorIdx - visibleBars + 1)
-        let toIdx = anchorIdx
-        if (anchorIdx < visibleBars - 1) {
+        const visibleBars = Math.min(cap, 90)
+        const firstIdx = Math.max(0, anchor - visibleBars + 1)
+        let toIdx = anchor
+        if (anchor < visibleBars - 1) {
           toIdx = Math.min(allTv.length - 1, visibleBars - 1)
         }
         const firstSec = Math.floor(allTv[firstIdx]!.time / 1000)
@@ -800,8 +815,8 @@ export function createTvReplayChartController(opts: {
       const visibleBars = 120
       const lookbackBars = Math.max(8, Math.floor(visibleBars * 0.62))
       const forwardBars = Math.max(8, visibleBars - lookbackBars)
-      const firstIdx = Math.max(0, anchorIdx - lookbackBars)
-      const toIdx = Math.min(allTv.length - 1, anchorIdx + forwardBars)
+      const firstIdx = Math.max(0, anchor - lookbackBars)
+      const toIdx = Math.min(allTv.length - 1, anchor + forwardBars)
       const firstSec = Math.floor(allTv[firstIdx]!.time / 1000)
       const lastSec = Math.floor(allTv[toIdx]!.time / 1000)
 
@@ -1564,6 +1579,8 @@ export function createTvReplayChartController(opts: {
     },
 
     scrollReplayCursorIntoView,
+
+    scrollToWallTimeSec,
 
     viewportAnchorTimeSec,
 

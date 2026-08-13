@@ -67,6 +67,8 @@ export type TradingViewChartHandle = {
   clearReplayPickPreview: () => void
   clearReplay: () => void
   scrollReplayCursorIntoView: () => void
+  /** Pan TV chart to a wall-clock session time (unix seconds, local session modal time). */
+  scrollToWallTimeSec: (timeSec: number) => void
   setHistoricalAnchorIndex: (barIndex: number) => void
   /** Full-series TV replay for short dated sessions (≤5000 bars). */
   setTvFullSeriesReplay: (enabled: boolean) => void
@@ -2035,6 +2037,10 @@ export async function createTradingViewChart(
 
     scrollReplayCursorIntoView() {
       replayCtrl?.scrollReplayCursorIntoView()
+    },
+
+    scrollToWallTimeSec(timeSec: number) {
+      replayCtrl?.scrollToWallTimeSec(timeSec)
     },
 
     setHistoricalAnchorIndex(barIndex: number) {
