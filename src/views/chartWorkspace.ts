@@ -4446,7 +4446,7 @@ export function mountChartWorkspace(
       state.tvChart.setHistoricalAnchorIndex(Math.max(0, sessionReplayStartIndex - 1))
       if (shortHistoricalSession) {
         state.tvChart.setTvFullSeriesReplay(true)
-        state.tvChart.primeIntervalFeed(tvBars, tvRes, tvBars.length, tvPeriod)
+        state.tvChart.primeIntervalFeed(tvBars, tvRes, idx, tvPeriod)
         state.tvChart.setReplayRevealForMask(idx)
       } else {
         state.tvChart.setTvFullSeriesReplay(false)
@@ -4458,13 +4458,21 @@ export function mountChartWorkspace(
       if (shortHistoricalSession) {
         state.tvChart.setReplayRevealForMask(idx)
       }
+      const needsHistoricalViewport =
+        shortHistoricalSession || isHistoricalSessionBars(chartBars)
+      if (needsHistoricalViewport) {
+        state.tvChart.scrollReplayCursorIntoView()
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      }
       if (!historical) {
         state.tvChart.flushPendingRefresh()
         await new Promise<void>((resolve) => {
           requestAnimationFrame(() => {
             state.tvChart?.flushPendingRefresh()
             onReplayTick(replay.slice(), idx)
-            state.tvChart?.scrollReplayCursorIntoView()
+            if (!needsHistoricalViewport) {
+              state.tvChart?.scrollReplayCursorIntoView()
+            }
             requestAnimationFrame(() => resolve())
           })
         })
@@ -4472,7 +4480,7 @@ export function mountChartWorkspace(
         state.tvChart.flushPendingRefresh()
         requestAnimationFrame(() => {
           state.tvChart?.flushPendingRefresh()
-          state.tvChart?.scrollReplayCursorIntoView()
+          if (!needsHistoricalViewport) state.tvChart?.scrollReplayCursorIntoView()
         })
       }
     }

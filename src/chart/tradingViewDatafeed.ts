@@ -6,7 +6,7 @@ import {
   baseTicker,
   isFutureTicker,
 } from './tradingViewReplayFeed'
-import { capTvBarsForRequest, filterTvBarsForPeriod, tvNextTimeForEmptyRequest } from './tradingViewBarLimits'
+import { filterTvBarsStrictlyInPeriod, tvNextTimeForEmptyRequest } from './tradingViewBarLimits'
 import { providerLabelFromDataSource } from '../data/marketDataSourceLabel'
 import type {
   TvBar,
@@ -270,6 +270,26 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
   let getBarsBurst = 0
   let getBarsBurstResetTimer: ReturnType<typeof setTimeout> | null = null
   const lazyFetchState = { inflight: null as Promise<boolean> | null }
+  const inflightGetBars = new Map<string, Promise<{ bars: TvBar[]; nextTime?: number }>>()
+
+  const deliverGetBars = (
+    reqKey: string,
+    bars: TvBar[],
+    nextTime: number | undefined,
+    onResult: (bars: TvBar[], meta: { noData: boolean; nextTime?: number }) => void,
+  ) => {
+    lastGetBarsKey = reqKey
+    lastGetBarsAt = Date.now()
+    lastGetBarsPayload = { bars, nextTime }
+    if (!bars.length) {
+      onResult([], {
+        noData: true,
+        ...(nextTime != null ? { nextTime } : {}),
+      })
+      return
+    }
+    onResult(bars, { noData: false })
+  }
 
   const setProviderExchangeLabel = (dataSource?: string) => {
     const label = providerLabelFromDataSource(dataSource)
@@ -307,6 +327,12 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
         return
       }
 
+      const inflight = inflightGetBars.get(reqKey)
+      if (inflight) {
+        void inflight.then(({ bars, nextTime }) => deliverGetBars(reqKey, bars, nextTime, onResult))
+        return
+      }
+
       getBarsBurst += 1
       if (!getBarsBurstResetTimer) {
         getBarsBurstResetTimer = setTimeout(() => {
@@ -316,42 +342,39 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
       }
       if (getBarsBurst > 100) {
         if (getBarsBurst === 101) {
-          console.warn('[TradingView] getBars storm — serving anchored session bars')
+          console.warn('[TradingView] getBars storm — redirecting with nextTime')
         }
-        const stormBars = replayFeed.hasSessionBars()
-          ? replayFeed.getBarsForRequest(symbolInfo.ticker, {
-              ...periodParams,
-              firstDataRequest: true,
-            })
-          : []
-        onResult(stormBars, { noData: !stormBars.length })
+        const nextTime = replayFeed.hasSessionBars()
+          ? replayFeed.nextTimeForEmptyRequest(periodParams)
+          : undefined
+        deliverGetBars(reqKey, [], nextTime, onResult)
         return
       }
 
-      void loadBars(symbolInfo.ticker, resolution, periodParams, opts, replayFeed, lazyFetchState)
+      const task = loadBars(symbolInfo.ticker, resolution, periodParams, opts, replayFeed, lazyFetchState)
         .then((bars) => {
           let nextTime: number | undefined
           if (!bars.length) {
-            if (replayFeed.hasSessionBars()) {
-              nextTime = replayFeed.nextTimeForEmptyRequest(periodParams)
-            } else {
-              nextTime = tvNextTimeForEmptyRequest(bars, periodParams)
-            }
+            nextTime = replayFeed.hasSessionBars()
+              ? replayFeed.nextTimeForEmptyRequest(periodParams)
+              : tvNextTimeForEmptyRequest(bars, periodParams)
           }
-          lastGetBarsKey = reqKey
-          lastGetBarsAt = Date.now()
-          lastGetBarsPayload = { bars, nextTime }
-          if (!bars.length) {
-            onResult([], {
-              noData: true,
-              ...(nextTime != null ? { nextTime: nextTime } : {}),
-            })
-            return
-          }
-          onResult(bars, { noData: false })
+          return { bars, nextTime }
+        })
+        .catch((err) => {
+          throw err
+        })
+
+      inflightGetBars.set(reqKey, task)
+      void task
+        .then(({ bars, nextTime }) => {
+          deliverGetBars(reqKey, bars, nextTime, onResult)
         })
         .catch((err) => {
           onError(err instanceof Error ? err.message : 'Failed to load bars')
+        })
+        .finally(() => {
+          inflightGetBars.delete(reqKey)
         })
     },
 
@@ -443,7 +466,7 @@ async function loadBars(
       }
     }
     if (!bars.length && periodParams.firstDataRequest) {
-      bars = replayFeed.getBarsForRequest(symbol, { ...periodParams, firstDataRequest: true })
+      bars = replayFeed.getBarsForRequest(symbol, periodParams)
     }
     return bars
   }
@@ -476,8 +499,8 @@ async function loadBars(
   let bars = series.bars.map(toTvBar).sort((a, b) => a.time - b.time)
 
   if (periodParams.firstDataRequest) {
-    return capTvBarsForRequest(bars, periodParams)
+    return filterTvBarsStrictlyInPeriod(bars, periodParams)
   }
 
-  return filterTvBarsForPeriod(bars, periodParams)
+  return filterTvBarsStrictlyInPeriod(bars, periodParams)
 }
