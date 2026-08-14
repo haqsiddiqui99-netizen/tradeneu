@@ -167,25 +167,6 @@ function mergeSortedBars(chunks, startSec, endSec) {
   return merged
 }
 
-/** Merge all bars strictly before sessionStart into the front of `bars` (deduped by time). */
-function prependPriorBarsBeforeSession(bars, priorBars, sessionStartSec) {
-  if (!Array.isArray(priorBars) || !priorBars.length || !Number.isFinite(sessionStartSec)) {
-    return bars
-  }
-  const priors = priorBars.filter((b) => b.time < sessionStartSec)
-  if (!priors.length) return bars
-  if (bars.length && priors[priors.length - 1].time >= bars[0].time) return bars
-  const merged = [...priors, ...bars]
-  const out = []
-  let lastT = -1
-  for (const b of merged) {
-    if (b.time <= lastT) continue
-    lastT = b.time
-    out.push(b)
-  }
-  return out
-}
-
 /**
  * @param {object} opts
  * @param {string} opts.symbol App symbol e.g. AAPL, XAUUSD
@@ -326,7 +307,13 @@ export async function fetchTwelveDataTimeSeries({
     const lookback = 7 * 86_400
     const priorChunk = await fetchChunk(Math.max(0, sessionStartSec - lookback), sessionStartSec, 500)
     if (priorChunk.ok && priorChunk.bars.length) {
-      merged = prependPriorBarsBeforeSession(merged, priorChunk.bars, sessionStartSec)
+      let prior = null
+      for (const b of priorChunk.bars) {
+        if (b.time < sessionStartSec) prior = b
+      }
+      if (prior && prior.time < merged[0].time) {
+        merged.unshift(prior)
+      }
     }
   }
 
