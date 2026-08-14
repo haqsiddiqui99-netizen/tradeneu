@@ -274,25 +274,6 @@ export function normalizeDukascopyRows(rows, startSec, endSec) {
   return bars
 }
 
-/** Merge all bars strictly before sessionStart into the front of `bars` (deduped by time). */
-function prependPriorBarsBeforeSession(bars, priorBars, sessionStartSec) {
-  if (!Array.isArray(priorBars) || !priorBars.length || !Number.isFinite(sessionStartSec)) {
-    return bars
-  }
-  const priors = priorBars.filter((b) => b.time < sessionStartSec)
-  if (!priors.length) return bars
-  if (bars.length && priors[priors.length - 1].time >= bars[0].time) return bars
-  const merged = [...priors, ...bars]
-  const out = []
-  let lastT = -1
-  for (const b of merged) {
-    if (b.time <= lastT) continue
-    lastT = b.time
-    out.push(b)
-  }
-  return out
-}
-
 /**
  * @param {object} opts
  * @param {string} opts.symbol
@@ -357,7 +338,13 @@ export async function fetchDukascopyBars({
           filterEndSec: sessionStartSec,
         })
         if (priorCli?.bars.length) {
-          bars = prependPriorBarsBeforeSession(bars, priorCli.bars, sessionStartSec)
+          let prior = null
+          for (const b of priorCli.bars) {
+            if (b.time < sessionStartSec) prior = b
+          }
+          if (prior && prior.time < bars[0].time) {
+            bars = [prior, ...bars]
+          }
         }
       }
       const app = String(symbol).trim()
@@ -453,7 +440,13 @@ export async function fetchDukascopyBars({
         'dukascopy-prior',
       )
       const priorBars = normalizeDukascopyRows(priorRows, priorFrom, sessionStartSec)
-      bars = prependPriorBarsBeforeSession(bars, priorBars, sessionStartSec)
+      let prior = null
+      for (const b of priorBars) {
+        if (b.time < sessionStartSec) prior = b
+      }
+      if (prior && prior.time < bars[0].time) {
+        bars = [prior, ...bars]
+      }
     } catch {
       /* prior candle optional */
     }
