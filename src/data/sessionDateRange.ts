@@ -1,5 +1,4 @@
 import type { Bar } from '../types'
-import { readUserTimezone } from '../home/dashboardUserPrefs'
 
 /** Browser IANA timezone (e.g. `Asia/Kolkata`) — matches date pickers and LWC chart axis. */
 export function browserIanaTimezone(): string {
@@ -9,14 +8,6 @@ export function browserIanaTimezone(): string {
   } catch {
     return 'Etc/UTC'
   }
-}
-
-/** IANA timezone for chart axis (TradingView symbol + pick labels). Honors Settings → timezone. */
-export function resolveChartTimezone(): string {
-  const pref = readUserTimezone()
-  if (pref === 'local') return browserIanaTimezone()
-  if (pref === 'UTC') return 'Etc/UTC'
-  return pref
 }
 
 /** Format unix seconds as local `YYYY-MM-DD` for date inputs. */
@@ -60,23 +51,18 @@ export function formatSessionModalDate(iso?: string): string {
   return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-/** Replay bar-pick pill — matches chart axis timezone (session modal / Settings). */
+/** Replay bar-pick pill — UTC to match TradingView time axis. */
 export function formatChartPickLabelUtc(sec: number): string {
-  const tz = resolveChartTimezone()
   const d = new Date(sec * 1000)
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    year: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(d)
-  const get = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((p) => p.type === type)?.value ?? ''
-  return `Re: ${get('weekday')} ${get('day')} ${get('month')} '${get('year')} ${get('hour')}:${get('minute')}`
+  const wk = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()]!
+  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][
+    d.getUTCMonth()
+  ]!
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  const y2 = String(d.getUTCFullYear() % 100).padStart(2, '0')
+  const hh = String(d.getUTCHours()).padStart(2, '0')
+  const mm = String(d.getUTCMinutes()).padStart(2, '0')
+  return `Re: ${wk} ${day} ${mon} '${y2} ${hh}:${mm}`
 }
 
 /** Browser timezone label for chart chrome (e.g. IST, GMT+5:30). */
