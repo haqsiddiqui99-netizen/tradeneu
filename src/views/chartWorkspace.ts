@@ -4434,29 +4434,20 @@ export function mountChartWorkspace(
       pendingTvViewportRestore = null
       userViewportPinned = false
       state.tvChart.setReplayLockedViewport(null)
-      const spanSec = sessionSpanSec(activeSession.startDate, activeSession.endDate)
-      const shortHistoricalSession =
-        spanSec > 0 && spanSec <= 2 * 86_400 && isHistoricalSessionBars(chartBars)
-      const historical = isHistoricalSessionBars(chartBars) && !shortHistoricalSession
-      const idx =
-        historical || shortHistoricalSession ? sessionReplayStartIndex : replay.getState().index
+      const isHistorical = isHistoricalSessionBars(chartBars)
+      const idx = isHistorical ? sessionReplayStartIndex : replay.getState().index
       const tvBars = tvBarsForChart(chartBars)
       const tvRes = intervalPillToTvResolution(chartTimeframe)
       const tvPeriod = tvBarPeriodSecForPill(chartTimeframe)
       state.tvChart.setHistoricalAnchorIndex(Math.max(0, sessionReplayStartIndex - 1))
-      if (shortHistoricalSession) {
-        state.tvChart.setTvFullSeriesReplay(true)
-        state.tvChart.primeIntervalFeed(tvBars, tvRes, idx, tvPeriod)
-        state.tvChart.setReplayRevealForMask(idx)
-      } else {
-        state.tvChart.setTvFullSeriesReplay(false)
-        state.tvChart.primeIntervalFeed(tvBars, tvRes, idx, tvPeriod)
-      }
+      state.tvChart.setTvFullSeriesReplay(false)
+      state.tvChart.primeIntervalFeed(tvBars, tvRes, idx, tvPeriod)
       nextReplayTickFit = true
-      nextReplayTickForce = !historical
-      onReplayTick(replay.slice(), idx)
-      if (shortHistoricalSession) {
-        state.tvChart.setReplayRevealForMask(idx)
+      nextReplayTickForce = !isHistorical
+      if (isHistorical && replay.getState().index !== idx) {
+        replay.setIndex(idx)
+      } else {
+        onReplayTick(replay.slice(), idx)
       }
 
       const sessionStartSec = activeSession.startDate?.trim()
@@ -4474,7 +4465,11 @@ export function mountChartWorkspace(
       await new Promise<void>((resolve) => {
         requestAnimationFrame(() => {
           state.tvChart?.flushPendingRefresh()
-          onReplayTick(replay.slice(), idx)
+          if (isHistorical && replay.getState().index !== idx) {
+            replay.setIndex(idx)
+          } else {
+            onReplayTick(replay.slice(), idx)
+          }
           anchorSessionViewport()
           requestAnimationFrame(() => {
             anchorSessionViewport()

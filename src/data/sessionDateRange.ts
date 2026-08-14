@@ -138,6 +138,22 @@ export const SESSION_CHART_LOOKBACK_BARS = 24 * 60
 
 export const SESSION_CHART_LOOKBACK_SEC = SESSION_CHART_LOOKBACK_BARS * 60
 
+/** Context bars before session start — shorter spans need less preroll (faster boot). */
+export function sessionChartLookbackBars(startIso?: string, endIso?: string): number {
+  const { startSec, endSec } = sessionDateRangeSec(startIso, endIso)
+  if (startSec == null || endSec == null || endSec <= startSec) {
+    return SESSION_CHART_LOOKBACK_BARS
+  }
+  const span = endSec - startSec
+  if (span <= 3600) return Math.max(16, Math.ceil(span / 60) + 30)
+  if (span <= 86_400) return Math.min(SESSION_CHART_LOOKBACK_BARS, 120 + Math.ceil(span / 60))
+  return SESSION_CHART_LOOKBACK_BARS
+}
+
+export function sessionChartLookbackSec(startIso?: string, endIso?: string): number {
+  return sessionChartLookbackBars(startIso, endIso) * 60
+}
+
 export function sessionFetchStartSec(startSec: number): number {
   return Math.max(0, startSec - SESSION_FETCH_PRE_ROLL_SEC)
 }
@@ -205,6 +221,7 @@ export function filterBarsBySessionDates(
   const startSec = s ? parseSessionDateToSec(s, 'start') : null
   const endSec = e ? parseSessionDateToSec(e, 'end') : null
   const pool = contextPool?.length ? contextPool : bars
+  const lookbackBars = sessionChartLookbackBars(s, e)
 
   let session = bars
   if (startSec != null && Number.isFinite(startSec)) {
@@ -217,7 +234,7 @@ export function filterBarsBySessionDates(
     if (startSec != null && Number.isFinite(startSec)) {
       const prior = pool.filter((b) => b.time < startSec)
       if (prior.length) {
-        const lookbackFrom = Math.max(0, prior.length - SESSION_CHART_LOOKBACK_BARS)
+        const lookbackFrom = Math.max(0, prior.length - lookbackBars)
         return prior.slice(lookbackFrom)
       }
     }
@@ -227,7 +244,7 @@ export function filterBarsBySessionDates(
   if (startSec != null && Number.isFinite(startSec)) {
     const firstInPool = pool.findIndex((b) => b.time >= startSec)
     if (firstInPool >= 0) {
-      const lookbackFrom = Math.max(0, firstInPool - SESSION_CHART_LOOKBACK_BARS)
+      const lookbackFrom = Math.max(0, firstInPool - lookbackBars)
       const prefix = pool.slice(lookbackFrom, firstInPool)
       if (prefix.length) {
         return [...prefix, ...session]

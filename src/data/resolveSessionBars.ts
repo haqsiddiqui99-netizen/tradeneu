@@ -15,6 +15,7 @@ import {
   sessionDateRangeSec,
   sessionFetchStartSec,
   SESSION_CHART_LOOKBACK_SEC,
+  sessionChartLookbackSec,
   SESSION_FETCH_PRE_ROLL_SEC,
   sessionWindowHasBars,
 } from './sessionDateRange'
@@ -413,7 +414,7 @@ async function fetchLiveMarketSeries(
     windowed = sessionUsesWindowedLoad(startDate, endDate)
     const spanSec = sEnd - sStart
     const prerollSec =
-      spanSec <= 86_400 ? SESSION_CHART_LOOKBACK_SEC : SESSION_FETCH_PRE_ROLL_SEC
+      spanSec <= 86_400 ? sessionChartLookbackSec(startDate, endDate) : SESSION_FETCH_PRE_ROLL_SEC
     startSec = Math.max(0, sStart - prerollSec)
     endSec = windowed ? initialSessionFetchEndSec(sStart, sEnd) : sEnd
   } else {
@@ -449,7 +450,7 @@ async function fetchLiveMarketSeries(
     })
     const sessionOnly = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, {
       interval: '1m',
-      startSec: Math.max(0, sStart - SESSION_CHART_LOOKBACK_SEC),
+      startSec: Math.max(0, sStart - sessionChartLookbackSec(startDate, endDate)),
       endSec: sEnd,
       sessionStartSec: sessionStartSec ?? undefined,
       minBars: minBarsForFetchWindow(sStart, sEnd),
