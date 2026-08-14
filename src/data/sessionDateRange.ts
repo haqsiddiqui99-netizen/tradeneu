@@ -159,15 +159,8 @@ export const SESSION_CHART_LOOKBACK_BARS = 24 * 60
 
 export const SESSION_CHART_LOOKBACK_SEC = SESSION_CHART_LOOKBACK_BARS * 60
 
-/** Context bars before session start — shorter spans need less preroll (faster boot). */
-export function sessionChartLookbackBars(startIso?: string, endIso?: string): number {
-  const { startSec, endSec } = sessionDateRangeSec(startIso, endIso)
-  if (startSec == null || endSec == null || endSec <= startSec) {
-    return SESSION_CHART_LOOKBACK_BARS
-  }
-  const span = endSec - startSec
-  if (span <= 3600) return Math.max(16, Math.ceil(span / 60) + 30)
-  if (span <= 86_400) return Math.min(SESSION_CHART_LOOKBACK_BARS, 120 + Math.ceil(span / 60))
+/** Context bars before session start (24 hours on 1m). */
+export function sessionChartLookbackBars(_startIso?: string, _endIso?: string): number {
   return SESSION_CHART_LOOKBACK_BARS
 }
 
@@ -226,7 +219,7 @@ export function findReplayBarIndex(
   return { index: best + 1, clamped }
 }
 
-/** Keep session bars plus one prior candle for chart context; drop bars after end. */
+/** Keep session bars plus chart lookback before start; drop bars after end. */
 export function filterBarsBySessionDates(
   bars: Bar[],
   startIso?: string,

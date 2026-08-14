@@ -274,6 +274,33 @@ export function normalizeDukascopyRows(rows, startSec, endSec) {
   return bars
 }
 
+/** 24h chart lookback on 1m bars. */
+const CHART_LOOKBACK_BARS = 24 * 60
+
+function priorBarCountBeforeSession(bars, sessionStartSec) {
+  if (!Number.isFinite(sessionStartSec) || !Array.isArray(bars)) return 0
+  return bars.filter((b) => b.time < sessionStartSec).length
+}
+
+/** Merge all bars strictly before sessionStart into the front of `bars` (deduped by time). */
+function prependPriorBarsBeforeSession(bars, priorBars, sessionStartSec) {
+  if (!Array.isArray(priorBars) || !priorBars.length || !Number.isFinite(sessionStartSec)) {
+    return bars
+  }
+  const priors = priorBars.filter((b) => b.time < sessionStartSec)
+  if (!priors.length) return bars
+  if (bars.length && priors[priors.length - 1].time >= bars[0].time) return bars
+  const merged = [...priors, ...bars]
+  const out = []
+  let lastT = -1
+  for (const b of merged) {
+    if (b.time <= lastT) continue
+    lastT = b.time
+    out.push(b)
+  }
+  return out
+}
+
 /**
  * @param {object} opts
  * @param {string} opts.symbol
@@ -326,7 +353,10 @@ export async function fetchDukascopyBars({
     })
     if (cliFirst) {
       let bars = cliFirst.bars
-      if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
+      if (
+        Number.isFinite(sessionStartSec) &&
+        priorBarCountBeforeSession(bars, sessionStartSec) < CHART_LOOKBACK_BARS
+      ) {
         const priorFrom = Math.max(0, sessionStartSec - 7 * 86_400)
         const priorCli = await fetchBarsViaCli({
           symbol,
@@ -338,13 +368,7 @@ export async function fetchDukascopyBars({
           filterEndSec: sessionStartSec,
         })
         if (priorCli?.bars.length) {
-          let prior = null
-          for (const b of priorCli.bars) {
-            if (b.time < sessionStartSec) prior = b
-          }
-          if (prior && prior.time < bars[0].time) {
-            bars = [prior, ...bars]
-          }
+          bars = prependPriorBarsBeforeSession(bars, priorCli.bars, sessionStartSec)
         }
       }
       const app = String(symbol).trim()
@@ -411,7 +435,10 @@ export async function fetchDukascopyBars({
     return { ok: false, error: `dukascopy: parsed too few bars (${bars.length})` }
   }
 
-  if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
+  if (
+    Number.isFinite(sessionStartSec) &&
+    priorBarCountBeforeSession(bars, sessionStartSec) < CHART_LOOKBACK_BARS
+  ) {
     const lookbackSec = 7 * 86_400
     const priorFrom = Math.max(0, sessionStartSec - lookbackSec)
     try {
@@ -440,13 +467,7 @@ export async function fetchDukascopyBars({
         'dukascopy-prior',
       )
       const priorBars = normalizeDukascopyRows(priorRows, priorFrom, sessionStartSec)
-      let prior = null
-      for (const b of priorBars) {
-        if (b.time < sessionStartSec) prior = b
-      }
-      if (prior && prior.time < bars[0].time) {
-        bars = [prior, ...bars]
-      }
+      bars = prependPriorBarsBeforeSession(bars, priorBars, sessionStartSec)
     } catch {
       /* prior candle optional */
     }

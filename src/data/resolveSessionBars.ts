@@ -13,9 +13,8 @@ import {
   minuteBarCountForRange,
   parseSessionDateToSec,
   sessionDateRangeSec,
-  sessionFetchStartSec,
+  SESSION_CHART_LOOKBACK_BARS,
   SESSION_CHART_LOOKBACK_SEC,
-  sessionChartLookbackSec,
   SESSION_FETCH_PRE_ROLL_SEC,
   sessionWindowHasBars,
 } from './sessionDateRange'
@@ -286,26 +285,35 @@ function mergeBarsByTime(...groups: Bar[][]): Bar[] {
 
 export { mergeBarsByTime }
 
-/** When the main fetch begins exactly at session start, load one earlier candle for chart context. */
-async function ensurePriorBarInPool(symbol: string, bars: Bar[], startDate?: string): Promise<Bar[]> {
-  const startSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : null
-  if (startSec == null || !Number.isFinite(startSec) || !bars.length) return bars
-  if (bars.some((b) => b.time < startSec)) return bars
-
-  const pad = await fetchMarketBarsSeries(symbol, undefined, {
-    interval: '1m',
-    startSec: sessionFetchStartSec(startSec),
-    endSec: startSec,
-    minBars: 1,
-  })
-  if (!pad?.bars.length) return bars
-  return mergeBarsByTime(pad.bars, bars)
-}
-
 /** Remote-only chain — skips stale/partial local SQLite on retry. */
 const REMOTE_BAR_CHAIN = 'dukascopy,twelvedata'
 /** Fast path for dated historical sessions — SQLite on Railway volume. */
 const LOCAL_ONLY_BAR_CHAIN = 'local'
+
+/** Fetch up to 24h of bars before session start when preroll is short. */
+async function ensureChartLookbackInPool(
+  symbol: string,
+  bars: Bar[],
+  startDate?: string,
+): Promise<Bar[]> {
+  const startSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : null
+  if (startSec == null || !Number.isFinite(startSec) || !bars.length) return bars
+
+  const priorCount = bars.filter((b) => b.time < startSec).length
+  if (priorCount >= SESSION_CHART_LOOKBACK_BARS) return bars
+
+  const lookbackStart = Math.max(0, startSec - SESSION_CHART_LOOKBACK_SEC)
+  const pad = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, {
+    interval: '1m',
+    startSec: lookbackStart,
+    endSec: startSec,
+    sessionStartSec: startSec,
+    minBars: 2,
+    noCache: true,
+  })
+  if (!pad?.bars.length) return bars
+  return mergeBarsByTime(pad.bars, bars)
+}
 
 function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
@@ -412,9 +420,7 @@ async function fetchLiveMarketSeries(
     const sStart = sessionRange.startSec!
     const sEnd = sessionRange.endSec!
     windowed = sessionUsesWindowedLoad(startDate, endDate)
-    const spanSec = sEnd - sStart
-    const prerollSec =
-      spanSec <= 86_400 ? sessionChartLookbackSec(startDate, endDate) : SESSION_FETCH_PRE_ROLL_SEC
+    const prerollSec = SESSION_CHART_LOOKBACK_SEC
     startSec = Math.max(0, sStart - prerollSec)
     endSec = windowed ? initialSessionFetchEndSec(sStart, sEnd) : sEnd
   } else {
@@ -432,7 +438,8 @@ async function fetchLiveMarketSeries(
   )
   if (!fromMarket) return null
 
-  let bars = resolveChartBarsForSession(fromMarket.bars, startDate, endDate)
+  const rawBars = await ensureChartLookbackInPool(symbol, fromMarket.bars, startDate)
+  let bars = resolveChartBarsForSession(rawBars, startDate, endDate)
   if (bars.length < 16) {
     const trimmed = trimBarsForSessionChart(fromMarket.bars, startDate, endDate)
     if (trimmed.length >= 16) bars = trimmed
@@ -450,14 +457,15 @@ async function fetchLiveMarketSeries(
     })
     const sessionOnly = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, {
       interval: '1m',
-      startSec: Math.max(0, sStart - sessionChartLookbackSec(startDate, endDate)),
+      startSec: Math.max(0, sStart - SESSION_CHART_LOOKBACK_SEC),
       endSec: sEnd,
       sessionStartSec: sessionStartSec ?? undefined,
       minBars: minBarsForFetchWindow(sStart, sEnd),
       noCache: true,
     })
     if (sessionOnly?.bars.length) {
-      const retryBars = resolveChartBarsForSession(sessionOnly.bars, startDate, endDate)
+      const retryRaw = await ensureChartLookbackInPool(symbol, sessionOnly.bars, startDate)
+      const retryBars = resolveChartBarsForSession(retryRaw, startDate, endDate)
       if (sessionWindowHasBars(retryBars, startDate, endDate) && retryBars.length >= 16) {
         bars = retryBars
       }
@@ -553,7 +561,7 @@ export async function resolveSessionBars(
 
     const fromFile = await fetchGoldStaticJson()
     if (fromFile) {
-      let bars = await ensurePriorBarInPool(u, fromFile.bars, startDate)
+      let bars = await ensureChartLookbackInPool(u, fromFile.bars, startDate)
       const sessionRange = sessionDateRangeSec(startDate, endDate)
       if (
         sessionRange.startSec != null &&

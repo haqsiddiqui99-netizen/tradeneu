@@ -64,6 +64,7 @@ import { inferTimeframeFromBars, fetchSessionBarChunk, resolveChartBarsForSessio
 import {
   chunkRangeAfterLoaded,
   chunkRangeBeforeLoaded,
+  mergeBarsByTime,
   SESSION_1M_SUGGEST_H1_SPAN_SEC,
   SESSION_1M_WARN_SPAN_SEC,
   SESSION_LAZY_LOAD_MARGIN_BARS,
@@ -78,6 +79,8 @@ import {
   localHmFromSec,
   localYmdFromSec,
   parseSessionDateToSec,
+  SESSION_CHART_LOOKBACK_BARS,
+  SESSION_CHART_LOOKBACK_SEC,
   sessionStartReplayIndex,
   sessionDateRangeSec,
   sessionWindowHasBars,
@@ -2389,6 +2392,32 @@ export function mountChartWorkspace(
     let chartBars = filterSessionChartBars(series.bars, activeSession)
     if (!chartBars.length && series.bars.length >= MIN_BOOT_CHART_BARS) {
       chartBars = series.bars.slice()
+    }
+    {
+      const sessionStartSec = activeSession.startDate?.trim()
+        ? parseSessionDateToSec(activeSession.startDate, 'start')
+        : null
+      if (sessionStartSec != null && Number.isFinite(sessionStartSec)) {
+        const priorCount = chartBars.filter((b) => b.time < sessionStartSec).length
+        if (priorCount < SESSION_CHART_LOOKBACK_BARS) {
+          const fromSec = Math.max(0, sessionStartSec - SESSION_CHART_LOOKBACK_SEC)
+          try {
+            const chunk = await fetchSessionBarChunk(
+              currentChartSymbol,
+              fromSec,
+              sessionStartSec,
+              sessionStartSec,
+            )
+            if (chunk?.bars.length) {
+              const merged = mergeBarsByTime(chunk.bars, series.bars)
+              const withLookback = filterSessionChartBars(merged, activeSession)
+              if (withLookback.length) chartBars = withLookback
+            }
+          } catch (err) {
+            console.warn('[SessionBars] lookback prefetch', err)
+          }
+        }
+      }
     }
     let sessionReplayStartIndex = sessionStartReplayIndex(chartBars, activeSession.startDate)
     const emptyDateRange =
