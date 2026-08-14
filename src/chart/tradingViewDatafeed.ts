@@ -8,6 +8,7 @@ import {
 } from './tradingViewReplayFeed'
 import { filterTvBarsStrictlyInPeriod, tvNextTimeForEmptyRequest } from './tradingViewBarLimits'
 import { providerLabelFromDataSource } from '../data/marketDataSourceLabel'
+import { resolveChartTimezone } from '../data/sessionDateRange'
 import type {
   TvBar,
   TvDatafeed,
@@ -153,7 +154,7 @@ function symbolInfoFor(symbol: string, exchangeOverride?: string): TvLibrarySymb
     description: asset?.name ?? s,
     type: asset ? catalogTypeToTv(asset.category) : 'stock',
     session: '24x7',
-    timezone: 'Etc/UTC',
+    timezone: resolveChartTimezone(),
     exchange,
     minmov: 1,
     pricescale: isGold ? 1000 : 100,
