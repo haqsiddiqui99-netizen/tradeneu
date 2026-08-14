@@ -6,6 +6,7 @@ import {
 } from './tradingViewDatafeed'
 import type { TvDatafeed } from './tradingViewTypes'
 import type { Bar } from '../types'
+import { resolveChartTimezone } from '../data/sessionDateRange'
 import { createTvReplayChartController, type TvLockedViewport, type TvReplayChartController } from './tradingViewReplayChart'
 
 type TvTheme = 'light' | 'dark'
@@ -1530,6 +1531,8 @@ export async function createTradingViewChart(
 
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
+  const chartTimezone = resolveChartTimezone()
+
   const widget = new Widget({
     symbol: currentSymbol,
     interval: currentResolution,
@@ -1538,6 +1541,7 @@ export async function createTradingViewChart(
     locale: 'en',
     autosize: true,
     theme: opts.theme,
+    timezone: chartTimezone,
     datafeed,
     disabled_features: ['use_localstorage_for_settings'],
     enabled_features: [
@@ -1709,6 +1713,15 @@ export async function createTradingViewChart(
     replayCtrl?.flushPendingRefresh()
     resolveChartReady?.()
     resolveChartReady = null
+
+    try {
+      const chart = widget.activeChart() as {
+        getTimezoneApi?: () => { setTimezone?: (tz: string) => void }
+      }
+      chart.getTimezoneApi?.()?.setTimezone?.(chartTimezone)
+    } catch {
+      /* timezone API optional in some builds */
+    }
 
     // Force-hide bid/ask + other optional price lines that survive theme / settings merges.
     const hideChartHairlines = () => {
