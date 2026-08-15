@@ -13,8 +13,8 @@ import {
   minuteBarCountForRange,
   parseSessionDateToSec,
   sessionDateRangeSec,
-  sessionFetchStartSec,
   SESSION_CHART_LOOKBACK_SEC,
+  sessionChartLookbackBars,
   sessionChartLookbackSec,
   SESSION_FETCH_PRE_ROLL_SEC,
   sessionWindowHasBars,
@@ -286,17 +286,28 @@ function mergeBarsByTime(...groups: Bar[][]): Bar[] {
 
 export { mergeBarsByTime }
 
-/** When the main fetch begins exactly at session start, load one earlier candle for chart context. */
-async function ensurePriorBarInPool(symbol: string, bars: Bar[], startDate?: string): Promise<Bar[]> {
+/** Fetch session-scaled lookback (e.g. ~41 bars on short 1m sessions) when preroll is short. */
+async function ensureSessionLookbackInPool(
+  symbol: string,
+  bars: Bar[],
+  startDate?: string,
+  endDate?: string,
+): Promise<Bar[]> {
   const startSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : null
   if (startSec == null || !Number.isFinite(startSec) || !bars.length) return bars
-  if (bars.some((b) => b.time < startSec)) return bars
 
-  const pad = await fetchMarketBarsSeries(symbol, undefined, {
+  const targetBars = sessionChartLookbackBars(startDate, endDate)
+  const priorCount = bars.filter((b) => b.time < startSec).length
+  if (priorCount >= targetBars) return bars
+
+  const lookbackStart = Math.max(0, startSec - sessionChartLookbackSec(startDate, endDate))
+  const pad = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, {
     interval: '1m',
-    startSec: sessionFetchStartSec(startSec),
+    startSec: lookbackStart,
     endSec: startSec,
+    sessionStartSec: startSec,
     minBars: 1,
+    noCache: true,
   })
   if (!pad?.bars.length) return bars
   return mergeBarsByTime(pad.bars, bars)
@@ -432,7 +443,8 @@ async function fetchLiveMarketSeries(
   )
   if (!fromMarket) return null
 
-  let bars = resolveChartBarsForSession(fromMarket.bars, startDate, endDate)
+  const rawBars = await ensureSessionLookbackInPool(symbol, fromMarket.bars, startDate, endDate)
+  let bars = resolveChartBarsForSession(rawBars, startDate, endDate)
   if (bars.length < 16) {
     const trimmed = trimBarsForSessionChart(fromMarket.bars, startDate, endDate)
     if (trimmed.length >= 16) bars = trimmed
@@ -457,7 +469,8 @@ async function fetchLiveMarketSeries(
       noCache: true,
     })
     if (sessionOnly?.bars.length) {
-      const retryBars = resolveChartBarsForSession(sessionOnly.bars, startDate, endDate)
+      const retryRaw = await ensureSessionLookbackInPool(symbol, sessionOnly.bars, startDate, endDate)
+      const retryBars = resolveChartBarsForSession(retryRaw, startDate, endDate)
       if (sessionWindowHasBars(retryBars, startDate, endDate) && retryBars.length >= 16) {
         bars = retryBars
       }
@@ -553,7 +566,7 @@ export async function resolveSessionBars(
 
     const fromFile = await fetchGoldStaticJson()
     if (fromFile) {
-      let bars = await ensurePriorBarInPool(u, fromFile.bars, startDate)
+      let bars = await ensureSessionLookbackInPool(u, fromFile.bars, startDate, endDate)
       const sessionRange = sessionDateRangeSec(startDate, endDate)
       if (
         sessionRange.startSec != null &&

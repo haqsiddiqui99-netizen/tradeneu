@@ -5,6 +5,12 @@
  * @see https://twelvedata.com/docs#time-series
  */
 
+import {
+  mergePriorBarsBeforeSession,
+  needsSessionPriorBackfill,
+  priorFetchFromSec,
+} from './sessionPriorBars.mjs'
+
 const TD_TIME_SERIES = 'https://api.twelvedata.com/time_series'
 
 /**
@@ -303,17 +309,11 @@ export async function fetchTwelveDataTimeSeries({
     return { ok: false, error: `twelvedata: parsed too few bars (${merged.length})` }
   }
 
-  if (Number.isFinite(sessionStartSec) && !merged.some((b) => b.time < sessionStartSec)) {
-    const lookback = 7 * 86_400
-    const priorChunk = await fetchChunk(Math.max(0, sessionStartSec - lookback), sessionStartSec, 500)
+  if (needsSessionPriorBackfill(merged, sessionStartSec)) {
+    const priorFrom = priorFetchFromSec(sessionStartSec)
+    const priorChunk = await fetchChunk(priorFrom, sessionStartSec, 500)
     if (priorChunk.ok && priorChunk.bars.length) {
-      let prior = null
-      for (const b of priorChunk.bars) {
-        if (b.time < sessionStartSec) prior = b
-      }
-      if (prior && prior.time < merged[0].time) {
-        merged.unshift(prior)
-      }
+      merged = mergePriorBarsBeforeSession(merged, priorChunk.bars, sessionStartSec)
     }
   }
 

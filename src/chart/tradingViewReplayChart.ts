@@ -743,6 +743,11 @@ export function createTvReplayChartController(opts: {
     pastCount: number,
     opts2?: { playing?: boolean; force?: boolean },
   ) => {
+    if (Date.now() < suppressPlaybackShiftUntil) {
+      replayLockedViewport = saved
+      applyPlaybackViewportRange(saved, opts2?.playing === true)
+      return
+    }
     const next = advancePlaybackViewport(saved, pastBars, prevPastCount, pastCount, opts2?.playing, opts2?.force)
     replayLockedViewport = next
     applyPlaybackViewportRange(next, opts2?.playing === true)
@@ -927,7 +932,7 @@ export function createTvReplayChartController(opts: {
     const applyHeldViewportAfterBar = () => {
       cancelViewportRestoreTimers()
       if (!holdViewport) {
-        if (opts2?.playing) scrollReplayCursorIntoView()
+        if (opts2?.playing && Date.now() >= suppressPlaybackShiftUntil) scrollReplayCursorIntoView()
         return
       }
       if (opts2?.playing && opts2?.preserveViewport) {
@@ -1058,9 +1063,8 @@ export function createTvReplayChartController(opts: {
           opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
         }
       }
-      const aligned = anchorLockedViewportToCursor(holdViewport, pastBars, pastCount)
-      replayLockedViewport = aligned
-      applyPlaybackViewportRange(aligned)
+      replayLockedViewport = holdViewport
+      applyPlaybackViewportRange(holdViewport, true)
       lastPastCount = pastCount
       ensureRangeHooks()
       return
