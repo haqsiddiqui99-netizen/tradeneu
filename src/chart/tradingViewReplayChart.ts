@@ -1102,7 +1102,7 @@ export function createTvReplayChartController(opts: {
       opts.replayFeed.emitRealtimeBar(barToTv(lastBar))
       applyHeldViewportAfterBar()
       if (!opts2?.playing && !opts2?.pickPreview && !cursorSuppressed) scheduleCursorLine(pastBars)
-    } else if (sameRevealCount && streamBars) {
+    } else if (sameRevealCount && streamBars && !opts2?.decoupledStepOnly && !opts2?.stepPreserveView) {
       // Forming candle OHLC update (decoupled replay, tick-in-minute, etc.) — no full reset.
       opts.replayFeed.emitRealtimeBar(barToTv(pastBars[pastCount - 1]!))
       if (holdViewport) restoreViewportAfterIncrementalBar(holdViewport)
@@ -1119,10 +1119,19 @@ export function createTvReplayChartController(opts: {
     ) {
       // Replay step interval change — feed-only update + restore pan/zoom (no resetData).
       opts.replayFeed.setRevealCountIfChanged(pastCount)
-      const lastBar = pastBars[pastCount - 1]
-      if (lastBar) {
-        opts.replayFeed.patchBarAtIndex(pastCount - 1, lastBar)
-        if (streamBars) opts.replayFeed.emitRealtimeBar(barToTv(lastBar))
+      if (prevPastCount > 0 && pastCount > prevPastCount) {
+        for (let i = prevPastCount; i < pastCount; i++) {
+          const bar = pastBars[i]
+          if (!bar) continue
+          opts.replayFeed.patchBarAtIndex(i, bar)
+          if (streamBars) opts.replayFeed.emitRealtimeBar(barToTv(bar))
+        }
+      } else {
+        const lastBar = pastBars[pastCount - 1]
+        if (lastBar) {
+          opts.replayFeed.patchBarAtIndex(pastCount - 1, lastBar)
+          if (streamBars) opts.replayFeed.emitRealtimeBar(barToTv(lastBar))
+        }
       }
       if (holdViewport) restoreViewportAfterIncrementalBar(holdViewport)
       else if (!opts2?.playing && !cursorSuppressed) scheduleCursorLine(pastBars)

@@ -4149,7 +4149,7 @@ export function mountChartWorkspace(
       return !!(chartPick && replayPick && canDecoupleReplay(chartPick, replayPick))
     }
 
-    /** Prime or fully paint TV with chart-interval bars while replay transport uses a different step. */
+    /** Prime or paint TV chart-interval bars while replay transport uses a different step. */
     function syncDecoupledTvFeed(
       index: number,
       mode: 'prime' | 'paint' = 'prime',
@@ -4157,61 +4157,23 @@ export function mountChartWorkspace(
       paintOpts?: { forceFull?: boolean },
     ): boolean {
       if (!state.tvChart || !isDecoupledReplay()) return false
-      const chartPick = resolveIntervalPick(chartTimeframe)
-      const replayPick = resolveIntervalPick(replayTimeframe)
-      if (!chartPick || !replayPick) return false
+      if (mode === 'paint') {
+        if (paintOpts?.forceFull) {
+          return paintDecoupledReplayStepChange(index, restoreVisibleRange, { forceFull: true })
+        }
+        return paintDecoupledReplayStepChange(index, restoreVisibleRange)
+      }
       const paint = decoupledReplayPaint(index)
       if (!paint?.display.length) return false
+      const chartPick = resolveIntervalPick(chartTimeframe)
+      if (!chartPick) return false
       const tvRes = intervalPillToTvResolution(chartTimeframe)
-      const barPeriodSec = intervalPickBarPeriodSec(chartPick)
-      // Chart resolution is unchanged in decoupled mode — never call setResolution (resets bar spacing).
       state.tvChart.noteResolution(tvRes)
-      if (mode === 'paint') {
-        state.tvChart.primeIntervalFeed(
-          tvBarsForChart(paint.all),
-          tvRes,
-          paint.display.length,
-          barPeriodSec,
-        )
-        const subMinute = isSubMinuteReplayPick(replayPick)
-        const chartStepSec = chartPick.stepSec ?? 60
-        const viewOpts = {
-          decoupled: true as const,
-          preserveViewport: true as const,
-          fit: false as const,
-          ...(restoreVisibleRange ? { restoreVisibleRange } : {}),
-        }
-        // 1m chart / scissors: always force chart paint. tickDecoupledReplay after prime
-        // only patches the feed and leaves TV on a stale scale (scissors stuck left).
-        // 1m + sub-minute: prefer incremental (preserves zoom). Full paint only when forced (scissors).
-        const forceFull =
-          paintOpts?.forceFull === true
-            ? true
-            : paintOpts?.forceFull === false
-              ? false
-              : !(subMinute && chartStepSec > 60)
-        if (!forceFull) {
-          if (!state.tvChart.tickDecoupledReplay(paint.display)) {
-            state.tvChart.setReplayData(paint.display, paint.all, {
-              ...viewOpts,
-              force: false,
-            })
-            state.tvChart.flushPendingRefresh()
-          }
-        } else {
-          state.tvChart.setReplayData(paint.display, paint.all, {
-            ...viewOpts,
-            force: true,
-          })
-          state.tvChart.flushPendingRefresh()
-        }
-        return true
-      }
       state.tvChart.primeIntervalFeed(
         tvBarsForChart(paint.all),
         tvRes,
         paint.display.length,
-        barPeriodSec,
+        intervalPickBarPeriodSec(chartPick),
       )
       return true
     }
@@ -4269,6 +4231,55 @@ export function mountChartWorkspace(
           void state.tvChart?.restoreVisibleRange(snap)
         })
       })
+    }
+
+    /**
+     * Decoupled replay step change (any chart TF + any replay step) without re-priming the feed.
+     * Skips primeIntervalFeed so TV bar spacing / candle width stay unchanged.
+     */
+    function paintDecoupledReplayStepChange(
+      index: number,
+      viewSnap: TvLockedViewport | null | undefined,
+      opts?: { forceFull?: boolean; playing?: boolean },
+    ): boolean {
+      if (!state.tvChart || !isDecoupledReplay()) return false
+      const paint = decoupledReplayPaint(index)
+      if (!paint?.display.length) return false
+      const chartPick = resolveIntervalPick(chartTimeframe)
+      if (!chartPick) return false
+      const tvRes = intervalPillToTvResolution(chartTimeframe)
+      const tvDisplay = tvBarsForChart(paint.display)
+      const tvAll = tvBarsForChart(paint.all)
+      const playing = opts?.playing ?? (state.replay?.getState().playing ?? false)
+      state.tvChart.noteResolution(tvRes)
+      const viewOpts = {
+        decoupled: true as const,
+        preserveViewport: true as const,
+        fit: false as const,
+        playing,
+        ...(viewSnap ? { restoreVisibleRange: viewSnap } : {}),
+      }
+      if (opts?.forceFull) {
+        state.tvChart.primeIntervalFeed(
+          tvAll,
+          tvRes,
+          paint.display.length,
+          intervalPickBarPeriodSec(chartPick),
+        )
+        state.tvChart.setReplayData(tvDisplay, tvAll, {
+          ...viewOpts,
+          force: true,
+        })
+        state.tvChart.flushPendingRefresh()
+      } else {
+        state.tvChart.setReplayData(tvDisplay, tvAll, {
+          ...viewOpts,
+          force: false,
+          decoupledStepOnly: true,
+        })
+      }
+      restoreChartViewportSoon(viewSnap ?? null)
+      return true
     }
 
     function pinChartViewportForReplay() {
@@ -4370,35 +4381,33 @@ export function mountChartWorkspace(
             const { all: allTv, display: displayTv } = tvTickModeDisplay(index)
             state.tvChart.setReplayData(displayTv, allTv, tvStepPaintBase)
           } else if (decoupled) {
-            const tvDisplay = tvBarsForChart(decoupled.display)
-            const tvAll = tvBarsForChart(decoupled.all)
-            const decoupledPainted =
-              decoupledStepOnly &&
-              !decoupledFeedPrimed &&
-              syncDecoupledTvFeed(
+            if (decoupledStepOnly || stepPreserve) {
+              paintDecoupledReplayStepChange(
                 index,
-                'paint',
-                chartViewSnap ?? lockedTvViewport,
-                { forceFull: false },
+                chartViewSnap ?? lockedTvViewport ?? restoreRange ?? null,
+                { playing: replayPlaying },
               )
-            const preferTick =
-              !decoupledPainted &&
-              replayPlaying &&
-              !forceChart &&
-              !fitChart &&
-              !firstChartPaint &&
-              !viewStepOnly
-            if (preferTick && state.tvChart.tickDecoupledReplay(tvDisplay)) {
-              /* forming 1m candle patched in place */
-            } else if (!decoupledPainted) {
-              state.tvChart.setReplayData(tvDisplay, tvAll, {
-                ...tvStepPaintBase,
-                decoupled: true,
-                force: forceChart && !viewStepOnly,
-              })
-            }
-            if (decoupledPainted || (decoupledStepOnly && stepPreserveViewport)) {
-              restoreChartViewportSoon(chartViewSnap ?? lockedTvViewport)
+            } else {
+              const tvDisplay = tvBarsForChart(decoupled.display)
+              const tvAll = tvBarsForChart(decoupled.all)
+              const preferTick =
+                replayPlaying &&
+                !forceChart &&
+                !fitChart &&
+                !firstChartPaint
+              if (preferTick && state.tvChart.tickDecoupledReplay(tvDisplay)) {
+                if (preserveChartView || stepPreserveViewport) {
+                  restoreChartViewportSoon(
+                    chartViewSnap ?? lockedTvViewport ?? restoreRange ?? null,
+                  )
+                }
+              } else {
+                state.tvChart.setReplayData(tvDisplay, tvAll, {
+                  ...tvStepPaintBase,
+                  decoupled: true,
+                  force: forceChart,
+                })
+              }
             }
           } else {
             state.tvChart.setReplayData(displayBars, allBars, {
@@ -5423,7 +5432,10 @@ export function mountChartWorkspace(
 
       // Capture pan/zoom before async second-bar load so replay step change does not move the chart.
       const replayViewSnapAtPick =
-        state.tvChart?.captureLockedViewport() ?? lockedTvViewport ?? null
+        state.tvChart?.captureLockedViewport() ??
+        lockedTvViewport ??
+        state.tvChart?.getReplayLockedViewport() ??
+        null
       lockChartViewport(replayViewSnapAtPick)
 
       replayTimeframe = pick.pill
@@ -5448,7 +5460,7 @@ export function mountChartWorkspace(
       nextReplayTickChartViewSnap = replayViewSnapAtPick
       nextReplayTickDecoupledFeedPrimed = false
       replay.replaceBarsAt(stepBars, stepIndex)
-      restoreChartViewportSoon(replayViewSnapAtPick)
+      paintDecoupledReplayStepChange(stepIndex, replayViewSnapAtPick)
     }
 
     async function applyIntervalPick(pick: IntervalPick) {
@@ -5790,29 +5802,20 @@ export function mountChartWorkspace(
             replay.replaceBarsAt(resolvedStepBars, stepIndex)
             skipTvReplayPaintOnce = false
           } else if (state.tvChart) {
+            lockChartViewport(tvViewSnap)
             skipTvReplayPaintOnce = true
             const tvSeries = tvBarsForChart(chartBars)
-            state.tvChart.primeIntervalFeed(
-              tvSeries,
-              tvRes,
-              tvPast,
-              intervalPickBarPeriodSec(pick),
-            )
-            await state.tvChart.swapInterval(tvSeries, tvRes, tvPast, intervalRefit ? null : tvViewSnap, {
-              refit: intervalRefit,
-              barPeriodSec: intervalPickBarPeriodSec(pick),
-            })
-            replay.replaceBarsAt(resolvedStepBars, stepIndex)
-            skipTvReplayPaintOnce = false
-            state.tvChart.flushPendingRefresh()
-            // Don't re-apply the old (e.g. 1m) viewport onto a refit hour/4h chart — freezes TV.
-            if (tvViewSnap && !intervalRefit) {
-              requestAnimationFrame(() => {
-                void state.tvChart?.restoreVisibleRange(tvViewSnap)
+            state.tvChart.noteResolution(tvRes)
+            if (chartResolutionWillChange) {
+              await state.tvChart.swapInterval(tvSeries, tvRes, tvPast, tvViewSnap, {
+                refit: false,
+                barPeriodSec: intervalPickBarPeriodSec(pick),
               })
             }
+            replay.replaceBarsAt(resolvedStepBars, stepIndex)
+            paintDecoupledReplayStepChange(stepIndex, tvViewSnap)
+            skipTvReplayPaintOnce = false
           } else {
-            if (intervalRefit) nextReplayTickFit = true
             replay.replaceBarsAt(resolvedStepBars, stepIndex)
           }
         } else if (tickLoadUsedProgressive) {
