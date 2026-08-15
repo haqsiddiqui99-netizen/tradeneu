@@ -14,6 +14,7 @@ import {
   parseSessionDateToSec,
   sessionDateRangeSec,
   SESSION_CHART_LOOKBACK_SEC,
+  SESSION_CHART_CONTEXT_LOOKBACK_BARS,
   sessionChartLookbackBars,
   sessionChartLookbackSec,
   SESSION_FETCH_PRE_ROLL_SEC,
@@ -366,10 +367,16 @@ async function fetchMarketBarRange(
     return barsCoverSessionWindow(result.bars, sessionStartSec!, sessionEndSec!)
   }
 
+  const localHasLookback = (result: MarketBarsSeries): boolean => {
+    if (sessionStartSec == null || !Number.isFinite(sessionStartSec)) return true
+    const priors = result.bars.filter((b) => b.time < sessionStartSec).length
+    return priors >= SESSION_CHART_CONTEXT_LOOKBACK_BARS
+  }
+
   // Historical sessions: hit SQLite directly first (ms on Railway when volume is warm).
   if (isHistorical) {
     const local = await fetchMarketBarsSeries(symbol, LOCAL_ONLY_BAR_CHAIN, { ...opts, noCache: true })
-    if (usable(local)) return local
+    if (usable(local) && localHasLookback(local)) return local
   }
 
   let result = await fetchMarketBarsSeries(symbol, undefined, { ...opts, noCache: isHistorical })
@@ -393,11 +400,17 @@ export async function fetchSessionBarChunk(
   startSec: number,
   endSec: number,
   sessionStartSec?: number,
+  startDate?: string,
+  endDate?: string,
 ): Promise<ResolvedSeries | null> {
   const fromMarket = await fetchMarketBarRange(symbol, startSec, endSec, sessionStartSec)
   if (!fromMarket?.bars.length) return null
+  const rawBars =
+    startDate || endDate
+      ? await ensureSessionLookbackInPool(symbol, fromMarket.bars, startDate, endDate)
+      : fromMarket.bars
   return {
-    bars: fromMarket.bars,
+    bars: rawBars,
     timeframe: fromMarket.timeframe,
     dataSource: fromMarket.dataSource,
   }

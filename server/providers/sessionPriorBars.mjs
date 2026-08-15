@@ -2,7 +2,7 @@
 export const SESSION_PRIOR_LOOKBACK_SEC = 24 * 60 * 60
 
 /** Backfill when fewer prior bars exist before session start. */
-export const SESSION_MIN_PRIOR_BARS = 16
+export const SESSION_MIN_PRIOR_BARS = 60
 
 export function countPriorBars(bars, sessionStartSec) {
   if (!Number.isFinite(sessionStartSec) || !Array.isArray(bars)) return 0

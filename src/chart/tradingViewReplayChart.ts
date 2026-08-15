@@ -772,7 +772,8 @@ export function createTvReplayChartController(opts: {
     const allTv = opts.replayFeed.getAllBars()
     if (!allTv.length || revealed < 1) return
     const anchorIdx = Math.min(revealed, allTv.length) - 1
-    applyViewportAroundBarIndex(anchorIdx)
+    const sessionStart = revealed < allTv.length
+    applyViewportAroundBarIndex(anchorIdx, { sessionStart })
   }
 
   const scrollToWallTimeSec = (timeSec: number) => {
@@ -782,10 +783,17 @@ export function createTvReplayChartController(opts: {
     applyViewportAroundBarIndex(anchorIdx)
   }
 
-  const applyViewportAroundBarIndex = (anchorIdx: number) => {
+  const applyViewportAroundBarIndex = (
+    anchorIdx: number,
+    viewportOpts?: { sessionStart?: boolean },
+  ) => {
     const allTv = opts.replayFeed.getAllBars()
     if (!allTv.length) return
     const anchor = Math.max(0, Math.min(anchorIdx, allTv.length - 1))
+    const revealed = opts.replayFeed.getRevealedCount()
+    const sessionStart =
+      viewportOpts?.sessionStart ??
+      (revealed > 0 && revealed < allTv.length && anchor === revealed - 1)
 
     const applyScroll = (): boolean => {
       const c = chart()
@@ -817,9 +825,16 @@ export function createTvReplayChartController(opts: {
         }
       }
 
-      const visibleBars = 120
-      const lookbackBars = Math.max(8, Math.floor(visibleBars * 0.62))
-      const forwardBars = Math.max(8, visibleBars - lookbackBars)
+      let lookbackBars: number
+      let forwardBars: number
+      if (sessionStart && anchor >= 4) {
+        lookbackBars = anchor
+        forwardBars = Math.max(12, Math.round(lookbackBars * (0.38 / 0.62)))
+      } else {
+        const visibleBars = 120
+        lookbackBars = Math.max(8, Math.floor(visibleBars * 0.62))
+        forwardBars = Math.max(8, visibleBars - lookbackBars)
+      }
       const firstIdx = Math.max(0, anchor - lookbackBars)
       const toIdx = Math.min(allTv.length - 1, anchor + forwardBars)
       const firstSec = Math.floor(allTv[firstIdx]!.time / 1000)
@@ -1131,6 +1146,8 @@ export function createTvReplayChartController(opts: {
     } else {
       if (holdViewport) {
         refreshWithLockedViewport()
+      } else if (opts2?.playing && opts2?.preserveViewport) {
+        applyPlaybackViewportRange(lockedViewportNow(), true)
       } else {
         scheduleFullRefresh(
           opts2?.fit === true ||
