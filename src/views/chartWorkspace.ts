@@ -339,8 +339,6 @@ const TV_1M_DEFAULT_VISIBLE_BARS = 180
 
 /** Aggregated intervals need enough bars at boot or the chart pins one candle to the left edge. */
 const MIN_BOOT_CHART_BARS = 8
-/** Max wait for `/api/market/bars` during boot before offline synthetic fallback. */
-const BOOT_BAR_LOAD_MS = 22_000
 
 const TICK_LOAD_TIMEOUT_MS = 30_000
 
@@ -2363,30 +2361,11 @@ export function mountChartWorkspace(
     })
     try {
       setBootLoadStep(1)
-      const barOpts = {
+      series = await loadSessionBars(currentChartSymbol, activeSession.name, undefined, {
         startDate: activeSession.startDate,
         endDate: activeSession.endDate,
-      }
-      series = await new Promise<Awaited<ReturnType<typeof loadSessionBars>>>((resolve, reject) => {
-        const fallbackTimer = window.setTimeout(() => {
-          console.warn('[ChartBoot] Bar load slow — using offline fallback')
-          void loadSessionBars(currentChartSymbol, activeSession.name, undefined, {
-            ...barOpts,
-            offlineFallback: true,
-          }).then(resolve, reject)
-        }, BOOT_BAR_LOAD_MS)
-        void loadSessionBars(currentChartSymbol, activeSession.name, undefined, {
-          ...barOpts,
-          skipLocalBars: true,
-        })
-          .then((s) => {
-            window.clearTimeout(fallbackTimer)
-            resolve(s)
-          })
-          .catch((err) => {
-            window.clearTimeout(fallbackTimer)
-            reject(err)
-          })
+        skipLocalBars: true,
+        bootFast: true,
       })
       setBootLoadStep(2)
     } catch (err) {
@@ -2411,13 +2390,20 @@ export function mountChartWorkspace(
       feedLabel = `Tradeneu · ${series.dataSource}`
     }
     let chartBars = filterSessionChartBars(series.bars, activeSession)
-    if (!chartBars.length && series.bars.length >= MIN_BOOT_CHART_BARS) {
+    const hasSessionDates = Boolean(activeSession.startDate?.trim() || activeSession.endDate?.trim())
+    if (
+      !chartBars.length &&
+      series.bars.length >= MIN_BOOT_CHART_BARS &&
+      !hasSessionDates &&
+      !/synthetic|empty:session-range/i.test(series.dataSource ?? '')
+    ) {
       chartBars = series.bars.slice()
     }
     let sessionReplayStartIndex = sessionStartReplayIndex(chartBars, activeSession.startDate)
     const emptyDateRange =
-      Boolean(activeSession.startDate?.trim() || activeSession.endDate?.trim()) &&
-      !sessionWindowHasBars(chartBars, activeSession.startDate, activeSession.endDate)
+      hasSessionDates &&
+      (!chartBars.length ||
+        !sessionWindowHasBars(chartBars, activeSession.startDate, activeSession.endDate))
     applyFeedUi({
       symbol: currentChartSymbol,
       dataSource: series.dataSource,
@@ -2425,6 +2411,23 @@ export function mountChartWorkspace(
       timeframe: series.timeframe,
       emptyDateRange,
     })
+
+    if (!chartBars.length) {
+      const rangeHint =
+        hasSessionDates && activeSession.startDate && activeSession.endDate
+          ? ` (${activeSession.startDate} – ${activeSession.endDate})`
+          : ''
+      const msg = hasSessionDates
+        ? `No bars available for the selected session range${rangeHint}. Adjust start/end dates or check the data feed.`
+        : `No bars for ${symUi}. Check the data feed or session import.`
+      if (tvChartMode) showReplayNotice(msg)
+      else if (subbarHeadEl) subbarHeadEl.innerHTML = `<span style="color:#787b86">${msg}</span>`
+      chartVolEl.innerHTML = ''
+      if (replayStatusEl) replayStatusEl.textContent = 'Replay · no data'
+      await endBootLoading(true)
+      return
+    }
+
     chartTimeframe = series.timeframe
     let replayTimeframe = chartTimeframe
     /** Sub-minute replay step series (10s, 30s, …) when chart stays on minute+. */
@@ -3454,10 +3457,17 @@ export function mountChartWorkspace(
     if (replayDockTf) replayDockTf.textContent = chartTimeframe
 
     if (!chartBars.length) {
+      const rangeHint =
+        hasSessionDates && activeSession.startDate && activeSession.endDate
+          ? ` (${activeSession.startDate} – ${activeSession.endDate})`
+          : ''
+      const msg = hasSessionDates
+        ? `No bars available for the selected session range${rangeHint}. Adjust start/end dates or check the data feed.`
+        : `No bars for ${symUi}. Check the data feed or session import.`
       if (tvChartMode) {
-        showReplayNotice(`No bars for ${symUi}. Check the data feed or session import.`)
+        showReplayNotice(msg)
       } else if (subbarHeadEl) {
-        subbarHeadEl.innerHTML = `<span style="color:#787b86">No bars for <strong>${symUi}</strong>. Check the data feed or session import.</span>`
+        subbarHeadEl.innerHTML = `<span style="color:#787b86">${msg}</span>`
       }
       chartVolEl.innerHTML = ''
       if (replayStatusEl) replayStatusEl.textContent = 'Replay · no data'

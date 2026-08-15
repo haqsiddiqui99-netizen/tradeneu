@@ -52,6 +52,8 @@ export type MarketBarsFetchOpts = {
   minBars?: number
   /** Skip in-memory cache (e.g. force refresh). */
   noCache?: boolean
+  /** Per-request timeout override (ms). */
+  timeoutMs?: number
 }
 
 const BARS_CACHE_TTL_MS = Math.max(
@@ -104,8 +106,10 @@ function pruneSeriesCache() {
 /** Abort hung Dukascopy / historic API fetches so saved-session chart boot can fall back. */
 const BARS_FETCH_TIMEOUT_MS = Math.max(
   5_000,
-  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_FETCH_TIMEOUT_MS ?? '25000'), 10) || 25_000,
+  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_FETCH_TIMEOUT_MS ?? '15000'), 10) || 15_000,
 )
+/** Boot chart load — fail fast so UI is not stuck on Loading indicators. */
+export const BOOT_BARS_FETCH_TIMEOUT_MS = 12_000
 
 export async function fetchMarketBarsSeries(
   symbol: string,
@@ -123,7 +127,8 @@ export async function fetchMarketBarsSeries(
     }
   }
   const ac = new AbortController()
-  const timer = window.setTimeout(() => ac.abort(), BARS_FETCH_TIMEOUT_MS)
+  const timeoutMs = Math.max(3_000, opts?.timeoutMs ?? BARS_FETCH_TIMEOUT_MS)
+  const timer = window.setTimeout(() => ac.abort(), timeoutMs)
   try {
     const res = await fetch(marketBarsUrl(symbol, chainParam, opts), {
       credentials: 'same-origin',

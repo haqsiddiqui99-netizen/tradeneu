@@ -32,6 +32,10 @@ function isSyntheticSource(src?: string): boolean {
   return Boolean(src?.includes('synthetic'))
 }
 
+function isEmptySessionSource(src?: string): boolean {
+  return Boolean(src?.includes('empty:session-range'))
+}
+
 function isTwelveDataLive(src?: string): boolean {
   return Boolean(src && /twelvedata/i.test(src) && !isSyntheticSource(src))
 }
@@ -118,6 +122,7 @@ function classifyMode(input: ResolveFeedStatusInput): FeedMode {
 
   if (loading) return 'loading'
   if (loadFailed) return 'error'
+  if (emptyDateRange || isEmptySessionSource(src)) return 'error'
   if (health && !health.apiReachable && usesMarketDataSession(symbol) && !isTwelveDataLive(src)) {
     return isSyntheticSource(src) ? 'demo' : 'error'
   }
@@ -174,17 +179,16 @@ export function resolveFeedStatus(input: ResolveFeedStatusInput): FeedStatus {
     }
   }
 
-  if (emptyDateRange) {
-    const emptyMode = isTwelveDataLive(src) ? 'live' : isSyntheticSource(src) ? 'demo' : 'replay'
+  if (emptyDateRange || isEmptySessionSource(src)) {
     return {
-      mode: emptyMode,
-      pillLabel: emptyMode === 'live' ? 'Live' : emptyMode === 'demo' ? 'Demo' : 'Replay',
-      pillClass: `rw-feed-pill--${emptyMode}`,
-      tooltip,
+      mode: 'error',
+      pillLabel: 'No data',
+      pillClass: 'rw-feed-pill--error',
+      tooltip: 'No bars in the selected session date range',
       bannerKind: 'empty-range',
       bannerClass: 'rw-data-banner--warning',
       bannerMessage:
-        'No bars in the selected date range. Adjust session start/end dates or pick a symbol with data in that window.',
+        'No bars available for the selected session range. Adjust session start/end dates or pick a symbol with data in that window.',
       showBanner: true,
     }
   }

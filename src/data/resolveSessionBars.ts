@@ -1,5 +1,5 @@
 import type { Bar } from '../types'
-import { fetchMarketBarsSeries, type MarketBarsSeries } from './marketDataClient'
+import { fetchMarketBarsSeries, BOOT_BARS_FETCH_TIMEOUT_MS, type MarketBarsSeries } from './marketDataClient'
 import {
   generateBtcUsdDemoMinuteBars,
   generateGoldSpotMinuteBars,
@@ -31,10 +31,18 @@ export const MAX_SESSION_CHART_BARS = 60_000
 export type SessionBarsOpts = {
   startDate?: string
   endDate?: string
-  /** Skip /api/market/bars — static JSON or synthetic only (boot timeout path). */
-  offlineFallback?: boolean
   /** Skip SQLite local chain on boot — remote/default providers only. */
   skipLocalBars?: boolean
+  /** Boot: one remote fetch with short timeout — no lookback top-up or retries. */
+  bootFast?: boolean
+}
+
+function hasDatedSession(startDate?: string, endDate?: string): boolean {
+  return Boolean(startDate?.trim() || endDate?.trim())
+}
+
+function emptySessionRangeSeries(): ResolvedSeries {
+  return { bars: [], timeframe: '1m', dataSource: 'empty:session-range' }
 }
 
 function resolveFetchRange(startDate?: string, endDate?: string): { startSec?: number; endSec?: number } {
@@ -342,6 +350,7 @@ async function fetchMarketBarRange(
   sessionStartSec?: number,
   sessionEndSec?: number,
   skipLocal = false,
+  bootFast = false,
 ): Promise<MarketBarsSeries | null> {
   const nowSec = Math.floor(Date.now() / 1000)
   const isHistorical = Number.isFinite(endSec) && endSec < nowSec - 3600
@@ -351,18 +360,27 @@ async function fetchMarketBarRange(
     sessionEndSec != null &&
     Number.isFinite(sessionEndSec) &&
     sessionEndSec > sessionStartSec
+  const fetchTimeout = bootFast ? BOOT_BARS_FETCH_TIMEOUT_MS : undefined
   const opts = {
     interval: '1m' as const,
     startSec,
     endSec,
     sessionStartSec: sessionStartSec ?? undefined,
     minBars: minBarsForFetchWindow(startSec, endSec, needSessionCover),
+    timeoutMs: fetchTimeout,
   }
 
   const usable = (result: MarketBarsSeries | null): result is MarketBarsSeries => {
     if (!result?.bars.length) return false
     if (!needSessionCover) return true
     return barsCoverSessionWindow(result.bars, sessionStartSec!, sessionEndSec!)
+  }
+
+  if (bootFast) {
+    let result = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, { ...opts, noCache: true })
+    if (usable(result)) return result
+    result = await fetchMarketBarsSeries(symbol, undefined, { ...opts, noCache: true })
+    return usable(result) ? result : null
   }
 
   // Historical sessions: hit SQLite directly first (ms on Railway when volume is warm).
@@ -456,27 +474,15 @@ export async function prefetchSessionLookbackBars(
   const startSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : null
   if (startSec == null || !Number.isFinite(startSec) || !bars.length) return null
 
-  const target = sessionChartLookbackBars(startDate, endDate)
-  const firstSessionIdx = bars.findIndex((b) => b.time >= startSec)
-  if (firstSessionIdx < 0) return null
-  if (firstSessionIdx >= target) return null
-
-  const pad = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, {
-    interval: '1m',
-    startSec: Math.max(0, startSec - sessionChartLookbackSec(startDate, endDate)),
-    endSec: startSec,
-    minBars: 2,
-    noCache: true,
-  })
-  if (!pad?.bars.length) return null
-  return mergeBarsByTime(pad.bars, bars)
+  const merged = await topUpSessionLookbackBars(symbol, bars, startDate, endDate, startSec)
+  return merged.length > bars.length ? merged : null
 }
 
 async function fetchLiveMarketSeries(
   symbol: string,
   startDate?: string,
   endDate?: string,
-  opts?: { skipLocalBars?: boolean },
+  opts?: { skipLocalBars?: boolean; bootFast?: boolean },
 ): Promise<ResolvedSeries | null> {
   const sessionRange = sessionDateRangeSec(startDate, endDate)
   const sessionStartSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : undefined
@@ -511,6 +517,7 @@ async function fetchLiveMarketSeries(
     sessionStartSec ?? undefined,
     hasRange ? sessionRange.endSec : undefined,
     Boolean(opts?.skipLocalBars),
+    Boolean(opts?.bootFast),
   )
   if (!fromMarket) return null
 
@@ -546,10 +553,6 @@ async function fetchLiveMarketSeries(
       }
     }
     if (!sessionWindowHasBars(bars, startDate, endDate) && bars.length < minBars) return null
-  }
-
-  if (hasRange && sessionStartSec != null) {
-    bars = await topUpSessionLookbackBars(symbol, bars, startDate, endDate, sessionStartSec)
   }
 
   return {
@@ -630,24 +633,24 @@ export async function resolveSessionBars(
   const endDate = opts?.endDate
   const synth = syntheticParams(startDate, endDate, count)
   const minBars = minBarsForSessionChart(startDate, endDate)
-  const liveOpts = { skipLocalBars: opts?.skipLocalBars }
+  const liveOpts = { skipLocalBars: opts?.skipLocalBars, bootFast: opts?.bootFast }
+  const dated = hasDatedSession(startDate, endDate)
 
   if (isGoldBrowserSymbol(u)) {
-    if (!opts?.offlineFallback) {
-      const live = await fetchLiveMarketSeries(u, startDate, endDate, liveOpts)
-      if (live) return live
-      console.warn('[Tradeneu] Live XAUUSD bars unavailable — using demo fallback', {
-        startDate,
-        endDate,
-      })
+    const live = await fetchLiveMarketSeries(u, startDate, endDate, liveOpts)
+    if (live) return live
+    if (dated) {
+      console.warn('[Tradeneu] No XAUUSD bars for session range', { startDate, endDate })
+      return emptySessionRangeSeries()
     }
+    console.warn('[Tradeneu] Live XAUUSD bars unavailable — using demo fallback', {
+      startDate,
+      endDate,
+    })
 
     const fromFile = await fetchGoldStaticJson()
     if (fromFile) {
-      let bars = fromFile.bars
-      if (!opts?.offlineFallback) {
-        bars = await ensurePriorBarInPool(u, fromFile.bars, startDate)
-      }
+      let bars = await ensurePriorBarInPool(u, fromFile.bars, startDate)
       const sessionRange = sessionDateRangeSec(startDate, endDate)
       if (
         sessionRange.startSec != null &&
@@ -667,9 +670,11 @@ export async function resolveSessionBars(
   }
 
   if (usesMarketDataSession(u)) {
-    if (!opts?.offlineFallback) {
-      const live = await fetchLiveMarketSeries(u, startDate, endDate, liveOpts)
-      if (live) return live
+    const live = await fetchLiveMarketSeries(u, startDate, endDate, liveOpts)
+    if (live) return live
+    if (dated) {
+      console.warn('[Tradeneu] No market bars for session range', { symbol: u, startDate, endDate })
+      return emptySessionRangeSeries()
     }
     return syntheticFallbackForSymbol(u, synth.count, seed, synth.startSec)
   }
