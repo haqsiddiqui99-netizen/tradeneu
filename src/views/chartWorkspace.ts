@@ -4464,7 +4464,7 @@ export function mountChartWorkspace(
       state.tvChart.setHistoricalAnchorIndex(Math.max(0, sessionReplayStartIndex - 1))
       state.tvChart.setTvFullSeriesReplay(false)
       state.tvChart.primeIntervalFeed(tvBars, tvRes, idx, tvPeriod)
-      nextReplayTickFit = true
+      nextReplayTickFit = !isHistorical
       nextReplayTickForce = !isHistorical
       if (isHistorical && replay.getState().index !== idx) {
         replay.setIndex(idx)
@@ -4575,12 +4575,14 @@ export function mountChartWorkspace(
 
         const added = replay.prependBars(prefix)
         if (added <= 0 || state.disposed) return
-        sessionReplayStartIndex += added
         state.tvChart?.prependSessionBars(prefix)
         chartBars = replay.getBars()
         source1mBars = chartBars.slice()
+        sessionReplayStartIndex = sessionStartReplayIndex(chartBars, activeSession.startDate)
         nextReplayTickFit = false
         onReplayTick(replay.slice(), replay.getState().index)
+        state.tvChart?.scrollReplayCursorIntoView()
+        console.info('[ChartBoot] Lookback expanded', { added, priorBars: newFirstIdx })
       }
 
       void state.tvChart.whenChartReady().then(() => {

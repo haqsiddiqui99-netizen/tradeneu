@@ -395,6 +395,57 @@ export async function fetchSessionBarChunk(
   }
 }
 
+/** Cap wait for lookback top-up during live bar load (ms). */
+const LOOKBACK_TOPUP_MS = 12_000
+
+async function topUpSessionLookbackBars(
+  symbol: string,
+  bars: Bar[],
+  startDate?: string,
+  endDate?: string,
+  sessionStartSec?: number,
+): Promise<Bar[]> {
+  if (!startDate?.trim() || sessionStartSec == null || !Number.isFinite(sessionStartSec) || !bars.length) {
+    return bars
+  }
+  const target = sessionChartLookbackBars(startDate, endDate)
+  const firstSessionIdx = bars.findIndex((b) => b.time >= sessionStartSec)
+  if (firstSessionIdx < 0 || firstSessionIdx >= target) return bars
+
+  const padStart = Math.max(0, sessionStartSec - sessionChartLookbackSec(startDate, endDate))
+  const padOpts = {
+    interval: '1m' as const,
+    startSec: padStart,
+    endSec: sessionStartSec,
+    sessionStartSec,
+    minBars: 2,
+    noCache: true as const,
+  }
+
+  const withTimeout = async (chain?: string) =>
+    Promise.race([
+      fetchMarketBarsSeries(symbol, chain, padOpts),
+      new Promise<MarketBarsSeries | null>((resolve) =>
+        window.setTimeout(() => resolve(null), LOOKBACK_TOPUP_MS),
+      ),
+    ])
+
+  const pad = (await withTimeout(REMOTE_BAR_CHAIN)) ?? (await withTimeout(undefined))
+  if (!pad?.bars.length) return bars
+
+  const merged = resolveChartBarsForSession(mergeBarsByTime(pad.bars, bars), startDate, endDate)
+  const newFirstIdx = merged.findIndex((b) => b.time >= sessionStartSec)
+  if (newFirstIdx > firstSessionIdx) {
+    console.info('[Tradeneu] Session lookback top-up', {
+      before: firstSessionIdx,
+      after: newFirstIdx,
+      target,
+    })
+    return merged
+  }
+  return bars
+}
+
 /** Background: fetch missing lookback candles after chart is visible (never blocks boot). */
 export async function prefetchSessionLookbackBars(
   symbol: string,
@@ -495,6 +546,10 @@ async function fetchLiveMarketSeries(
       }
     }
     if (!sessionWindowHasBars(bars, startDate, endDate) && bars.length < minBars) return null
+  }
+
+  if (hasRange && sessionStartSec != null) {
+    bars = await topUpSessionLookbackBars(symbol, bars, startDate, endDate, sessionStartSec)
   }
 
   return {
