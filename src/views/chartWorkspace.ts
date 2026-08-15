@@ -1035,6 +1035,46 @@ export function mountChartWorkspace(
     replayNoticeEl.textContent = message
   }
 
+  function showChartEmptyState(message: string) {
+    let el = chartHost.querySelector('[data-rw-chart-empty]') as HTMLElement | null
+    if (!el) {
+      el = document.createElement('div')
+      el.className = 'rw-chart-empty'
+      el.dataset.rwChartEmpty = ''
+      el.setAttribute('role', 'status')
+      chartHost.append(el)
+    }
+    el.textContent = message
+    el.hidden = false
+    chartTv.hidden = true
+    chartHost.classList.remove('rw-chart-host--tv')
+  }
+
+  function hideChartEmptyState() {
+    const el = chartHost.querySelector('[data-rw-chart-empty]') as HTMLElement | null
+    if (el) el.hidden = true
+  }
+
+  function noDataMessage(hasSessionDates: boolean): string {
+    const rangeHint =
+      hasSessionDates && activeSession.startDate && activeSession.endDate
+        ? ` (${activeSession.startDate} – ${activeSession.endDate})`
+        : ''
+    return hasSessionDates
+      ? `No bars available for the selected session range${rangeHint}. Adjust start/end dates or check the data feed.`
+      : `No bars for ${symUi}. Check the data feed or session import.`
+  }
+
+  async function abortChartNoData(hasSessionDates: boolean) {
+    const msg = noDataMessage(hasSessionDates)
+    showChartEmptyState(msg)
+    showReplayNotice(msg)
+    if (subbarHeadEl) subbarHeadEl.innerHTML = `<span style="color:#787b86">${msg}</span>`
+    chartVolEl.innerHTML = ''
+    if (replayStatusEl) replayStatusEl.textContent = 'Replay · no data'
+    await endBootLoading(true)
+  }
+
   function showReplayNoticeAction(
     message: string,
     actionLabel: string,
@@ -2364,7 +2404,6 @@ export function mountChartWorkspace(
       series = await loadSessionBars(currentChartSymbol, activeSession.name, undefined, {
         startDate: activeSession.startDate,
         endDate: activeSession.endDate,
-        skipLocalBars: true,
         bootFast: true,
       })
       setBootLoadStep(2)
@@ -2412,22 +2451,12 @@ export function mountChartWorkspace(
       emptyDateRange,
     })
 
-    if (!chartBars.length) {
-      const rangeHint =
-        hasSessionDates && activeSession.startDate && activeSession.endDate
-          ? ` (${activeSession.startDate} – ${activeSession.endDate})`
-          : ''
-      const msg = hasSessionDates
-        ? `No bars available for the selected session range${rangeHint}. Adjust start/end dates or check the data feed.`
-        : `No bars for ${symUi}. Check the data feed or session import.`
-      if (tvChartMode) showReplayNotice(msg)
-      else if (subbarHeadEl) subbarHeadEl.innerHTML = `<span style="color:#787b86">${msg}</span>`
-      chartVolEl.innerHTML = ''
-      if (replayStatusEl) replayStatusEl.textContent = 'Replay · no data'
-      await endBootLoading(true)
+    if (!chartBars.length || emptyDateRange) {
+      await abortChartNoData(hasSessionDates)
       return
     }
 
+    hideChartEmptyState()
     chartTimeframe = series.timeframe
     let replayTimeframe = chartTimeframe
     /** Sub-minute replay step series (10s, 30s, …) when chart stays on minute+. */
@@ -3455,25 +3484,6 @@ export function mountChartWorkspace(
     }
     intervalPill.textContent = chartTimeframe
     if (replayDockTf) replayDockTf.textContent = chartTimeframe
-
-    if (!chartBars.length) {
-      const rangeHint =
-        hasSessionDates && activeSession.startDate && activeSession.endDate
-          ? ` (${activeSession.startDate} – ${activeSession.endDate})`
-          : ''
-      const msg = hasSessionDates
-        ? `No bars available for the selected session range${rangeHint}. Adjust start/end dates or check the data feed.`
-        : `No bars for ${symUi}. Check the data feed or session import.`
-      if (tvChartMode) {
-        showReplayNotice(msg)
-      } else if (subbarHeadEl) {
-        subbarHeadEl.innerHTML = `<span style="color:#787b86">${msg}</span>`
-      }
-      chartVolEl.innerHTML = ''
-      if (replayStatusEl) replayStatusEl.textContent = 'Replay · no data'
-      await endBootLoading(true)
-      return
-    }
 
     const replayAccount = createReplayAccount(initialCash, restoredReplay?.account ?? null)
     let positionOverlay: ReturnType<typeof mountChartPositionOverlay> | null = null
@@ -4548,6 +4558,7 @@ export function mountChartWorkspace(
         if (state.disposed || !state.tvChart) return
         await yieldToMain()
         await applyTvBootPaint()
+        hideChartEmptyState()
         hideTvReplayMask()
         maybeShowSessionWindowedNotice()
         paintedWithNonZeroHost = true

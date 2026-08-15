@@ -377,9 +377,9 @@ async function fetchMarketBarRange(
   }
 
   if (bootFast) {
-    let result = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, { ...opts, noCache: true })
+    let result = await fetchMarketBarsSeries(symbol, undefined, { ...opts, noCache: true })
     if (usable(result)) return result
-    result = await fetchMarketBarsSeries(symbol, undefined, { ...opts, noCache: true })
+    result = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, { ...opts, noCache: true })
     return usable(result) ? result : null
   }
 

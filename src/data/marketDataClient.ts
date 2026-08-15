@@ -109,7 +109,7 @@ const BARS_FETCH_TIMEOUT_MS = Math.max(
   Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_FETCH_TIMEOUT_MS ?? '15000'), 10) || 15_000,
 )
 /** Boot chart load — fail fast so UI is not stuck on Loading indicators. */
-export const BOOT_BARS_FETCH_TIMEOUT_MS = 12_000
+export const BOOT_BARS_FETCH_TIMEOUT_MS = 18_000
 
 export async function fetchMarketBarsSeries(
   symbol: string,

@@ -1278,6 +1278,26 @@ button.rw-legend-status-btn:focus-visible {
   z-index: 0;
 }
 
+.rw-chart-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 32px;
+  text-align: center;
+  font: 500 14px/1.5 var(--rw-font);
+  color: #787b86;
+  background: #ffffff;
+  pointer-events: none;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-empty {
+  color: #b2b5be;
+  background: #131722;
+}
+
 /* TradingView-style: 10m UTC “session” vertical tint behind 1m candles (canvas under LWC). */
 .rw-chart-shade {
   position: absolute;
