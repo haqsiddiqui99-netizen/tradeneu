@@ -2410,8 +2410,6 @@ export function mountChartWorkspace(
               fromSec,
               sessionStartSec,
               sessionStartSec,
-              activeSession.startDate,
-              activeSession.endDate,
             )
             if (chunk?.bars.length) {
               const merged = mergeBarsByTime(chunk.bars, series.bars)
@@ -4474,16 +4472,23 @@ export function mountChartWorkspace(
       state.tvChart.setHistoricalAnchorIndex(Math.max(0, sessionReplayStartIndex - 1))
       state.tvChart.setTvFullSeriesReplay(false)
       state.tvChart.primeIntervalFeed(tvBars, tvRes, idx, tvPeriod)
-      nextReplayTickFit = false
-      nextReplayTickForce = false
+      nextReplayTickFit = true
+      nextReplayTickForce = !isHistorical
       if (isHistorical && replay.getState().index !== idx) {
         replay.setIndex(idx)
       } else {
         onReplayTick(replay.slice(), idx)
       }
 
+      const sessionStartSec = activeSession.startDate?.trim()
+        ? parseSessionDateToSec(activeSession.startDate, 'start')
+        : null
       const anchorSessionViewport = () => {
-        state.tvChart?.scrollReplayCursorIntoView()
+        if (sessionStartSec != null && Number.isFinite(sessionStartSec)) {
+          state.tvChart?.scrollToWallTimeSec(sessionStartSec)
+        } else {
+          state.tvChart?.scrollReplayCursorIntoView()
+        }
       }
 
       state.tvChart.flushPendingRefresh()
@@ -7537,8 +7542,6 @@ export function mountChartWorkspace(
       }
 
       replayPlayKickoff = true
-      nextReplayTickForce = false
-      nextReplayTickFit = false
       replay.play()
     }
 
