@@ -9,6 +9,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { getHistoricalRates } from 'dukascopy-node'
 import { cliEnabled, fetchDukascopyViaCli } from './dukascopyCli.mjs'
+import { minBarsForRange, prependSessionPriorBars } from './sessionPriorBars.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DEFAULT_CACHE_DIR = path.join(__dirname, '..', '..', 'server-data', 'dukascopy-cache')
@@ -338,13 +339,7 @@ export async function fetchDukascopyBars({
           filterEndSec: sessionStartSec,
         })
         if (priorCli?.bars.length) {
-          let prior = null
-          for (const b of priorCli.bars) {
-            if (b.time < sessionStartSec) prior = b
-          }
-          if (prior && prior.time < bars[0].time) {
-            bars = [prior, ...bars]
-          }
+          bars = prependSessionPriorBars(bars, priorCli.bars, sessionStartSec)
         }
       }
       const app = String(symbol).trim()
@@ -407,7 +402,8 @@ export async function fetchDukascopyBars({
       bars = cliRetry.bars
     }
   }
-  if (bars.length < 16) {
+  const minBars = minBarsForRange(cliStart, cliEnd)
+  if (bars.length < minBars) {
     return { ok: false, error: `dukascopy: parsed too few bars (${bars.length})` }
   }
 
@@ -440,13 +436,7 @@ export async function fetchDukascopyBars({
         'dukascopy-prior',
       )
       const priorBars = normalizeDukascopyRows(priorRows, priorFrom, sessionStartSec)
-      let prior = null
-      for (const b of priorBars) {
-        if (b.time < sessionStartSec) prior = b
-      }
-      if (prior && prior.time < bars[0].time) {
-        bars = [prior, ...bars]
-      }
+      bars = prependSessionPriorBars(bars, priorBars, sessionStartSec)
     } catch {
       /* prior candle optional */
     }

@@ -5,6 +5,8 @@
  * @see https://twelvedata.com/docs#time-series
  */
 
+import { minBarsForRange, prependSessionPriorBars } from './sessionPriorBars.mjs'
+
 const TD_TIME_SERIES = 'https://api.twelvedata.com/time_series'
 
 /**
@@ -299,7 +301,8 @@ export async function fetchTwelveDataTimeSeries({
     lastRequest = single.request
   }
 
-  if (merged.length < 16) {
+  const minBars = hasRange ? minBarsForRange(startSec, endSec) : 16
+  if (merged.length < minBars) {
     return { ok: false, error: `twelvedata: parsed too few bars (${merged.length})` }
   }
 
@@ -307,13 +310,7 @@ export async function fetchTwelveDataTimeSeries({
     const lookback = 7 * 86_400
     const priorChunk = await fetchChunk(Math.max(0, sessionStartSec - lookback), sessionStartSec, 500)
     if (priorChunk.ok && priorChunk.bars.length) {
-      let prior = null
-      for (const b of priorChunk.bars) {
-        if (b.time < sessionStartSec) prior = b
-      }
-      if (prior && prior.time < merged[0].time) {
-        merged.unshift(prior)
-      }
+      merged = prependSessionPriorBars(merged, priorChunk.bars, sessionStartSec)
     }
   }
 

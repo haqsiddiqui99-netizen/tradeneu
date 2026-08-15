@@ -60,7 +60,7 @@ import {
 } from '../data/localSecondBars'
 import { providerLabelFromDataSource } from '../data/marketDataSourceLabel'
 import { resolveFeedStatus } from '../data/feedStatus'
-import { inferTimeframeFromBars, fetchSessionBarChunk, resolveChartBarsForSession } from '../data/resolveSessionBars'
+import { inferTimeframeFromBars, fetchSessionBarChunk, prefetchSessionLookbackBars, resolveChartBarsForSession } from '../data/resolveSessionBars'
 import {
   chunkRangeAfterLoaded,
   chunkRangeBeforeLoaded,
@@ -4454,7 +4454,9 @@ export function mountChartWorkspace(
         ? parseSessionDateToSec(activeSession.startDate, 'start')
         : null
       const anchorSessionViewport = () => {
-        if (sessionStartSec != null && Number.isFinite(sessionStartSec)) {
+        if (isHistorical) {
+          state.tvChart?.scrollReplayCursorIntoView()
+        } else if (sessionStartSec != null && Number.isFinite(sessionStartSec)) {
           state.tvChart?.scrollToWallTimeSec(sessionStartSec)
         } else {
           state.tvChart?.scrollReplayCursorIntoView()
@@ -4523,6 +4525,40 @@ export function mountChartWorkspace(
           tvBootPaintDone = true
           await dismissBootAfterPaint()
         }
+        void prefetchLookbackAfterBoot()
+      }
+
+      async function prefetchLookbackAfterBoot() {
+        if (state.disposed || !usesMarketDataSession(currentChartSymbol)) return
+        const before = replay.getBars()
+        const startSec = activeSession.startDate?.trim()
+          ? parseSessionDateToSec(activeSession.startDate, 'start')
+          : null
+        if (startSec == null || !Number.isFinite(startSec)) return
+
+        const merged = await prefetchSessionLookbackBars(
+          currentChartSymbol,
+          before,
+          activeSession.startDate,
+          activeSession.endDate,
+        )
+        if (!merged || state.disposed || merged.length <= before.length) return
+
+        const oldFirstIdx = before.findIndex((b) => b.time >= startSec)
+        const newFirstIdx = merged.findIndex((b) => b.time >= startSec)
+        if (oldFirstIdx < 0 || newFirstIdx < 0 || newFirstIdx <= oldFirstIdx) return
+
+        const prefix = merged.slice(newFirstIdx - (newFirstIdx - oldFirstIdx), newFirstIdx)
+        if (!prefix.length) return
+
+        const added = replay.prependBars(prefix)
+        if (added <= 0 || state.disposed) return
+        sessionReplayStartIndex += added
+        state.tvChart?.prependSessionBars(prefix)
+        chartBars = replay.getBars()
+        source1mBars = chartBars.slice()
+        nextReplayTickFit = false
+        onReplayTick(replay.slice(), replay.getState().index)
       }
 
       void state.tvChart.whenChartReady().then(() => {

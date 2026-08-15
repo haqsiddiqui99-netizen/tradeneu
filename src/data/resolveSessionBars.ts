@@ -15,6 +15,7 @@ import {
   sessionDateRangeSec,
   sessionFetchStartSec,
   SESSION_CHART_LOOKBACK_SEC,
+  sessionChartLookbackBars,
   sessionChartLookbackSec,
   SESSION_FETCH_PRE_ROLL_SEC,
   sessionWindowHasBars,
@@ -307,10 +308,6 @@ const REMOTE_BAR_CHAIN = 'dukascopy,twelvedata'
 /** Fast path for dated historical sessions — SQLite on Railway volume. */
 const LOCAL_ONLY_BAR_CHAIN = 'local'
 
-function sleepMs(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
-}
-
 function barsCoverSessionWindow(
   bars: Bar[],
   sessionStartSec: number,
@@ -319,10 +316,19 @@ function barsCoverSessionWindow(
   return bars.some((b) => b.time >= sessionStartSec && b.time <= sessionEndSec)
 }
 
-function minBarsForFetchWindow(startSec: number, endSec: number): number {
+function minBarsForFetchWindow(startSec: number, endSec: number, sessionCover = false): number {
+  if (sessionCover) return 2
   const span = Math.max(60, endSec - startSec)
   const expected = Math.ceil(span / 60) + 1
   return Math.min(16, Math.max(2, expected))
+}
+
+/** Short dated sessions may have fewer than 16 bars — do not reject valid payloads. */
+function minBarsForSessionChart(startDate?: string, endDate?: string): number {
+  const { startSec, endSec } = sessionDateRangeSec(startDate, endDate)
+  if (startSec == null || endSec == null || endSec <= startSec) return 16
+  const sessionBars = Math.max(2, Math.ceil((endSec - startSec) / 60) + 1)
+  return Math.max(2, Math.min(16, sessionBars + 2))
 }
 
 async function fetchMarketBarRange(
@@ -334,20 +340,19 @@ async function fetchMarketBarRange(
 ): Promise<MarketBarsSeries | null> {
   const nowSec = Math.floor(Date.now() / 1000)
   const isHistorical = Number.isFinite(endSec) && endSec < nowSec - 3600
-  const opts = {
-    interval: '1m' as const,
-    startSec,
-    endSec,
-    sessionStartSec: sessionStartSec ?? undefined,
-    minBars: minBarsForFetchWindow(startSec, endSec),
-  }
-
   const needSessionCover =
     sessionStartSec != null &&
     Number.isFinite(sessionStartSec) &&
     sessionEndSec != null &&
     Number.isFinite(sessionEndSec) &&
     sessionEndSec > sessionStartSec
+  const opts = {
+    interval: '1m' as const,
+    startSec,
+    endSec,
+    sessionStartSec: sessionStartSec ?? undefined,
+    minBars: minBarsForFetchWindow(startSec, endSec, needSessionCover),
+  }
 
   const usable = (result: MarketBarsSeries | null): result is MarketBarsSeries => {
     if (!result?.bars.length) return false
@@ -366,13 +371,6 @@ async function fetchMarketBarRange(
 
   // Do not wait on SQLite backfill — remote chain answers faster on Railway.
   result = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, { ...opts, noCache: true })
-  if (usable(result)) return result
-
-  await sleepMs(800)
-  result = await fetchMarketBarsSeries(symbol, undefined, { ...opts, noCache: true })
-  if (usable(result)) return result
-
-  result = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, { ...opts, noCache: true })
   return usable(result) ? result : null
 }
 
@@ -390,6 +388,32 @@ export async function fetchSessionBarChunk(
     timeframe: fromMarket.timeframe,
     dataSource: fromMarket.dataSource,
   }
+}
+
+/** Background: fetch missing lookback candles after chart is visible (never blocks boot). */
+export async function prefetchSessionLookbackBars(
+  symbol: string,
+  bars: Bar[],
+  startDate?: string,
+  endDate?: string,
+): Promise<Bar[] | null> {
+  const startSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : null
+  if (startSec == null || !Number.isFinite(startSec) || !bars.length) return null
+
+  const target = sessionChartLookbackBars(startDate, endDate)
+  const firstSessionIdx = bars.findIndex((b) => b.time >= startSec)
+  if (firstSessionIdx < 0) return null
+  if (firstSessionIdx >= target) return null
+
+  const pad = await fetchMarketBarsSeries(symbol, REMOTE_BAR_CHAIN, {
+    interval: '1m',
+    startSec: Math.max(0, startSec - sessionChartLookbackSec(startDate, endDate)),
+    endSec: startSec,
+    minBars: 2,
+    noCache: true,
+  })
+  if (!pad?.bars.length) return null
+  return mergeBarsByTime(pad.bars, bars)
 }
 
 async function fetchLiveMarketSeries(
@@ -432,12 +456,13 @@ async function fetchLiveMarketSeries(
   )
   if (!fromMarket) return null
 
+  const minBars = minBarsForSessionChart(startDate, endDate)
   let bars = resolveChartBarsForSession(fromMarket.bars, startDate, endDate)
-  if (bars.length < 16) {
+  if (bars.length < minBars) {
     const trimmed = trimBarsForSessionChart(fromMarket.bars, startDate, endDate)
-    if (trimmed.length >= 16) bars = trimmed
-    else if (fromMarket.bars.length >= 16) bars = fromMarket.bars.slice(0, MAX_SESSION_CHART_BARS)
-    else return null
+    if (trimmed.length >= minBars) bars = trimmed
+    else if (fromMarket.bars.length >= minBars) bars = fromMarket.bars.slice(0, MAX_SESSION_CHART_BARS)
+    else if (!sessionWindowHasBars(bars, startDate, endDate)) return null
   }
 
   if (hasRange && !sessionWindowHasBars(bars, startDate, endDate)) {
@@ -453,16 +478,16 @@ async function fetchLiveMarketSeries(
       startSec: Math.max(0, sStart - sessionChartLookbackSec(startDate, endDate)),
       endSec: sEnd,
       sessionStartSec: sessionStartSec ?? undefined,
-      minBars: minBarsForFetchWindow(sStart, sEnd),
+      minBars: 2,
       noCache: true,
     })
     if (sessionOnly?.bars.length) {
       const retryBars = resolveChartBarsForSession(sessionOnly.bars, startDate, endDate)
-      if (sessionWindowHasBars(retryBars, startDate, endDate) && retryBars.length >= 16) {
+      if (sessionWindowHasBars(retryBars, startDate, endDate) && retryBars.length >= minBars) {
         bars = retryBars
       }
     }
-    if (!sessionWindowHasBars(bars, startDate, endDate) && bars.length < 16) return null
+    if (!sessionWindowHasBars(bars, startDate, endDate) && bars.length < minBars) return null
   }
 
   return {

@@ -104,7 +104,7 @@ function pruneSeriesCache() {
 /** Abort hung Dukascopy / historic API fetches so saved-session chart boot can fall back. */
 const BARS_FETCH_TIMEOUT_MS = Math.max(
   5_000,
-  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_FETCH_TIMEOUT_MS ?? '120000'), 10) || 120_000,
+  Number.parseInt(String(import.meta.env.VITE_MARKET_BARS_FETCH_TIMEOUT_MS ?? '25000'), 10) || 25_000,
 )
 
 export async function fetchMarketBarsSeries(
