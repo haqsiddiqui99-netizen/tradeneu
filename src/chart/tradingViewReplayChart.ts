@@ -722,17 +722,16 @@ export function createTvReplayChartController(opts: {
     return { ...saved, from: newFrom, to: newTo }
   }
 
-  /** During playback, anchor every step so 10x replay cannot outrun async setVisibleRange. */
+  /** During playback, optionally follow the cursor (live loop). Fixed pan/zoom skips anchoring. */
   const advancePlaybackViewport = (
     saved: TvLockedViewport,
     pastBars: Bar[],
     prevPastCount: number,
     pastCount: number,
     playing?: boolean,
-    force?: boolean,
+    preserveFixed?: boolean,
   ): TvLockedViewport => {
-    if (!playing || pastCount <= prevPastCount || !pastBars.length) return saved
-    if (force) return anchorLockedViewportToCursor(saved, pastBars, pastCount)
+    if (preserveFixed || !playing || pastCount <= prevPastCount || !pastBars.length) return saved
     return anchorLockedViewportToCursor(saved, pastBars, pastCount)
   }
 
@@ -741,9 +740,17 @@ export function createTvReplayChartController(opts: {
     pastBars: Bar[],
     prevPastCount: number,
     pastCount: number,
-    opts2?: { playing?: boolean; force?: boolean },
+    opts2?: { playing?: boolean; force?: boolean; preserveViewport?: boolean },
   ) => {
-    const next = advancePlaybackViewport(saved, pastBars, prevPastCount, pastCount, opts2?.playing, opts2?.force)
+    const preserveFixed = opts2?.preserveViewport === true
+    const next = advancePlaybackViewport(
+      saved,
+      pastBars,
+      prevPastCount,
+      pastCount,
+      opts2?.playing,
+      preserveFixed,
+    )
     replayLockedViewport = next
     applyPlaybackViewportRange(next, opts2?.playing === true)
   }
@@ -1058,9 +1065,12 @@ export function createTvReplayChartController(opts: {
           opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
         }
       }
-      const aligned = anchorLockedViewportToCursor(holdViewport, pastBars, pastCount)
-      replayLockedViewport = aligned
-      applyPlaybackViewportRange(aligned)
+      const kickoffViewport =
+        opts2.preserveViewport === true
+          ? holdViewport
+          : anchorLockedViewportToCursor(holdViewport, pastBars, pastCount)
+      replayLockedViewport = kickoffViewport
+      applyPlaybackViewportRange(kickoffViewport, opts2.preserveViewport === true)
       lastPastCount = pastCount
       ensureRangeHooks()
       return

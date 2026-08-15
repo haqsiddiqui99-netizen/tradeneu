@@ -4250,15 +4250,17 @@ export function mountChartWorkspace(
     let decoupledLegendBarCount = -1
 
     function pinChartViewportForReplay() {
-      const snap = state.tvChart?.captureLockedViewport() ?? null
+      const snap =
+        state.tvChart?.captureLockedViewport() ??
+        lockedTvViewport ??
+        state.tvChart?.getReplayLockedViewport() ??
+        null
       if (!snap) return
       replayViewportLocked = true
       lockedTvViewport = snap
       pendingTvViewportRestore = snap
       state.tvChart?.setReplayLockedViewport(snap)
-      if (replay.getState().playing) {
-        state.tvChart?.notifyUserPlaybackPan(tvBarPeriodSecForPill(chartTimeframe))
-      }
+      state.tvChart?.notifyUserPlaybackPan(tvBarPeriodSecForPill(chartTimeframe))
     }
 
     function onReplayTick(slice: Bar[], index: number) {
@@ -4280,9 +4282,8 @@ export function mountChartWorkspace(
       nextReplayTickChartViewSnap = null
       const forceChart =
         !viewStepOnly &&
-        (nextReplayTickForce === true ||
-          nextReplayTickFit === true ||
-          (wasPlayKickoff && !replayViewportLocked))
+        !replayViewportLocked &&
+        (nextReplayTickForce === true || nextReplayTickFit === true)
       const replayPlaying = state.replay?.getState().playing ?? false
       nextReplayTickFit = undefined
       nextReplayTickForce = undefined
@@ -7580,9 +7581,16 @@ export function mountChartWorkspace(
 
     function beginReplayPlayback() {
       if (!selectBarChartActive) {
-        // FxReplay-style: lock wherever the chart is — bars still stream via realtime emit.
-        pinChartViewportForReplay()
+        // Lock wherever the chart is — playback reveals bars without shifting pan/zoom.
+        if (userViewportPinned && lockedTvViewport) {
+          replayViewportLocked = true
+          pendingTvViewportRestore = lockedTvViewport
+          state.tvChart?.setReplayLockedViewport(lockedTvViewport)
+        } else {
+          pinChartViewportForReplay()
+        }
         userViewportPinned = false
+        state.tvChart?.notifyUserPlaybackPan(tvBarPeriodSecForPill(chartTimeframe))
       } else if (
         replayViewportLocked &&
         lockedTvViewport &&

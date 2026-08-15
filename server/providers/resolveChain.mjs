@@ -18,6 +18,8 @@ import {
   chartIntervalToLocalTimeframe,
   localChunkSatisfied,
   marketLocalEnabled,
+  insertBars,
+  recordSyncManifest,
 } from './marketLocalDb.mjs'
 import { minBarsForRange } from './sessionPriorBars.mjs'
 
@@ -41,6 +43,45 @@ function onDemandSyncEnabled() {
   const v = process.env.MARKET_ON_DEMAND_SYNC?.trim().toLowerCase()
   if (v === '0' || v === 'false' || v === 'no') return false
   return true
+}
+
+/** Persist live provider bars into SQLite so the next request hits local first. */
+function remotePersistEnabled() {
+  const v = process.env.MARKET_REMOTE_PERSIST?.trim().toLowerCase()
+  if (v === '0' || v === 'false' || v === 'no') return false
+  return marketLocalEnabled()
+}
+
+function persistRemoteBarsAsync(symbol, chartInterval, bars, provider) {
+  if (!remotePersistEnabled() || !Array.isArray(bars) || bars.length < 2) return
+  const cInterval = resolveChartInterval(symbol, chartInterval)
+  const tf = chartIntervalToLocalTimeframe(cInterval)
+  if (!tf || tf.startsWith('s')) return
+
+  void (async () => {
+    try {
+      const n = insertBars(symbol, tf, bars)
+      if (n < 1) return
+      const first = Number(bars[0]?.time)
+      const last = Number(bars[bars.length - 1]?.time)
+      if (Number.isFinite(first) && Number.isFinite(last)) {
+        recordSyncManifest({
+          symbol,
+          dataKind: `bars:${tf}`,
+          rangeStart: Math.floor(first),
+          rangeEnd: Math.floor(last),
+          rowCount: n,
+          source: `remote:${provider}`,
+        })
+      }
+      console.log(`[market-persist] ${symbol} ${tf}: saved ${n} bars from ${provider}`)
+    } catch (err) {
+      console.warn(
+        `[market-persist] ${symbol} ${tf}:`,
+        err instanceof Error ? err.message : err,
+      )
+    }
+  })()
 }
 
 function resolveChartInterval(symbol, chartInterval) {
@@ -259,6 +300,10 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
         sessionStartSec,
       })
       if (dc.ok && dc.bars?.length >= chainMinBars(startSec, endSec)) {
+        persistRemoteBarsAsync(symbol, cInterval, dc.bars, 'dukascopy')
+        if (Number.isFinite(startSec) && Number.isFinite(endSec) && endSec > startSec) {
+          kickLocalBarsSync(symbol, cInterval, startSec, endSec)
+        }
         return {
           ok: true,
           bars: dc.bars,
@@ -335,6 +380,10 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
         sessionStartSec,
       })
       if (td.ok && td.bars?.length >= chainMinBars(startSec, endSec)) {
+        persistRemoteBarsAsync(symbol, cInterval, td.bars, 'twelvedata')
+        if (Number.isFinite(startSec) && Number.isFinite(endSec) && endSec > startSec) {
+          kickLocalBarsSync(symbol, cInterval, startSec, endSec)
+        }
         return {
           ok: true,
           bars: td.bars,

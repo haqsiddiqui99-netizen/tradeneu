@@ -448,7 +448,7 @@ async function topUpSessionLookbackBars(
       ),
     ])
 
-  const pad = (await withTimeout(REMOTE_BAR_CHAIN)) ?? (await withTimeout(undefined))
+  const pad = (await withTimeout(LOCAL_ONLY_BAR_CHAIN)) ?? (await withTimeout(undefined)) ?? (await withTimeout(REMOTE_BAR_CHAIN))
   if (!pad?.bars.length) return bars
 
   const merged = resolveChartBarsForSession(mergeBarsByTime(pad.bars, bars), startDate, endDate)
