@@ -5,7 +5,7 @@
  * @see https://twelvedata.com/docs#time-series
  */
 
-import { minBarsForRange, prependSessionPriorBars } from './sessionPriorBars.mjs'
+import { minBarsForRange, prependSessionPriorBars, priorFetchStartSec } from './sessionPriorBars.mjs'
 
 const TD_TIME_SERIES = 'https://api.twelvedata.com/time_series'
 
@@ -307,8 +307,8 @@ export async function fetchTwelveDataTimeSeries({
   }
 
   if (Number.isFinite(sessionStartSec) && !merged.some((b) => b.time < sessionStartSec)) {
-    const lookback = 7 * 86_400
-    const priorChunk = await fetchChunk(Math.max(0, sessionStartSec - lookback), sessionStartSec, 500)
+    const priorFrom = priorFetchStartSec(sessionStartSec, startSec) ?? Math.max(0, sessionStartSec - 3600)
+    const priorChunk = await fetchChunk(priorFrom, sessionStartSec, 500)
     if (priorChunk.ok && priorChunk.bars.length) {
       merged = prependSessionPriorBars(merged, priorChunk.bars, sessionStartSec)
     }

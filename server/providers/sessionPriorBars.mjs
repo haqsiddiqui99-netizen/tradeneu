@@ -5,6 +5,15 @@ export function minBarsForRange(startSec, endSec) {
   return Math.max(2, Math.min(16, Math.ceil(span / 60)))
 }
 
+/** Prior backfill window — reuse client preroll, never pull 7d synchronously at boot. */
+export function priorFetchStartSec(sessionStartSec, requestStartSec) {
+  if (!Number.isFinite(sessionStartSec)) return null
+  if (Number.isFinite(requestStartSec) && requestStartSec < sessionStartSec) {
+    return Math.max(0, Math.floor(requestStartSec))
+  }
+  return Math.max(0, Math.floor(sessionStartSec) - 3600)
+}
+
 /** Prepend up to `maxPrior` candles strictly before `sessionStartSec`. Skips when priors already exist. */
 export function prependSessionPriorBars(bars, priorBars, sessionStartSec, maxPrior = 120) {
   if (!Array.isArray(bars) || !bars.length) return bars

@@ -19,6 +19,14 @@ import {
   localChunkSatisfied,
   marketLocalEnabled,
 } from './marketLocalDb.mjs'
+import { minBarsForRange } from './sessionPriorBars.mjs'
+
+function chainMinBars(startSec, endSec) {
+  if (Number.isFinite(startSec) && Number.isFinite(endSec) && endSec > startSec) {
+    return minBarsForRange(startSec, endSec)
+  }
+  return 16
+}
 
 function minLocalBarsForInterval(chartInterval) {
   const s = String(chartInterval || '').trim().toLowerCase()
@@ -250,7 +258,7 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
         endSec,
         sessionStartSec,
       })
-      if (dc.ok && dc.bars?.length >= 16) {
+      if (dc.ok && dc.bars?.length >= chainMinBars(startSec, endSec)) {
         return {
           ok: true,
           bars: dc.bars,
@@ -326,7 +334,7 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
         endSec,
         sessionStartSec,
       })
-      if (td.ok && td.bars?.length >= 16) {
+      if (td.ok && td.bars?.length >= chainMinBars(startSec, endSec)) {
         return {
           ok: true,
           bars: td.bars,

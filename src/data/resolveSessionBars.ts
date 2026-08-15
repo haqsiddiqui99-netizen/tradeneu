@@ -31,6 +31,10 @@ export const MAX_SESSION_CHART_BARS = 60_000
 export type SessionBarsOpts = {
   startDate?: string
   endDate?: string
+  /** Skip /api/market/bars — static JSON or synthetic only (boot timeout path). */
+  offlineFallback?: boolean
+  /** Skip SQLite local chain on boot — remote/default providers only. */
+  skipLocalBars?: boolean
 }
 
 function resolveFetchRange(startDate?: string, endDate?: string): { startSec?: number; endSec?: number } {
@@ -337,6 +341,7 @@ async function fetchMarketBarRange(
   endSec: number,
   sessionStartSec?: number,
   sessionEndSec?: number,
+  skipLocal = false,
 ): Promise<MarketBarsSeries | null> {
   const nowSec = Math.floor(Date.now() / 1000)
   const isHistorical = Number.isFinite(endSec) && endSec < nowSec - 3600
@@ -361,7 +366,7 @@ async function fetchMarketBarRange(
   }
 
   // Historical sessions: hit SQLite directly first (ms on Railway when volume is warm).
-  if (isHistorical) {
+  if (isHistorical && !skipLocal) {
     const local = await fetchMarketBarsSeries(symbol, LOCAL_ONLY_BAR_CHAIN, { ...opts, noCache: true })
     if (usable(local)) return local
   }
@@ -420,6 +425,7 @@ async function fetchLiveMarketSeries(
   symbol: string,
   startDate?: string,
   endDate?: string,
+  opts?: { skipLocalBars?: boolean },
 ): Promise<ResolvedSeries | null> {
   const sessionRange = sessionDateRangeSec(startDate, endDate)
   const sessionStartSec = startDate?.trim() ? parseSessionDateToSec(startDate, 'start') : undefined
@@ -453,6 +459,7 @@ async function fetchLiveMarketSeries(
     endSec!,
     sessionStartSec ?? undefined,
     hasRange ? sessionRange.endSec : undefined,
+    Boolean(opts?.skipLocalBars),
   )
   if (!fromMarket) return null
 
@@ -567,18 +574,25 @@ export async function resolveSessionBars(
   const startDate = opts?.startDate
   const endDate = opts?.endDate
   const synth = syntheticParams(startDate, endDate, count)
+  const minBars = minBarsForSessionChart(startDate, endDate)
+  const liveOpts = { skipLocalBars: opts?.skipLocalBars }
 
   if (isGoldBrowserSymbol(u)) {
-    const live = await fetchLiveMarketSeries(u, startDate, endDate)
-    if (live) return live
-    console.warn('[Tradeneu] Live XAUUSD bars unavailable — using demo fallback', {
-      startDate,
-      endDate,
-    })
+    if (!opts?.offlineFallback) {
+      const live = await fetchLiveMarketSeries(u, startDate, endDate, liveOpts)
+      if (live) return live
+      console.warn('[Tradeneu] Live XAUUSD bars unavailable — using demo fallback', {
+        startDate,
+        endDate,
+      })
+    }
 
     const fromFile = await fetchGoldStaticJson()
     if (fromFile) {
-      let bars = await ensurePriorBarInPool(u, fromFile.bars, startDate)
+      let bars = fromFile.bars
+      if (!opts?.offlineFallback) {
+        bars = await ensurePriorBarInPool(u, fromFile.bars, startDate)
+      }
       const sessionRange = sessionDateRangeSec(startDate, endDate)
       if (
         sessionRange.startSec != null &&
@@ -591,15 +605,17 @@ export async function resolveSessionBars(
           bars = trimBarsForSessionChart(bars, startDate, endDate)
         }
       }
-      if (bars.length >= 16) return { ...fromFile, bars }
+      if (bars.length >= minBars) return { ...fromFile, bars }
     }
 
     return syntheticFallbackForSymbol(u, synth.count, seed, synth.startSec)
   }
 
   if (usesMarketDataSession(u)) {
-    const live = await fetchLiveMarketSeries(u, startDate, endDate)
-    if (live) return live
+    if (!opts?.offlineFallback) {
+      const live = await fetchLiveMarketSeries(u, startDate, endDate, liveOpts)
+      if (live) return live
+    }
     return syntheticFallbackForSymbol(u, synth.count, seed, synth.startSec)
   }
 

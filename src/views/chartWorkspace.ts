@@ -339,6 +339,8 @@ const TV_1M_DEFAULT_VISIBLE_BARS = 180
 
 /** Aggregated intervals need enough bars at boot or the chart pins one candle to the left edge. */
 const MIN_BOOT_CHART_BARS = 8
+/** Max wait for `/api/market/bars` during boot before offline synthetic fallback. */
+const BOOT_BAR_LOAD_MS = 22_000
 
 const TICK_LOAD_TIMEOUT_MS = 30_000
 
@@ -2361,10 +2363,32 @@ export function mountChartWorkspace(
     })
     try {
       setBootLoadStep(1)
-      series = await loadSessionBars(currentChartSymbol, activeSession.name, undefined, {
+      const barOpts = {
         startDate: activeSession.startDate,
         endDate: activeSession.endDate,
+      }
+      series = await new Promise<Awaited<ReturnType<typeof loadSessionBars>>>((resolve, reject) => {
+        const fallbackTimer = window.setTimeout(() => {
+          console.warn('[ChartBoot] Bar load slow — using offline fallback')
+          void loadSessionBars(currentChartSymbol, activeSession.name, undefined, {
+            ...barOpts,
+            offlineFallback: true,
+          }).then(resolve, reject)
+        }, BOOT_BAR_LOAD_MS)
+        void loadSessionBars(currentChartSymbol, activeSession.name, undefined, {
+          ...barOpts,
+          skipLocalBars: true,
+        })
+          .then((s) => {
+            window.clearTimeout(fallbackTimer)
+            resolve(s)
+          })
+          .catch((err) => {
+            window.clearTimeout(fallbackTimer)
+            reject(err)
+          })
       })
+      setBootLoadStep(2)
     } catch (err) {
       console.error('[ChartLoad]', err)
       marketHealth = marketHealth ?? (await fetchMarketDataHealth().catch(() => null))
@@ -3710,8 +3734,6 @@ export function mountChartWorkspace(
         el.classList.toggle('rw-foot__range--active', el.dataset.footRange === label)
       })
     }
-
-    setBootLoadStep(2)
 
     let useLightweightChart = true
 

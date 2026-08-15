@@ -9,7 +9,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { getHistoricalRates } from 'dukascopy-node'
 import { cliEnabled, fetchDukascopyViaCli } from './dukascopyCli.mjs'
-import { minBarsForRange, prependSessionPriorBars } from './sessionPriorBars.mjs'
+import { minBarsForRange, prependSessionPriorBars, priorFetchStartSec } from './sessionPriorBars.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DEFAULT_CACHE_DIR = path.join(__dirname, '..', '..', 'server-data', 'dukascopy-cache')
@@ -328,7 +328,7 @@ export async function fetchDukascopyBars({
     if (cliFirst) {
       let bars = cliFirst.bars
       if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
-        const priorFrom = Math.max(0, sessionStartSec - 7 * 86_400)
+        const priorFrom = priorFetchStartSec(sessionStartSec, startSec) ?? Math.max(0, sessionStartSec - 3600)
         const priorCli = await fetchBarsViaCli({
           symbol,
           instrument,
@@ -408,8 +408,7 @@ export async function fetchDukascopyBars({
   }
 
   if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
-    const lookbackSec = 7 * 86_400
-    const priorFrom = Math.max(0, sessionStartSec - lookbackSec)
+    const priorFrom = priorFetchStartSec(sessionStartSec, startSec) ?? Math.max(0, sessionStartSec - 3600)
     try {
       const priorRows = await withTimeout(
         getHistoricalRates({

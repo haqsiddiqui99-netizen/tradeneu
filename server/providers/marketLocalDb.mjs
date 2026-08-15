@@ -356,7 +356,16 @@ export function readLocalBars(symbol, timeframe, startSec, endSec) {
   sql += ` ORDER BY time_sec ASC`
 
   const rows = getMarketDb().prepare(sql).all(...params)
-  const minRows = tf.startsWith('s') ? 2 : 16
+  const span =
+    Number.isFinite(startSec) && Number.isFinite(endSec) && endSec > startSec
+      ? endSec - startSec
+      : null
+  const minRows =
+    span != null && span <= 86_400
+      ? Math.max(2, Math.min(16, Math.ceil(span / 60)))
+      : tf.startsWith('s')
+        ? 2
+        : 16
   if (rows.length < minRows) {
     return { ok: false, error: `local bars: too few rows (${rows.length})` }
   }
