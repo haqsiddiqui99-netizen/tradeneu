@@ -60,7 +60,7 @@ import {
 } from '../data/localSecondBars'
 import { providerLabelFromDataSource } from '../data/marketDataSourceLabel'
 import { resolveFeedStatus } from '../data/feedStatus'
-import { inferTimeframeFromBars, fetchSessionBarChunk, mergeBarsByTime, resolveChartBarsForSession } from '../data/resolveSessionBars'
+import { inferTimeframeFromBars, fetchSessionBarChunk, resolveChartBarsForSession } from '../data/resolveSessionBars'
 import {
   chunkRangeAfterLoaded,
   chunkRangeBeforeLoaded,
@@ -78,8 +78,6 @@ import {
   localHmFromSec,
   localYmdFromSec,
   parseSessionDateToSec,
-  sessionChartLookbackBars,
-  sessionChartLookbackSec,
   sessionStartReplayIndex,
   sessionDateRangeSec,
   sessionWindowHasBars,
@@ -2392,36 +2390,6 @@ export function mountChartWorkspace(
     if (!chartBars.length && series.bars.length >= MIN_BOOT_CHART_BARS) {
       chartBars = series.bars.slice()
     }
-    {
-      const sessionStartSec = activeSession.startDate?.trim()
-        ? parseSessionDateToSec(activeSession.startDate, 'start')
-        : null
-      if (sessionStartSec != null && Number.isFinite(sessionStartSec)) {
-        const targetLookback = sessionChartLookbackBars(activeSession.startDate, activeSession.endDate)
-        const priorCount = chartBars.filter((b) => b.time < sessionStartSec).length
-        if (priorCount < targetLookback) {
-          const fromSec = Math.max(
-            0,
-            sessionStartSec - sessionChartLookbackSec(activeSession.startDate, activeSession.endDate),
-          )
-          try {
-            const chunk = await fetchSessionBarChunk(
-              currentChartSymbol,
-              fromSec,
-              sessionStartSec,
-              sessionStartSec,
-            )
-            if (chunk?.bars.length) {
-              const merged = mergeBarsByTime(chunk.bars, series.bars)
-              const withLookback = filterSessionChartBars(merged, activeSession)
-              if (withLookback.length) chartBars = withLookback
-            }
-          } catch (err) {
-            console.warn('[SessionBars] lookback prefetch', err)
-          }
-        }
-      }
-    }
     let sessionReplayStartIndex = sessionStartReplayIndex(chartBars, activeSession.startDate)
     const emptyDateRange =
       Boolean(activeSession.startDate?.trim() || activeSession.endDate?.trim()) &&
@@ -4246,7 +4214,9 @@ export function mountChartWorkspace(
       lockedTvViewport = snap
       pendingTvViewportRestore = snap
       state.tvChart?.setReplayLockedViewport(snap)
-      state.tvChart?.notifyUserPlaybackPan(tvBarPeriodSecForPill(chartTimeframe))
+      if (replay.getState().playing) {
+        state.tvChart?.notifyUserPlaybackPan(tvBarPeriodSecForPill(chartTimeframe))
+      }
     }
 
     function onReplayTick(slice: Bar[], index: number) {

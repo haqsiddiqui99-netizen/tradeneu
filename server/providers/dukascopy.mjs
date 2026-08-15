@@ -9,11 +9,6 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { getHistoricalRates } from 'dukascopy-node'
 import { cliEnabled, fetchDukascopyViaCli } from './dukascopyCli.mjs'
-import {
-  mergePriorBarsBeforeSession,
-  needsSessionPriorBackfill,
-  priorFetchFromSec,
-} from './sessionPriorBars.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DEFAULT_CACHE_DIR = path.join(__dirname, '..', '..', 'server-data', 'dukascopy-cache')
@@ -331,8 +326,8 @@ export async function fetchDukascopyBars({
     })
     if (cliFirst) {
       let bars = cliFirst.bars
-      if (needsSessionPriorBackfill(bars, sessionStartSec)) {
-        const priorFrom = priorFetchFromSec(sessionStartSec)
+      if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
+        const priorFrom = Math.max(0, sessionStartSec - 7 * 86_400)
         const priorCli = await fetchBarsViaCli({
           symbol,
           instrument,
@@ -343,7 +338,13 @@ export async function fetchDukascopyBars({
           filterEndSec: sessionStartSec,
         })
         if (priorCli?.bars.length) {
-          bars = mergePriorBarsBeforeSession(bars, priorCli.bars, sessionStartSec)
+          let prior = null
+          for (const b of priorCli.bars) {
+            if (b.time < sessionStartSec) prior = b
+          }
+          if (prior && prior.time < bars[0].time) {
+            bars = [prior, ...bars]
+          }
         }
       }
       const app = String(symbol).trim()
@@ -410,8 +411,9 @@ export async function fetchDukascopyBars({
     return { ok: false, error: `dukascopy: parsed too few bars (${bars.length})` }
   }
 
-  if (needsSessionPriorBackfill(bars, sessionStartSec)) {
-    const priorFrom = priorFetchFromSec(sessionStartSec)
+  if (Number.isFinite(sessionStartSec) && !bars.some((b) => b.time < sessionStartSec)) {
+    const lookbackSec = 7 * 86_400
+    const priorFrom = Math.max(0, sessionStartSec - lookbackSec)
     try {
       const priorRows = await withTimeout(
         getHistoricalRates({
@@ -438,9 +440,15 @@ export async function fetchDukascopyBars({
         'dukascopy-prior',
       )
       const priorBars = normalizeDukascopyRows(priorRows, priorFrom, sessionStartSec)
-      bars = mergePriorBarsBeforeSession(bars, priorBars, sessionStartSec)
+      let prior = null
+      for (const b of priorBars) {
+        if (b.time < sessionStartSec) prior = b
+      }
+      if (prior && prior.time < bars[0].time) {
+        bars = [prior, ...bars]
+      }
     } catch {
-      /* prior candles optional */
+      /* prior candle optional */
     }
   }
 

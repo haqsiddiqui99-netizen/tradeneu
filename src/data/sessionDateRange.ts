@@ -159,20 +159,16 @@ export const SESSION_CHART_LOOKBACK_BARS = 24 * 60
 
 export const SESSION_CHART_LOOKBACK_SEC = SESSION_CHART_LOOKBACK_BARS * 60
 
-/** Default chart lookback for dated sessions (~60 minutes on 1m). */
-export const SESSION_CHART_CONTEXT_LOOKBACK_BARS = 60
-
-export const SESSION_CHART_CONTEXT_LOOKBACK_SEC = SESSION_CHART_CONTEXT_LOOKBACK_BARS * 60
-
-/** Context bars before session start — 60 bars for short/medium sessions, 24h for multi-day. */
+/** Context bars before session start — shorter spans need less preroll (faster boot). */
 export function sessionChartLookbackBars(startIso?: string, endIso?: string): number {
   const { startSec, endSec } = sessionDateRangeSec(startIso, endIso)
   if (startSec == null || endSec == null || endSec <= startSec) {
-    return SESSION_CHART_CONTEXT_LOOKBACK_BARS
+    return SESSION_CHART_LOOKBACK_BARS
   }
   const span = endSec - startSec
-  if (span > 86_400) return SESSION_CHART_LOOKBACK_BARS
-  return SESSION_CHART_CONTEXT_LOOKBACK_BARS
+  if (span <= 3600) return Math.max(16, Math.ceil(span / 60) + 30)
+  if (span <= 86_400) return Math.min(SESSION_CHART_LOOKBACK_BARS, 120 + Math.ceil(span / 60))
+  return SESSION_CHART_LOOKBACK_BARS
 }
 
 export function sessionChartLookbackSec(startIso?: string, endIso?: string): number {
