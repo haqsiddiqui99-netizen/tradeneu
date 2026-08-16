@@ -154,6 +154,13 @@ export type TradingViewChartHandle = {
   setReplayLockedViewport: (viewport: TvLockedViewport | null) => void
   /** Apply a deferred resetCache/resetData after TV finishes initializing. */
   flushPendingRefresh: () => void
+  applyScissorsCut: (
+    bars: Bar[],
+    resolution: string,
+    pastCount: number,
+    lockedViewport: TvLockedViewport | null,
+    barPeriodSec?: number,
+  ) => Promise<void>
   /** True while replay code is applying a locked viewport (ignore user pan handlers). */
   isProgrammaticViewportRestore: () => boolean
   notifyUserPlaybackPan: (barPeriodSec?: number) => void
@@ -2449,6 +2456,10 @@ export async function createTradingViewChart(
 
     flushPendingRefresh() {
       replayCtrl?.flushPendingRefresh()
+    },
+
+    applyScissorsCut(bars, resolution, pastCount, lockedViewport, barPeriodSec) {
+      return replayCtrl?.applyScissorsCut(bars, resolution, pastCount, lockedViewport, barPeriodSec) ?? Promise.resolve()
     },
 
     isProgrammaticViewportRestore() {

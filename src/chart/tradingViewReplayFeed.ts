@@ -3,6 +3,7 @@ import type { UTCTimestamp } from 'lightweight-charts'
 import { mergeBarsByTime } from '../data/sessionBarWindow'
 import {
   filterTvBarsStrictlyInPeriod,
+  tvBarsStrictlyOverlapPeriod,
   tvNextTimeForEmptyRequest,
 } from './tradingViewBarLimits'
 import { tvResolutionPeriodSec } from './tradingViewDatafeed'
@@ -219,6 +220,10 @@ export class TvReplayFeedController {
 
   setRevealCount(count: number) {
     if (!this.state.allBars.length) return
+    if (this.tvFullSeriesReplay) {
+      this.setReplayRevealForMask(count)
+      return
+    }
     this.tvFullSeriesMaskMode = false
     this.state.pickSplitIndex = null
     this.state.revealedCount = Math.max(1, Math.min(Math.round(count), this.state.allBars.length))
@@ -228,6 +233,19 @@ export class TvReplayFeedController {
   /** Like setRevealCount but skips listener notification when unchanged. */
   setRevealCountIfChanged(count: number): boolean {
     if (!this.state.allBars.length) return false
+    if (this.tvFullSeriesReplay) {
+      const next = Math.max(1, Math.min(Math.round(count), this.state.allBars.length))
+      const split = next >= this.state.allBars.length ? null : next - 1
+      if (
+        this.tvFullSeriesMaskMode &&
+        this.state.revealedCount === next &&
+        this.state.pickSplitIndex === split
+      ) {
+        return false
+      }
+      this.setReplayRevealForMask(count)
+      return true
+    }
     const next = Math.max(1, Math.min(Math.round(count), this.state.allBars.length))
     if (
       !this.tvFullSeriesMaskMode &&
@@ -285,6 +303,27 @@ export class TvReplayFeedController {
       true,
       this.historicalAnchorIndex,
     )
+  }
+
+  /**
+   * When replay is truncated and TV's requested window barely overlaps revealed bars,
+   * retry with a looser slice before returning empty (prevents scissors-cut blank chart).
+   */
+  getBarsRevealRescue(periodParams: TvPeriodParams): TvBar[] {
+    const revealed =
+      this.state.pickSplitIndex != null
+        ? this.state.pickSplitIndex + 1
+        : this.state.revealedCount
+    const past = this.state.allBars.slice(0, revealed)
+    if (!past.length || !tvBarsStrictlyOverlapPeriod(past, periodParams)) return []
+    const strict = filterTvBarsStrictlyInPeriod(
+      past,
+      periodParams,
+      true,
+      this.historicalAnchorIndex,
+    )
+    if (strict.length) return strict
+    return filterTvBarsStrictlyInPeriod(past, periodParams, false, 0)
   }
 
   findBarIndexAtOrBeforeTimeSec(timeSec: number, maxIndex?: number): number {

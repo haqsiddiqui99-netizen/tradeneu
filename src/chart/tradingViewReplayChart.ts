@@ -146,6 +146,14 @@ export type TvReplayChartController = {
   finishIntervalSwap: () => void
   /** Apply a refresh that was deferred while the TV chart was still initializing. */
   flushPendingRefresh: () => void
+  /** Scissors bar cut — align viewport, truncate reveal, then resetData. */
+  applyScissorsCut: (
+    bars: Bar[],
+    resolution: string,
+    pastCount: number,
+    lockedViewport: TvLockedViewport | null,
+    barPeriodSec?: number,
+  ) => Promise<void>
   /** True while replay code is applying a locked viewport (ignore user pan handlers). */
   isProgrammaticViewportRestore: () => boolean
   /** Pause FxReplay bar-shift briefly after the user pans during playback. */
@@ -407,6 +415,9 @@ export function createTvReplayChartController(opts: {
   const restoreVisibleRangeLocked = async (saved: TvLockedViewport) => {
     const c = chart()
     if (!c) return
+    const from = normalizeChartTimeSec(saved.from)
+    const to = normalizeChartTimeSec(saved.to)
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return
     beginProgrammaticViewportRestore()
     try {
       const ts = c.getTimeScale()
@@ -417,14 +428,11 @@ export function createTvReplayChartController(opts: {
         ts.setRightOffset(saved.rightOffset)
       }
       await Promise.race([
-        c.setVisibleRange({
-          from: normalizeChartTimeSec(saved.from),
-          to: normalizeChartTimeSec(saved.to),
-        }),
+        c.setVisibleRange({ from, to }),
         new Promise<void>((resolve) => window.setTimeout(resolve, RESTORE_VIEWPORT_TIMEOUT_MS)),
       ])
     } catch {
-      /* TV may reject tight ranges on small screens */
+      /* TV may reject tight ranges on small screens or when the chart has no bars yet */
     } finally {
       endProgrammaticViewportRestore()
     }
@@ -1615,6 +1623,39 @@ export function createTvReplayChartController(opts: {
       pendingFullRefreshForce = false
       if (force) lastPastCount = -1
       scheduleFullRefresh(true)
+    },
+
+    async applyScissorsCut(bars, resolution, pastCount, lockedViewport, barPeriodSec) {
+      if (opts.isDisposed() || !bars.length) return
+      const pastCountClamped = Math.max(1, Math.min(Math.round(pastCount), bars.length))
+      const feedRes = opts.replayFeed.getResolution()
+      const feedBars = opts.replayFeed.getAllBars()
+      const feedAligned =
+        tvResolutionMatches(feedRes, resolution) &&
+        feedBars.length === bars.length &&
+        (feedBars.length === 0 || feedBars[0]!.time === barToTv(bars[0]!).time)
+      if (!feedAligned) {
+        const key = `${resolution}|${bars.length}|${bars[0]?.time ?? ''}|${bars[bars.length - 1]?.time ?? ''}`
+        sessionBarsKey = key
+        opts.replayFeed.setSessionBars(bars, resolution, barPeriodSec)
+      }
+      // Scissors pick keeps the full series visible (CSS wash). Truncating the feed +
+      // resetData leaves TV requesting bars outside the cut window → "No data here".
+      // Keep the full series in getBars and hide future bars with the DOM replay mask.
+      opts.replayFeed.setTvFullSeriesReplay(true)
+      opts.replayFeed.setReplayRevealForMask(pastCountClamped)
+      lastPastCount = pastCountClamped
+      lastPickPreviewSplit =
+        pastCountClamped >= bars.length ? -1 : pastCountClamped - 1
+      cancelViewportRestoreTimers()
+      cancelIncrementalViewportRaf()
+      if (lockedViewport) {
+        replayLockedViewport = lockedViewport
+        await restoreVisibleRangeLocked(lockedViewport)
+      } else {
+        replayLockedViewport = null
+      }
+      ensureRangeHooks()
     },
 
     setReplayPickPreview(splitIndex, allBars) {
