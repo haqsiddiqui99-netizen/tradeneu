@@ -4250,6 +4250,7 @@ export function mountChartWorkspace(
       const tvRes = intervalPillToTvResolution(chartTimeframe)
       const tvDisplay = tvBarsForChart(paint.display)
       const tvAll = tvBarsForChart(paint.all)
+      const barPeriodSec = intervalPickBarPeriodSec(chartPick)
       const playing = opts?.playing ?? (state.replay?.getState().playing ?? false)
       state.tvChart.noteResolution(tvRes)
       const viewOpts = {
@@ -4264,7 +4265,7 @@ export function mountChartWorkspace(
           tvAll,
           tvRes,
           paint.display.length,
-          intervalPickBarPeriodSec(chartPick),
+          barPeriodSec,
         )
         state.tvChart.setReplayData(tvDisplay, tvAll, {
           ...viewOpts,
@@ -4272,7 +4273,8 @@ export function mountChartWorkspace(
         })
         state.tvChart.flushPendingRefresh()
       } else {
-        // Incremental forming-bar patch — no primeIntervalFeed (keeps bar spacing / overlay stable).
+        // Keep feed on chart-TF bars (1m on chart) while replay transport uses 2m/3m/… steps.
+        state.tvChart.alignDecoupledChartFeed(tvAll, tvRes, paint.display.length, barPeriodSec)
         if (!state.tvChart.tickDecoupledReplay(tvDisplay)) {
           state.tvChart.setReplayData(tvDisplay, tvAll, {
             ...viewOpts,
@@ -5463,6 +5465,7 @@ export function mountChartWorkspace(
       nextReplayTickChartViewSnap = replayViewSnapAtPick
       nextReplayTickDecoupledFeedPrimed = false
       replay.replaceBarsAt(stepBars, stepIndex)
+      paintDecoupledReplayStepChange(stepIndex, replayViewSnapAtPick)
     }
 
     async function applyIntervalPick(pick: IntervalPick) {

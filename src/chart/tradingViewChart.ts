@@ -64,6 +64,12 @@ export type TradingViewChartHandle = {
     },
   ) => void
   tickDecoupledReplay: (displayBars: Bar[]) => boolean
+  alignDecoupledChartFeed: (
+    allBars: Bar[],
+    resolution: string,
+    pastCount: number,
+    barPeriodSec?: number,
+  ) => boolean
   setReplayPickPreview: (splitIndex: number, allBars: Bar[]) => void
   clearReplayPickPreview: () => void
   clearReplay: () => void
@@ -2034,6 +2040,10 @@ export async function createTradingViewChart(
 
     tickDecoupledReplay(displayBars) {
       return replayCtrl?.tickDecoupledReplay(displayBars) ?? false
+    },
+
+    alignDecoupledChartFeed(allBars, resolution, pastCount, barPeriodSec) {
+      return replayCtrl?.alignDecoupledChartFeed(allBars, resolution, pastCount, barPeriodSec) ?? false
     },
 
     setReplayPickPreview(splitIndex, allBars) {

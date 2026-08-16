@@ -1,4 +1,5 @@
 import type { Bar } from '../types'
+import { tvResolutionMatches } from './tradingViewDatafeed'
 import { barToTv } from './tradingViewReplayFeed'
 import type { TvReplayFeedController } from './tradingViewReplayFeed'
 
@@ -93,6 +94,13 @@ export type TvReplayChartController = {
   ) => void
   /** Lightweight decoupled replay step — patch + realtime bar only (no resetData). Returns false if a full refresh is needed. */
   tickDecoupledReplay: (displayBars: Bar[]) => boolean
+  /** Ensure replay feed holds chart-TF session bars + reveal count (no resetData / refit). */
+  alignDecoupledChartFeed: (
+    allBars: Bar[],
+    resolution: string,
+    pastCount: number,
+    barPeriodSec?: number,
+  ) => boolean
   setReplayPickPreview: (splitIndex: number, allBars: Bar[]) => void
   clearReplayPickPreview: () => void
   clearReplay: () => void
@@ -1488,6 +1496,33 @@ export function createTvReplayChartController(opts: {
       })
     },
 
+    alignDecoupledChartFeed(allBars, resolution, pastCount, barPeriodSec) {
+      if (!allBars.length) return false
+      const pastCountClamped = Math.max(1, Math.min(Math.round(pastCount), allBars.length))
+      const feedRes = opts.replayFeed.getResolution()
+      const feedBars = opts.replayFeed.getAllBars()
+      const feedAligned =
+        tvResolutionMatches(feedRes, resolution) &&
+        feedBars.length === allBars.length &&
+        (feedBars.length === 0 ||
+          feedBars[0]!.time === barToTv(allBars[0]!).time)
+      const revealAligned = opts.replayFeed.getRevealedCount() === pastCountClamped
+      if (feedAligned && revealAligned && lastPastCount === pastCountClamped) {
+        return false
+      }
+      const key = `${resolution}|${allBars.length}|${allBars[0]?.time ?? ''}|${allBars[allBars.length - 1]?.time ?? ''}`
+      sessionBarsKey = key
+      if (!feedAligned) {
+        opts.replayFeed.setSessionBars(allBars, resolution, barPeriodSec)
+        opts.replayFeed.setRevealCount(pastCountClamped)
+        lastPastCount = -1
+        return true
+      }
+      opts.replayFeed.setRevealCount(pastCountClamped)
+      lastPastCount = pastCountClamped
+      return true
+    },
+
     tickDecoupledReplay(displayBars) {
       if (opts.isDisposed() || !displayBars.length) return false
       if (!canStreamRealtimeBars()) return false
@@ -1497,11 +1532,15 @@ export function createTvReplayChartController(opts: {
 
       if (pastCount < prevCount) return false
 
-      // Feed just primed (lastPastCount reset) — patch forming bar only; do not flood realtime emits.
+      // Feed just primed / realigned — patch full reveal window, then emit.
       if (prevCount < 0) {
-        const last = displayBars[pastCount - 1]!
-        opts.replayFeed.patchBarAtIndex(pastCount - 1, last)
-        opts.replayFeed.emitRealtimeBar(barToTv(last))
+        for (let i = 0; i < pastCount; i++) {
+          opts.replayFeed.patchBarAtIndex(i, displayBars[i]!)
+        }
+        opts.replayFeed.setRevealCountIfChanged(pastCount)
+        for (let i = 0; i < pastCount; i++) {
+          opts.replayFeed.emitRealtimeBar(barToTv(displayBars[i]!))
+        }
         lastPastCount = pastCount
         return true
       }
