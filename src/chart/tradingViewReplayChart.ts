@@ -998,11 +998,15 @@ export function createTvReplayChartController(opts: {
 
     if (!opts2?.pickPreview) {
       lastPickPreviewSplit = -1
-      if (!sameRevealCount) {
+      const stepOnlyPaint =
+        opts2?.decoupledStepOnly === true || opts2?.stepPreserveView === true
+      if (!sameRevealCount && !stepOnlyPaint) {
         opts.replayFeed.setRevealCountIfChanged(pastCount)
       }
-      const last = pastBars[pastCount - 1]
-      if (last) opts.replayFeed.patchBarAtIndex(pastCount - 1, last)
+      if (!stepOnlyPaint) {
+        const last = pastBars[pastCount - 1]
+        if (last) opts.replayFeed.patchBarAtIndex(pastCount - 1, last)
+      }
     }
 
     // Locked play resume: keep cursor on screen — viewport only, no resetData.
@@ -1118,19 +1122,24 @@ export function createTvReplayChartController(opts: {
       !opts2?.pickPreview
     ) {
       // Replay step interval change — feed-only update + restore pan/zoom (no resetData).
-      opts.replayFeed.setRevealCountIfChanged(pastCount)
       if (prevPastCount > 0 && pastCount > prevPastCount) {
         for (let i = prevPastCount; i < pastCount; i++) {
           const bar = pastBars[i]
-          if (!bar) continue
-          opts.replayFeed.patchBarAtIndex(i, bar)
-          if (streamBars) opts.replayFeed.emitRealtimeBar(barToTv(bar))
+          if (bar) opts.replayFeed.patchBarAtIndex(i, bar)
+        }
+        opts.replayFeed.setRevealCountIfChanged(pastCount)
+        for (let i = prevPastCount; i < pastCount; i++) {
+          const bar = pastBars[i]
+          if (bar && streamBars) opts.replayFeed.emitRealtimeBar(barToTv(bar))
         }
       } else {
         const lastBar = pastBars[pastCount - 1]
         if (lastBar) {
           opts.replayFeed.patchBarAtIndex(pastCount - 1, lastBar)
+          opts.replayFeed.setRevealCountIfChanged(pastCount)
           if (streamBars) opts.replayFeed.emitRealtimeBar(barToTv(lastBar))
+        } else {
+          opts.replayFeed.setRevealCountIfChanged(pastCount)
         }
       }
       if (holdViewport) restoreViewportAfterIncrementalBar(holdViewport)
@@ -1506,11 +1515,13 @@ export function createTvReplayChartController(opts: {
       }
 
       const emitFrom = prevCount > 0 ? prevCount : 0
+      // Patch before reveal — session allBars hold full OHLC for unrevealed indices.
+      for (let i = emitFrom; i < pastCount; i++) {
+        opts.replayFeed.patchBarAtIndex(i, displayBars[i]!)
+      }
       opts.replayFeed.setRevealCountIfChanged(pastCount)
       for (let i = emitFrom; i < pastCount; i++) {
-        const b = displayBars[i]!
-        opts.replayFeed.patchBarAtIndex(i, b)
-        opts.replayFeed.emitRealtimeBar(barToTv(b))
+        opts.replayFeed.emitRealtimeBar(barToTv(displayBars[i]!))
       }
       lastPastCount = pastCount
       return true

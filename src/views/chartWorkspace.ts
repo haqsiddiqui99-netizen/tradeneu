@@ -4272,11 +4272,14 @@ export function mountChartWorkspace(
         })
         state.tvChart.flushPendingRefresh()
       } else {
-        state.tvChart.setReplayData(tvDisplay, tvAll, {
-          ...viewOpts,
-          force: false,
-          decoupledStepOnly: true,
-        })
+        // Incremental forming-bar patch — no primeIntervalFeed (keeps bar spacing / overlay stable).
+        if (!state.tvChart.tickDecoupledReplay(tvDisplay)) {
+          state.tvChart.setReplayData(tvDisplay, tvAll, {
+            ...viewOpts,
+            force: false,
+            decoupledStepOnly: true,
+          })
+        }
       }
       restoreChartViewportSoon(viewSnap ?? null)
       return true
@@ -5460,7 +5463,6 @@ export function mountChartWorkspace(
       nextReplayTickChartViewSnap = replayViewSnapAtPick
       nextReplayTickDecoupledFeedPrimed = false
       replay.replaceBarsAt(stepBars, stepIndex)
-      paintDecoupledReplayStepChange(stepIndex, replayViewSnapAtPick)
     }
 
     async function applyIntervalPick(pick: IntervalPick) {
