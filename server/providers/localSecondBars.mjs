@@ -37,9 +37,11 @@ export function chartIntervalToSecondStep(interval) {
 
 /**
  * Reject bars whose median spacing is too wide for the requested second step.
- * Capped below 60s so 30s (3x = 90) cannot accept 1m bars.
+ * Allows only 1.5x slack so a coarser series cannot stand in for a finer step
+ * (30s bars for a 15s request), and never reaches a full minute.
  * @param {number} step expected bar spacing in seconds
  */
 export function maxMedianStepForSecondBars(step) {
-  return Math.min(60, Math.max(3, Math.round(Number(step) || 10) * 3))
+  const s = Math.round(Number(step) || 10)
+  return Math.min(60, Math.max(s + 1, Math.round(s * 1.5)))
 }

@@ -56,6 +56,62 @@ export function quoteTicksToPointBars(ticks: QuoteTick[]): Bar[] {
   return out
 }
 
+/** Bars a single sub-minute series may emit once missing slots are padded. */
+export const MAX_SUB_MINUTE_FILLED_BARS = 20_000
+/** Gaps wider than this are session breaks rather than thin liquidity. */
+export const MAX_SUB_MINUTE_FILL_GAP_SEC = 15 * 60
+
+/**
+ * Pad missing slots in a sub-minute series with flat bars at the previous close.
+ *
+ * Bucketing only emits slots that contain data, so a thin market leaves holes and a
+ * replay step then advances a variable amount of wall-clock time. Padding keeps the
+ * series regular at `stepSec` so one step always advances exactly one step.
+ *
+ * Gaps wider than `maxGapSec` are session breaks and stay as-is. Padding also stops
+ * once `maxBars` slots have been added, so a fine step over a long span cannot blow up
+ * the series; bars past that point pass through unpadded rather than being dropped,
+ * since callers window this series around the replay cursor.
+ */
+export function fillTimeBarGaps(
+  bars: Bar[],
+  stepSec: number,
+  opts?: { maxBars?: number; maxGapSec?: number },
+): Bar[] {
+  const step = Math.max(1, Math.round(Number(stepSec) || 1))
+  if (bars.length < 2 || step >= 60) return bars
+  const maxBars = Math.max(2, opts?.maxBars ?? MAX_SUB_MINUTE_FILLED_BARS)
+  const maxGapSec = Math.max(step, opts?.maxGapSec ?? MAX_SUB_MINUTE_FILL_GAP_SEC)
+
+  const out: Bar[] = [bars[0]!]
+  let padded = false
+
+  for (let i = 1; i < bars.length; i++) {
+    const next = bars[i]!
+    const prev = out[out.length - 1]!
+    const prevTime = Number(prev.time)
+    const nextTime = Number(next.time)
+    const gap = nextTime - prevTime
+    if (gap > step && gap <= maxGapSec && out.length < maxBars) {
+      const flat = prev.close
+      for (let t = prevTime + step; t < nextTime && out.length < maxBars; t += step) {
+        out.push({
+          time: t as UTCTimestamp,
+          open: flat,
+          high: flat,
+          low: flat,
+          close: flat,
+          volume: 0,
+        })
+        padded = true
+      }
+    }
+    out.push(next)
+  }
+
+  return padded ? out : bars
+}
+
 /** Bucket ticks into time-based OHLCV bars (e.g. `1s`, `5s`, `1m`). */
 export function aggregateTicksToTimeBars(ticks: QuoteTick[], stepSec: number): Bar[] {
   if (!ticks.length) return []

@@ -14,9 +14,10 @@ export function secondStepToInterval(step: number): string {
 
 /**
  * Reject bars whose median spacing is too wide (e.g. 1m data returned for 5s).
- * Capped below 60s: a genuine sub-minute series can never be a minute apart,
- * so 30s (3x = 90) must not accept 1m bars.
+ * Allows only 1.5x slack so a coarser series cannot stand in for a finer step
+ * (30s bars for a 15s request), and never reaches a full minute.
  */
 export function maxMedianStepForSecondBars(step: number): number {
-  return Math.min(60, Math.max(3, Math.round(step) * 3))
+  const s = Math.round(step)
+  return Math.min(60, Math.max(s + 1, Math.round(s * 1.5)))
 }

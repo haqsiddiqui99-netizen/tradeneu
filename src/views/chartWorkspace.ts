@@ -52,6 +52,7 @@ import {
   tickTimeMsAtBar,
   type TickBarSeries,
 } from '../chart/tickReplayIndex'
+import { fillTimeBarGaps } from '../chart/quoteTicks'
 import { fetchMarketDataHealth, type MarketDataHealth } from '../data/marketDataHealth'
 import { DEFAULT_MARKET_BAR_CHAIN, fetchMarketBarsSeries } from '../data/marketDataClient'
 import {
@@ -2592,7 +2593,7 @@ export function mountChartWorkspace(
       const bars = filterSessionChartBars(series.bars, activeSession)
       if (bars.length < 2) return []
       if (medianBarStepSec(bars) >= maxMedianStepForSecondBars(step)) return []
-      return bars
+      return fillTimeBarGaps(bars, step)
     }
 
     async function preloadLocalSecondBarsForPick(pick: IntervalPick | null | undefined) {

@@ -9,7 +9,7 @@ import {
   buildTickBarsFromQuoteTicks,
   type TickBarSeries,
 } from '../chart/tickReplayIndex'
-import { aggregateTicksToTimeBars } from '../chart/quoteTicks'
+import { aggregateTicksToTimeBars, fillTimeBarGaps } from '../chart/quoteTicks'
 import type { Bar, QuoteTick } from '../types'
 
 export type { TickBarSeries } from '../chart/tickReplayIndex'
@@ -88,12 +88,17 @@ function aggregatePointBarsToStep(bars: Bar[], stepSec: number): Bar[] {
     .map((k) => map.get(k)!)
 }
 
-/** Bars for `1s` / `5s` / … from Dukascopy ticks, local sync, or synthetic point bars. */
+/**
+ * Bars for `1s` / `5s` / … from Dukascopy ticks, local sync, or synthetic point bars.
+ * Padded to a regular grid so each replay step advances exactly one step.
+ */
 export function barsForSubMinuteInterval(data: TickChartData, stepSec: number): Bar[] {
   const step = Math.max(1, Math.round(stepSec))
-  if (data.kind === 'dukascopy') return aggregateTicksToTimeBars(data.quoteTicks, step)
+  if (data.kind === 'dukascopy') {
+    return fillTimeBarGaps(aggregateTicksToTimeBars(data.quoteTicks, step), step)
+  }
   if (data.kind === 'synthetic' && data.pointBars.length >= 2) {
-    return aggregatePointBarsToStep(data.pointBars, step)
+    return fillTimeBarGaps(aggregatePointBarsToStep(data.pointBars, step), step)
   }
   return []
 }
