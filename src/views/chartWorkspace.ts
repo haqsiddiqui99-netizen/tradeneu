@@ -12,6 +12,8 @@ import {
   decoupledChartReplayDisplay,
   effectiveReplayStepSec,
   stepIndexForCursorEnd,
+  chartBarsPerReplayStep,
+  usesMinuteBarSkipReplay,
 } from '../chart/replayDecouple'
 import { readDefaultChartInterval, readDefaultStrategyId } from '../home/dashboardUserPrefs'
 import { readFullSessionTicks, writeFullSessionTicks } from '../chart/chartTickPrefs'
@@ -1108,6 +1110,49 @@ export function mountChartWorkspace(
   const selectBarOverlay = host.querySelector('[data-rw-select-bar-overlay]') as HTMLElement | null
   const replayMaskOverlay = host.querySelector('[data-rw-replay-mask-overlay]') as HTMLElement | null
   const selectBarTimeFlyout = host.querySelector('[data-rw-select-bar-time-flyout]') as HTMLElement | null
+  /** Clear stale overlay CSS from a prior scissors/mask session (HMR or back navigation). */
+  function resetChartOverlays() {
+    if (selectBarOverlay) {
+      selectBarOverlay.hidden = true
+      selectBarOverlay.classList.remove(
+        'rw-select-bar-overlay--active',
+        'rw-select-bar-overlay--pointer-in',
+        'rw-select-bar-overlay--over-legend',
+      )
+      selectBarOverlay.setAttribute('aria-hidden', 'true')
+      for (const prop of [
+        '--sx',
+        '--sy',
+        '--sb-top',
+        '--sb-bottom',
+        '--sb-right',
+        '--sb-left',
+        '--sb-wash-bottom',
+        '--sb-blur-bottom',
+        '--sb-hit-bottom',
+        '--sb-legend-notch-w',
+        '--sb-legend-notch-h',
+        '--sb-past-end-left',
+      ]) {
+        selectBarOverlay.style.removeProperty(prop)
+      }
+    }
+    if (selectBarTimeFlyout) {
+      selectBarTimeFlyout.hidden = true
+      selectBarTimeFlyout.classList.remove('rw-select-bar-overlay--pointer-in')
+      selectBarTimeFlyout.setAttribute('aria-hidden', 'true')
+    }
+    if (replayMaskOverlay) {
+      replayMaskOverlay.hidden = true
+      replayMaskOverlay.setAttribute('aria-hidden', 'true')
+      replayMaskOverlay.style.removeProperty('--sx')
+      for (const prop of ['--sb-top', '--sb-bottom', '--sb-left', '--sb-right']) {
+        replayMaskOverlay.style.removeProperty(prop)
+      }
+    }
+    chartCanvas?.style.removeProperty('--rw-sb-sx')
+  }
+  resetChartOverlays()
   const selectBarTimeEl = host.querySelector('[data-rw-select-bar-time]') as HTMLElement | null
   const btnSelectBarChart = host.querySelector('[data-rw-replay-select-chart]') as HTMLButtonElement | null
   const replayIntervalBtn = host.querySelector('[data-rw-replay-interval-toggle]') as HTMLButtonElement | null
@@ -3743,6 +3788,7 @@ export function mountChartWorkspace(
     let chartCursorUi: ReturnType<typeof mountChartCursorUi> | null = null
     let tvBootBarsApplied = false
     let tvBootPaintDone = false
+    let tvBootPaintInFlight: Promise<void> | null = null
     const tvIntervalSwap = { inProgress: false }
     let intervalPickBusy = false
     /** TV header changed while applyIntervalPick was busy — apply after current swap. */
@@ -4102,18 +4148,18 @@ export function mountChartWorkspace(
     let nextReplayTickChartViewSnap: TvLockedViewport | null = null
     /** TV feed already primed in applyReplayIntervalPick — skip duplicate sync on next tick. */
     let nextReplayTickDecoupledFeedPrimed = false
-    /** Scissors bar cut on next replay tick — skip TV rewind/reset path. */
-    let skipReplayTickOnce = false
     /** Force one chart reload when entering playback (truncated feed after full session). */
     let replayPlayKickoff = false
     /** After bar-cut, keep chart pan/zoom fixed through playback. */
     let replayViewportLocked = false
-    /** TV replay mask hides future bars while the feed keeps the full series (scissors cut). */
-    let replayMaskActive = false
+    /** TV feed holds the full session; unrevealed bars are hidden by the DOM mask. */
+    let tvFullSeriesActive = false
     let lockedTvViewport: TvLockedViewport | null = null
     let pendingTvViewportRestore: TvLockedViewport | null = null
     /** User panned/zoomed the chart — preserve that viewport instead of auto-scrolling to the cursor. */
     let userViewportPinned = false
+    /** Viewport captured after boot paint — baseline bar spacing/range before Play. */
+    let bootSettledViewport: TvLockedViewport | null = null
     /** Ignore time-scale events fired by our own viewport restores. */
     let suppressUserViewportPin = 0
 
@@ -4150,7 +4196,18 @@ export function mountChartWorkspace(
       if (chartTimeframe === replayTimeframe) return false
       const chartPick = resolveIntervalPick(chartTimeframe)
       const replayPick = resolveIntervalPick(replayTimeframe)
+      if (chartPick && replayPick && usesMinuteBarSkipReplay(chartPick, replayPick)) return false
       return !!(chartPick && replayPick && canDecoupleReplay(chartPick, replayPick))
+    }
+
+    function syncReplayBarsPerAdvance() {
+      const chartPick = resolveIntervalPick(chartTimeframe)
+      const replayPick = resolveIntervalPick(replayTimeframe)
+      if (!chartPick || !replayPick) {
+        replay.setBarsPerAdvance(1)
+        return
+      }
+      replay.setBarsPerAdvance(chartBarsPerReplayStep(chartPick, replayPick))
     }
 
     /** Prime or paint TV chart-interval bars while replay transport uses a different step. */
@@ -4254,7 +4311,6 @@ export function mountChartWorkspace(
       const tvRes = intervalPillToTvResolution(chartTimeframe)
       const tvDisplay = tvBarsForChart(paint.display)
       const tvAll = tvBarsForChart(paint.all)
-      const barPeriodSec = intervalPickBarPeriodSec(chartPick)
       const playing = opts?.playing ?? (state.replay?.getState().playing ?? false)
       state.tvChart.noteResolution(tvRes)
       const viewOpts = {
@@ -4269,7 +4325,7 @@ export function mountChartWorkspace(
           tvAll,
           tvRes,
           paint.display.length,
-          barPeriodSec,
+          intervalPickBarPeriodSec(chartPick),
         )
         state.tvChart.setReplayData(tvDisplay, tvAll, {
           ...viewOpts,
@@ -4277,15 +4333,11 @@ export function mountChartWorkspace(
         })
         state.tvChart.flushPendingRefresh()
       } else {
-        // Keep feed on chart-TF bars (1m on chart) while replay transport uses 2m/3m/… steps.
-        state.tvChart.alignDecoupledChartFeed(tvAll, tvRes, paint.display.length, barPeriodSec)
-        if (!state.tvChart.tickDecoupledReplay(tvDisplay)) {
-          state.tvChart.setReplayData(tvDisplay, tvAll, {
-            ...viewOpts,
-            force: false,
-            decoupledStepOnly: true,
-          })
-        }
+        state.tvChart.setReplayData(tvDisplay, tvAll, {
+          ...viewOpts,
+          force: false,
+          decoupledStepOnly: true,
+        })
       }
       restoreChartViewportSoon(viewSnap ?? null)
       return true
@@ -4295,19 +4347,18 @@ export function mountChartWorkspace(
       const snap =
         state.tvChart?.captureLockedViewport() ??
         lockedTvViewport ??
+        bootSettledViewport ??
         state.tvChart?.getReplayLockedViewport() ??
         null
       if (!snap) return
       lockChartViewport(snap)
+      // Freeze pan/zoom/bar spacing now — before the first replay tick can refit or scroll.
+      void state.tvChart?.restoreVisibleRange(snap)
       state.tvChart?.notifyUserPlaybackPan(tvBarPeriodSecForPill(chartTimeframe))
     }
 
     function onReplayTick(slice: Bar[], index: number) {
       if (selectBarChartActive) return
-      if (skipReplayTickOnce) {
-        skipReplayTickOnce = false
-        return
-      }
       const decoupled = decoupledReplayPaint(index)
       const allBars = decoupled?.all ?? replay.getBars()
       const showFullSession =
@@ -4326,7 +4377,7 @@ export function mountChartWorkspace(
       const forceChart =
         !viewStepOnly &&
         !replayViewportLocked &&
-        (nextReplayTickForce === true || nextReplayTickFit === true)
+        (nextReplayTickForce === true || nextReplayTickFit === true || wasPlayKickoff)
       const replayPlaying = state.replay?.getState().playing ?? false
       nextReplayTickFit = undefined
       nextReplayTickForce = undefined
@@ -4501,9 +4552,10 @@ export function mountChartWorkspace(
         const maskBarIdx = (decoupled ? displayBars.length : index) - 1
         const fullLen = decoupled ? (decoupled.all.length ?? chartBars.length) : chartBars.length
         const revealLen = decoupled ? displayBars.length : index
-        if (replayMaskActive && revealLen < fullLen && maskBarIdx >= 0) {
+        if (tvFullSeriesActive && !replayPlaying && revealLen < fullLen && maskBarIdx >= 0) {
+          state.tvChart.setReplayRevealForMask(revealLen)
           syncTvReplayMask(maskBarIdx)
-        } else if (revealLen >= fullLen) {
+        } else {
           hideTvReplayMask()
         }
       }
@@ -4536,6 +4588,7 @@ export function mountChartWorkspace(
       replayViewportLocked = false
       lockedTvViewport = null
       pendingTvViewportRestore = null
+      bootSettledViewport = null
       userViewportPinned = false
       state.tvChart.setReplayLockedViewport(null)
       const isHistorical = isHistoricalSessionBars(chartBars)
@@ -4545,43 +4598,77 @@ export function mountChartWorkspace(
       const tvPeriod = tvBarPeriodSecForPill(chartTimeframe)
       state.tvChart.setHistoricalAnchorIndex(Math.max(0, sessionReplayStartIndex - 1))
       hideTvReplayMask()
+      resetChartOverlays()
+      state.tvChart.clearReplayPickPreview()
+      // Backtest sessions must open with session bars hidden: truncate the feed at the replay
+      // cursor so TV never holds a future candle. Empty space to the right comes from the
+      // time-scale right offset, so the axis still spans the full boot window.
+      tvFullSeriesActive = false
       state.tvChart.setTvFullSeriesReplay(false)
       state.tvChart.primeIntervalFeed(tvBars, tvRes, idx, tvPeriod)
-      nextReplayTickFit = !isHistorical
-      nextReplayTickForce = !isHistorical
+      // One forced paint to load data; no fit refit (avoids REPLAY_BAR_SPACING override).
+      nextReplayTickFit = false
+      nextReplayTickForce = true
       if (isHistorical && replay.getState().index !== idx) {
         replay.setIndex(idx)
       } else {
         onReplayTick(replay.slice(), idx)
       }
 
-      const sessionStartSec = activeSession.startDate?.trim()
-        ? parseSessionDateToSec(activeSession.startDate, 'start')
-        : null
-      const anchorSessionViewport = () => {
-        if (isHistorical) {
-          state.tvChart?.scrollReplayCursorIntoView()
-        } else if (sessionStartSec != null && Number.isFinite(sessionStartSec)) {
-          state.tvChart?.scrollToWallTimeSec(sessionStartSec)
-        } else {
-          state.tvChart?.scrollReplayCursorIntoView()
-        }
-      }
-
       state.tvChart.flushPendingRefresh()
+      state.tvChart.resize()
+      // Every stage is guarded and the whole chain has a deadline: if any TV call throws
+      // or stalls, boot must still settle or the safety timer swaps in Lightweight Charts.
       await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => {
-          state.tvChart?.flushPendingRefresh()
-          if (isHistorical && replay.getState().index !== idx) {
-            replay.setIndex(idx)
-          } else {
-            onReplayTick(replay.slice(), idx)
+        let settled = false
+        const settle = () => {
+          if (settled) return
+          settled = true
+          window.clearTimeout(deadline)
+          resolve()
+        }
+        const deadline = window.setTimeout(settle, 2500)
+        const step = (fn: () => void) => {
+          try {
+            fn()
+          } catch (err) {
+            console.warn('[ChartBoot] TV boot paint step failed', err)
           }
-          anchorSessionViewport()
+        }
+
+        requestAnimationFrame(() => {
+          step(() => {
+            state.tvChart?.flushPendingRefresh()
+            state.tvChart?.resize()
+            // Light re-sync after layout — no second force (avoids double resetData).
+            nextReplayTickFit = false
+            nextReplayTickForce = false
+            onReplayTick(replay.slice(), idx)
+          })
           requestAnimationFrame(() => {
-            anchorSessionViewport()
-            window.setTimeout(() => anchorSessionViewport(), 200)
-            requestAnimationFrame(() => resolve())
+            window.setTimeout(() => {
+              if (state.disposed || !state.tvChart) {
+                settle()
+                return
+              }
+              step(() => {
+                state.tvChart!.flushPendingRefresh()
+                state.tvChart!.resize()
+                // Scroll only after resetData + getBars have settled.
+                state.tvChart!.scrollReplayCursorIntoView()
+              })
+              requestAnimationFrame(() => {
+                step(() => {
+                  const snap = state.tvChart?.captureLockedViewport() ?? null
+                  if (snap) {
+                    const span = viewportSec(snap.to) - viewportSec(snap.from)
+                    if (span >= 3600) bootSettledViewport = snap
+                  }
+                  state.tvChart?.flushPendingRefresh()
+                })
+                settle()
+              })
+            }, 120)
           })
         })
       })
@@ -4611,27 +4698,60 @@ export function mountChartWorkspace(
     }
 
     async function paintTvBootChart() {
-      if (!state.tvChart || state.disposed) return
+      if (tvBootPaintDone || !state.tvChart || state.disposed) return
+      if (tvBootPaintInFlight) {
+        await tvBootPaintInFlight
+        return
+      }
 
-      let bootDismissed = tvBootPaintDone
-
-      const runPaint = async () => {
+      tvBootPaintInFlight = (async () => {
         if (!state.tvChart || state.disposed) return
-        await waitForChartHostLayout(chartHost, () => state.disposed)
+        await state.tvChart.whenChartReady()
         if (state.disposed || !state.tvChart) return
+
+        let hostReady = await waitForChartHostLayout(chartHost, () => state.disposed, 120)
+        if (!hostReady) {
+          state.tvChart.resize()
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 80))
+          hostReady = await waitForChartHostLayout(chartHost, () => state.disposed, 60)
+        }
+        if (state.disposed || !state.tvChart) return
+
         await yieldToMain()
-        await applyTvBootPaint()
-        hideChartEmptyState()
-        hideTvReplayMask()
-        maybeShowSessionWindowedNotice()
-        paintedWithNonZeroHost = true
-        syncReplayViewportAfterPaint()
-        if (!bootDismissed) {
-          bootDismissed = true
+        try {
+          await applyTvBootPaint()
+          hideChartEmptyState()
+          resetChartOverlays()
+          // resetChartOverlays clears the mask — restore it for the replay cursor.
+          syncTvReplayMaskForCurrentReplay()
+          maybeShowSessionWindowedNotice()
+          paintedWithNonZeroHost = hostReady
+        } catch (err) {
+          // TV painted or not, boot must complete — otherwise the safety timer
+          // tears down a working chart and falls back to Lightweight Charts.
+          console.warn('[ChartBoot] TV boot paint error', err)
+        }
+        // applyTvBootPaint already scrolled + captured bootSettledViewport — skip immediate re-scroll.
+
+        if (!tvBootPaintDone) {
           tvBootPaintDone = true
           await dismissBootAfterPaint()
         }
         void prefetchLookbackAfterBoot()
+
+        window.setTimeout(() => {
+          if (state.disposed || !state.tvChart) return
+          state.tvChart.flushPendingRefresh()
+          state.tvChart.resize()
+          const snap = state.tvChart.captureLockedViewport()
+          if (snap) bootSettledViewport = snap
+        }, 300)
+      })()
+
+      try {
+        await tvBootPaintInFlight
+      } finally {
+        tvBootPaintInFlight = null
       }
 
       async function prefetchLookbackAfterBoot() {
@@ -4668,16 +4788,6 @@ export function mountChartWorkspace(
         state.tvChart?.scrollReplayCursorIntoView()
         console.info('[ChartBoot] Lookback expanded', { added, priorBars: newFirstIdx })
       }
-
-      void state.tvChart.whenChartReady().then(() => {
-        void runPaint()
-      })
-
-      await Promise.race([
-        state.tvChart.whenChartReady().catch(() => {}),
-        new Promise<void>((resolve) => window.setTimeout(resolve, 8_000)),
-      ])
-      await runPaint()
     }
 
     replay = new ReplayController(chartBars, onReplayTick)
@@ -4792,17 +4902,24 @@ export function mountChartWorkspace(
 
     const savedReplayIndex = restoredReplay?.replayBarIndex
     const historicalSession = isHistoricalSessionBars(chartBars)
+    const savedReplayLooksValid =
+      savedReplayIndex != null &&
+      savedReplayIndex >= 1 &&
+      savedReplayIndex <= chartBars.length
     const initialReplayIndex =
       historicalSession
         ? sessionReplayStartIndex
-        : savedReplayIndex != null && savedReplayIndex >= 1
-          ? Math.min(Math.max(1, Math.round(savedReplayIndex)), chartBars.length)
-          : sessionReplayStartIndex
+        : savedReplayLooksValid
+          ? Math.round(savedReplayIndex!)
+          : chartBars.length > 0
+            ? chartBars.length
+            : sessionReplayStartIndex
     replayViewportLocked = false
     lockedTvViewport = null
     pendingTvViewportRestore = null
     state.tvChart?.setReplayLockedViewport(null)
     replay.replaceBarsAt(chartBars, initialReplayIndex)
+    syncReplayBarsPerAdvance()
     state.replay = replay
     syncTickLineOverlayActive()
     syncTickLineOverlay(initialReplayIndex)
@@ -4812,6 +4929,7 @@ export function mountChartWorkspace(
           tvBarsForChart(chartBars),
           intervalPillToTvResolution(chartTimeframe),
           tvBarPeriodSecForPill(chartTimeframe),
+          { deferRefresh: true },
         )
     }
     requestAnimationFrame(() => {
@@ -5419,7 +5537,55 @@ export function mountChartWorkspace(
         nextReplayTickDecoupledStepOnly = true
         nextReplayTickChartViewSnap = coupledSnap
         snapReplayToChartBars()
+        syncReplayBarsPerAdvance()
         restoreChartViewportSoon(coupledSnap)
+        return
+      }
+
+      // 1m chart + 2m/3m/5m/10m replay: reveal N chart bars per play tick (no step-bar transport).
+      if (usesMinuteBarSkipReplay(chartPick, pick)) {
+        const replayViewSnapAtPick =
+          state.tvChart?.captureLockedViewport() ??
+          lockedTvViewport ??
+          state.tvChart?.getReplayLockedViewport() ??
+          null
+        lockChartViewport(replayViewSnapAtPick)
+
+        const prevStepBars = replay.getBars()
+        const prevIndex = replay.getState().index
+        const prevReplayPick = resolveIntervalPick(replayTimeframe)
+        const prevCursorEnd =
+          prevReplayPick && usesMinuteBarSkipReplay(chartPick, prevReplayPick)
+            ? cursorEndSecForStepIndex(
+                chartBars,
+                chartPick.stepSec ?? 60,
+                prevIndex,
+              )
+            : isDecoupledReplay() && prevReplayPick
+              ? cursorEndSecForStepIndex(
+                  prevStepBars,
+                  effectiveReplayStepSec(prevStepBars, prevReplayPick.stepSec ?? 60),
+                  prevIndex,
+                )
+              : cursorEndSecForStepIndex(chartBars, chartPick.stepSec ?? 60, prevIndex)
+
+        replayTimeframe = pick.pill
+        if (replayDockTf) replayDockTf.textContent = pick.pill
+        replayStepSourceBars = []
+
+        const chartIdx = stepIndexForCursorEnd(
+          chartBars,
+          chartPick.stepSec ?? 60,
+          prevCursorEnd,
+        )
+        replay.pause()
+        syncPlayBtnPaused()
+        syncReplayBarsPerAdvance()
+        nextReplayTickDecoupledStepOnly = true
+        nextReplayTickChartViewSnap = replayViewSnapAtPick
+        replay.replaceBarsAt(chartBars, chartIdx)
+        onReplayTick(replay.slice(), chartIdx)
+        restoreChartViewportSoon(replayViewSnapAtPick)
         return
       }
 
@@ -5477,6 +5643,7 @@ export function mountChartWorkspace(
       const stepIndex = stepIndexForCursorEnd(stepBars, replayStepSec, prevCursorEnd)
       replay.pause()
       syncPlayBtnPaused()
+      replay.setBarsPerAdvance(1)
       nextReplayTickDecoupledStepOnly = true
       nextReplayTickChartViewSnap = replayViewSnapAtPick
       nextReplayTickDecoupledFeedPrimed = false
@@ -6355,114 +6522,6 @@ export function mountChartWorkspace(
       return t > 1e12 ? Math.floor(t / 1000) : Math.floor(t)
     }
 
-    /** Chart-TF candles revealed when replay is cut at `cutIndex` (computed before index moves). */
-    function scissorsCutDisplayBars(cutIndex: number): Bar[] {
-      const capped = Math.max(1, Math.min(Math.round(cutIndex), chartBars.length))
-      if (isDecoupledReplay()) {
-        const paint = decoupledReplayPaint(cutIndex)
-        if (paint?.display.length) return paint.display
-      }
-      return chartBars.slice(0, capped)
-    }
-
-    const tvTimeSec = (raw: number): number =>
-      raw > 1e11 ? Math.floor(raw / 1000) : Math.floor(raw)
-
-    /** Resolve pan/zoom for scissors cut — must overlap revealed bars or getBars returns empty. */
-    function resolveScissorsCutViewport(
-      cutBars: Bar[],
-      savedTv: TvLockedViewport | null,
-    ): TvLockedViewport | null {
-      if (!cutBars.length) return savedTv
-      const firstSec = scissorsBarOpenSec(cutBars[0]!)
-      const lastSec = scissorsBarOpenSec(cutBars[cutBars.length - 1]!)
-      const viewportOverlapsCut =
-        savedTv != null &&
-        tvTimeSec(savedTv.from) <= lastSec + 120 &&
-        tvTimeSec(savedTv.to) >= firstSec - 120
-      if (
-        viewportOverlapsCut &&
-        state.tvChart?.lockedViewportCoversBars(savedTv, cutBars)
-      ) {
-        return savedTv
-      }
-      const span =
-        savedTv != null
-          ? Math.max(tvTimeSec(savedTv.to) - tvTimeSec(savedTv.from), 3600)
-          : 180 * 60
-      return {
-        from: Math.max(firstSec, lastSec - span * 0.85),
-        to: lastSec + 120,
-        ...(savedTv?.barSpacing != null ? { barSpacing: savedTv.barSpacing } : {}),
-        ...(savedTv?.rightOffset != null ? { rightOffset: savedTv.rightOffset } : {}),
-      }
-    }
-
-    /**
-     * Apply scissors cut without seekReplayToIndex — avoids replayRewind resetData + stale viewport restore.
-     */
-    async function applyScissorsBarCut(
-      cutIndex: number,
-      savedViewport: { tv: TvLockedViewport | null; lwc: { from: number; to: number } | null } | null,
-    ) {
-      replay.pause()
-      syncPlayBtnPaused()
-      replay.setLoopStartIndex(cutIndex)
-
-      const cutBars = scissorsCutDisplayBars(cutIndex)
-      let tvView = savedViewport?.tv ?? lockedTvViewport ?? null
-
-      if (state.tvChart && tvChartMode && cutBars.length) {
-        tvView = resolveScissorsCutViewport(cutBars, tvView)
-        if (tvView) {
-          lockedTvViewport = tvView
-          pendingTvViewportRestore = tvView
-          replayViewportLocked = true
-          userViewportPinned = true
-          state.tvChart.setReplayLockedViewport(tvView)
-        }
-      }
-
-      skipReplayTickOnce = true
-      replay.setIndex(cutIndex)
-
-      if (state.tvChart && tvChartMode) {
-        const paint = isDecoupledReplay() ? decoupledReplayPaint(cutIndex) : null
-        const chartPick = resolveIntervalPick(chartTimeframe)
-        const tvRes = intervalPillToTvResolution(chartTimeframe)
-        const tvPeriod = chartPick ? intervalPickBarPeriodSec(chartPick) : 60
-        const pastCount = paint?.display.length ?? cutIndex
-        const tvSeries = tvBarsForChart(paint?.all ?? chartBars)
-
-        state.tvChart.noteResolution(tvRes)
-        await state.tvChart.applyScissorsCut(tvSeries, tvRes, pastCount, tvView, tvPeriod)
-        const maskBarIdx = Math.max(0, pastCount - 1)
-        requestAnimationFrame(() => {
-          syncTvReplayMask(maskBarIdx)
-          if (tvView) void state.tvChart?.restoreVisibleRange(tvView)
-        })
-      }
-
-      if (state.trading && !tvChartMode) {
-        state.trading.setReplayData(cutBars, replay.getBars(), { preserveViewport: true })
-      }
-
-      if (savedViewport?.lwc && state.trading) {
-        await restoreLockedChartViewport({ tv: null, lwc: savedViewport.lwc })
-      }
-
-      const cursorBar = lastBar(cutBars)
-      chartBarCount = isDecoupledReplay() ? replay.getBars().length : chartBars.length
-      syncReplayTransportUi(cutIndex)
-      updateLegend(cutBars)
-      updateSidePanelFromReplay(cursorBar)
-      syncChartIndicators(replay.getBars(), cutBars)
-      schedulePersistReplay()
-      setReplayDockOpen(true)
-      syncTradeNavUi(cursorBar ? Number(cursorBar.time) : undefined)
-      syncTickLineOverlay(cutIndex)
-    }
-
     /**
      * Snap scissors to the candle under the pointer.
      * Prefer geometry (same X space as the overlay line) so a bad plotOffsetX cannot
@@ -6626,7 +6685,6 @@ export function mountChartWorkspace(
     }
 
     function hideTvReplayMask() {
-      replayMaskActive = false
       if (!replayMaskOverlay) return
       replayMaskOverlay.hidden = true
       replayMaskOverlay.setAttribute('aria-hidden', 'true')
@@ -6637,17 +6695,36 @@ export function mountChartWorkspace(
       applyPlotClipVars(replayMaskOverlay, state.tvChart.getPlotClipInsets(chartHost))
     }
 
-    /** Hide unrevealed chart-TF bars on TV without resetData (full series stays in getBars). */
+    /**
+     * Hide unrevealed chart-TF bars on TV while the feed keeps the full series.
+     * Never throws — it runs inside the boot paint chain, where an exception would
+     * strand the boot promise and trip the Lightweight Charts fallback.
+     */
     function syncTvReplayMask(chartBarIdx: number) {
       if (!replayMaskOverlay || !tvChartMode || !state.tvChart) return
-      const idx = Math.max(0, Math.round(chartBarIdx))
-      const x = lineXAtBarIndex(idx)
-      if (x == null || !Number.isFinite(x)) return
-      updateReplayMaskPlotClip()
-      replayMaskOverlay.style.setProperty('--sx', `${Math.max(0, x)}px`)
-      replayMaskOverlay.hidden = false
-      replayMaskOverlay.setAttribute('aria-hidden', 'false')
-      replayMaskActive = true
+      try {
+        const idx = Math.max(0, Math.round(chartBarIdx))
+        const x = lineXAtBarIndex(idx)
+        if (x == null || !Number.isFinite(x)) return
+        updateReplayMaskPlotClip()
+        replayMaskOverlay.style.setProperty('--sx', `${Math.max(0, x)}px`)
+        replayMaskOverlay.hidden = false
+        replayMaskOverlay.setAttribute('aria-hidden', 'false')
+      } catch {
+        hideTvReplayMask()
+      }
+    }
+
+    /** Re-apply the mask for the current replay cursor (e.g. after resetChartOverlays wipes it). */
+    function syncTvReplayMaskForCurrentReplay() {
+      if (!tvFullSeriesActive || !state.tvChart || !tvChartMode || selectBarChartActive) return
+      const index = replay.getState().index
+      const decoupled = decoupledReplayPaint(index)
+      const revealLen = decoupled ? decoupled.display.length : index
+      const fullLen = decoupled ? (decoupled.all.length ?? chartBars.length) : chartBars.length
+      if (revealLen < 1 || revealLen >= fullLen) return
+      state.tvChart.setReplayRevealForMask(revealLen)
+      syncTvReplayMask(revealLen - 1)
     }
 
     function applyPlotClipVars(
@@ -7065,6 +7142,7 @@ export function mountChartWorkspace(
       syncTickLineOverlayActive()
       if (apply) {
         state.trading?.clearReplayPickPreview()
+        state.tvChart?.clearReplayPickPreview()
         const tickTvCut = isTickTvReplay()
         if (tickTvCut) {
           replayViewportLocked = false
@@ -7079,10 +7157,29 @@ export function mountChartWorkspace(
           state.tvChart?.setReplayLockedViewport(lockedTvViewport)
         }
         void (async () => {
-          if (tickTvCut) {
-            await seekReplayToIndex(cutIndex, false, { fit: false, preserveView: true })
-          } else {
-            await applyScissorsBarCut(cutIndex, savedViewport)
+          replay.setLoopStartIndex(cutIndex)
+          // Cut/seek often rewinds — force one paint so second-step / decoupled chart updates.
+          nextReplayTickForce = true
+          await seekReplayToIndex(cutIndex, false, {
+            fit: false,
+            preserveView: !tickTvCut,
+          })
+          // Minute decoupled: light sync after seek.
+          // Sub-minute: seek + force tick already painted — skip a second full paint.
+          if (isDecoupledReplay()) {
+            const rp = resolveIntervalPick(replayTimeframe)
+            if (!rp || !isSubMinuteReplayPick(rp)) {
+              syncDecoupledTvFeed(cutIndex, 'prime')
+            }
+          }
+          if (!tickTvCut) {
+            if (savedViewport?.lwc) {
+              await restoreLockedChartViewport({ tv: null, lwc: savedViewport.lwc })
+            }
+            // Single restore — a second delayed restore caused an extra blink.
+            if (lockedTvViewport && state.tvChart) {
+              await state.tvChart.restoreVisibleRange(lockedTvViewport)
+            }
           }
         })()
       } else {
@@ -7742,28 +7839,38 @@ export function mountChartWorkspace(
     }
 
     function beginReplayPlayback() {
-      if (!selectBarChartActive) {
-        // Lock wherever the chart is — playback reveals bars without shifting pan/zoom.
-        if (userViewportPinned && lockedTvViewport) {
-          replayViewportLocked = true
-          pendingTvViewportRestore = lockedTvViewport
-          state.tvChart?.setReplayLockedViewport(lockedTvViewport)
-        } else {
+      const startPlayback = () => {
+        if (!selectBarChartActive) {
+          // Lock wherever the chart is — playback reveals bars without shifting pan/zoom.
           pinChartViewportForReplay()
+          userViewportPinned = false
+        } else if (
+          replayViewportLocked &&
+          lockedTvViewport &&
+          state.tvChart &&
+          state.tvChart.lockedViewportCoversBars(lockedTvViewport, replay.slice())
+        ) {
+          void restoreTvViewport(lockedTvViewport)
         }
-        userViewportPinned = false
-        state.tvChart?.notifyUserPlaybackPan(tvBarPeriodSecForPill(chartTimeframe))
-      } else if (
-        replayViewportLocked &&
-        lockedTvViewport &&
-        state.tvChart &&
-        state.tvChart.lockedViewportCoversBars(lockedTvViewport, replay.slice())
-      ) {
-        void restoreTvViewport(lockedTvViewport)
+
+        // Boot may leave fit/force set — never refit on play kickoff.
+        nextReplayTickFit = false
+        nextReplayTickForce = false
+        hideTvReplayMask()
+        tvFullSeriesActive = false
+        state.tvChart?.setTvFullSeriesReplay(false)
+        replayPlayKickoff = true
+        replay.play()
       }
 
-      replayPlayKickoff = true
-      replay.play()
+      // Capture viewport after TV layout settles so bar spacing matches what is on screen.
+      if (!selectBarChartActive && state.tvChart) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(startPlayback)
+        })
+        return
+      }
+      startPlayback()
     }
 
     const playBtnEl = host.querySelector<HTMLButtonElement>('[data-rw="play"]')

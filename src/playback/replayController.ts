@@ -52,9 +52,13 @@ export const REPLAY_SPEED_MS = REPLAY_BARS_PER_SEC.map((bps) => Math.round(1000 
 export class ReplayController {
   private bars: Bar[]
   private state: ReplayState
+  /** Chart bars revealed per play tick (1 = one bar; 3 = three 1m bars when replay step is 3m). */
+  private barsPerAdvance = 1
   private tickTimer: ReturnType<typeof setTimeout> | null = null
   /** Bumped on pause/stop so in-flight ticks cannot schedule another. */
   private playbackGen = 0
+  /** Wall-clock target for the next advance — keeps cadence independent of paint cost. */
+  private nextTickAt = 0
   private onTick: (slice: Bar[], index: number) => void
 
   constructor(bars: Bar[], onTick: (slice: Bar[], index: number) => void) {
@@ -85,6 +89,14 @@ export class ReplayController {
     return idx >= 0 ? idx : 0
   }
 
+  getBarsPerAdvance(): number {
+    return this.barsPerAdvance
+  }
+
+  setBarsPerAdvance(count: number) {
+    this.barsPerAdvance = Math.max(1, Math.min(64, Math.round(count)))
+  }
+
   setLoop(enabled: boolean) {
     this.state.loop = enabled
   }
@@ -99,6 +111,12 @@ export class ReplayController {
     this.state.barsPerSec = REPLAY_BARS_PER_SEC[idx]!
     this.state.speedMs = this.msPerBar()
     /* Speed is read live each tick — do not restart the driver here. */
+    if (this.state.playing) {
+      // Re-base the cadence grid so a new speed applies to the next advance, not after the
+      // old (possibly multi-second) delay has elapsed.
+      this.nextTickAt = Date.now() + this.msPerBar()
+      this.scheduleNextTick(this.playbackGen)
+    }
   }
 
   slice(): Bar[] {
@@ -162,15 +180,33 @@ export class ReplayController {
     }
   }
 
+  /**
+   * Schedule against a fixed wall-clock grid rather than `period` after the paint returns.
+   *
+   * The paint callback is synchronous and can be expensive (a decoupled step repaints several
+   * chart bars), so chaining `setTimeout(period)` after `emit()` makes the real cadence
+   * `paint + period` — noticeably slower than the requested bars-per-second.
+   */
   private scheduleNextTick(gen: number) {
     if (!this.isLive(gen)) return
     this.cancelPendingTick()
-    this.tickTimer = setTimeout(() => this.runTick(gen), this.msPerBar())
+    const period = this.msPerBar()
+    const now = Date.now()
+    let delay = this.nextTickAt - now
+    if (delay < 0) {
+      // Fell behind (slow paint, background tab): step the grid forward to the next slot
+      // instead of firing a burst of catch-up ticks.
+      const missed = Math.floor(-delay / period) + 1
+      this.nextTickAt += missed * period
+      delay = Math.max(0, this.nextTickAt - now)
+    }
+    this.tickTimer = setTimeout(() => this.runTick(gen), delay)
   }
 
   /** Start the timeout chain without bumping playbackGen (pause uses gen to invalidate). */
   private armPlayback() {
     this.cancelPendingTick()
+    this.nextTickAt = Date.now() + this.msPerBar()
     const gen = this.playbackGen
     this.scheduleNextTick(gen)
   }
@@ -179,6 +215,9 @@ export class ReplayController {
   private runTick(gen: number) {
     this.tickTimer = null
     if (!this.isLive(gen)) return
+
+    // Claim this slot before painting so the next delay subtracts the paint cost.
+    this.nextTickAt += this.msPerBar()
 
     if (this.state.index >= this.bars.length) {
       if (this.state.loop) {
@@ -193,7 +232,7 @@ export class ReplayController {
       return
     }
 
-    this.state.index += 1
+    this.state.index = Math.min(this.bars.length, this.state.index + this.barsPerAdvance)
     if (!this.isLive(gen)) return
     this.emit()
     if (!this.isLive(gen)) return

@@ -455,9 +455,6 @@ async function loadBars(
       return []
     }
     let bars = replayFeed.getBarsForRequest(symbol, periodParams)
-    if (!bars.length && replayFeed.isReplayActive()) {
-      bars = replayFeed.getBarsRevealRescue(periodParams)
-    }
     if (!bars.length) {
       const fetched = await maybeLazyFetchSessionBars(
         periodParams,

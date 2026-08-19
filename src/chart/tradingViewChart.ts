@@ -64,12 +64,6 @@ export type TradingViewChartHandle = {
     },
   ) => void
   tickDecoupledReplay: (displayBars: Bar[]) => boolean
-  alignDecoupledChartFeed: (
-    allBars: Bar[],
-    resolution: string,
-    pastCount: number,
-    barPeriodSec?: number,
-  ) => boolean
   setReplayPickPreview: (splitIndex: number, allBars: Bar[]) => void
   clearReplayPickPreview: () => void
   clearReplay: () => void
@@ -154,13 +148,6 @@ export type TradingViewChartHandle = {
   setReplayLockedViewport: (viewport: TvLockedViewport | null) => void
   /** Apply a deferred resetCache/resetData after TV finishes initializing. */
   flushPendingRefresh: () => void
-  applyScissorsCut: (
-    bars: Bar[],
-    resolution: string,
-    pastCount: number,
-    lockedViewport: TvLockedViewport | null,
-    barPeriodSec?: number,
-  ) => Promise<void>
   /** True while replay code is applying a locked viewport (ignore user pan handlers). */
   isProgrammaticViewportRestore: () => boolean
   notifyUserPlaybackPan: (barPeriodSec?: number) => void
@@ -2049,10 +2036,6 @@ export async function createTradingViewChart(
       return replayCtrl?.tickDecoupledReplay(displayBars) ?? false
     },
 
-    alignDecoupledChartFeed(allBars, resolution, pastCount, barPeriodSec) {
-      return replayCtrl?.alignDecoupledChartFeed(allBars, resolution, pastCount, barPeriodSec) ?? false
-    },
-
     setReplayPickPreview(splitIndex, allBars) {
       replayCtrl?.setReplayPickPreview(splitIndex, allBars)
     },
@@ -2456,10 +2439,6 @@ export async function createTradingViewChart(
 
     flushPendingRefresh() {
       replayCtrl?.flushPendingRefresh()
-    },
-
-    applyScissorsCut(bars, resolution, pastCount, lockedViewport, barPeriodSec) {
-      return replayCtrl?.applyScissorsCut(bars, resolution, pastCount, lockedViewport, barPeriodSec) ?? Promise.resolve()
     },
 
     isProgrammaticViewportRestore() {

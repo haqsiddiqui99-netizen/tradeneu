@@ -1,5 +1,4 @@
 import type { Bar } from '../types'
-import { tvResolutionMatches } from './tradingViewDatafeed'
 import { barToTv } from './tradingViewReplayFeed'
 import type { TvReplayFeedController } from './tradingViewReplayFeed'
 
@@ -41,9 +40,18 @@ export type TvReplayWidgetApi = {
   activeChart: () => TvReplayChartApi
 }
 
-const REPLAY_VISIBLE_SEC = 180 * 60
+const REPLAY_VISIBLE_SEC = 2 * 60 * 60
+/** Used on interval-swap refit and legacy fit paths. */
 const REPLAY_BAR_SPACING = 6
-const REPLAY_RIGHT_OFFSET = 90
+/** Default boot viewport — 2 hours on the time axis (120 × 1m slots). */
+const DEFAULT_BOOT_WINDOW_SEC = 2 * 60 * 60
+/**
+ * Where the replay cursor sits in the boot window. 0.5 gives a 1h lookback of revealed
+ * candles on the left and 1h of empty space on the right for replay to fill.
+ */
+const BOOT_CURSOR_ANCHOR_RATIO = 0.5
+const DEFAULT_BOOT_BAR_SPACING = 6
+const REPLAY_RIGHT_OFFSET = 12
 /** Bars to show after switching 1m/5m/15m so candles keep normal width. */
 const INTERVAL_SWAP_VISIBLE_BARS = 80
 /** Tick / sub-minute: TV resolution stays 1m but bars are remapped to minute slots. */
@@ -94,13 +102,6 @@ export type TvReplayChartController = {
   ) => void
   /** Lightweight decoupled replay step — patch + realtime bar only (no resetData). Returns false if a full refresh is needed. */
   tickDecoupledReplay: (displayBars: Bar[]) => boolean
-  /** Ensure replay feed holds chart-TF session bars + reveal count (no resetData / refit). */
-  alignDecoupledChartFeed: (
-    allBars: Bar[],
-    resolution: string,
-    pastCount: number,
-    barPeriodSec?: number,
-  ) => boolean
   setReplayPickPreview: (splitIndex: number, allBars: Bar[]) => void
   clearReplayPickPreview: () => void
   clearReplay: () => void
@@ -146,14 +147,6 @@ export type TvReplayChartController = {
   finishIntervalSwap: () => void
   /** Apply a refresh that was deferred while the TV chart was still initializing. */
   flushPendingRefresh: () => void
-  /** Scissors bar cut — align viewport, truncate reveal, then resetData. */
-  applyScissorsCut: (
-    bars: Bar[],
-    resolution: string,
-    pastCount: number,
-    lockedViewport: TvLockedViewport | null,
-    barPeriodSec?: number,
-  ) => Promise<void>
   /** True while replay code is applying a locked viewport (ignore user pan handlers). */
   isProgrammaticViewportRestore: () => boolean
   /** Pause FxReplay bar-shift briefly after the user pans during playback. */
@@ -180,6 +173,17 @@ export function createTvReplayChartController(opts: {
   let lastPickPreviewSplit = -1
   let frozenViewport: TvLockedViewport | null = null
   let replayLockedViewport: TvLockedViewport | null = null
+  /**
+   * Bar-slot anchor for locked playback. Right offset is measured from the last bar in the
+   * series, so holding it constant slides the window left on every new bar. Decrementing it
+   * as bars arrive keeps the window stationary and lets candles fill the empty space instead.
+   * barSpacing is pinned here so candle width only ever changes when the user zooms.
+   */
+  let playbackOffsetAnchor: {
+    lastIdx: number
+    rightOffset: number
+    barSpacing: number | null
+  } | null = null
   let viewportRestoreRaf = 0
   let pendingIncrementalViewport: TvLockedViewport | null = null
   let pendingIntervalSwapRefresh: {
@@ -192,8 +196,10 @@ export function createTvReplayChartController(opts: {
   let pendingFullRefreshForce = false
   const rangeListeners: Array<() => void> = []
   let programmaticViewportRestoreDepth = 0
-  /** After user pan during play, hold viewport without FxReplay shift until this time. */
-  let suppressPlaybackShiftUntil = 0
+  /** After user pan during play, cancel pending viewport RAF so the lock wins. */
+  const notifyUserPlaybackPan = (_barPeriodSec = 60) => {
+    cancelIncrementalViewportRaf()
+  }
 
   const beginProgrammaticViewportRestore = () => {
     programmaticViewportRestoreDepth++
@@ -208,11 +214,6 @@ export function createTvReplayChartController(opts: {
   }
 
   const isProgrammaticViewportRestore = (): boolean => programmaticViewportRestoreDepth > 0
-
-  const notifyUserPlaybackPan = (barPeriodSec = 60) => {
-    suppressPlaybackShiftUntil = Date.now() + Math.max(500, barPeriodSec * 1000)
-    cancelIncrementalViewportRaf()
-  }
 
   const maxRealtimeEmitBatch = (): number => {
     const periodSec = Math.max(1, opts.replayFeed.getBarPeriodSec())
@@ -268,22 +269,71 @@ export function createTvReplayChartController(opts: {
     pendingIncrementalViewport = null
   }
 
+  const capturePlaybackOffsetAnchor = () => {
+    const ts = timeScale()
+    if (!ts) {
+      playbackOffsetAnchor = null
+      return
+    }
+    try {
+      const off = ts.rightOffset?.()
+      if (off == null || !Number.isFinite(off)) {
+        playbackOffsetAnchor = null
+        return
+      }
+      const spacing = ts.barSpacing?.()
+      playbackOffsetAnchor = {
+        lastIdx: lastSeriesBarIndex(),
+        rightOffset: off,
+        barSpacing: spacing != null && Number.isFinite(spacing) && spacing > 0.3 ? spacing : null,
+      }
+    } catch {
+      playbackOffsetAnchor = null
+    }
+  }
+
+  /** Right offset that keeps the locked window stationary as replay reveals bars. */
+  const playbackRightOffset = (): number | null => {
+    if (!playbackOffsetAnchor) return null
+    const advanced = lastSeriesBarIndex() - playbackOffsetAnchor.lastIdx
+    if (!Number.isFinite(advanced) || advanced < 0) return null
+    return Math.max(1, playbackOffsetAnchor.rightOffset - advanced)
+  }
+
+  /**
+   * Apply the locked window purely in bar slots. Returns false when no anchor is active.
+   *
+   * setVisibleRange must not be used while the replay feed is truncated: TV clamps the range
+   * to the bars it actually holds, which snaps the last candle to the right edge (bars pile up
+   * against the left wall) and recomputes barSpacing to fill the width (candles grow).
+   */
+  const applyAnchoredPlaybackViewport = (ts: TvTimeScaleApi): boolean => {
+    const anchored = playbackRightOffset()
+    if (anchored == null) return false
+    const pinnedSpacing = playbackOffsetAnchor?.barSpacing
+    if (pinnedSpacing != null) ts.setBarSpacing(pinnedSpacing)
+    ts.setRightOffset(anchored)
+    return true
+  }
+
   const paintPlaybackViewport = (target: TvLockedViewport) => {
     const cc = chart()
     if (!cc || opts.isDisposed()) return
     beginProgrammaticViewportRestore()
     try {
       const ts = cc.getTimeScale()
-      if (target.barSpacing != null && Number.isFinite(target.barSpacing)) {
-        ts.setBarSpacing(target.barSpacing)
+      if (!applyAnchoredPlaybackViewport(ts)) {
+        if (target.barSpacing != null && Number.isFinite(target.barSpacing)) {
+          ts.setBarSpacing(target.barSpacing)
+        }
+        if (target.rightOffset != null && Number.isFinite(target.rightOffset)) {
+          ts.setRightOffset(target.rightOffset)
+        }
+        void cc.setVisibleRange({
+          from: normalizeChartTimeSec(target.from),
+          to: normalizeChartTimeSec(target.to),
+        })
       }
-      if (target.rightOffset != null && Number.isFinite(target.rightOffset)) {
-        ts.setRightOffset(target.rightOffset)
-      }
-      void cc.setVisibleRange({
-        from: normalizeChartTimeSec(target.from),
-        to: normalizeChartTimeSec(target.to),
-      })
     } catch {
       /* TV may reject tight ranges on small screens */
     }
@@ -318,11 +368,13 @@ export function createTvReplayChartController(opts: {
     if (!c) return
     try {
       const ts = c.getTimeScale()
-      if (saved.barSpacing != null && Number.isFinite(saved.barSpacing)) {
-        ts.setBarSpacing(saved.barSpacing)
-      }
-      if (saved.rightOffset != null && Number.isFinite(saved.rightOffset)) {
-        ts.setRightOffset(saved.rightOffset)
+      if (!applyAnchoredPlaybackViewport(ts)) {
+        if (saved.barSpacing != null && Number.isFinite(saved.barSpacing)) {
+          ts.setBarSpacing(saved.barSpacing)
+        }
+        if (saved.rightOffset != null && Number.isFinite(saved.rightOffset)) {
+          ts.setRightOffset(saved.rightOffset)
+        }
       }
     } catch {
       /* noop */
@@ -345,10 +397,12 @@ export function createTvReplayChartController(opts: {
         return
       }
       try {
-        void cc.setVisibleRange({
-          from: normalizeChartTimeSec(target.from),
-          to: normalizeChartTimeSec(target.to),
-        })
+        if (!applyAnchoredPlaybackViewport(cc.getTimeScale())) {
+          void cc.setVisibleRange({
+            from: normalizeChartTimeSec(target.from),
+            to: normalizeChartTimeSec(target.to),
+          })
+        }
       } catch {
         /* TV may reject tight ranges on small screens */
       }
@@ -415,12 +469,10 @@ export function createTvReplayChartController(opts: {
   const restoreVisibleRangeLocked = async (saved: TvLockedViewport) => {
     const c = chart()
     if (!c) return
-    const from = normalizeChartTimeSec(saved.from)
-    const to = normalizeChartTimeSec(saved.to)
-    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return
     beginProgrammaticViewportRestore()
     try {
       const ts = c.getTimeScale()
+      if (applyAnchoredPlaybackViewport(ts)) return
       if (saved.barSpacing != null && Number.isFinite(saved.barSpacing)) {
         ts.setBarSpacing(saved.barSpacing)
       }
@@ -428,11 +480,14 @@ export function createTvReplayChartController(opts: {
         ts.setRightOffset(saved.rightOffset)
       }
       await Promise.race([
-        c.setVisibleRange({ from, to }),
+        c.setVisibleRange({
+          from: normalizeChartTimeSec(saved.from),
+          to: normalizeChartTimeSec(saved.to),
+        }),
         new Promise<void>((resolve) => window.setTimeout(resolve, RESTORE_VIEWPORT_TIMEOUT_MS)),
       ])
     } catch {
-      /* TV may reject tight ranges on small screens or when the chart has no bars yet */
+      /* TV may reject tight ranges on small screens */
     } finally {
       endProgrammaticViewportRestore()
     }
@@ -626,56 +681,13 @@ export function createTvReplayChartController(opts: {
   const applyReplayViewport = async (pastBars: Bar[]) => {
     const c = chart()
     if (!c || !pastBars.length) return
-    const last = pastBars[pastBars.length - 1]!
-    const lastSec = Number(last.time)
 
     if (isSubMinuteBarPeriod()) {
       await applySubMinuteViewport(c, pastBars, pastBars.length)
       return
     }
 
-    const firstSec = Number(pastBars[0]!.time)
-
-    if (pastBars.length < 8) {
-      const dataSpan = Math.max(60, lastSec - firstSec)
-      const pad = Math.max(1800, dataSpan * 3)
-      const mid = (firstSec + lastSec) / 2
-      try {
-        await c.setVisibleRange(
-          { from: mid - pad, to: mid + pad },
-          { percentRightMargin: 18 },
-        )
-      } catch {
-        /* TV may reject tight ranges on small screens */
-      }
-      return
-    }
-
-    try {
-      const ts = c.getTimeScale()
-      ts.setBarSpacing(REPLAY_BAR_SPACING)
-      ts.setRightOffset(REPLAY_RIGHT_OFFSET)
-    } catch {
-      /* noop */
-    }
-
-    const anchorIdx = pastBars.length - 1
-    const visibleBars = 120
-    const lookbackBars = Math.max(8, Math.floor(visibleBars * 0.62))
-    const forwardBars = Math.max(8, visibleBars - lookbackBars)
-    const firstIdx = Math.max(0, anchorIdx - lookbackBars)
-    const toIdx = Math.min(pastBars.length - 1, anchorIdx + forwardBars)
-    const fromSec = Number(pastBars[firstIdx]!.time)
-    const toSec = Number(pastBars[toIdx]!.time)
-
-    try {
-      await c.setVisibleRange(
-        { from: fromSec, to: toSec + 120 },
-        { percentRightMargin: 12 },
-      )
-    } catch {
-      /* TV may reject tight ranges on small screens */
-    }
+    applyViewportAroundBarIndex(pastBars.length - 1, { preserveBarSpacing: false })
   }
 
   const notifyRangeListeners = () => {
@@ -688,13 +700,33 @@ export function createTvReplayChartController(opts: {
     }
   }
 
+  /**
+   * A bar-spacing change we did not make is a user zoom — adopt it as the new pinned width
+   * so playback keeps candle size stable at whatever the user chose.
+   */
+  const adoptUserBarSpacing = () => {
+    if (!playbackOffsetAnchor || isProgrammaticViewportRestore()) return
+    const ts = timeScale()
+    if (!ts) return
+    try {
+      const spacing = ts.barSpacing?.()
+      if (spacing == null || !Number.isFinite(spacing) || spacing <= 0.3) return
+      playbackOffsetAnchor.barSpacing = spacing
+    } catch {
+      /* noop */
+    }
+  }
+
   const ensureRangeHooks = () => {
     const c = chart()
     if (!c) return
     if (!rangeSubscribed) {
       try {
         const ts = c.getTimeScale()
-        ts.barSpacingChanged().subscribe(null, notifyRangeListeners)
+        ts.barSpacingChanged().subscribe(null, () => {
+          adoptUserBarSpacing()
+          notifyRangeListeners()
+        })
         ts.rightOffsetChanged().subscribe(null, notifyRangeListeners)
         rangeSubscribed = true
       } catch {
@@ -790,82 +822,166 @@ export function createTvReplayChartController(opts: {
     const allTv = opts.replayFeed.getAllBars()
     if (!allTv.length || revealed < 1) return
     const anchorIdx = Math.min(revealed, allTv.length) - 1
-    applyViewportAroundBarIndex(anchorIdx)
+    applyViewportAroundBarIndex(anchorIdx, { preserveBarSpacing: false })
+
+    // TV can re-fit to the data span right after resetData/getBars settle, which collapses
+    // the window. Re-assert the bar layout until it sticks.
+    const verifyBootViewport = (attempt = 0) => {
+      if (attempt >= 5 || opts.isDisposed()) return
+      if (!bootViewportLooksApplied(anchorIdx)) {
+        applyViewportAroundBarIndex(anchorIdx, { preserveBarSpacing: false })
+      }
+      window.setTimeout(() => verifyBootViewport(attempt + 1), 120 * (attempt + 1))
+    }
+    window.setTimeout(() => verifyBootViewport(0), 80)
   }
 
   const scrollToWallTimeSec = (timeSec: number) => {
     const allTv = opts.replayFeed.getAllBars()
     if (!allTv.length || !Number.isFinite(timeSec)) return
     const anchorIdx = opts.replayFeed.findBarIndexAtOrBeforeTimeSec(timeSec)
-    applyViewportAroundBarIndex(anchorIdx)
+    applyViewportAroundBarIndex(anchorIdx, { preserveBarSpacing: false })
   }
 
-  const applyViewportAroundBarIndex = (anchorIdx: number) => {
+  const resolveViewportBarSpacing = (ts: TvTimeScaleApi, preserveBarSpacing?: boolean): number => {
+    if (preserveBarSpacing) {
+      const cur = ts.barSpacing?.()
+      if (cur != null && Number.isFinite(cur) && cur >= 3 && cur <= 14) return cur
+    }
+    return DEFAULT_BOOT_BAR_SPACING
+  }
+
+  const defaultBootViewSpanSec = (periodSec: number): number => {
+    if (periodSec < 60) {
+      return Math.min(DEFAULT_BOOT_WINDOW_SEC, TICK_SWAP_VISIBLE_BARS * periodSec)
+    }
+    return DEFAULT_BOOT_WINDOW_SEC
+  }
+
+  /** Index of the last bar TV currently has in the series (truncated feed ends at the cursor). */
+  const lastSeriesBarIndex = (): number => {
+    const allTv = opts.replayFeed.getAllBars()
+    if (!allTv.length) return 0
+    if (opts.replayFeed.useTvFullSeriesMaskMode()) return allTv.length - 1
+    return Math.max(0, Math.min(opts.replayFeed.getRevealedCount(), allTv.length) - 1)
+  }
+
+  /**
+   * Bar-slot layout for the boot window: total visible slots, how many sit left of the
+   * cursor (revealed candles) and how many sit right of it (empty replay space).
+   */
+  const bootViewportLayout = (anchorIdx: number) => {
+    const period = Math.max(1, opts.replayFeed.getBarPeriodSec())
+    const viewSpan = defaultBootViewSpanSec(period)
+    const totalBars = Math.max(20, Math.min(600, Math.round(viewSpan / period)))
+    const barsAfter = Math.max(1, Math.round(totalBars * (1 - BOOT_CURSOR_ANCHOR_RATIO)))
+    // rightOffset is measured from the last bar in the series, not from the cursor.
+    const rightOffset = Math.max(1, barsAfter + (anchorIdx - lastSeriesBarIndex()))
+    return { totalBars, barsAfter, rightOffset }
+  }
+
+  /**
+   * Right offset (in bar slots) that puts the cursor at the anchor ratio, derived from the
+   * bar spacing TV actually applied rather than the spacing we asked for — TV clamps spacing,
+   * and a stale assumption here scrolls every candle off the left edge.
+   */
+  const bootRightOffsetFromActualSpacing = (
+    ts: TvTimeScaleApi,
+    anchorIdx: number,
+  ): number | null => {
+    const width = ts.width()
+    if (!Number.isFinite(width) || width < 50) return null
+    const actualSpacing = ts.barSpacing?.()
+    const spacing =
+      actualSpacing != null && Number.isFinite(actualSpacing) && actualSpacing > 0.3
+        ? actualSpacing
+        : DEFAULT_BOOT_BAR_SPACING
+    const visibleBars = Math.max(8, Math.floor(width / spacing))
+    const barsAfter = Math.round(visibleBars * (1 - BOOT_CURSOR_ANCHOR_RATIO))
+    // Never push all data off screen: keep a quarter of the window filled where bars exist.
+    const minDataBars = Math.min(anchorIdx + 1, Math.ceil(visibleBars * 0.25))
+    const maxOffset = Math.max(1, visibleBars - Math.max(1, minDataBars))
+    const raw = barsAfter + (anchorIdx - lastSeriesBarIndex())
+    return Math.max(1, Math.min(raw, maxOffset))
+  }
+
+  /** True when TV's bar spacing / right offset already match the boot window. */
+  const bootViewportLooksApplied = (anchorIdx: number): boolean => {
+    const ts = timeScale()
+    if (!ts) return false
+    try {
+      const width = ts.width()
+      if (width < 50) return false
+      const { totalBars } = bootViewportLayout(anchorIdx)
+      const targetSpacing = width / totalBars
+      const spacing = ts.barSpacing?.()
+      if (spacing == null || !Number.isFinite(spacing)) return false
+      if (Math.abs(spacing - targetSpacing) > Math.max(0.6, targetSpacing * 0.25)) return false
+      const wantOffset = bootRightOffsetFromActualSpacing(ts, anchorIdx)
+      const offset = ts.rightOffset?.()
+      if (wantOffset != null && offset != null && Number.isFinite(offset)) {
+        if (Math.abs(offset - wantOffset) > Math.max(2, wantOffset * 0.25)) return false
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Position the cursor bar inside the boot window using bar spacing + right offset only.
+   * setVisibleRange is deliberately avoided here: TV clamps a requested range to the span of
+   * data it actually holds, so with a truncated replay feed it collapses the axis to the few
+   * revealed bars. Right offset is expressed in bar slots, so it reserves genuine empty space
+   * to the right of the last bar for replay to fill.
+   *
+   * Applied in two phases — spacing first, then offset from the spacing TV settled on.
+   */
+  const applyViewportAroundBarIndex = (
+    anchorIdx: number,
+    viewOpts?: { preserveBarSpacing?: boolean },
+  ) => {
     const allTv = opts.replayFeed.getAllBars()
     if (!allTv.length) return
     const anchor = Math.max(0, Math.min(anchorIdx, allTv.length - 1))
 
-    const applyScroll = (): boolean => {
+    const applySpacing = () => {
       const c = chart()
-      if (!c) return false
-
-      if (isSubMinuteBarPeriod()) {
-        const period = Math.max(1, opts.replayFeed.getBarPeriodSec())
-        const cap = period <= 1 ? 360 : TICK_SWAP_VISIBLE_BARS
-        const visibleBars = Math.min(cap, 90)
-        const firstIdx = Math.max(0, anchor - visibleBars + 1)
-        let toIdx = anchor
-        if (anchor < visibleBars - 1) {
-          toIdx = Math.min(allTv.length - 1, visibleBars - 1)
-        }
-        const firstSec = Math.floor(allTv[firstIdx]!.time / 1000)
-        const lastSec = Math.floor(allTv[toIdx]!.time / 1000)
-        const pad = period * Math.max(2, Math.ceil(10 / period))
-        try {
-          const ts = c.getTimeScale()
-          ts.setBarSpacing(REPLAY_BAR_SPACING)
-          ts.setRightOffset(12)
-          void c.setVisibleRange(
-            { from: firstSec - pad, to: lastSec + pad },
-            { percentRightMargin: 10 },
-          )
-          return true
-        } catch {
-          return false
-        }
-      }
-
-      const visibleBars = 120
-      const lookbackBars = Math.max(8, Math.floor(visibleBars * 0.62))
-      const forwardBars = Math.max(8, visibleBars - lookbackBars)
-      const firstIdx = Math.max(0, anchor - lookbackBars)
-      const toIdx = Math.min(allTv.length - 1, anchor + forwardBars)
-      const firstSec = Math.floor(allTv[firstIdx]!.time / 1000)
-      const lastSec = Math.floor(allTv[toIdx]!.time / 1000)
-
+      if (!c) return
       try {
         const ts = c.getTimeScale()
-        ts.setBarSpacing(REPLAY_BAR_SPACING)
-        ts.setRightOffset(REPLAY_RIGHT_OFFSET)
+        const width = ts.width()
+        const { totalBars } = bootViewportLayout(anchor)
+        const spacing = viewOpts?.preserveBarSpacing
+          ? resolveViewportBarSpacing(ts, true)
+          : width >= 50
+            ? Math.max(0.6, Math.min(40, width / totalBars))
+            : DEFAULT_BOOT_BAR_SPACING
+        ts.setBarSpacing(spacing)
       } catch {
         /* noop */
       }
+    }
 
+    const applyOffset = () => {
+      const c = chart()
+      if (!c) return
       try {
-        void c.setVisibleRange(
-          { from: firstSec, to: lastSec + 120 },
-          { percentRightMargin: 12 },
-        )
-        return true
+        const ts = c.getTimeScale()
+        const offset = bootRightOffsetFromActualSpacing(ts, anchor)
+        if (offset != null) ts.setRightOffset(offset)
       } catch {
-        return false
+        /* noop */
       }
     }
 
-    applyScroll()
+    applySpacing()
     requestAnimationFrame(() => {
-      applyScroll()
-      requestAnimationFrame(() => applyScroll())
+      applyOffset()
+      requestAnimationFrame(() => {
+        applySpacing()
+        applyOffset()
+      })
     })
   }
 
@@ -929,7 +1045,7 @@ export function createTvReplayChartController(opts: {
         ? opts2.restoreVisibleRange
         : null)
 
-    const holdViewport =
+    let holdViewport =
       holdViewportRaw &&
       (opts2?.decoupledStepOnly === true ||
         opts2?.stepPreserveView === true ||
@@ -941,6 +1057,11 @@ export function createTvReplayChartController(opts: {
         ? holdViewportRaw
         : null
 
+    // Play with a pinned viewport: never fall through to scrollReplayCursorIntoView / REPLAY_BAR_SPACING.
+    if (!holdViewport && opts2?.playing && opts2?.preserveViewport && replayLockedViewport) {
+      holdViewport = replayLockedViewport
+    }
+
     const skipViewportRestoreRetries = opts2?.playing === true && opts2?.preserveViewport === true
     if (skipViewportRestoreRetries) cancelViewportRestoreTimers()
 
@@ -950,16 +1071,19 @@ export function createTvReplayChartController(opts: {
     const applyHeldViewportAfterBar = () => {
       cancelViewportRestoreTimers()
       if (!holdViewport) {
-        if (opts2?.playing) scrollReplayCursorIntoView()
+        if (opts2?.playing && replayLockedViewport) {
+          applyPlaybackViewportRange(replayLockedViewport, true)
+        } else if (opts2?.playing && !opts2?.preserveViewport) {
+          scrollReplayCursorIntoView()
+        }
         return
       }
       if (opts2?.playing && opts2?.preserveViewport) {
         const lockedNow = lockedViewportNow()
-        if (Date.now() < suppressPlaybackShiftUntil) {
-          applyPlaybackViewportRange(lockedNow, true)
-          return
-        }
-        commitPlaybackViewport(lockedNow, pastBars, prevPastCount, pastCount, opts2)
+        // Fixed pan/zoom during play — restore bar spacing/range only, do not follow cursor.
+        applyPlaybackViewportRange(lockedNow, true)
+      } else if (opts2?.playing && holdViewport) {
+        commitPlaybackViewport(holdViewport, pastBars, prevPastCount, pastCount, opts2)
       } else {
         restoreViewportAfterIncrementalBar(holdViewport)
       }
@@ -1014,15 +1138,11 @@ export function createTvReplayChartController(opts: {
 
     if (!opts2?.pickPreview) {
       lastPickPreviewSplit = -1
-      const stepOnlyPaint =
-        opts2?.decoupledStepOnly === true || opts2?.stepPreserveView === true
-      if (!sameRevealCount && !stepOnlyPaint) {
+      if (!sameRevealCount) {
         opts.replayFeed.setRevealCountIfChanged(pastCount)
       }
-      if (!stepOnlyPaint) {
-        const last = pastBars[pastCount - 1]
-        if (last) opts.replayFeed.patchBarAtIndex(pastCount - 1, last)
-      }
+      const last = pastBars[pastCount - 1]
+      if (last) opts.replayFeed.patchBarAtIndex(pastCount - 1, last)
     }
 
     // Locked play resume: keep cursor on screen — viewport only, no resetData.
@@ -1054,6 +1174,9 @@ export function createTvReplayChartController(opts: {
         for (let i = prevPastCount; i < pastCount; i++) {
           opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
         }
+        applyHeldViewportAfterBar()
+      } else if (holdViewport) {
+        refreshWithLockedViewport()
         applyHeldViewportAfterBar()
       } else {
         scheduleFullRefresh(true)
@@ -1099,6 +1222,21 @@ export function createTvReplayChartController(opts: {
     if (
       !opts2?.pickPreview &&
       replayRewind &&
+      opts2?.playing &&
+      opts2?.preserveViewport &&
+      holdViewport
+    ) {
+      // Loop rewind during play — reset series once, then restore locked pan/zoom/bar spacing.
+      doFullRefreshWithLockedViewport(holdViewport, false)
+      if (!cursorSuppressed) scheduleCursorLine(pastBars)
+      lastPastCount = pastCount
+      ensureRangeHooks()
+      return
+    }
+
+    if (
+      !opts2?.pickPreview &&
+      replayRewind &&
       (opts2?.force === true || opts2?.playing || pastCount < prevPastCount)
     ) {
       if (holdViewport) {
@@ -1106,8 +1244,14 @@ export function createTvReplayChartController(opts: {
       } else {
         scheduleFullRefresh(true)
         if (opts2?.fit && !opts2?.preserveViewport) void applyReplayViewport(pastBars)
-        else if (!opts2?.decoupledStepOnly && !opts2?.stepPreserveView && !opts2?.preserveViewport)
+        else if (
+          !opts2?.decoupledStepOnly &&
+          !opts2?.stepPreserveView &&
+          !opts2?.preserveViewport &&
+          !(opts2?.playing && replayLockedViewport)
+        ) {
           scrollReplayCursorIntoView()
+        }
       }
       if (!cursorSuppressed) scheduleCursorLine(pastBars)
       lastPastCount = pastCount
@@ -1138,24 +1282,19 @@ export function createTvReplayChartController(opts: {
       !opts2?.pickPreview
     ) {
       // Replay step interval change — feed-only update + restore pan/zoom (no resetData).
+      opts.replayFeed.setRevealCountIfChanged(pastCount)
       if (prevPastCount > 0 && pastCount > prevPastCount) {
         for (let i = prevPastCount; i < pastCount; i++) {
           const bar = pastBars[i]
-          if (bar) opts.replayFeed.patchBarAtIndex(i, bar)
-        }
-        opts.replayFeed.setRevealCountIfChanged(pastCount)
-        for (let i = prevPastCount; i < pastCount; i++) {
-          const bar = pastBars[i]
-          if (bar && streamBars) opts.replayFeed.emitRealtimeBar(barToTv(bar))
+          if (!bar) continue
+          opts.replayFeed.patchBarAtIndex(i, bar)
+          if (streamBars) opts.replayFeed.emitRealtimeBar(barToTv(bar))
         }
       } else {
         const lastBar = pastBars[pastCount - 1]
         if (lastBar) {
           opts.replayFeed.patchBarAtIndex(pastCount - 1, lastBar)
-          opts.replayFeed.setRevealCountIfChanged(pastCount)
           if (streamBars) opts.replayFeed.emitRealtimeBar(barToTv(lastBar))
-        } else {
-          opts.replayFeed.setRevealCountIfChanged(pastCount)
         }
       }
       if (holdViewport) restoreViewportAfterIncrementalBar(holdViewport)
@@ -1171,6 +1310,18 @@ export function createTvReplayChartController(opts: {
     } else {
       if (holdViewport) {
         refreshWithLockedViewport()
+      } else if (
+        opts2?.playing &&
+        opts2?.preserveViewport &&
+        replayLockedViewport &&
+        pastCount > prevPastCount &&
+        prevPastCount > 0
+      ) {
+        // Locked play without streaming listeners — avoid naked resetData refit.
+        for (let i = prevPastCount; i < pastCount; i++) {
+          opts.replayFeed.emitRealtimeBar(barToTv(pastBars[i]!))
+        }
+        applyPlaybackViewportRange(replayLockedViewport, true)
       } else {
         scheduleFullRefresh(
           opts2?.fit === true ||
@@ -1504,33 +1655,6 @@ export function createTvReplayChartController(opts: {
       })
     },
 
-    alignDecoupledChartFeed(allBars, resolution, pastCount, barPeriodSec) {
-      if (!allBars.length) return false
-      const pastCountClamped = Math.max(1, Math.min(Math.round(pastCount), allBars.length))
-      const feedRes = opts.replayFeed.getResolution()
-      const feedBars = opts.replayFeed.getAllBars()
-      const feedAligned =
-        tvResolutionMatches(feedRes, resolution) &&
-        feedBars.length === allBars.length &&
-        (feedBars.length === 0 ||
-          feedBars[0]!.time === barToTv(allBars[0]!).time)
-      const revealAligned = opts.replayFeed.getRevealedCount() === pastCountClamped
-      if (feedAligned && revealAligned && lastPastCount === pastCountClamped) {
-        return false
-      }
-      const key = `${resolution}|${allBars.length}|${allBars[0]?.time ?? ''}|${allBars[allBars.length - 1]?.time ?? ''}`
-      sessionBarsKey = key
-      if (!feedAligned) {
-        opts.replayFeed.setSessionBars(allBars, resolution, barPeriodSec)
-        opts.replayFeed.setRevealCount(pastCountClamped)
-        lastPastCount = -1
-        return true
-      }
-      opts.replayFeed.setRevealCount(pastCountClamped)
-      lastPastCount = pastCountClamped
-      return true
-    },
-
     tickDecoupledReplay(displayBars) {
       if (opts.isDisposed() || !displayBars.length) return false
       if (!canStreamRealtimeBars()) return false
@@ -1540,15 +1664,11 @@ export function createTvReplayChartController(opts: {
 
       if (pastCount < prevCount) return false
 
-      // Feed just primed / realigned — patch full reveal window, then emit.
+      // Feed just primed (lastPastCount reset) — patch forming bar only; do not flood realtime emits.
       if (prevCount < 0) {
-        for (let i = 0; i < pastCount; i++) {
-          opts.replayFeed.patchBarAtIndex(i, displayBars[i]!)
-        }
-        opts.replayFeed.setRevealCountIfChanged(pastCount)
-        for (let i = 0; i < pastCount; i++) {
-          opts.replayFeed.emitRealtimeBar(barToTv(displayBars[i]!))
-        }
+        const last = displayBars[pastCount - 1]!
+        opts.replayFeed.patchBarAtIndex(pastCount - 1, last)
+        opts.replayFeed.emitRealtimeBar(barToTv(last))
         lastPastCount = pastCount
         return true
       }
@@ -1562,13 +1682,11 @@ export function createTvReplayChartController(opts: {
       }
 
       const emitFrom = prevCount > 0 ? prevCount : 0
-      // Patch before reveal — session allBars hold full OHLC for unrevealed indices.
-      for (let i = emitFrom; i < pastCount; i++) {
-        opts.replayFeed.patchBarAtIndex(i, displayBars[i]!)
-      }
       opts.replayFeed.setRevealCountIfChanged(pastCount)
       for (let i = emitFrom; i < pastCount; i++) {
-        opts.replayFeed.emitRealtimeBar(barToTv(displayBars[i]!))
+        const b = displayBars[i]!
+        opts.replayFeed.patchBarAtIndex(i, b)
+        opts.replayFeed.emitRealtimeBar(barToTv(b))
       }
       lastPastCount = pastCount
       return true
@@ -1623,39 +1741,6 @@ export function createTvReplayChartController(opts: {
       pendingFullRefreshForce = false
       if (force) lastPastCount = -1
       scheduleFullRefresh(true)
-    },
-
-    async applyScissorsCut(bars, resolution, pastCount, lockedViewport, barPeriodSec) {
-      if (opts.isDisposed() || !bars.length) return
-      const pastCountClamped = Math.max(1, Math.min(Math.round(pastCount), bars.length))
-      const feedRes = opts.replayFeed.getResolution()
-      const feedBars = opts.replayFeed.getAllBars()
-      const feedAligned =
-        tvResolutionMatches(feedRes, resolution) &&
-        feedBars.length === bars.length &&
-        (feedBars.length === 0 || feedBars[0]!.time === barToTv(bars[0]!).time)
-      if (!feedAligned) {
-        const key = `${resolution}|${bars.length}|${bars[0]?.time ?? ''}|${bars[bars.length - 1]?.time ?? ''}`
-        sessionBarsKey = key
-        opts.replayFeed.setSessionBars(bars, resolution, barPeriodSec)
-      }
-      // Scissors pick keeps the full series visible (CSS wash). Truncating the feed +
-      // resetData leaves TV requesting bars outside the cut window → "No data here".
-      // Keep the full series in getBars and hide future bars with the DOM replay mask.
-      opts.replayFeed.setTvFullSeriesReplay(true)
-      opts.replayFeed.setReplayRevealForMask(pastCountClamped)
-      lastPastCount = pastCountClamped
-      lastPickPreviewSplit =
-        pastCountClamped >= bars.length ? -1 : pastCountClamped - 1
-      cancelViewportRestoreTimers()
-      cancelIncrementalViewportRaf()
-      if (lockedViewport) {
-        replayLockedViewport = lockedViewport
-        await restoreVisibleRangeLocked(lockedViewport)
-      } else {
-        replayLockedViewport = null
-      }
-      ensureRangeHooks()
     },
 
     setReplayPickPreview(splitIndex, allBars) {
@@ -1735,7 +1820,12 @@ export function createTvReplayChartController(opts: {
 
     setReplayLockedViewport(viewport) {
       replayLockedViewport = viewport
-      if (viewport) cancelIncrementalViewportRaf()
+      if (viewport) {
+        cancelIncrementalViewportRaf()
+        capturePlaybackOffsetAnchor()
+      } else {
+        playbackOffsetAnchor = null
+      }
     },
 
     captureVisibleRange() {

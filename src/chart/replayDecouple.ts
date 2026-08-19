@@ -28,6 +28,23 @@ export function canDecoupleMinuteReplay(chartPick: IntervalPick, replayPick: Int
   return canDecoupleReplay(chartPick, replayPick)
 }
 
+/**
+ * Minute chart + coarser minute replay step (e.g. 1m chart, 3m replay): advance N chart bars
+ * per play tick instead of using aggregated step-bar transport.
+ */
+export function chartBarsPerReplayStep(chartPick: IntervalPick, replayPick: IntervalPick): number {
+  const chartSec = chartPick.stepSec ?? 60
+  const replaySec = replayPick.stepSec ?? 60
+  if (chartPick.kind !== 'time' || replayPick.kind !== 'time') return 1
+  if (chartSec < 60 || chartSec % 60 !== 0) return 1
+  if (replaySec <= chartSec || replaySec % chartSec !== 0) return 1
+  return Math.max(1, Math.round(replaySec / chartSec))
+}
+
+export function usesMinuteBarSkipReplay(chartPick: IntervalPick, replayPick: IntervalPick): boolean {
+  return chartBarsPerReplayStep(chartPick, replayPick) > 1
+}
+
 /** Infer replay step duration from transport bars (handles 10s pick on 15s local bars). */
 export function effectiveReplayStepSec(stepBars: Bar[], pickStepSec: number): number {
   if (stepBars.length < 2) return pickStepSec
