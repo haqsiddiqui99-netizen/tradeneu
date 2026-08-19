@@ -35,7 +35,11 @@ export function chartIntervalToSecondStep(interval) {
   return isLocalSecondStep(step) ? step : null
 }
 
-/** @param {number} step expected bar spacing in seconds */
+/**
+ * Reject bars whose median spacing is too wide for the requested second step.
+ * Capped below 60s so 30s (3x = 90) cannot accept 1m bars.
+ * @param {number} step expected bar spacing in seconds
+ */
 export function maxMedianStepForSecondBars(step) {
-  return Math.max(3, Math.round(Number(step) || 10) * 3)
+  return Math.min(60, Math.max(3, Math.round(Number(step) || 10) * 3))
 }

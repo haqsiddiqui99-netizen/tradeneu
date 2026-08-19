@@ -46,11 +46,14 @@ export function isTwelveDataMappableSymbol(symbol) {
 /**
  * Map chart UI / query `interval` to Twelve Data `interval` param.
  * Note: UI uses `1M` for monthly and `1m` for 1-minute (case-sensitive distinction).
+ * Returns `null` for sub-minute steps — Twelve Data has no seconds resolution, and
+ * answering with `1min` would let minute bars masquerade as e.g. 30s data.
  */
 export function chartIntervalToTwelveDataInterval(chartInterval) {
   const s = String(chartInterval || '1m').trim()
   if (s === '1M') return '1month'
   const x = s.toLowerCase()
+  if (/^\d+s$/.test(x)) return null
   const map = {
     '1m': '1min',
     '2m': '1min',
@@ -197,6 +200,9 @@ export async function fetchTwelveDataTimeSeries({
   }
 
   const tdInterval = chartIntervalToTwelveDataInterval(interval)
+  if (!tdInterval) {
+    return { ok: false, error: `twelvedata: interval not supported (${interval})` }
+  }
   const stepSec = tdIntervalToSeconds(tdInterval)
   const cap = outputSizeCap()
   const hasRange =
