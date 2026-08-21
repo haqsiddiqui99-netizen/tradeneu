@@ -388,7 +388,7 @@
   border: none;
   background: transparent;
   border-radius: 999px;
-  padding: 0.45rem 0.95rem;
+  padding: 0.45rem 0.72rem;
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
@@ -564,6 +564,8 @@
   margin: 0;
   font-size: 1.05rem;
   font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .sx-sub-card__badge {
@@ -611,9 +613,15 @@
 }
 
 .sx-sub-card__was-amount {
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
   color: #94a3b8;
+}
+
+/* Always rendered so every card's title row starts at the same height */
+.sx-sub-card__flag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.3rem;
 }
 
 .sx-sub-card__top .sx-sub-card__save-badge {
@@ -697,6 +705,10 @@
   cursor: default;
 }
 
+.sx-sub-card__cta--primary:disabled {
+  opacity: 1;
+}
+
 .sx-sub-card__cta--primary {
   border-color: transparent;
   background: #334155;
@@ -705,6 +717,10 @@
 
 .sx-sub-card__cta--primary:hover:not(:disabled) {
   background: #1E293B;
+}
+
+.sx-sub-card__cta--primary[data-sx-upgrade]:hover:not(:disabled) {
+  background: #e11d48;
 }
 
 .sx-sub-card__cta--ghost {

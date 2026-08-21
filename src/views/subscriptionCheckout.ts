@@ -1,5 +1,5 @@
 export type CheckoutPlan = 'intermediate' | 'pro'
-export type CheckoutCycle = 'monthly' | 'yearly'
+export type CheckoutCycle = 'monthly' | 'quarterly' | 'yearly'
 export type CheckoutPaymentMethod = 'upi' | 'card' | 'paypal'
 
 export type CheckoutOrder = {
@@ -18,6 +18,7 @@ export type CheckoutOrder = {
 const TAX_RATE = 0.18
 
 const YEARLY_TOTAL = { intermediate: 84, pro: 180 } as const
+const QUARTERLY_TOTAL = { intermediate: 24, pro: 51 } as const
 const MONTHLY_TOTAL = { intermediate: 9, pro: 19 } as const
 
 const COUPONS: Record<string, number> = {
@@ -52,15 +53,17 @@ const INDIA_STATES = [
 ] as const
 
 export function planDisplayName(plan: CheckoutPlan): string {
-  return plan === 'pro' ? 'Pro Max' : 'Pro'
+  return plan === 'pro' ? 'Premium Plan' : 'Ultra Plan'
 }
 
 export function planFullLabel(plan: CheckoutPlan): string {
-  return plan === 'pro' ? 'Tradeneu Pro Max' : 'Tradeneu Pro'
+  return plan === 'pro' ? 'Tradeneu Premium Plan' : 'Tradeneu Ultra Plan'
 }
 
 export function baseCheckoutAmount(plan: CheckoutPlan, cycle: CheckoutCycle): number {
-  return cycle === 'yearly' ? YEARLY_TOTAL[plan] : MONTHLY_TOTAL[plan]
+  if (cycle === 'yearly') return YEARLY_TOTAL[plan]
+  if (cycle === 'quarterly') return QUARTERLY_TOTAL[plan]
+  return MONTHLY_TOTAL[plan]
 }
 
 export function formatMoney(amount: number): string {
@@ -85,7 +88,9 @@ export function calcTax(subtotal: number, rate = TAX_RATE): number {
 }
 
 export function cycleLabel(cycle: CheckoutCycle): string {
-  return cycle === 'yearly' ? 'Yearly' : 'Monthly'
+  if (cycle === 'yearly') return 'Yearly'
+  if (cycle === 'quarterly') return 'Quarterly'
+  return 'Monthly'
 }
 
 export type MountCheckoutOverlayOptions = {
@@ -136,7 +141,7 @@ export function createCheckoutOverlay(opts: MountCheckoutOverlayOptions): {
         <div class="sx-checkout__order-bar">
           <div>
             <p class="sx-checkout__order-kicker">Your order</p>
-            <p class="sx-checkout__order-plan" data-sx-checkout-plan>Tradeneu Pro Max</p>
+            <p class="sx-checkout__order-plan" data-sx-checkout-plan>Tradeneu Premium Plan</p>
           </div>
           <div class="sx-checkout__order-price-wrap">
             <p class="sx-checkout__price" data-sx-checkout-price>$19.00</p>
@@ -296,7 +301,7 @@ export function createCheckoutOverlay(opts: MountCheckoutOverlayOptions): {
       <div class="sx-checkout__done" data-sx-checkout-view="done" hidden>
         <div class="sx-checkout__done-icon" aria-hidden="true"><i class="fa-solid fa-check"></i></div>
         <h2 class="sx-checkout__done-title">Upgrade complete</h2>
-        <p class="sx-checkout__done-plan" data-sx-checkout-done-plan>Tradeneu Pro Max is active</p>
+        <p class="sx-checkout__done-plan" data-sx-checkout-done-plan>Tradeneu Premium Plan is active</p>
         <p class="sx-checkout__done-msg">Your backtesting workspace now includes this plan’s limits and tools.</p>
         <button type="button" class="sx-checkout__cta" data-sx-checkout-finish>Back to plans</button>
       </div>

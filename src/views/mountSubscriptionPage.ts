@@ -1,5 +1,5 @@
 import './subscriptionPage.css'
-import { createCheckoutOverlay, type CheckoutPlan } from './subscriptionCheckout'
+import { createCheckoutOverlay, type CheckoutPlan, type CheckoutCycle } from './subscriptionCheckout'
 import { recordCheckoutComplete } from '../billing/billingApi'
 
 export type AccountTier = 'free' | 'intermediate' | 'pro'
@@ -17,7 +17,11 @@ export type MountSubscriptionPageOptions = {
   embedded?: boolean
 }
 
-type BillingCycle = 'monthly' | 'yearly'
+type BillingCycle = CheckoutCycle
+
+function isBillingCycle(value: string | null): value is BillingCycle {
+  return value === 'monthly' || value === 'quarterly' || value === 'yearly'
+}
 
 const PRICING = {
   monthly: {
@@ -26,6 +30,7 @@ const PRICING = {
       label: '9',
       period: '/month',
       original: '$19',
+      billed: "That's $0.30/day",
       save: 'Save $10/monthly',
     },
     pro: {
@@ -33,25 +38,46 @@ const PRICING = {
       label: '19',
       period: '/month',
       original: '$29',
+      billed: "That's $0.63/day",
       save: 'Save $10/monthly',
+    },
+  },
+  quarterly: {
+    intermediate: {
+      amount: 24,
+      label: '24',
+      period: '/quarter',
+      original: '$57',
+      billed: "That's $8/month",
+      // List $19×3 = $57 − $24 billed = $33
+      save: 'Save $33/quarterly',
+    },
+    pro: {
+      amount: 51,
+      label: '51',
+      period: '/quarter',
+      original: '$87',
+      billed: "That's $17/month",
+      // List $29×3 = $87 − $51 billed = $36
+      save: 'Save $36/quarterly',
     },
   },
   yearly: {
     intermediate: {
-      amount: 7,
-      label: '7',
-      period: '/month',
-      original: '$19',
-      billed: 'Billed yearly · $84/year',
+      amount: 84,
+      label: '84',
+      period: '/year',
+      original: '$228',
+      billed: "That's $7/month",
       // List $19×12 = $228 − $84 billed = $144
       save: 'Save $144/yearly',
     },
     pro: {
-      amount: 15,
-      label: '15',
-      period: '/month',
-      original: '$29',
-      billed: 'Billed yearly · $180/year',
+      amount: 180,
+      label: '180',
+      period: '/year',
+      original: '$348',
+      billed: "That's $15/month",
       // List $29×12 = $348 − $180 billed = $168
       save: 'Save $168/yearly',
     },
@@ -92,8 +118,8 @@ function featureTable(
           <tr>
             <th scope="col" class="sx-sub-table__feature">Feature</th>
             <th scope="col">Free</th>
-            <th scope="col">Pro</th>
-            <th scope="col">Pro Max</th>
+            <th scope="col">Ultra Plan</th>
+            <th scope="col">Premium Plan</th>
           </tr>
         </thead>
         <tbody>${body}</tbody>
@@ -107,7 +133,7 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
   const tier = opts.readTier?.() ?? 'free'
   let cycle: BillingCycle = 'monthly'
 
-  const planLabel = tier === 'pro' ? 'Pro Max' : tier === 'intermediate' ? 'Pro' : 'Free'
+  const planLabel = tier === 'pro' ? 'Premium Plan' : tier === 'intermediate' ? 'Ultra Plan' : 'Basic Plan'
   const planPrice =
     tier === 'pro' ? '$19/month' : tier === 'intermediate' ? '$9/month' : '$0'
   const planBlurb =
@@ -116,6 +142,9 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
       : tier === 'intermediate'
         ? 'Optimize and scale your trading game'
         : 'Start improving your trading skills'
+
+  /** The active plan's button manages billing; every other card offers a move. */
+  const manageCta = '<button type="button" class="sx-sub-card__cta" data-sx-manage="billing">Manage Plan</button>'
 
   const shell = document.createElement('div')
   shell.className = opts.embedded ? 'sx-sub-page sx-sub-page--embedded' : 'sx-sub-page'
@@ -131,6 +160,7 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
       <div class="sx-sub-page__head-center">
         <div class="sx-sub-cycle" role="group" aria-label="Billing cycle">
           <button type="button" class="sx-sub-cycle__btn sx-sub-cycle__btn--active" data-sx-billing="monthly">Monthly</button>
+          <button type="button" class="sx-sub-cycle__btn" data-sx-billing="quarterly">Quarterly</button>
           <button type="button" class="sx-sub-cycle__btn" data-sx-billing="yearly">Yearly</button>
         </div>
       </div>
@@ -138,15 +168,15 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
         <div class="sx-sub-manage">
           <button type="button" class="sx-sub-manage__btn" data-sx-manage-toggle aria-expanded="false" aria-haspopup="true" aria-controls="sx-sub-manage-menu">
             <i class="fa-regular fa-credit-card" aria-hidden="true"></i>
-            Manage Plan
+            Manage Subscription
             <i class="fa-solid fa-chevron-down sx-sub-manage__chev" aria-hidden="true"></i>
           </button>
-          <div class="sx-sub-manage__menu" id="sx-sub-manage-menu" hidden role="menu" aria-label="Manage plan">
+          <div class="sx-sub-manage__menu" id="sx-sub-manage-menu" hidden role="menu" aria-label="Manage Subscription">
             <button type="button" role="menuitem" class="sx-sub-manage__item" data-sx-manage="billing">
               <i class="fa-solid fa-rotate" aria-hidden="true"></i>
               <span>
                 <strong>Billing option</strong>
-                <em>Switch monthly or yearly</em>
+                <em>Change your billing cycle</em>
               </span>
             </button>
             <button type="button" role="menuitem" class="sx-sub-manage__item" data-sx-manage="history">
@@ -185,7 +215,7 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
     <div class="sx-sub-manage-panel" data-sx-manage-panel hidden>
       <div class="sx-sub-manage-panel__card">
         <div class="sx-sub-manage-panel__bar">
-          <h2 class="sx-sub-manage-panel__title" data-sx-manage-title>Manage plan</h2>
+          <h2 class="sx-sub-manage-panel__title" data-sx-manage-title>Manage Subscription</h2>
           <button type="button" class="sx-sub-manage-panel__close" data-sx-manage-close aria-label="Close">Close</button>
         </div>
         <div class="sx-sub-manage-panel__body" data-sx-manage-body></div>
@@ -199,9 +229,9 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
           <div class="sx-sub-card__ai-border" aria-hidden="true"><div class="sx-sub-card__ai-ring"></div></div>
           <div class="sx-sub-card__ai-glow" aria-hidden="true"></div>
           <div class="sx-sub-card">
+            <div class="sx-sub-card__flag">${tier === 'free' ? '<span class="sx-sub-card__badge">Current Plan</span>' : ''}</div>
             <div class="sx-sub-card__top">
-              <h2 class="sx-sub-card__name">Free</h2>
-              ${tier === 'free' ? '<span class="sx-sub-card__badge">Current plan</span>' : ''}
+              <h2 class="sx-sub-card__name">Basic Plan</h2>
             </div>
             <p class="sx-sub-card__price"><span class="sx-sub-card__amount">Free</span></p>
             <p class="sx-sub-card__desc">Start improving your trading skills</p>
@@ -210,7 +240,11 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
               <li>1 Indicator</li>
               <li>1 week Data Retention</li>
             </ul>
-            <button type="button" class="sx-sub-card__cta sx-sub-card__cta--ghost" disabled>${tier === 'free' ? 'Current plan' : 'Downgrade'}</button>
+            ${
+              tier === 'free'
+                ? '<button type="button" class="sx-sub-card__cta" disabled>Included with your account</button>'
+                : '<button type="button" class="sx-sub-card__cta" data-sx-manage="cancel">Switch to Basic</button>'
+            }
           </div>
         </article>
 
@@ -218,13 +252,10 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
           <div class="sx-sub-card__ai-border" aria-hidden="true"><div class="sx-sub-card__ai-ring"></div></div>
           <div class="sx-sub-card__ai-glow" aria-hidden="true"></div>
           <div class="sx-sub-card">
+            <div class="sx-sub-card__flag">${tier === 'intermediate' ? '<span class="sx-sub-card__badge">Current Plan</span>' : ''}</div>
             <div class="sx-sub-card__top">
-              <h2 class="sx-sub-card__name">Pro</h2>
-              ${
-                tier === 'intermediate'
-                  ? '<span class="sx-sub-card__badge">Current plan</span>'
-                  : `<span class="sx-sub-card__save-badge" data-sx-save-mid>${PRICING.monthly.intermediate.save}</span>`
-              }
+              <h2 class="sx-sub-card__name">Ultra Plan</h2>
+              <span class="sx-sub-card__save-badge" data-sx-save-mid>${tier === 'intermediate' ? 'You saved $10/monthly' : PRICING.monthly.intermediate.save}</span>
             </div>
             <p class="sx-sub-card__price">
               <span class="sx-sub-card__amount" data-sx-price-mid>9</span>
@@ -240,7 +271,13 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
               <li>6 Months Data Retention</li>
               <li>2 Charts</li>
             </ul>
-            <button type="button" class="sx-sub-card__cta sx-sub-card__cta--primary" data-sx-upgrade="intermediate" ${tier === 'intermediate' || tier === 'pro' ? 'disabled' : ''}>${tier === 'intermediate' ? 'Current plan' : tier === 'pro' ? 'Included in Pro Max' : 'Upgrade'}</button>
+            ${
+              tier === 'intermediate'
+                ? manageCta
+                : tier === 'pro'
+                  ? '<button type="button" class="sx-sub-card__cta" disabled>Included in Premium Plan</button>'
+                  : '<button type="button" class="sx-sub-card__cta sx-sub-card__cta--primary" data-sx-upgrade="intermediate">Upgrade to Ultra</button>'
+            }
           </div>
         </article>
 
@@ -248,13 +285,10 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
           <div class="sx-sub-card__ai-border" aria-hidden="true"><div class="sx-sub-card__ai-ring"></div></div>
           <div class="sx-sub-card__ai-glow" aria-hidden="true"></div>
           <div class="sx-sub-card">
+            <div class="sx-sub-card__flag">${tier === 'pro' ? '<span class="sx-sub-card__badge">Current Plan</span>' : ''}</div>
             <div class="sx-sub-card__top">
-              <h2 class="sx-sub-card__name">Pro Max</h2>
-              ${
-                tier === 'pro'
-                  ? '<span class="sx-sub-card__badge">Current plan</span>'
-                  : `<span class="sx-sub-card__save-badge" data-sx-save-pro>${PRICING.monthly.pro.save}</span>`
-              }
+              <h2 class="sx-sub-card__name">Premium Plan</h2>
+              <span class="sx-sub-card__save-badge" data-sx-save-pro>${tier === 'pro' ? 'You saved $10/monthly' : PRICING.monthly.pro.save}</span>
             </div>
             <p class="sx-sub-card__price">
               <span class="sx-sub-card__amount" data-sx-price-pro>19</span>
@@ -265,12 +299,16 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
             <p class="sx-sub-card__billed" data-sx-billed-pro hidden></p>
             <p class="sx-sub-card__desc">Everything you need to achieve profitability</p>
             <ul class="sx-sub-card__features sx-sub-card__features--inf">
-              <li>∞ Backtesting Sessions</li>
-              <li>∞ Indicators</li>
-              <li>∞ Data Retention</li>
-              <li>∞ Charts</li>
+              <li>Backtesting Sessions</li>
+              <li>Indicators</li>
+              <li>Data Retention</li>
+              <li>Charts</li>
             </ul>
-            <button type="button" class="sx-sub-card__cta sx-sub-card__cta--primary" data-sx-upgrade="pro" ${tier === 'pro' ? 'disabled' : ''}>${tier === 'pro' ? 'Current plan' : 'Upgrade'}</button>
+            ${
+              tier === 'pro'
+                ? manageCta
+                : '<button type="button" class="sx-sub-card__cta sx-sub-card__cta--primary" data-sx-upgrade="pro">Upgrade to Premium</button>'
+            }
           </div>
         </article>
       </div>
@@ -347,15 +385,15 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
     if (periodPro) periodPro.textContent = max.period
     if (wasMid) wasMid.textContent = mid.original
     if (wasPro) wasPro.textContent = max.original
-    if (saveMid) saveMid.textContent = mid.save
-    if (savePro) savePro.textContent = max.save
+    if (saveMid) saveMid.textContent = tier === 'intermediate' ? mid.save.replace(/^Save /, 'You saved ') : mid.save
+    if (savePro) savePro.textContent = tier === 'pro' ? max.save.replace(/^Save /, 'You saved ') : max.save
     if (billedMid) {
-      billedMid.hidden = next !== 'yearly'
-      billedMid.textContent = next === 'yearly' ? PRICING.yearly.intermediate.billed : ''
+      billedMid.hidden = !('billed' in mid)
+      billedMid.textContent = 'billed' in mid ? mid.billed : ''
     }
     if (billedPro) {
-      billedPro.hidden = next !== 'yearly'
-      billedPro.textContent = next === 'yearly' ? PRICING.yearly.pro.billed : ''
+      billedPro.hidden = !('billed' in max)
+      billedPro.textContent = 'billed' in max ? max.billed : ''
     }
   }
 
@@ -389,20 +427,41 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
     },
   })
 
+  function billingPanelHtml(current: BillingCycle): string {
+    const labels: Record<BillingCycle, string> = {
+      monthly: 'Monthly Plan',
+      quarterly: 'Quarterly Plan',
+      yearly: 'Yearly Plan',
+    }
+    const others: BillingCycle[] = (['monthly', 'quarterly', 'yearly'] as const).filter((c) => c !== current)
+    const recommended: BillingCycle = others.includes('yearly') ? 'yearly' : others[0]!
+    const actions = others
+      .map((c) => {
+        const primary = c === recommended ? ' sx-sub-card__cta--primary' : ''
+        return `<button type="button" class="sx-sub-card__cta${primary}" data-sx-billing="${c}">Update ${labels[c]}</button>`
+      })
+      .join('')
+    const paidHint =
+      tier === 'pro'
+        ? 'Quarterly Premium Plan is $17/mo · Yearly Premium Plan is $15/mo.'
+        : 'Quarterly Ultra Plan is $8/mo · Yearly Ultra Plan is $7/mo.'
+    return `
+      <p class="sx-sub-manage-panel__lead">You're on ${labels[current]}. Pick a different billing cycle — it applies on your next renewal.</p>
+      <p class="sx-sub-manage-panel__hint">Current: ${labels[current]}</p>
+      <div class="sx-sub-manage-panel__actions">
+        ${actions}
+      </div>
+      <p class="sx-sub-manage-panel__hint">${paidHint}</p>
+    `
+  }
+
   function openManagePanel(kind: string) {
     if (!managePanel || !manageTitle || !manageBody) return
     setManageMenuOpen(false)
     const copy: Record<string, { title: string; html: string }> = {
       billing: {
         title: 'Billing option',
-        html: `
-          <p class="sx-sub-manage-panel__lead">Choose how often you are billed. Changes apply on your next renewal.</p>
-          <div class="sx-sub-manage-panel__actions">
-            <button type="button" class="sx-sub-card__cta" data-sx-billing="monthly">Use monthly billing</button>
-            <button type="button" class="sx-sub-card__cta sx-sub-card__cta--primary" data-sx-billing="yearly">Use yearly billing</button>
-          </div>
-          <p class="sx-sub-manage-panel__hint">Yearly Pro is $7/mo · Yearly Pro Max is $15/mo.</p>
-        `,
+        html: billingPanelHtml(cycle),
       },
       history: {
         title: 'Payment history',
@@ -426,7 +485,7 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
       pause: {
         title: 'Pause subscription',
         html: `
-          <p class="sx-sub-manage-panel__lead">Pause billing temporarily. You can resume anytime from Manage Plan.</p>
+          <p class="sx-sub-manage-panel__lead">Pause billing temporarily. You can resume anytime from Manage Subscription.</p>
           <button type="button" class="sx-sub-card__cta" data-sx-manage-confirm="pause">Pause for 1 month</button>
           <p class="sx-sub-manage-panel__hint">Available after an active paid plan is connected.</p>
         `,
@@ -486,7 +545,7 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
     const billing = t.closest<HTMLButtonElement>('[data-sx-billing]')
     if (billing) {
       const v = billing.getAttribute('data-sx-billing')
-      if (v === 'monthly' || v === 'yearly') {
+      if (isBillingCycle(v)) {
         applyCycle(v)
         closeManagePanel()
       }

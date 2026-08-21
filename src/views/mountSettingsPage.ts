@@ -139,7 +139,7 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
   const sessionsUsed = stats?.total ?? 0
   const sessionPct =
     tier === 'pro' ? 100 : Math.min(100, Math.round((sessionsUsed / Math.max(1, sessionLimit)) * 100))
-  const planLabel = tier === 'pro' ? 'Pro Max' : tier === 'intermediate' ? 'Pro' : 'Free'
+  const planLabel = tier === 'pro' ? 'Premium Plan' : tier === 'intermediate' ? 'Ultra Plan' : 'Free'
   const initials = displayName
     .split(/\s+/)
     .filter(Boolean)
@@ -184,7 +184,7 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
       </div>
       <div class="sx-settings-head__actions">
         <button type="button" class="sx-platform-page__btn sx-platform-page__btn--primary" data-sx-settings-manage-plan>
-          ${tier === 'pro' || tier === 'intermediate' ? 'Manage plan' : 'Upgrade Plan'}
+          ${tier === 'pro' || tier === 'intermediate' ? 'Manage Plan' : 'Upgrade Plan'}
         </button>
       </div>
     </header>
@@ -316,9 +316,9 @@ export function mountSettingsPage(root: HTMLElement, opts: MountSettingsPageOpti
               <p class="sx-platform-page__hint" style="margin:0">
                   ${
                   tier === 'pro'
-                    ? 'You are on Pro Max. Manage billing, pause, or cancel from the subscription page.'
+                    ? 'You are on Premium Plan. Manage billing, pause, or cancel from the subscription page.'
                     : tier === 'intermediate'
-                      ? 'You are on Pro. Upgrade to Pro Max for unlimited sessions and futures data.'
+                      ? 'You are on Ultra Plan. Upgrade to Premium Plan for unlimited sessions and futures data.'
                       : 'Upgrade when you need more sessions, charts, and analytics.'
                 }
               </p>

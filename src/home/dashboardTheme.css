@@ -174,14 +174,33 @@
 
 .sx-dash-wordmark__tag {
   margin: 0;
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.58rem;
-  font-weight: 800;
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-family: 'Cormorant Infant', Georgia, 'Times New Roman', serif;
+  font-size: 0.8rem;
+  font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: #64748b;
   line-height: 1;
+}
+
+.sx-dash-wordmark__copy .sx-dash-wordmark__tag {
+  color: #dc2626;
+}
+
+.sx-dash-wordmark__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.sx-dash-wordmark__name {
+  display: inline-flex;
+  align-items: baseline;
 }
 
 .sx-dash-wordmark__mark {
@@ -194,6 +213,7 @@
 
 .sx-dash-wordmark__mark--e {
   gap: 0.55rem;
+  align-items: flex-end;
 }
 
 .sx-dash-wordmark__mono {
@@ -292,6 +312,10 @@
   color: #94a3b8;
 }
 
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-wordmark__copy .sx-dash-wordmark__tag {
+  color: #f87171;
+}
+
 @media (max-width: 640px) {
   .sx-dash-wordmark {
     padding-left: 5.5rem;
@@ -299,8 +323,8 @@
   }
 
   .sx-dash-wordmark__tag {
-    font-size: 0.5rem;
-    letter-spacing: 0.12em;
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
   }
 
   .sx-dash-account-btn__label {
@@ -635,8 +659,14 @@ a.sx-dash-account__item {
 }
 
 .sx-dash-subnav .sx-dash-hnav__link--active {
-  color: #334155;
-  background: #F1F5F9;
+  color: #f8fafc;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.3), 0 6px 16px rgba(15, 23, 42, 0.16);
+}
+
+.sx-dash-subnav .sx-dash-hnav__link--active:hover {
+  color: #fff;
+  background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
 }
 
 .sx-dash-subnav .sx-dash-hnav__badge {
@@ -648,16 +678,16 @@ a.sx-dash-account__item {
   margin-bottom: 0.15rem;
 }
 
-/* Shared left inset for Dashboard tabs; CTAs are centered separately */
+/* Shared left inset for Dashboard tabs; offsets the tab's own pill padding */
 .sx-dash-testing-tabs {
-  padding-left: 1.75rem;
+  padding-left: 0.95rem;
 }
 
 .sx-dash-welcome-sub--below {
-  margin: 0;
-  padding: 0 1rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
   max-width: none;
-  white-space: nowrap;
+  text-align: left;
   color: #dc2626;
   font-family: 'Cormorant Infant', Georgia, 'Times New Roman', serif;
   font-style: italic;
@@ -665,20 +695,160 @@ a.sx-dash-account__item {
   letter-spacing: 0.01em;
 }
 
+/* Keep the tagline on one line once there is room beside the pills */
+@media (min-width: 1024px) {
+  .sx-dash-welcome-sub--below {
+    white-space: nowrap;
+  }
+}
+
+.sx-dash-premium-pills {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Partners footer — TradingView attribution */
+.sx-dash-partners {
+  position: relative;
+  margin: 1.9rem 0 1.5rem;
+  padding: 0;
+}
+
+.sx-dash-partners__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin-bottom: 1.05rem;
+}
+
+.sx-dash-partners__title {
+  margin: 0;
+  flex-shrink: 0;
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: #3730a3;
+  text-align: center;
+}
+
+.sx-dash-partners__rule {
+  flex: 1 1 auto;
+  height: 1px;
+  min-width: 1.5rem;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0) 0%, rgba(99, 102, 241, 0.4) 100%);
+}
+
+.sx-dash-partners__rule--end {
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.4) 0%, rgba(99, 102, 241, 0) 100%);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-partners__title {
+  color: #c7d2fe;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-partners__rule {
+  background: linear-gradient(90deg, rgba(165, 180, 252, 0) 0%, rgba(165, 180, 252, 0.4) 100%);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-partners__rule--end {
+  background: linear-gradient(90deg, rgba(165, 180, 252, 0.4) 0%, rgba(165, 180, 252, 0) 100%);
+}
+
+.sx-dash-partners__note {
+  display: grid;
+  grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);
+  align-items: center;
+  gap: 1.1rem 1.75rem;
+  padding: 1.55rem 2.15rem 1.55rem 2.25rem;
+  border: 1px solid #000;
+  border-radius: 1.75rem;
+  background: #000;
+  text-decoration: none;
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.sx-dash-partners__note:hover {
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.28);
+}
+
+.sx-dash-partners__note:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+}
+
+.sx-dash-partners__note-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  justify-self: start;
+  color: #fff;
+}
+
+.sx-dash-partners__tv {
+  width: 1.65rem;
+  height: 1.65rem;
+}
+
+.sx-dash-partners__note-name {
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.sx-dash-partners__note-copy {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .sx-dash-partners__note {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1.25rem 1.25rem 1.35rem;
+  }
+}
+
+/* Pills sit just above the CTAs, sharing their left inset */
+.sx-dash-launch-stack > .sx-dash-premium-pills {
+  align-self: flex-start;
+  margin: 0;
+}
+
 .sx-dash-launch-stack {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.95rem;
-  /* Pull message up to sit just under the hero */
-  margin-top: -1.15rem !important;
+  gap: 0.5rem;
+  /* Match hero horizontal padding so copy/CTAs sit under the title */
+  padding-left: 1rem;
+  padding-right: 1rem;
+  /* Cancel the panel's space-y (1.25rem) and sit tight under the hero */
+  margin-top: calc(-1.25rem) !important;
+  margin-bottom: -0.55rem;
+}
+
+@media (min-width: 640px) {
+  .sx-dash-launch-stack {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    /* Panel space-y grows to 1.5rem at this breakpoint */
+    margin-top: calc(-1.5rem) !important;
+  }
 }
 
 .sx-dash-action-row {
-  justify-content: center;
+  justify-content: flex-start;
   padding-left: 0;
   padding-right: 0;
-  margin: 0.35rem 0 0;
+  margin: 0;
 }
 
 /* Google-style AI rainbow outline (continuous roll) */
@@ -748,6 +918,45 @@ a.sx-dash-account__item {
   background: #020617 !important;
 }
 
+.sx-dash-cta-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+  font-weight: 400;
+}
+
+.sx-dash-cta-mark--plus {
+  font-size: 1.55rem;
+  font-weight: 300;
+  transform: translateY(-0.14em);
+}
+
+.sx-dash-cta-mark--arrow {
+  font-size: 1.2rem;
+  transform: translateY(-0.02em);
+}
+
+.sx-dash-cta-pro {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-right: 0.05rem;
+  border-radius: 999px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #d97706;
+  line-height: 1;
+}
+
+.sx-dash-cta-pro .fa-crown {
+  font-size: 0.68rem;
+}
+
 @keyframes sx-dash-cta-ai-spin {
   from {
     transform: translate(-50%, -50%) rotate(0deg);
@@ -767,7 +976,7 @@ a.sx-dash-account__item {
 .sx-dash-testing-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.1rem 1rem;
+  gap: 0.1rem 0.35rem;
   border-bottom: 1px solid #e8eaed;
   margin-bottom: 0.15rem;
 }
@@ -778,14 +987,15 @@ a.sx-dash-account__item {
   gap: 0.4rem;
   border: none;
   background: transparent;
-  padding: 0.55rem 0.85rem 0.6rem 0;
+  padding: 0.5rem 0.8rem 0.55rem;
   margin-bottom: -1px;
+  border-radius: 0.55rem 0.55rem 0 0;
   font-size: 0.8125rem;
   font-weight: 500;
   color: #0f172a;
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .sx-dash-testing-tab i {
@@ -795,25 +1005,31 @@ a.sx-dash-account__item {
 }
 
 .sx-dash-testing-tab:hover {
-  color: #0f172a;
+  color: #312e81;
+  background: rgba(99, 102, 241, 0.07);
 }
 
+/* Soft indigo tab, deliberately lighter than the dark top-nav pill */
 .sx-dash-testing-tab--active {
-  color: #0f172a;
-  border-bottom-color: #0f172a;
+  color: #312e81;
+  background: rgba(99, 102, 241, 0.13);
+  border-bottom-color: #4f46e5;
   font-weight: 600;
+}
+
+.sx-dash-testing-tab--active:hover {
+  background: rgba(99, 102, 241, 0.18);
 }
 
 .sx-dash-testing-tab--active i {
   opacity: 1;
-  color: #0f172a;
+  color: #4f46e5;
 }
 
 .sx-dash-testing-tab:focus-visible {
   outline: none;
-  color: #0f172a;
-  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.12);
-  border-radius: 0.35rem 0.35rem 0 0;
+  color: #312e81;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.22);
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-testing-tabs {
@@ -829,16 +1045,22 @@ a.sx-dash-account__item {
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-testing-tab:hover {
-  color: #f4f4f5;
+  color: #e0e7ff;
+  background: rgba(129, 140, 248, 0.12);
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-testing-tab--active {
-  color: #f4f4f5;
-  border-bottom-color: #f4f4f5;
+  color: #e0e7ff;
+  background: rgba(129, 140, 248, 0.2);
+  border-bottom-color: #818cf8;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-testing-tab--active:hover {
+  background: rgba(129, 140, 248, 0.26);
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-testing-tab--active i {
-  color: #f4f4f5;
+  color: #a5b4fc;
 }
 
 .sx-dash-home-panel {
@@ -865,8 +1087,14 @@ a.sx-dash-account__item {
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-subnav .sx-dash-hnav__link--active {
-  color: #64748b;
-  background: rgba(15, 23, 42, 0.18);
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-subnav .sx-dash-hnav__link--active:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .sx-dash-hnav__badge {

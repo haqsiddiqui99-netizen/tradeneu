@@ -51,7 +51,10 @@ function ensureDom(): HTMLElement {
   root.innerHTML = `
     <div class="sx-dtp__head">
       <button type="button" class="sx-dtp__nav sx-dtp__nav--prev" data-dtp="prev" aria-label="Previous month">${icons.chevronDown}</button>
-      <span class="sx-dtp__month" data-dtp="label"></span>
+      <div class="sx-dtp__jump">
+        <select class="sx-dtp__select" data-dtp="month" aria-label="Month"></select>
+        <select class="sx-dtp__select" data-dtp="year" aria-label="Year"></select>
+      </div>
       <button type="button" class="sx-dtp__nav sx-dtp__nav--next" data-dtp="next" aria-label="Next month">${icons.chevronDown}</button>
     </div>
     <div class="sx-dtp__dow">${DOW.map((d) => `<span>${d}</span>`).join('')}</div>
@@ -79,6 +82,12 @@ function ensureDom(): HTMLElement {
 
   root.querySelector('[data-dtp="prev"]')?.addEventListener('click', () => stepMonth(-1))
   root.querySelector('[data-dtp="next"]')?.addEventListener('click', () => stepMonth(1))
+  root.querySelector('[data-dtp="month"]')?.addEventListener('change', (e) => {
+    setView(viewY, Number((e.target as HTMLSelectElement).value))
+  })
+  root.querySelector('[data-dtp="year"]')?.addEventListener('change', (e) => {
+    setView(Number((e.target as HTMLSelectElement).value), viewM)
+  })
   root.querySelector('[data-dtp="hu"]')?.addEventListener('click', () => bumpHour(1))
   root.querySelector('[data-dtp="hd"]')?.addEventListener('click', () => bumpHour(-1))
   root.querySelector('[data-dtp="mu"]')?.addEventListener('click', () => bumpMinute(1))
@@ -104,23 +113,21 @@ function getBounds(): { min: Date; max: Date } {
   }
 }
 
-function stepMonth(delta: number) {
+/** Move the visible month, clamped to the month range allowed by min/max. */
+function setView(year: number, month: number) {
   if (!openArgs) return
   const { min, max } = getBounds()
-  const d = new Date(viewY, viewM + delta, 1)
+  const d = new Date(year, month, 1)
   const firstMin = new Date(min.getFullYear(), min.getMonth(), 1)
   const firstMax = new Date(max.getFullYear(), max.getMonth(), 1)
-  if (d < firstMin) {
-    viewY = firstMin.getFullYear()
-    viewM = firstMin.getMonth()
-  } else if (d > firstMax) {
-    viewY = firstMax.getFullYear()
-    viewM = firstMax.getMonth()
-  } else {
-    viewY = d.getFullYear()
-    viewM = d.getMonth()
-  }
+  const clamped = d < firstMin ? firstMin : d > firstMax ? firstMax : d
+  viewY = clamped.getFullYear()
+  viewM = clamped.getMonth()
   render()
+}
+
+function stepMonth(delta: number) {
+  setView(viewY, viewM + delta)
 }
 
 function bumpHour(delta: number) {
@@ -171,13 +178,42 @@ function isDayWhollyAfterMax(y: number, m: number, day: number, max: Date): bool
   return start > max
 }
 
+/** Month + year dropdowns, limited to the months the session bounds allow. */
+function renderJump(el: HTMLElement, min: Date, max: Date) {
+  const monthSel = el.querySelector('[data-dtp="month"]') as HTMLSelectElement
+  const yearSel = el.querySelector('[data-dtp="year"]') as HTMLSelectElement
+
+  const minY = min.getFullYear()
+  const maxY = max.getFullYear()
+
+  yearSel.replaceChildren()
+  for (let y = minY; y <= maxY; y++) {
+    const opt = document.createElement('option')
+    opt.value = String(y)
+    opt.textContent = String(y)
+    yearSel.appendChild(opt)
+  }
+  yearSel.value = String(viewY)
+
+  monthSel.replaceChildren()
+  for (let m = 0; m < 12; m++) {
+    const opt = document.createElement('option')
+    opt.value = String(m)
+    opt.textContent = new Date(2000, m, 1).toLocaleString(undefined, { month: 'short' })
+    if ((viewY === minY && m < min.getMonth()) || (viewY === maxY && m > max.getMonth())) {
+      opt.disabled = true
+    }
+    monthSel.appendChild(opt)
+  }
+  monthSel.value = String(viewM)
+}
+
 function render() {
   const el = popEl
   const a = openArgs
   if (!el || !a) return
   const { min, max } = getBounds()
-  const label = el.querySelector('[data-dtp="label"]') as HTMLElement
-  label.textContent = new Date(viewY, viewM).toLocaleString(undefined, { month: 'long', year: 'numeric' })
+  renderJump(el, min, max)
 
   const hourEl = el.querySelector('[data-dtp="hour"]') as HTMLElement
   const minuteEl = el.querySelector('[data-dtp="minute"]') as HTMLElement
@@ -217,11 +253,11 @@ function render() {
       btn.classList.add('sx-dtp__day--disabled')
       btn.disabled = true
     } else {
+      /* Pick the day only — the value is committed when Choose is pressed. */
       btn.addEventListener('click', () => {
-        draft = clampInstant(dayInstant(c.y, c.m, c.d, draft), min, max)
         if (!openArgs) return
-        openArgs.onChange(formatDatetimeLocalFromDate(draft))
-        closeSessionDatetimePicker()
+        draft = clampInstant(dayInstant(c.y, c.m, c.d, draft), min, max)
+        setView(c.y, c.m)
       })
     }
 

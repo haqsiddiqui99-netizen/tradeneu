@@ -190,7 +190,7 @@ export function createSessionModal(options?: {
         <div class="sx-modal__seg" role="group" aria-label="Session type">
           <button type="button" class="sx-modal__seg-btn sx-modal__seg-btn--on" data-seg="backtest">Backtesting session</button>
           <button type="button" class="sx-modal__seg-btn" data-seg="prop">
-            <span>Prop firm session</span>
+            <span>Target Challenge</span>
             <span class="sx-pro-mini" title="Pro feature">${icons.bolt}<span>Pro</span></span>
           </button>
         </div>
@@ -226,7 +226,7 @@ export function createSessionModal(options?: {
             </div>
 
             <div class="sx-prop-rules" id="sx-prop-rules" hidden>
-              <h3 class="sx-prop-rules__title">Prop challenge rules</h3>
+              <h3 class="sx-prop-rules__title">Challenge rules</h3>
               <p class="sx-prop-rules__hint">Limits are checked on each replay bar against your paper account equity.</p>
               <div class="sx-prop-rules__grid">
                 <div class="sx-field sx-field--compact">

@@ -292,8 +292,8 @@ function renderPlanMix(revenue: AdminRevenue): string {
   const total = revenue.freeUsers + revenue.proUsers + revenue.proMaxUsers || 1
   const rows = [
     { label: 'Free', count: revenue.freeUsers, pct: Math.round((revenue.freeUsers / total) * 100), cls: 'free' },
-    { label: 'Pro', count: revenue.proUsers, pct: Math.round((revenue.proUsers / total) * 100), cls: 'pro' },
-    { label: 'Pro Max', count: revenue.proMaxUsers, pct: Math.round((revenue.proMaxUsers / total) * 100), cls: 'max' },
+    { label: 'Ultra Plan', count: revenue.proUsers, pct: Math.round((revenue.proUsers / total) * 100), cls: 'pro' },
+    { label: 'Premium Plan', count: revenue.proMaxUsers, pct: Math.round((revenue.proMaxUsers / total) * 100), cls: 'max' },
   ]
   return `
     <section class="sx-dash-recent-sessions sx-dash-card-surface overflow-hidden rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] px-5 py-4 sm:px-6 sm:py-5" aria-labelledby="sx-admin-plan-mix">
@@ -333,7 +333,7 @@ function renderTransactionsTable(transactions: AdminTransactionRow[]): string {
       <tr>
         <td class="sx-admin-table__muted">${formatTs(tx.ts)}</td>
         <td class="sx-admin-table__email">${escapeHtml(tx.email)}</td>
-        <td><span class="sx-admin-plan-badge ${planBadgeClass(tx.plan)}">${escapeHtml(tx.plan === 'pro' ? 'Pro Max' : tx.plan === 'intermediate' ? 'Pro' : tx.plan)}</span></td>
+        <td><span class="sx-admin-plan-badge ${planBadgeClass(tx.plan)}">${escapeHtml(tx.plan === 'pro' ? 'Premium Plan' : tx.plan === 'intermediate' ? 'Ultra Plan' : tx.plan)}</span></td>
         <td>${escapeHtml(tx.cycle)}</td>
         <td>${formatMoney(tx.total)}</td>
         <td><span class="sx-admin-provider-badge">${escapeHtml(tx.method)}</span></td>

@@ -559,8 +559,8 @@ function buildSessionPulseKpiHtml(opts?: { titleId?: string; extraClass?: string
                   <p class="sx-dash-pulse__sub">Your practice desk at a glance — time, edge, and equity path.</p>
                 </div>
                 <div class="sx-dash-pulse__range" role="group" aria-label="Pulse time range">
-                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="week">7D</button>
-                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="month">30D</button>
+                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="week">7d</button>
+                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="month">30d</button>
                   <button type="button" class="sx-dash-pulse__range-btn sx-dash-pulse__range-btn--active" data-pulse-range="lifetime" aria-pressed="true">All</button>
                 </div>
               </div>
@@ -599,6 +599,35 @@ function buildSessionPulseKpiHtml(opts?: { titleId?: string; extraClass?: string
                   <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="winrate-hint">Closed trade edge</p>
                 </div>
               </div>
+            </section>`
+}
+
+function buildPartnersSectionHtml(): string {
+  return `
+            <section class="sx-dash-partners" aria-labelledby="sx-dash-partners-title">
+              <div class="sx-dash-partners__head">
+                <span class="sx-dash-partners__rule" aria-hidden="true"></span>
+                <h3 id="sx-dash-partners-title" class="sx-dash-partners__title">Partners</h3>
+                <span class="sx-dash-partners__rule sx-dash-partners__rule--end" aria-hidden="true"></span>
+              </div>
+              <a
+                class="sx-dash-partners__note"
+                href="https://www.tradingview.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span class="sx-dash-partners__note-brand">
+                  <svg class="sx-dash-partners__tv" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+                    <path d="M15.8654 8.2789c0 1.3541-1.0978 2.4519-2.452 2.4519-1.354 0-2.4519-1.0978-2.4519-2.452 0-1.354 1.0978-2.4518 2.452-2.4518 1.3541 0 2.4519 1.0977 2.4519 2.4519zM9.75 6H0v4.9038h4.8462v7.2692H9.75Zm8.5962 0H24l-5.1058 12.173h-5.6538z" />
+                  </svg>
+                  <span class="sx-dash-partners__note-name">TradingView</span>
+                </span>
+                <p class="sx-dash-partners__note-copy">
+                  Charts are powered by TradingView, a multi-functionality platform that provides in-depth
+                  information on every aspect of trading, including technical and fundamental data, news and
+                  analysis, ideas, and community discussions, and allows you to follow real-time prices
+                </p>
+              </a>
             </section>`
 }
 
@@ -749,11 +778,15 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
         <div class="sx-dash-wordmark pointer-events-none absolute inset-x-0 top-1/2 z-0 flex -translate-y-1/2 justify-center px-28 sm:px-36">
           <div class="sx-dash-wordmark__stack">
-            <p class="sx-dash-wordmark__tag">Backtesting</p>
             <p class="sx-dash-wordmark__mark sx-dash-wordmark__mark--e">
               <span class="sx-dash-wordmark__mono" aria-hidden="true">TN</span>
-              <span class="sx-dash-wordmark__trade">TRADE</span><span class="sx-dash-wordmark__neu">NEU</span>
-              <span class="sr-only">Tradeneu Backtesting</span>
+              <span class="sx-dash-wordmark__copy">
+                <span class="sx-dash-wordmark__tag">Premium Backtesting</span>
+                <span class="sx-dash-wordmark__name">
+                  <span class="sx-dash-wordmark__trade">TRADE</span><span class="sx-dash-wordmark__neu">NEU</span>
+                </span>
+              </span>
+              <span class="sr-only">Tradeneu Premium Backtesting</span>
             </p>
           </div>
         </div>
@@ -764,57 +797,57 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           <span class="sr-only" id="sx-ml-pill" title="ML API">ML …</span>
 
           <div class="sx-dash-topbar-tools flex flex-wrap items-center justify-end gap-2 sm:gap-2.5" role="toolbar" aria-label="Dashboard actions">
-            <span class="sx-dash-tip-wrap inline-flex">
+        <span class="sx-dash-tip-wrap inline-flex">
               <button type="button" class="sx-dash-pro-upgrade-btn inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-amber-300/60 bg-gradient-to-br from-amber-50 via-violet-50 to-sky-50 text-amber-700 transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/55" data-action="pro-upgrade" aria-label="Upgrade to Pro">
                 <i class="fa-solid fa-crown text-[0.8rem]" aria-hidden="true"></i>
-              </button>
-              <span class="sx-dash-tip">Upgrade Pro</span>
-            </span>
-            <span class="sx-dash-tip-wrap inline-flex">
+          </button>
+          <span class="sx-dash-tip">Upgrade Pro</span>
+        </span>
+        <span class="sx-dash-tip-wrap inline-flex">
               <button type="button" data-action="ai-chat" class="sx-dash-ai-chat-btn inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 text-slate-600 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45" aria-label="Open AI assistant">
                 <i class="fa-solid fa-wand-magic-sparkles text-[0.75rem] shrink-0" aria-hidden="true"></i>
-                <span class="text-[11px] font-bold leading-none tracking-tight">AI</span>
-              </button>
-              <span class="sx-dash-tip">AI Assistant</span>
-            </span>
-            <span class="sx-dash-tip-wrap relative inline-flex h-9 shrink-0">
-              <div class="sx-dash-locale-dd relative h-9 shrink-0" data-sx-locale-dropdown>
-                <button
-                  type="button"
+            <span class="text-[11px] font-bold leading-none tracking-tight">AI</span>
+          </button>
+          <span class="sx-dash-tip">AI Assistant</span>
+        </span>
+        <span class="sx-dash-tip-wrap relative inline-flex h-9 shrink-0">
+          <div class="sx-dash-locale-dd relative h-9 shrink-0" data-sx-locale-dropdown>
+            <button
+              type="button"
                   class="sx-dash-locale-trigger inline-flex h-9 min-w-[3.1rem] shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white py-0 pl-2.5 pr-2 text-left text-[10px] font-bold text-slate-700 outline-none transition hover:border-slate-300 focus-visible:ring-2 focus-visible:ring-sky-400/45"
-                  aria-expanded="false"
-                  aria-haspopup="listbox"
-                  aria-label="Language"
-                >
-                  <span class="sx-dash-locale-trigger__code">EN</span>
+              aria-expanded="false"
+              aria-haspopup="listbox"
+              aria-label="Language"
+            >
+              <span class="sx-dash-locale-trigger__code">EN</span>
                   <i class="fa-solid fa-chevron-down sx-dash-locale-trigger__chev text-[0.55rem] text-slate-400" aria-hidden="true"></i>
-                </button>
-                <div class="sx-dash-locale-panel hidden" role="listbox" aria-label="Choose language"></div>
-              </div>
-              <span class="sx-dash-tip">Translate</span>
-            </span>
-            <span class="sx-dash-tip-wrap inline-flex">
+            </button>
+            <div class="sx-dash-locale-panel hidden" role="listbox" aria-label="Choose language"></div>
+          </div>
+          <span class="sx-dash-tip">Translate</span>
+        </span>
+        <span class="sx-dash-tip-wrap inline-flex">
               <button type="button" class="sx-dash-theme-icon-btn relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45" aria-label="Switch to light theme">
                 <i class="fa-solid fa-sun sx-dash-theme-icon--when-dark pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.88rem]" aria-hidden="true"></i>
                 <i class="fa-solid fa-moon sx-dash-theme-icon--when-light pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.82rem]" aria-hidden="true"></i>
-              </button>
+            </button>
               <span class="sx-dash-tip">Change theme</span>
-            </span>
-            <span class="sx-dash-tip-wrap inline-flex">
+          </span>
+          <span class="sx-dash-tip-wrap inline-flex">
               <button type="button" data-action="dash-fullscreen" class="sx-dash-fullscreen-btn relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45" aria-label="Enter fullscreen">
-                <i class="fa-solid fa-expand sx-dash-fs-icon-expand pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.78rem]" aria-hidden="true"></i>
-                <i class="fa-solid fa-compress sx-dash-fs-icon-compress pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.78rem]" aria-hidden="true"></i>
-              </button>
-              <span class="sx-dash-tip">Fullscreen</span>
-            </span>
+              <i class="fa-solid fa-expand sx-dash-fs-icon-expand pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.78rem]" aria-hidden="true"></i>
+              <i class="fa-solid fa-compress sx-dash-fs-icon-compress pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.78rem]" aria-hidden="true"></i>
+            </button>
+            <span class="sx-dash-tip">Fullscreen</span>
+          </span>
             <label
               for="sx-nav-drawer"
               class="sx-dash-header__menu-btn inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900 md:hidden"
               aria-label="Open menu"
             >☰</label>
-          </div>
         </div>
       </div>
+    </div>
 
       <input type="checkbox" id="sx-nav-drawer" class="peer sr-only" />
       <label
@@ -830,18 +863,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         <button type="button" data-nav="logout" class="sx-dash-hnav__link sx-dash-hnav__link--block sx-dash-hnav__link--logout">
           <i class="fa-solid fa-arrow-right-from-bracket w-5 shrink-0 text-center text-[0.9rem]" aria-hidden="true"></i>
           Sign out
-        </button>
+            </button>
         <button type="button" data-action="dashboard" class="sx-dash-hnav__link sx-dash-hnav__link--active sx-dash-hnav__link--block">Backtesting</button>
         <button type="button" data-action="strategy" class="sx-dash-hnav__link sx-dash-hnav__link--block">Strategy</button>
         <button type="button" data-action="subscription" class="sx-dash-hnav__link sx-dash-hnav__link--block">Subscription</button>
-        <span
+            <span
           class="sx-dash-hnav__link sx-dash-hnav__link--disabled sx-dash-hnav__link--block"
-          title="Coming soon"
-          role="presentation"
-        >
+              title="Coming soon"
+              role="presentation"
+            >
           Tutorials
           <span class="sx-dash-hnav__badge">Soon</span>
-        </span>
+              </span>
         <button type="button" data-action="settings" class="sx-dash-hnav__link sx-dash-hnav__link--block">Settings</button>
       </nav>
     </header>
@@ -856,7 +889,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           <span class="sx-dash-hnav__link sx-dash-hnav__link--disabled" title="Coming soon" role="presentation">
             Tutorials
             <span class="sx-dash-hnav__badge">Soon</span>
-          </span>
+            </span>
           <button type="button" data-action="settings" class="sx-dash-hnav__link">Settings</button>
         </nav>
 
@@ -866,70 +899,72 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
               <button type="button" role="tab" class="sx-dash-testing-tab sx-dash-testing-tab--active" data-testing-tab="dashboard" aria-selected="true">
                 <i class="fa-solid fa-table-cells-large" aria-hidden="true"></i>
                 Dashboard
-              </button>
+            </button>
               <button type="button" role="tab" class="sx-dash-testing-tab" data-testing-tab="sessions" aria-selected="false">
                 <i class="fa-solid fa-list-ul" aria-hidden="true"></i>
                 Sessions
-              </button>
+            </button>
               <button type="button" role="tab" class="sx-dash-testing-tab" data-testing-tab="trades" aria-selected="false">
                 <i class="fa-regular fa-file-lines" aria-hidden="true"></i>
                 Trades
-              </button>
+            </button>
               <button type="button" role="tab" class="sx-dash-testing-tab" data-testing-tab="analytics" aria-selected="false">
                 <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
                 Analytics
-              </button>
+            </button>
             </nav>
-          </div>
+        </div>
 
           <div class="sx-dash-testing__panels space-y-5 sm:space-y-6 lg:space-y-7">
           <div class="sx-dash-testing-panel space-y-5 sm:space-y-6" data-testing-panel="dashboard" role="tabpanel">
-        <header class="sx-surreal-hero sx-dash-premium-hero sx-dash-premium-hero--compact relative overflow-hidden px-4 py-4 sm:px-6 sm:py-5">
+        <header class="sx-surreal-hero sx-dash-premium-hero sx-dash-premium-hero--compact relative overflow-hidden px-4 pb-1.5 pt-4 sm:px-6 sm:pb-2 sm:pt-5">
           <div class="sx-surreal-hero__aurora" aria-hidden="true"></div>
           <div class="sx-surreal-hero__grid" aria-hidden="true"></div>
           <div class="sx-surreal-hero__ring" aria-hidden="true"></div>
           <div class="sx-surreal-hero__mist" aria-hidden="true"></div>
           <div class="relative z-[1]">
-            <div class="min-w-0 max-w-2xl">
+            <div class="min-w-0">
               <h2 class="sx-dash-welcome-title mb-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Practice on the past. Profit in the present.</h2>
-              <ul class="sx-dash-premium-pills mt-2.5 flex flex-wrap gap-1.5" aria-label="Workspace highlights">
-                <li class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600">Tick-accurate replay</li>
-                <li class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600">Multi-symbol sessions</li>
-                <li class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600">Strategy ready</li>
-              </ul>
-            </div>
+              <p class="sx-dash-welcome-sub sx-dash-welcome-sub--below text-left text-xl leading-snug sm:text-2xl">
+                Create a session, pick a date, and replay the tape — or resume where you left off.
+              </p>
+          </div>
           </div>
         </header>
 
         <div class="sx-dash-launch-stack">
-        <p class="sx-dash-welcome-sub sx-dash-welcome-sub--below mx-auto text-center text-xl leading-snug sm:text-2xl">
-          Create a session, pick a date, and replay the tape — or resume where you left off.
-        </p>
+        <ul class="sx-dash-premium-pills flex flex-wrap gap-3" aria-label="Workspace highlights">
+          <li class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-slate-600">Tick-accurate replay</li>
+          <li class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-slate-600">Multi-symbol sessions</li>
+          <li class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-slate-600">Strategy ready</li>
+        </ul>
 
-        <section class="sx-dash-action-row flex flex-wrap items-center justify-center gap-3">
+        <section class="sx-dash-action-row flex flex-wrap items-center justify-start gap-3">
           <span class="sx-dash-cta-ai">
             <span class="sx-dash-cta-ai__glow" aria-hidden="true"></span>
             <span class="sx-dash-cta-ai__border" aria-hidden="true"><span class="sx-dash-cta-ai__ring"></span></span>
-            <button
-              type="button"
-              data-action="backtest"
+          <button
+            type="button"
+            data-action="backtest"
               class="sx-dash-cta-session sx-dash-cta-session--ai inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#0f172a] px-7 py-3.5 text-sm font-bold tracking-tight text-white transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f3ff] active:translate-y-0"
             >
-              <span class="text-lg font-light leading-none" aria-hidden="true">+</span> Backtesting Session <span aria-hidden="true">→</span>
-            </button>
+              <span class="sx-dash-cta-mark sx-dash-cta-mark--plus" aria-hidden="true">+</span> Backtesting Session <span class="sx-dash-cta-mark sx-dash-cta-mark--arrow" aria-hidden="true">→</span>
+          </button>
           </span>
           <span class="sx-dash-cta-ai">
             <span class="sx-dash-cta-ai__glow" aria-hidden="true"></span>
             <span class="sx-dash-cta-ai__border" aria-hidden="true"><span class="sx-dash-cta-ai__ring" style="animation-delay:-1.6s"></span></span>
-            <button
-              type="button"
-              data-action="prop"
+          <button
+            type="button"
+            data-action="prop"
               class="sx-dash-cta-session sx-dash-cta-session--ai inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#0f172a] px-7 py-3.5 text-sm font-bold tracking-tight text-white transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f3ff] active:translate-y-0"
             >
-              <i class="fa-solid fa-building-columns text-[0.8rem]" aria-hidden="true"></i>
-              Prop Firm Challenge
-              <span aria-hidden="true">→</span>
-            </button>
+              <span class="sx-dash-cta-pro" title="Pro feature" role="img" aria-label="Pro feature">
+                <i class="fa-solid fa-crown" aria-hidden="true"></i>
+              </span>
+              Target Challenge
+              <span class="sx-dash-cta-mark sx-dash-cta-mark--arrow" aria-hidden="true">→</span>
+          </button>
           </span>
         </section>
         </div>
@@ -950,10 +985,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           <div class="sx-dash-pulse__workspace">
             <article class="sx-dash-pulse__panel sx-dash-pulse__panel--desk">
               <header class="sx-dash-pulse__panel-head">
-                <div>
+          <div>
                   <h4 class="sx-dash-pulse__panel-title">Desk load</h4>
                   <p class="sx-dash-pulse__panel-sub" data-sx-pulse="active-session">No active session</p>
-                </div>
+                  </div>
               </header>
               <div class="sx-dash-pulse__practice-split" data-sx-pulse="practice-split" aria-hidden="true"></div>
               <div class="sx-dash-pulse-sessions" data-sx-pulse="practice-sessions"></div>
@@ -961,7 +996,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
               <div class="sx-dash-pulse__panel-head sx-dash-pulse__panel-head--compact">
                 <h4 class="sx-dash-pulse__panel-title">Symbol focus</h4>
                 <button type="button" class="sx-dash-pulse__info" title="Trade count share by session symbol." aria-label="About symbol focus">i</button>
-              </div>
+                  </div>
               <div class="sx-dash-pulse-symbols" data-sx-pulse="symbols"></div>
             </article>
 
@@ -980,10 +1015,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                   <div class="sx-dash-pulse__split" aria-hidden="true">
                     <span class="sx-dash-pulse__split-buy" data-sx-pulse="long-bar" style="width:50%"></span>
                     <span class="sx-dash-pulse__split-sell" data-sx-pulse="short-bar" style="width:50%"></span>
-                  </div>
-                  <p class="sx-dash-pulse__hint" data-sx-pulse="split-label">Buys / sells appear after journal closes</p>
-                </div>
               </div>
+                  <p class="sx-dash-pulse__hint" data-sx-pulse="split-label">Buys / sells appear after journal closes</p>
+                    </div>
+                  </div>
             </article>
 
             <article class="sx-dash-pulse__panel sx-dash-pulse__panel--intense">
@@ -991,7 +1026,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                 <div>
                   <h4 class="sx-dash-pulse__panel-title">Intense Practice</h4>
                   <p class="sx-dash-pulse__panel-sub">Hours invested by month</p>
-                </div>
+                    </div>
                 <button type="button" class="sx-dash-pulse__info" title="Hours invested practicing across the last 6 months." aria-label="About intense practice">i</button>
               </header>
               <div class="sx-dash-pulse-chart sx-dash-pulse-chart--intense" data-sx-pulse="activity" role="img" aria-label="Intense practice hours by month"></div>
@@ -1002,19 +1037,19 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                 <div>
                   <h4 class="sx-dash-pulse__panel-title">Net P&amp;L path</h4>
                   <p class="sx-dash-pulse__panel-sub">Trading-day waterfall — green up on profit, red down on loss</p>
-                </div>
+                  </div>
                 <span class="sx-dash-pulse__period" data-sx-pnl-chart-period aria-live="polite"></span>
               </header>
               <div class="sx-dash-pulse-pnl-chart sx-dash-time-chart" role="img" data-sx-time-chart aria-label="Pulse Net P&amp;L chart">
                 <div class="sx-dash-time-chart__frame">
                   <div class="sx-dash-time-chart__pan" data-sx-time-chart-pan></div>
-                </div>
-              </div>
+                  </div>
+                    </div>
             </article>
-          </div>
+                  </div>
 
         </section>
-          </div>
+                </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="trades" role="tabpanel" hidden>
             <section class="sx-dash-trades sx-dash-card-surface overflow-hidden rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-8" aria-labelledby="sx-dash-trades-title">
@@ -1022,9 +1057,9 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                 <div>
                   <h3 id="sx-dash-trades-title" class="text-lg font-bold tracking-tight text-slate-900 dark:text-white sm:text-xl">Trades</h3>
                   <p class="mt-1 text-sm text-zinc-500">Closed trades from your replay journals across sessions.</p>
-                </div>
+                    </div>
                 <span class="text-sm font-medium text-zinc-500" data-sx-trades-count>0 trades</span>
-              </div>
+                  </div>
               <div class="overflow-x-auto">
                 <table class="sx-dash-trades-table w-full min-w-[40rem] border-collapse text-left text-sm">
                   <thead>
@@ -1043,12 +1078,14 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                     </tr>
                   </tbody>
                 </table>
-              </div>
+                      </div>
             </section>
-          </div>
+                    </div>
 
-          </div>
-        </div>
+                  </div>
+
+          ${buildPartnersSectionHtml()}
+                </div>
         <div id="sx-dash-subscription-panel" class="sx-dash-subscription-panel hidden" hidden></div>
         <div id="sx-dash-strategy-panel" class="sx-dash-strategy-panel hidden" hidden></div>
         <div id="sx-dash-settings-panel" class="sx-dash-settings-panel hidden" hidden></div>
@@ -1882,8 +1919,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
   function applyAccountTierUi() {
     const tier = readAccountTier()
-    const label = tier === 'pro' ? 'Pro Max user' : tier === 'intermediate' ? 'Pro user' : 'Free user'
-    const planShort = tier === 'pro' ? 'Pro Max' : tier === 'intermediate' ? 'Pro' : 'Free'
+    const label = tier === 'pro' ? 'Premium Plan user' : tier === 'intermediate' ? 'Ultra Plan user' : 'Free user'
+    const planShort = tier === 'pro' ? 'Premium Plan' : tier === 'intermediate' ? 'Ultra Plan' : 'Free'
     const badge = root.querySelector('#sx-dash-plan-badge')
     if (badge) badge.textContent = label
     root.querySelectorAll<HTMLElement>('[data-sx-account-plan]').forEach((el) => {
@@ -2075,7 +2112,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (practiceSplit) practiceSplit.innerHTML = buildPulsePracticeSplitHtml(pulse.sessionPractice)
     if (practiceSessions) practiceSessions.innerHTML = buildPulsePracticeRowsHtml(pulse.sessionPractice)
     if (tradesEl) {
-      tradesEl.textContent =
+        tradesEl.textContent =
         pulse.tradesTaken > 0
           ? `${pulse.tradesTaken} trade${pulse.tradesTaken === 1 ? '' : 's'} · ${pulse.wins}W / ${pulse.losses}L`
           : 'No closed trades yet'
@@ -2375,6 +2412,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
   root.querySelectorAll('[data-action="prop"]').forEach((el) => {
     el.addEventListener('click', () => {
+      const tier = readAccountTier()
+      if (tier === 'free') {
+        openUpgradePlansModal()
+        return
+      }
       sessionModal.open({ sessionType: 'prop' })
     })
   })
