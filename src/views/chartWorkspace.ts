@@ -67,10 +67,7 @@ import { inferTimeframeFromBars, fetchSessionBarChunk, prefetchSessionLookbackBa
 import {
   chunkRangeAfterLoaded,
   chunkRangeBeforeLoaded,
-  SESSION_1M_SUGGEST_H1_SPAN_SEC,
-  SESSION_1M_WARN_SPAN_SEC,
   SESSION_LAZY_LOAD_MARGIN_BARS,
-  sessionSpanSec,
 } from '../data/sessionBarWindow'
 import {
   findReplayBarIndex,
@@ -4725,7 +4722,6 @@ export function mountChartWorkspace(
           resetChartOverlays()
           // resetChartOverlays clears the mask — restore it for the replay cursor.
           syncTvReplayMaskForCurrentReplay()
-          maybeShowSessionWindowedNotice()
           paintedWithNonZeroHost = hostReady
         } catch (err) {
           // TV painted or not, boot must complete — otherwise the safety timer
@@ -4877,25 +4873,6 @@ export function mountChartWorkspace(
         loadedFirstSec,
         loadedLastSec,
       })
-    }
-
-    function maybeShowSessionWindowedNotice() {
-      if (!sessionBarsWindowed) return
-      if (chartTimeframe !== '1m' && inferTimeframeFromBars(chartBars) !== '1m') return
-      const span = sessionSpanSec(activeSession.startDate, activeSession.endDate)
-      if (span < SESSION_1M_WARN_SPAN_SEC) return
-
-      const days = Math.round(span / 86_400)
-      const base = `Long 1m session (~${days} days) — loading in 2-week chunks. Pan left or replay to load more.`
-      if (span >= SESSION_1M_SUGGEST_H1_SPAN_SEC) {
-        showReplayNoticeAction(
-          `${base} For smoother navigation, try 1h or 1D.`,
-          'Switch to 1h',
-          () => void applyIntervalPick({ pill: '1h', kind: 'time', stepSec: 3600, label: '1 hour' }),
-        )
-      } else {
-        showReplayNotice(base)
-      }
     }
 
     sessionLazyFetchRef.fn = lazyFetchSessionBars

@@ -11,12 +11,6 @@ export const SESSION_WINDOW_CHUNK_SEC = 7 * 86_400
 /** Prefetch when replay cursor is within this many bars of the loaded edge. */
 export const SESSION_LAZY_LOAD_MARGIN_BARS = 180
 
-/** Show chunked-load hint above this span at 1m. */
-export const SESSION_1M_WARN_SPAN_SEC = 42 * 86_400
-
-/** Suggest 1h/1d above this span at 1m. */
-export const SESSION_1M_SUGGEST_H1_SPAN_SEC = 180 * 86_400
-
 export function sessionSpanSec(startDate?: string, endDate?: string): number {
   const { startSec, endSec } = sessionDateRangeSec(startDate, endDate)
   if (startSec == null || endSec == null || endSec <= startSec) return 0
