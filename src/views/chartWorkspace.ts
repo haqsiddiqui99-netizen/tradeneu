@@ -1028,6 +1028,7 @@ export function mountChartWorkspace(
 
   let replayNoticeCleanup: (() => void) | null = null
   let replayToastTimer: number | null = null
+  let replayToastFadeTimer: number | null = null
 
   function hideReplayNotice() {
     replayNoticeCleanup?.()
@@ -1045,6 +1046,29 @@ export function mountChartWorkspace(
     replayNoticeEl.textContent = message
   }
 
+  function clearReplayToastTimers() {
+    if (replayToastTimer != null) window.clearTimeout(replayToastTimer)
+    if (replayToastFadeTimer != null) window.clearTimeout(replayToastFadeTimer)
+    replayToastTimer = null
+    replayToastFadeTimer = null
+  }
+
+  function hideReplayToast(toast: HTMLElement, fade: boolean) {
+    clearReplayToastTimers()
+    if (!fade) {
+      toast.classList.remove('rw-chart-toast--out')
+      toast.classList.remove('rw-chart-toast--enter')
+      toast.hidden = true
+      return
+    }
+    toast.classList.add('rw-chart-toast--out')
+    replayToastFadeTimer = window.setTimeout(() => {
+      toast.hidden = true
+      toast.classList.remove('rw-chart-toast--out')
+      replayToastFadeTimer = null
+    }, 700)
+  }
+
   function showReplayToast(message: string, tone: 'success' | 'error' = 'success') {
     let toast = chartHost.querySelector('[data-rw-chart-toast]') as HTMLElement | null
     if (!toast) {
@@ -1055,14 +1079,38 @@ export function mountChartWorkspace(
       toast.setAttribute('aria-live', 'polite')
       chartHost.appendChild(toast)
     }
-    if (replayToastTimer != null) window.clearTimeout(replayToastTimer)
+    clearReplayToastTimers()
     toast.className = `rw-chart-toast rw-chart-toast--${tone}`
-    toast.textContent = message
+    toast.replaceChildren()
+    if (tone === 'error') {
+      const close = document.createElement('button')
+      close.type = 'button'
+      close.className = 'rw-chart-toast__close'
+      close.setAttribute('aria-label', 'Dismiss')
+      close.textContent = '×'
+      close.addEventListener('click', (event) => {
+        event.stopPropagation()
+        hideReplayToast(toast!, false)
+      })
+      const title = document.createElement('div')
+      title.className = 'rw-chart-toast__title'
+      title.textContent = 'Order Error'
+      const body = document.createElement('div')
+      body.className = 'rw-chart-toast__msg'
+      body.textContent = message
+      toast.append(close, title, body)
+    } else {
+      toast.textContent = message
+    }
+    toast.classList.add('rw-chart-toast--enter')
     toast.hidden = false
+    // Force layout so removing the class animates the slide-up instead of snapping.
+    void toast.offsetHeight
+    toast.classList.remove('rw-chart-toast--enter')
     replayToastTimer = window.setTimeout(() => {
-      toast!.hidden = true
       replayToastTimer = null
-    }, 2200)
+      hideReplayToast(toast!, true)
+    }, tone === 'error' ? 3800 : 2800)
   }
 
   function showChartEmptyState(message: string) {
@@ -1575,8 +1623,7 @@ export function mountChartWorkspace(
 
   const cleanupFns: Array<() => void> = []
   cleanupFns.push(() => {
-    if (replayToastTimer != null) window.clearTimeout(replayToastTimer)
-    replayToastTimer = null
+    clearReplayToastTimers()
   })
 
   bindReplayDockDrag()

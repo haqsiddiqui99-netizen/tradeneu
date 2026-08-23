@@ -57,19 +57,36 @@
 
 .rw-chart-toast {
   position: absolute;
-  top: 18px;
-  left: 50%;
+  top: auto;
+  /* Chart footer, right side — above the time axis, clear of the price axis. */
+  right: 72px;
+  bottom: 34px;
+  left: auto;
   z-index: 30;
-  transform: translateX(-50%);
-  max-width: min(92%, 440px);
-  padding: 9px 14px;
+  max-width: min(92%, 360px);
+  padding: 10px 36px 10px 14px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   color: #fff;
   font: 600 12px/1.35 var(--rw-font, sans-serif);
   text-align: center;
   box-shadow: 0 8px 24px rgba(19, 23, 34, 0.22);
-  pointer-events: none;
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.24s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Start state: tucked below the axis so it slides up into place. */
+.rw-chart-toast--enter {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: none;
+}
+
+.rw-chart-toast--out {
+  opacity: 0;
+  transition: opacity 0.7s ease;
 }
 
 .rw-chart-toast--success {
@@ -78,6 +95,40 @@
 
 .rw-chart-toast--error {
   background: rgba(242, 54, 69, 0.97);
+}
+
+.rw-chart-toast__title {
+  margin-bottom: 2px;
+  padding-right: 4px;
+  font: 700 13px/1.25 var(--rw-font, sans-serif);
+  letter-spacing: 0.01em;
+}
+
+.rw-chart-toast__msg {
+  padding-right: 4px;
+  font: 600 12px/1.35 var(--rw-font, sans-serif);
+}
+
+.rw-chart-toast__close {
+  position: absolute;
+  top: -1px;
+  right: 2px;
+  width: 25px;
+  height: 25px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: 400 18px/25px var(--rw-font, sans-serif);
+  cursor: pointer;
+}
+
+.rw-chart-toast__close:hover {
+  background: transparent;
+  color: inherit;
+  opacity: 0.75;
 }
 
 /* Horizontal dashed entry / TP / SL lines (FXReplay-style) */
@@ -352,8 +403,8 @@
 }
 
 .rw-pos-close:hover {
-  background: #f23645;
-  color: #fff;
+  background: #e0e3eb;
+  color: #131722;
 }
 
 .rw-pos-close--exit {
@@ -568,4 +619,9 @@
   background: #2a2e39;
   border-left-color: rgba(255, 255, 255, 0.12);
   color: #9aa0ab;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pos-close:hover {
+  background: #434651;
+  color: #d1d4dc;
 }
