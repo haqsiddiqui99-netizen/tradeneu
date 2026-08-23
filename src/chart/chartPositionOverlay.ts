@@ -16,6 +16,18 @@ type DomLineBundle = {
   sl: HTMLElement | null
 }
 
+type DragLineBundle = {
+  tp: HTMLElement | null
+  sl: HTMLElement | null
+}
+
+type ExitRowBundle = {
+  tp: HTMLElement | null
+  sl: HTMLElement | null
+}
+
+type ExitKind = 'tp' | 'sl'
+
 export type ChartPositionOverlayHandle = {
   sync: (opts?: { recreateLines?: boolean }) => void
   /** Hide all DOM lines/badges (e.g. when TradingView draws native position lines). */
@@ -41,6 +53,10 @@ export function mountChartPositionOverlay(opts: {
    * When set, skips LWC createPriceLine and draws dashed DOM lines.
    */
   priceToHostY?: (price: number) => number | null
+  /** Override renderer selection when priceToHostY is supplied only for drag coordinates. */
+  useDomLines?: boolean
+  /** Price for a host-relative Y coordinate; enables TP/SL dragging. */
+  hostYToPrice?: (hostY: number) => number | null
   /** Left/right inset for DOM horizontal lines (plot area). */
   getPlotHorizontalInsets?: () => { left: number; right: number } | null
   /** Reject badge Y above this (avoids pinning into TV header chrome). */
@@ -59,10 +75,12 @@ export function mountChartPositionOverlay(opts: {
   onClose: (id: string) => void
   onToggleTakeProfit?: (id: string) => void
   onToggleStopLoss?: (id: string) => void
+  onSetTakeProfit?: (id: string, price: number) => boolean
+  onSetStopLoss?: (id: string, price: number) => boolean
   /** Re-layout when scales change (TV subscribeTimeScaleChange). */
   subscribeScaleChange?: (cb: () => void) => () => void
 }): ChartPositionOverlayHandle {
-  const useDomLines = typeof opts.priceToHostY === 'function'
+  const useDomLines = opts.useDomLines ?? typeof opts.priceToHostY === 'function'
   const overlay = document.createElement('div')
   overlay.className = 'rw-pos-overlay'
   overlay.setAttribute('aria-live', 'polite')
@@ -70,10 +88,230 @@ export function mountChartPositionOverlay(opts: {
 
   const lineMap = new Map<string, LineBundle>()
   const domLineMap = new Map<string, DomLineBundle>()
+  const dragLineMap = new Map<string, DragLineBundle>()
+  const exitRowMap = new Map<string, ExitRowBundle>()
   const rowMap = new Map<string, HTMLElement>()
   let lastSeriesDataRevision = -1
   let suppressed = false
   let skipDomLines = false
+  let activeDragKey: string | null = null
+
+  const exitColor = (kind: ExitKind) => (kind === 'tp' ? '#089981' : '#f7931a')
+  let previewEl: HTMLElement | null = null
+  let tipEl: HTMLElement | null = null
+  let activeDetachKey: string | null = null
+  let suppressChipClick = false
+
+  /** Drag Y stays inside the plot so a dropped price is always resolvable. */
+  function clampDragY(clientY: number): number {
+    const hostRect = opts.chartHost.getBoundingClientRect()
+    const minY = opts.getMinPlotY?.() ?? 0
+    const maxY = hostRect.height - (opts.getBottomInset?.() ?? 0)
+    return Math.max(minY, Math.min(maxY, clientY - hostRect.top))
+  }
+
+  /** Dark hover tooltip (FXReplay style) anchored above the hovered control. */
+  function showTip(anchor: HTMLElement, text: string) {
+    if (!tipEl) {
+      tipEl = document.createElement('div')
+      tipEl.className = 'rw-pos-tip'
+      tipEl.setAttribute('role', 'tooltip')
+      overlay.appendChild(tipEl)
+    }
+    tipEl.textContent = text
+    tipEl.hidden = false
+    tipEl.classList.remove('rw-pos-tip--below')
+    const hostRect = opts.chartHost.getBoundingClientRect()
+    const anchorRect = anchor.getBoundingClientRect()
+    const tipRect = tipEl.getBoundingClientRect()
+    const left = Math.max(
+      4,
+      Math.min(
+        hostRect.width - tipRect.width - 4,
+        anchorRect.left - hostRect.left + anchorRect.width / 2 - tipRect.width / 2,
+      ),
+    )
+    let top = anchorRect.top - hostRect.top - tipRect.height - 9
+    if (top < 4) {
+      top = anchorRect.bottom - hostRect.top + 9
+      tipEl.classList.add('rw-pos-tip--below')
+    }
+    tipEl.style.left = `${left}px`
+    tipEl.style.top = `${top}px`
+  }
+
+  function hideTip() {
+    if (tipEl) tipEl.hidden = true
+  }
+
+  function attachTip(el: HTMLElement, getText: () => string) {
+    el.addEventListener('pointerenter', () => showTip(el, getText()))
+    el.addEventListener('pointerleave', hideTip)
+    el.addEventListener('pointerdown', hideTip)
+  }
+
+  /** Distance from entry in pips (0.001 price steps), matching the badge's points scale. */
+  function pipsFromEntry(posId: string, price: number | null | undefined): number {
+    if (price == null || !Number.isFinite(price)) return 0
+    const pos = opts.getPositions().find((p) => p.id === posId)
+    if (!pos) return 0
+    return Math.abs(Math.round((price - pos.entryPrice) * 1000))
+  }
+
+  function exitTipText(posId: string, kind: ExitKind): string {
+    const pos = opts.getPositions().find((p) => p.id === posId)
+    const price = kind === 'tp' ? pos?.takeProfit : pos?.stopLoss
+    const pips = pipsFromEntry(posId, price)
+    return `${kind === 'tp' ? 'Take Profit' : 'Stop Loss'}, ${pips} pips`
+  }
+
+  /** Ghost line that follows the cursor while a TP/SL chip is dragged off the order badge. */
+  function showPreview(kind: ExitKind, y: number, price: number | null) {
+    if (!previewEl) {
+      previewEl = document.createElement('div')
+      previewEl.className = 'rw-pos-preview'
+      previewEl.innerHTML = '<span class="rw-pos-preview__label"></span>'
+      overlay.appendChild(previewEl)
+    }
+    const color = exitColor(kind)
+    previewEl.style.setProperty('--rw-pos-exit-color', color)
+    const insets = opts.getPlotHorizontalInsets?.() ?? null
+    previewEl.style.left = `${insets?.left ?? 0}px`
+    previewEl.style.right = `${insets?.right ?? 56}px`
+    previewEl.style.top = `${y}px`
+    previewEl.hidden = false
+    const label = previewEl.querySelector('.rw-pos-preview__label') as HTMLElement | null
+    if (label) {
+      const priceText = price != null && Number.isFinite(price) ? price.toFixed(3) : '—'
+      label.textContent = `${kind === 'tp' ? 'TP' : 'SL'} ${priceText}`
+    }
+  }
+
+  function hidePreview() {
+    if (previewEl) previewEl.hidden = true
+  }
+
+  /** FXReplay-style: drag the TP/SL chip off the order badge to place the level. */
+  function attachChipDetachDrag(btn: HTMLElement, posId: string, kind: ExitKind) {
+    const key = `${posId}:${kind}`
+    let startY = 0
+    let moved = false
+
+    btn.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0 || !opts.hostYToPrice) return
+      event.stopPropagation()
+      activeDetachKey = key
+      startY = event.clientY
+      moved = false
+      suppressChipClick = false
+      btn.setPointerCapture(event.pointerId)
+    })
+
+    btn.addEventListener('pointermove', (event) => {
+      if (activeDetachKey !== key || !btn.hasPointerCapture(event.pointerId)) return
+      if (!moved && Math.abs(event.clientY - startY) < 4) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (!moved) {
+        moved = true
+        btn.classList.add('rw-pos-chip--dragging')
+      }
+      const y = clampDragY(event.clientY)
+      showPreview(kind, y, opts.hostYToPrice?.(y) ?? null)
+    })
+
+    const finishDetach = (event: PointerEvent, commit: boolean) => {
+      if (activeDetachKey !== key) return
+      event.stopPropagation()
+      if (btn.hasPointerCapture(event.pointerId)) btn.releasePointerCapture(event.pointerId)
+      btn.classList.remove('rw-pos-chip--dragging')
+      activeDetachKey = null
+      hidePreview()
+      // A drag placed the level; the trailing click must not toggle it straight back off.
+      suppressChipClick = moved
+      if (!moved) return
+
+      if (commit && opts.hostYToPrice) {
+        const y = clampDragY(event.clientY)
+        const price = opts.hostYToPrice(y)
+        if (price != null && Number.isFinite(price)) {
+          if (kind === 'tp') opts.onSetTakeProfit?.(posId, price)
+          else opts.onSetStopLoss?.(posId, price)
+        }
+      }
+      sync()
+    }
+
+    btn.addEventListener('pointerup', (event) => finishDetach(event, true))
+    btn.addEventListener('pointercancel', (event) => finishDetach(event, false))
+  }
+
+  function dragPartners(posId: string, kind: ExitKind): HTMLElement[] {
+    const out: HTMLElement[] = []
+    const line = dragLineMap.get(posId)?.[kind]
+    const row = exitRowMap.get(posId)?.[kind]
+    if (line) out.push(line)
+    if (row) out.push(row)
+    return out
+  }
+
+  /** Shared pointer drag for the TP/SL line and its badge — both move together. */
+  function attachExitDrag(el: HTMLElement, posId: string, kind: ExitKind) {
+    const key = `${posId}:${kind}`
+
+    el.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0 || !opts.hostYToPrice) return
+      if ((event.target as HTMLElement | null)?.closest('button')) return
+      event.preventDefault()
+      event.stopPropagation()
+      activeDragKey = key
+      el.setPointerCapture(event.pointerId)
+      for (const node of dragPartners(posId, kind)) {
+        node.classList.add('rw-pos-dragging')
+      }
+    })
+
+    el.addEventListener('pointermove', (event) => {
+      if (activeDragKey !== key || !el.hasPointerCapture(event.pointerId)) return
+      event.preventDefault()
+      event.stopPropagation()
+      const y = clampDragY(event.clientY)
+      for (const node of dragPartners(posId, kind)) {
+        node.style.top = `${y}px`
+        node.hidden = false
+      }
+      const price = opts.hostYToPrice?.(y)
+      const row = exitRowMap.get(posId)?.[kind]
+      if (row && price != null && Number.isFinite(price)) {
+        const pos = opts.getPositions().find((p) => p.id === posId)
+        if (pos) updateExitRowValue(row, pos, price)
+      }
+    })
+
+    const finishDrag = (event: PointerEvent, commit: boolean) => {
+      if (activeDragKey !== key) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (el.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId)
+      for (const node of dragPartners(posId, kind)) {
+        node.classList.remove('rw-pos-dragging')
+      }
+      activeDragKey = null
+
+      if (commit && opts.hostYToPrice) {
+        const y = clampDragY(event.clientY)
+        const price = opts.hostYToPrice(y)
+        if (price != null && Number.isFinite(price)) {
+          if (kind === 'tp') opts.onSetTakeProfit?.(posId, price)
+          else opts.onSetStopLoss?.(posId, price)
+        }
+      }
+      sync()
+    }
+
+    el.addEventListener('pointerup', (event) => finishDrag(event, true))
+    el.addEventListener('pointercancel', (event) => finishDrag(event, false))
+  }
 
   function makeDomLine(kind: 'entry' | 'tp' | 'sl', color: string, title: string): HTMLElement {
     const el = document.createElement('div')
@@ -89,6 +327,69 @@ export function mountChartPositionOverlay(opts: {
     }
     overlay.appendChild(el)
     return el
+  }
+
+  function makeDragLine(posId: string, kind: ExitKind): HTMLElement {
+    const el = document.createElement('div')
+    el.className = `rw-pos-dragline rw-pos-dragline--${kind}`
+    el.dataset.posDrag = kind
+    el.title = kind === 'tp' ? 'Drag take profit' : 'Drag stop loss'
+    el.setAttribute('role', 'slider')
+    el.setAttribute('aria-label', kind === 'tp' ? 'Take profit price' : 'Stop loss price')
+    el.hidden = true
+    attachExitDrag(el, posId, kind)
+    overlay.appendChild(el)
+    return el
+  }
+
+  /** Projected P&L badge shown on the TP/SL line itself (drag handle + amount + qty). */
+  function makeExitRow(posId: string, kind: ExitKind): HTMLElement {
+    const el = document.createElement('div')
+    el.className = `rw-pos-row rw-pos-row--exit rw-pos-row--${kind}`
+    el.dataset.posId = posId
+    el.dataset.posExit = kind
+    el.style.setProperty('--rw-pos-exit-color', exitColor(kind))
+    el.hidden = true
+    const label = kind === 'tp' ? 'take profit' : 'stop loss'
+    el.innerHTML = `
+      <span class="rw-pos-grip" aria-hidden="true"></span>
+      <span class="rw-pos-pnl" data-pos-exit-pnl></span>
+      <span class="rw-pos-qty" data-pos-exit-qty></span>
+      <button type="button" class="rw-pos-close rw-pos-close--exit" data-pos-exit-remove title="Remove ${label}" aria-label="Remove ${label}">×</button>
+    `
+    const removeBtn = el.querySelector('[data-pos-exit-remove]') as HTMLElement | null
+    removeBtn?.addEventListener('click', (event) => {
+      event.stopPropagation()
+      if (kind === 'tp') opts.onToggleTakeProfit?.(posId)
+      else opts.onToggleStopLoss?.(posId)
+    })
+    if (removeBtn) {
+      removeBtn.removeAttribute('title')
+      attachTip(removeBtn, () => (kind === 'tp' ? 'Remove Take Profit' : 'Remove Stop Loss'))
+    }
+    attachTip(el, () => exitTipText(posId, kind))
+    attachExitDrag(el, posId, kind)
+    overlay.appendChild(el)
+    return el
+  }
+
+  function updateExitRowValue(row: HTMLElement, pos: OpenPosition, price: number) {
+    const pnl = positionUnrealized(pos, price)
+    const pts = positionPoints(pos, price)
+    const ptsLabel = String(Math.abs(Math.round(pts))).padStart(3, '0')
+    const pnlSigned = pnl < 0 ? `-${Math.abs(pnl).toFixed(2)}` : Math.abs(pnl).toFixed(2)
+    const pnlEl = row.querySelector('[data-pos-exit-pnl]') as HTMLElement | null
+    const qtyEl = row.querySelector('[data-pos-exit-qty]') as HTMLElement | null
+    if (pnlEl) pnlEl.textContent = `${ptsLabel}→${pnlSigned} USD`
+    if (qtyEl) qtyEl.textContent = String(pos.qty)
+  }
+
+  function placeDragLine(el: HTMLElement, y: number) {
+    const insets = opts.getPlotHorizontalInsets?.() ?? null
+    el.style.left = `${insets?.left ?? 0}px`
+    el.style.right = `${insets?.right ?? 56}px`
+    el.style.top = `${y}px`
+    el.hidden = !Number.isFinite(y)
   }
 
   function placeDomLine(el: HTMLElement, y: number, leftPx?: number | null) {
@@ -154,6 +455,14 @@ export function mountChartPositionOverlay(opts: {
     }
   }
 
+  function removeDragLineBundles() {
+    for (const [id, bundle] of dragLineMap) {
+      bundle.tp?.remove()
+      bundle.sl?.remove()
+      dragLineMap.delete(id)
+    }
+  }
+
   function removePositionVisual(id: string) {
     const bundle = lineMap.get(id)
     if (bundle && opts.getSeries) {
@@ -174,6 +483,18 @@ export function mountChartPositionOverlay(opts: {
       dom.sl?.remove()
       domLineMap.delete(id)
     }
+    const drag = dragLineMap.get(id)
+    if (drag) {
+      drag.tp?.remove()
+      drag.sl?.remove()
+      dragLineMap.delete(id)
+    }
+    const exits = exitRowMap.get(id)
+    if (exits) {
+      exits.tp?.remove()
+      exits.sl?.remove()
+      exitRowMap.delete(id)
+    }
     rowMap.get(id)?.remove()
     rowMap.delete(id)
   }
@@ -184,6 +505,93 @@ export function mountChartPositionOverlay(opts: {
       return positionMarkPrice(pos.direction, ba.bid, ba.ask)
     }
     return opts.getMarkPrice()
+  }
+
+  function ensureDragLines(pos: OpenPosition) {
+    if (!opts.priceToHostY || !opts.hostYToPrice) return
+    let bundle = dragLineMap.get(pos.id)
+    if (!bundle) {
+      bundle = { tp: null, sl: null }
+      dragLineMap.set(pos.id, bundle)
+    }
+    if (pos.takeProfit != null) {
+      if (!bundle.tp) bundle.tp = makeDragLine(pos.id, 'tp')
+    } else if (bundle.tp) {
+      bundle.tp.remove()
+      bundle.tp = null
+    }
+    if (pos.stopLoss != null) {
+      if (!bundle.sl) bundle.sl = makeDragLine(pos.id, 'sl')
+    } else if (bundle.sl) {
+      bundle.sl.remove()
+      bundle.sl = null
+    }
+  }
+
+  function layoutDragLines(pos: OpenPosition) {
+    if (!opts.priceToHostY) return
+    const bundle = dragLineMap.get(pos.id)
+    if (!bundle) return
+    if (bundle.tp && pos.takeProfit != null && activeDragKey !== `${pos.id}:tp`) {
+      const y = opts.priceToHostY(pos.takeProfit)
+      if (y != null) placeDragLine(bundle.tp, y)
+      else bundle.tp.hidden = true
+    }
+    if (bundle.sl && pos.stopLoss != null && activeDragKey !== `${pos.id}:sl`) {
+      const y = opts.priceToHostY(pos.stopLoss)
+      if (y != null) placeDragLine(bundle.sl, y)
+      else bundle.sl.hidden = true
+    }
+  }
+
+  function ensureExitRows(pos: OpenPosition) {
+    if (!opts.priceToHostY || !opts.hostYToPrice) return
+    let bundle = exitRowMap.get(pos.id)
+    if (!bundle) {
+      bundle = { tp: null, sl: null }
+      exitRowMap.set(pos.id, bundle)
+    }
+    if (pos.takeProfit != null) {
+      if (!bundle.tp) bundle.tp = makeExitRow(pos.id, 'tp')
+      if (activeDragKey !== `${pos.id}:tp`) updateExitRowValue(bundle.tp, pos, pos.takeProfit)
+    } else if (bundle.tp) {
+      bundle.tp.remove()
+      bundle.tp = null
+    }
+    if (pos.stopLoss != null) {
+      if (!bundle.sl) bundle.sl = makeExitRow(pos.id, 'sl')
+      if (activeDragKey !== `${pos.id}:sl`) updateExitRowValue(bundle.sl, pos, pos.stopLoss)
+    } else if (bundle.sl) {
+      bundle.sl.remove()
+      bundle.sl = null
+    }
+  }
+
+  function layoutExitRows(pos: OpenPosition, hostHeight: number, hostWidth: number) {
+    if (!opts.priceToHostY) return
+    const bundle = exitRowMap.get(pos.id)
+    if (!bundle) return
+    const minY = opts.getMinPlotY?.() ?? 0
+    const maxY = hostHeight - (opts.getBottomInset?.() ?? 0)
+
+    const place = (row: HTMLElement | null, price: number | null | undefined, kind: ExitKind) => {
+      if (!row) return
+      if (activeDragKey === `${pos.id}:${kind}`) return
+      if (price == null) {
+        row.hidden = true
+        return
+      }
+      const y = opts.priceToHostY?.(price) ?? null
+      if (y == null || !Number.isFinite(y) || y < minY || y > maxY) {
+        row.hidden = true
+        return
+      }
+      row.hidden = false
+      positionRow(row, y, hostHeight, hostWidth)
+    }
+
+    place(bundle.tp, pos.takeProfit, 'tp')
+    place(bundle.sl, pos.stopLoss, 'sl')
   }
 
   function ensurePriceLines(pos: OpenPosition) {
@@ -311,18 +719,43 @@ export function mountChartPositionOverlay(opts: {
         <span class="rw-pos-qty" data-pos-qty></span>
         <button type="button" class="rw-pos-close" data-pos-close title="Close position" aria-label="Close position">×</button>
       `
-      row.querySelector('[data-pos-close]')?.addEventListener('click', (e) => {
+      const closeBtn = row.querySelector('[data-pos-close]') as HTMLElement | null
+      closeBtn?.addEventListener('click', (e) => {
         e.stopPropagation()
         opts.onClose(pos.id)
       })
-      row.querySelector('[data-pos-tp]')?.addEventListener('click', (e) => {
+      if (closeBtn) {
+        closeBtn.removeAttribute('title')
+        attachTip(closeBtn, () => 'Close Position')
+      }
+      const tpChip = row.querySelector('[data-pos-tp]') as HTMLElement | null
+      const slChip = row.querySelector('[data-pos-sl]') as HTMLElement | null
+      tpChip?.addEventListener('click', (e) => {
         e.stopPropagation()
+        if (suppressChipClick) {
+          suppressChipClick = false
+          return
+        }
         opts.onToggleTakeProfit?.(pos.id)
       })
-      row.querySelector('[data-pos-sl]')?.addEventListener('click', (e) => {
+      slChip?.addEventListener('click', (e) => {
         e.stopPropagation()
+        if (suppressChipClick) {
+          suppressChipClick = false
+          return
+        }
         opts.onToggleStopLoss?.(pos.id)
       })
+      if (tpChip) {
+        tpChip.removeAttribute('title')
+        attachChipDetachDrag(tpChip, pos.id, 'tp')
+        attachTip(tpChip, () => exitTipText(pos.id, 'tp'))
+      }
+      if (slChip) {
+        slChip.removeAttribute('title')
+        attachChipDetachDrag(slChip, pos.id, 'sl')
+        attachTip(slChip, () => exitTipText(pos.id, 'sl'))
+      }
       overlay.appendChild(row)
       rowMap.set(pos.id, row)
     }
@@ -350,8 +783,15 @@ export function mountChartPositionOverlay(opts: {
       pnlEl.title = `${side} · ${Math.abs(Math.round(pts))} pts from entry @ ${pos.entryPrice} · mark ${mark} · unrealized P&L`
     }
     if (qtyEl) qtyEl.textContent = String(pos.qty)
-    if (tpBtn) tpBtn.classList.toggle('rw-pos-chip--off', pos.takeProfit == null)
-    if (slBtn) slBtn.classList.toggle('rw-pos-chip--off', pos.stopLoss == null)
+    // A detached level lives on its own badge, so its chip leaves the order badge.
+    const tpDetached = pos.takeProfit != null
+    const slDetached = pos.stopLoss != null
+    if (tpBtn) tpBtn.hidden = tpDetached
+    if (slBtn) slBtn.hidden = slDetached
+    const sepEl = row.querySelector('.rw-pos-row__sep') as HTMLElement | null
+    if (sepEl) sepEl.hidden = tpDetached || slDetached
+    const toolsEl = row.querySelector('.rw-pos-row__tools') as HTMLElement | null
+    if (toolsEl) toolsEl.hidden = tpDetached && slDetached
 
     row.classList.toggle('rw-pos-row--long', pos.direction === 'long')
     row.classList.toggle('rw-pos-row--short', pos.direction === 'short')
@@ -400,6 +840,8 @@ export function mountChartPositionOverlay(opts: {
     for (const pos of positions) {
       const row = rowMap.get(pos.id)
       if (!row) continue
+      layoutDragLines(pos)
+      layoutExitRows(pos, hostRect.height, hostRect.width)
 
       let y: number | null = null
       if (useDomLines && opts.priceToHostY) {
@@ -427,7 +869,15 @@ export function mountChartPositionOverlay(opts: {
   }
 
   function clearAllVisuals() {
-    for (const id of new Set([...lineMap.keys(), ...domLineMap.keys(), ...rowMap.keys()])) {
+    hidePreview()
+    hideTip()
+    for (const id of new Set([
+      ...lineMap.keys(),
+      ...domLineMap.keys(),
+      ...dragLineMap.keys(),
+      ...exitRowMap.keys(),
+      ...rowMap.keys(),
+    ])) {
       removePositionVisual(id)
     }
   }
@@ -442,6 +892,8 @@ export function mountChartPositionOverlay(opts: {
     if (recreateLines) {
       if (useDomLines) removeDomLineBundles()
       else removePriceLineBundles()
+      // Recreating mid-drag would destroy the element holding pointer capture.
+      if (activeDragKey == null) removeDragLineBundles()
       lastSeriesDataRevision = revision
     }
 
@@ -449,13 +901,20 @@ export function mountChartPositionOverlay(opts: {
     const markFallback = opts.getMarkPrice()
     const ids = new Set(positions.map((p) => p.id))
 
-    for (const id of [...lineMap.keys(), ...domLineMap.keys()]) {
+    for (const id of new Set([
+      ...lineMap.keys(),
+      ...domLineMap.keys(),
+      ...dragLineMap.keys(),
+      ...exitRowMap.keys(),
+    ])) {
       if (!ids.has(id)) removePositionVisual(id)
     }
 
     for (const pos of positions) {
       if (useDomLines && !skipDomLines) ensureDomLines(pos)
       else if (!useDomLines) ensurePriceLines(pos)
+      ensureDragLines(pos)
+      ensureExitRows(pos)
       ensureRow(pos, markFor(pos) || markFallback)
     }
 

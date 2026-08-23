@@ -130,6 +130,8 @@ export type TvReplayChartController = {
   ) => { x: number; y: number } | null
   /** Pane-local Y for a price (null if scale unavailable). */
   priceToPlotY: (price: number) => number | null
+  /** Price for a pane-local Y coordinate (inverse of priceToPlotY). */
+  plotYToPrice: (plotY: number) => number | null
   subscribeTimeScaleChange: (fn: () => void) => () => void
   setReplayCursorVisible: (visible: boolean) => void
   /** Freeze pan/zoom while scissors pick is active (prevents chart drift / overlay misalignment). */
@@ -1506,6 +1508,41 @@ export function createTvReplayChartController(opts: {
     }
   }
 
+  const priceForPlotY = (plotY: number): number | null => {
+    const c = chart() as {
+      getPanes?: () => Array<{
+        getMainSourcePriceScale?: () => {
+          getVisiblePriceRange?: () => { from: number; to: number } | null
+          isInverted?: () => boolean
+        } | null
+        getRightPriceScales?: () => Array<{
+          getVisiblePriceRange?: () => { from: number; to: number } | null
+          isInverted?: () => boolean
+        }>
+        getHeight?: () => number
+      }>
+    } | null
+    if (!c?.getPanes || !Number.isFinite(plotY)) return null
+    try {
+      const pane = c.getPanes()[0]
+      if (!pane) return null
+      const scale = pane.getMainSourcePriceScale?.() ?? pane.getRightPriceScales?.()?.[0] ?? null
+      const range = scale?.getVisiblePriceRange?.() ?? null
+      const h = pane.getHeight?.()
+      if (!range || h == null || !(h > 8)) return null
+      const lo = Math.min(range.from, range.to)
+      const hi = Math.max(range.from, range.to)
+      const span = hi - lo
+      if (!Number.isFinite(span) || span < 1e-12) return null
+      let t = Math.max(0, Math.min(1, plotY / h))
+      if (scale?.isInverted?.()) t = 1 - t
+      const price = hi - t * span
+      return Number.isFinite(price) ? price : null
+    } catch {
+      return null
+    }
+  }
+
   const plotXForWallTimeMs = (timeMs: number): number | null => {
     return timeSecToPlotX(Math.floor(timeMs / 1000))
   }
@@ -1913,6 +1950,10 @@ export function createTvReplayChartController(opts: {
 
     priceToPlotY(price) {
       return plotYForPrice(price)
+    },
+
+    plotYToPrice(plotY) {
+      return priceForPlotY(plotY)
     },
 
     dispose() {

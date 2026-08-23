@@ -56,6 +56,21 @@ function defaultTpSl(entry: number, direction: PositionDirection): { tp: number;
 
 export { defaultTpSl }
 
+export type ReplayExitPriceKind = 'take_profit' | 'stop_loss'
+
+export function isValidReplayExitPrice(
+  direction: PositionDirection,
+  kind: ReplayExitPriceKind,
+  price: number,
+  currentPrice: number,
+): boolean {
+  if (!Number.isFinite(price) || !Number.isFinite(currentPrice)) return false
+  if (direction === 'long') {
+    return kind === 'take_profit' ? price > currentPrice : price < currentPrice
+  }
+  return kind === 'take_profit' ? price < currentPrice : price > currentPrice
+}
+
 export function positionUnrealized(pos: OpenPosition, markPrice: number): number {
   if (pos.direction === 'long') return (markPrice - pos.entryPrice) * pos.qty
   return (pos.entryPrice - markPrice) * pos.qty

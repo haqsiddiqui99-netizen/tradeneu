@@ -114,7 +114,16 @@ import {
   replaySpeedLabel,
   replaySpeedX,
 } from '../playback/replayController'
-import { createReplayAccount, defaultTpSl, longOrderCost, positionMarkPrice, positionPoints, positionUnrealized, shortOrderMargin } from '../replay/replayPositions'
+import {
+  createReplayAccount,
+  defaultTpSl,
+  isValidReplayExitPrice,
+  longOrderCost,
+  positionMarkPrice,
+  positionPoints,
+  positionUnrealized,
+  shortOrderMargin,
+} from '../replay/replayPositions'
 import {
   renderReplayJournal,
   renderReplayJournalStats,
@@ -1018,6 +1027,7 @@ export function mountChartWorkspace(
   }
 
   let replayNoticeCleanup: (() => void) | null = null
+  let replayToastTimer: number | null = null
 
   function hideReplayNotice() {
     replayNoticeCleanup?.()
@@ -1033,6 +1043,26 @@ export function mountChartWorkspace(
     hideReplayNotice()
     replayNoticeEl.hidden = false
     replayNoticeEl.textContent = message
+  }
+
+  function showReplayToast(message: string, tone: 'success' | 'error' = 'success') {
+    let toast = chartHost.querySelector('[data-rw-chart-toast]') as HTMLElement | null
+    if (!toast) {
+      toast = document.createElement('div')
+      toast.className = 'rw-chart-toast'
+      toast.dataset.rwChartToast = ''
+      toast.setAttribute('role', 'status')
+      toast.setAttribute('aria-live', 'polite')
+      chartHost.appendChild(toast)
+    }
+    if (replayToastTimer != null) window.clearTimeout(replayToastTimer)
+    toast.className = `rw-chart-toast rw-chart-toast--${tone}`
+    toast.textContent = message
+    toast.hidden = false
+    replayToastTimer = window.setTimeout(() => {
+      toast!.hidden = true
+      replayToastTimer = null
+    }, 2200)
   }
 
   function showChartEmptyState(message: string) {
@@ -1544,6 +1574,10 @@ export function mountChartWorkspace(
   }
 
   const cleanupFns: Array<() => void> = []
+  cleanupFns.push(() => {
+    if (replayToastTimer != null) window.clearTimeout(replayToastTimer)
+    replayToastTimer = null
+  })
 
   bindReplayDockDrag()
 
@@ -5013,6 +5047,45 @@ export function mountChartWorkspace(
       tickLineOverlay = null
     })
 
+    function currentMarkForPosition(pos: { direction: 'long' | 'short'; entryPrice: number }): number {
+      const b = lastBar(replay.slice())
+      if (!b) return pos.entryPrice
+      const { bid, ask } = bidAskFromBar(b)
+      return positionMarkPrice(pos.direction, bid, ask)
+    }
+
+    function invalidExitPriceMessage(direction: 'long' | 'short', kind: 'take_profit' | 'stop_loss') {
+      if (direction === 'long') {
+        return kind === 'take_profit'
+          ? 'Take Profit (TP) must be higher than current price.'
+          : 'Stop Loss (SL) must be lower than current price.'
+      }
+      return kind === 'take_profit'
+        ? 'Take Profit (TP) must be lower than current price for a short position.'
+        : 'Stop Loss (SL) must be higher than current price for a short position.'
+    }
+
+    function setPositionExitPrice(id: string, kind: 'take_profit' | 'stop_loss', price: number): boolean {
+      const pos = replayAccount.getPositions().find((p) => p.id === id)
+      if (!pos) return false
+      const currentPrice = currentMarkForPosition(pos)
+      const next = Math.round(price * 1000) / 1000
+      if (!isValidReplayExitPrice(pos.direction, kind, next, currentPrice)) {
+        showReplayToast(invalidExitPriceMessage(pos.direction, kind), 'error')
+        return false
+      }
+      const isNew = (kind === 'take_profit' ? pos.takeProfit : pos.stopLoss) == null
+      if (kind === 'take_profit') replayAccount.setTakeProfit(id, next)
+      else replayAccount.setStopLoss(id, next)
+      schedulePersistReplay()
+      syncTradingUi(lastBar(replay.slice()))
+      const label = kind === 'take_profit' ? 'Take Profit' : 'Stop Loss'
+      showReplayToast(
+        `${label} ${isNew ? 'Added' : 'Updated'} @ ${formatSessionPrice(next)}`,
+      )
+      return true
+    }
+
     const positionOverlayHandlers = {
       getPositions: () => replayAccount.getPositions(),
       getMarkPrice: () => lastBar(replay.slice())?.close ?? 0,
@@ -5044,21 +5117,27 @@ export function mountChartWorkspace(
         if (!pos) return
         if (pos.takeProfit != null) {
           replayAccount.setTakeProfit(id, null)
+          schedulePersistReplay()
+          syncTradingUi(lastBar(replay.slice()))
         } else {
-          replayAccount.setTakeProfit(id, defaultTpSl(pos.entryPrice, pos.direction).tp)
+          const mark = currentMarkForPosition(pos)
+          setPositionExitPrice(id, 'take_profit', defaultTpSl(mark, pos.direction).tp)
         }
-        syncTradingUi(lastBar(replay.slice()))
       },
       onToggleStopLoss: (id: string) => {
         const pos = replayAccount.getPositions().find((p) => p.id === id)
         if (!pos) return
         if (pos.stopLoss != null) {
           replayAccount.setStopLoss(id, null)
+          schedulePersistReplay()
+          syncTradingUi(lastBar(replay.slice()))
         } else {
-          replayAccount.setStopLoss(id, defaultTpSl(pos.entryPrice, pos.direction).sl)
+          const mark = currentMarkForPosition(pos)
+          setPositionExitPrice(id, 'stop_loss', defaultTpSl(mark, pos.direction).sl)
         }
-        syncTradingUi(lastBar(replay.slice()))
       },
+      onSetTakeProfit: (id: string, price: number) => setPositionExitPrice(id, 'take_profit', price),
+      onSetStopLoss: (id: string, price: number) => setPositionExitPrice(id, 'stop_loss', price),
     }
 
     if (tvChartMode) {
@@ -5066,6 +5145,7 @@ export function mountChartWorkspace(
         chartHost,
         ...positionOverlayHandlers,
         priceToHostY: (price) => state.tvChart?.priceToHostY(price, chartHost) ?? null,
+        hostYToPrice: (hostY) => state.tvChart?.hostYToPrice(hostY, chartHost) ?? null,
         getPlotHorizontalInsets: () => {
           const layout = state.tvChart?.getPlotLayout(chartHost)
           if (!layout || layout.width < 80) return { left: 0, right: 56 }
@@ -5100,6 +5180,15 @@ export function mountChartWorkspace(
         chart: trading.chart,
         getSeries: () => trading.getMainSeries(),
         getSeriesDataRevision: () => trading.getSeriesDataRevision(),
+        useDomLines: false,
+        priceToHostY: (price) => {
+          const y = trading.getMainSeries().priceToCoordinate(price)
+          return y == null ? null : Number(y)
+        },
+        hostYToPrice: (hostY) => {
+          const price = trading.getMainSeries().coordinateToPrice(hostY)
+          return price == null ? null : Number(price)
+        },
         ...positionOverlayHandlers,
       })
       cleanupFns.push(() => {

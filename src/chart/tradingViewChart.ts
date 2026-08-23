@@ -95,6 +95,8 @@ export type TradingViewChartHandle = {
   ) => { x: number; y: number } | null
   /** Host-relative Y for a price (plot top + pane priceToCoordinate). */
   priceToHostY: (price: number, hostEl: HTMLElement) => number | null
+  /** Price for a host-relative Y coordinate (inverse of priceToHostY). */
+  hostYToPrice: (hostY: number, hostEl: HTMLElement) => number | null
   /**
    * Draw entry/TP/SL as TradingView horizontal_line shapes (same price scale as candles).
    * Returns true when shapes are used — caller should skip DOM dashed lines but keep badges.
@@ -2134,6 +2136,14 @@ export async function createTradingViewChart(
       const paneBottom = layout.top + Math.max(8, hostEl.clientHeight - layout.top - layout.bottom)
       if (y < layout.top + 2 || y > paneBottom - 2) return null
       return y
+    },
+
+    hostYToPrice(hostY, hostEl) {
+      const layout = measureTvPlotLayout(mount, hostEl, currentTheme)
+      if (!layout || layout.width < 80 || !Number.isFinite(hostY)) return null
+      const paneHeight = Math.max(8, hostEl.clientHeight - layout.top - layout.bottom)
+      const plotY = Math.max(0, Math.min(paneHeight, hostY - layout.top))
+      return replayCtrl?.plotYToPrice(plotY) ?? null
     },
 
     syncReplayPositions(positions, _handlers) {

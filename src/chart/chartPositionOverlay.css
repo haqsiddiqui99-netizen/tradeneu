@@ -7,6 +7,79 @@
   overflow: hidden;
 }
 
+/* Overlay parts set `display` on their class, so [hidden] needs to win explicitly. */
+.rw-pos-row[hidden],
+.rw-pos-row__tools[hidden],
+.rw-pos-row__sep[hidden],
+.rw-pos-chip[hidden],
+.rw-pos-dragline[hidden],
+.rw-pos-hline[hidden],
+.rw-pos-preview[hidden],
+.rw-pos-tip[hidden],
+.rw-chart-toast[hidden] {
+  display: none !important;
+}
+
+/* Hover tooltip for the TP/SL chips and the close button. */
+.rw-pos-tip {
+  position: absolute;
+  z-index: 20;
+  max-width: 220px;
+  padding: 6px 9px;
+  border-radius: 5px;
+  background: #363a45;
+  color: #fff;
+  font: 600 11px/1.3 var(--rw-font, sans-serif);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(19, 23, 34, 0.28);
+  pointer-events: none;
+}
+
+.rw-pos-tip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid #363a45;
+}
+
+.rw-pos-tip--below::after {
+  bottom: auto;
+  top: -5px;
+  border-top: none;
+  border-bottom: 5px solid #363a45;
+}
+
+.rw-chart-toast {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 30;
+  transform: translateX(-50%);
+  max-width: min(92%, 440px);
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  color: #fff;
+  font: 600 12px/1.35 var(--rw-font, sans-serif);
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(19, 23, 34, 0.22);
+  pointer-events: none;
+}
+
+.rw-chart-toast--success {
+  background: rgba(8, 153, 129, 0.96);
+}
+
+.rw-chart-toast--error {
+  background: rgba(242, 54, 69, 0.97);
+}
+
 /* Horizontal dashed entry / TP / SL lines (FXReplay-style) */
 .rw-pos-hline {
   position: absolute;
@@ -40,6 +113,107 @@
   font: 700 9px/1.2 var(--rw-font, sans-serif);
   letter-spacing: 0.04em;
   white-space: nowrap;
+}
+
+/* Transparent drag target aligned with the visible TP/SL chart shape. */
+.rw-pos-dragline {
+  position: absolute;
+  height: 14px;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: none;
+  /* Below the badges so TP/SL/close chips stay clickable when lines overlap. */
+  z-index: 1;
+}
+
+.rw-pos-dragline.rw-pos-dragging {
+  cursor: grabbing;
+}
+
+.rw-pos-dragline::after {
+  content: '';
+  position: absolute;
+  inset: 6px 0 auto;
+  height: 2px;
+  background: transparent;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.rw-pos-dragline--tp:hover::after,
+.rw-pos-dragline--tp.rw-pos-dragging::after {
+  background: rgba(8, 153, 129, 0.34);
+  box-shadow: 0 0 0 1px rgba(8, 153, 129, 0.12);
+}
+
+.rw-pos-dragline--sl:hover::after,
+.rw-pos-dragline--sl.rw-pos-dragging::after {
+  background: rgba(247, 147, 26, 0.34);
+  box-shadow: 0 0 0 1px rgba(247, 147, 26, 0.12);
+}
+
+/* Detached TP/SL badge: sits on its own line and is dragged to set the price. */
+.rw-pos-row--exit {
+  border-color: var(--rw-pos-exit-color, #089981);
+  cursor: pointer;
+  touch-action: none;
+  z-index: 4;
+}
+
+.rw-pos-row--exit.rw-pos-dragging,
+.rw-pos-row--exit.rw-pos-dragging * {
+  cursor: grabbing;
+}
+
+.rw-pos-row--exit .rw-pos-pnl {
+  background: #fff;
+  color: var(--rw-pos-exit-color, #089981);
+}
+
+.rw-pos-row--exit .rw-pos-qty {
+  background: var(--rw-pos-exit-color, #089981);
+  color: #fff;
+  border-left: none;
+}
+
+.rw-pos-row--exit.rw-pos-dragging {
+  box-shadow: 0 2px 10px rgba(19, 23, 34, 0.28);
+}
+
+/* Ghost line while a TP/SL chip is being dragged off the order badge. */
+.rw-pos-preview {
+  position: absolute;
+  height: 0;
+  border-top: 1px dashed var(--rw-pos-exit-color, #089981);
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 6;
+}
+
+.rw-pos-preview__label {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--rw-pos-exit-color, #089981);
+  color: #fff;
+  font: 700 10px/1.2 var(--rw-font, sans-serif);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rw-pos-grip {
+  width: 4px;
+  margin: 5px 0 5px 6px;
+  border-radius: 1px;
+  color: var(--rw-pos-exit-color, #089981);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    currentColor 0 2px,
+    transparent 2px 4px
+  );
 }
 
 /* FXReplay-style badge docked on the right of the entry line */
@@ -88,8 +262,15 @@
   color: #089981;
   font: 700 10px/1 var(--rw-font, sans-serif);
   letter-spacing: 0.03em;
+  /* Click toggles; drag still detaches. Pointer matches FXReplay hover. */
   cursor: pointer;
+  touch-action: none;
   transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.rw-pos-chip--dragging {
+  cursor: grabbing;
+  opacity: 0.55;
 }
 
 .rw-pos-chip--sl {
@@ -173,6 +354,12 @@
 .rw-pos-close:hover {
   background: #f23645;
   color: #fff;
+}
+
+.rw-pos-close--exit {
+  border-left-color: color-mix(in srgb, var(--rw-pos-exit-color, #089981) 35%, transparent);
+  color: var(--rw-pos-exit-color, #089981);
+  cursor: pointer;
 }
 
 /* FXReplay-style trade bar in chart footer */
@@ -359,6 +546,18 @@
 .rw-root[data-chart-theme='dark'] .rw-pos-row__tools {
   background: #1e222d;
   border-right-color: rgba(255, 255, 255, 0.12);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pos-row--exit {
+  border-color: var(--rw-pos-exit-color, #089981);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pos-row--exit .rw-pos-pnl {
+  background: #1e222d;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pos-close--exit {
+  background: #1e222d;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-pos-row__sep {
