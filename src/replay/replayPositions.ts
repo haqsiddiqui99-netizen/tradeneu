@@ -236,24 +236,42 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
     if (pos) pos.stopLoss = sl
   }
 
-  /** Auto-close positions when price hits TP/SL on replay tick (only at/after entry bar). */
-  function processExits(barTime: number, markPrice: number, bid: number, ask: number): ClosedReplayTrade[] {
+  /** Auto-close when a bar's wick (high/low) or close tags TP/SL. Same-bar both: SL wins. */
+  function processExits(
+    barTime: number,
+    markPrice: number,
+    bid: number,
+    ask: number,
+    range?: { high: number; low: number },
+  ): ClosedReplayTrade[] {
+    const high = Number.isFinite(range?.high) ? range!.high : markPrice
+    const low = Number.isFinite(range?.low) ? range!.low : markPrice
     const closed: ClosedReplayTrade[] = []
     for (let i = positions.length - 1; i >= 0; i--) {
       const pos = positions[i]!
       if (barTime < pos.entryTime) continue
       let hit: 'tp' | 'sl' | null = null
+      let fill = pos.direction === 'long' ? bid : ask
       if (pos.direction === 'long') {
-        if (pos.takeProfit != null && markPrice >= pos.takeProfit) hit = 'tp'
-        else if (pos.stopLoss != null && markPrice <= pos.stopLoss) hit = 'sl'
+        if (pos.stopLoss != null && low <= pos.stopLoss) {
+          hit = 'sl'
+          fill = pos.stopLoss
+        } else if (pos.takeProfit != null && high >= pos.takeProfit) {
+          hit = 'tp'
+          fill = pos.takeProfit
+        }
       } else {
-        if (pos.takeProfit != null && markPrice <= pos.takeProfit) hit = 'tp'
-        else if (pos.stopLoss != null && markPrice >= pos.stopLoss) hit = 'sl'
+        if (pos.stopLoss != null && high >= pos.stopLoss) {
+          hit = 'sl'
+          fill = pos.stopLoss
+        } else if (pos.takeProfit != null && low <= pos.takeProfit) {
+          hit = 'tp'
+          fill = pos.takeProfit
+        }
       }
       if (!hit) continue
-      const exit = pos.direction === 'long' ? bid : ask
       const reason: ReplayExitReason = hit === 'tp' ? 'take_profit' : 'stop_loss'
-      const trade = closePosition(pos.id, exit, { exitTime: barTime, exitReason: reason })
+      const trade = closePosition(pos.id, fill, { exitTime: barTime, exitReason: reason })
       if (trade) closed.push(trade)
     }
     return closed

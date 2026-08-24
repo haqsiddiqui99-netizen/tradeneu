@@ -3839,7 +3839,10 @@ export function mountChartWorkspace(
       let accountChanged = false
       if (b) {
         const { bid, ask } = bidAskFromBar(b)
-        const closed = replayAccount.processExits(Number(b.time), mark, bid, ask)
+        const closed = replayAccount.processExits(Number(b.time), mark, bid, ask, {
+          high: b.high,
+          low: b.low,
+        })
         if (closed.length) accountChanged = true
       }
       const sum = replayAccount.summary(mark, ba)
