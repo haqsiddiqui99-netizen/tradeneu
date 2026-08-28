@@ -11,9 +11,10 @@ export type ReplayGoToMenuItem = {
 export const REPLAY_GOTO_MENU_ITEMS: ReplayGoToMenuItem[] = [
   { id: 'next_day_open', label: 'Next Day Open', shortcut: 'Y' },
   { id: 'next_session', label: 'Next Session', shortcut: 'Z' },
-  { id: 'asian', label: 'Asian Session', shortcut: 'I' },
-  { id: 'london', label: 'London Session', shortcut: 'L' },
-  { id: 'newyork', label: 'New York Session', shortcut: 'N' },
+  { id: 'newyork', label: 'Start of New York Session', shortcut: 'N' },
+  { id: 'asian', label: 'Start of Asian Session', shortcut: 'I' },
+  { id: 'london', label: 'Start of London Session', shortcut: 'L' },
+  { id: 'sydney', label: 'Start of Sydney Session', shortcut: 'S' },
   { id: 'custom', label: 'Custom Settings' },
 ]
 
@@ -23,26 +24,36 @@ export type ReplayGoToMenuApi = {
   toggle: () => void
   isOpen: () => boolean
   dispose: () => void
+  /** Recompute the per-item time hints (cursor moves between opens). */
+  refreshHints: () => void
 }
 
 function positionPanel(anchor: HTMLElement, panel: HTMLElement) {
   const r = anchor.getBoundingClientRect()
+  const frame = anchor.ownerDocument.defaultView?.frameElement as HTMLElement | null
+  const frameRect = frame?.getBoundingClientRect()
+  const offsetLeft = frameRect?.left ?? 0
+  const offsetTop = frameRect?.top ?? 0
   const pad = 6
   const w = panel.offsetWidth || 220
-  const left = r.left + r.width / 2 - w / 2
+  const left = offsetLeft + r.left + r.width / 2 - w / 2
   panel.style.left = `${Math.max(8, Math.min(left, window.innerWidth - w - 8))}px`
-  panel.style.top = `${r.bottom + pad}px`
+  panel.style.top = `${offsetTop + r.bottom + pad}px`
 }
 
 export function createReplayGoToMenu(opts: {
   anchor: HTMLElement
   onSelect: (id: ReplayGoToTarget | 'custom') => void
   onOpenChange?: (open: boolean) => void
+  /** UTC offset for named session rows (e.g. `UTC+10:00`). */
+  hintFor?: (id: ReplayGoToTarget) => string | null
 }): ReplayGoToMenuApi {
   const root = document.createElement('div')
   root.className = 'rw-goto-menu'
   root.setAttribute('role', 'menu')
   root.setAttribute('aria-label', 'Go to')
+
+  const hintNodes = new Map<ReplayGoToTarget, HTMLElement>()
 
   for (const item of REPLAY_GOTO_MENU_ITEMS) {
     const btn = document.createElement('button')
@@ -50,7 +61,11 @@ export function createReplayGoToMenu(opts: {
     btn.className = 'rw-goto-menu__btn'
     btn.setAttribute('role', 'menuitem')
     btn.dataset.gotoId = item.id
+    const isNamedSession =
+      item.id === 'newyork' || item.id === 'asian' || item.id === 'london' || item.id === 'sydney'
     btn.innerHTML = `<span class="rw-goto-menu__label">${item.label}</span>${
+      isNamedSession ? '<span class="rw-goto-menu__hint"></span>' : ''
+    }${
       item.shortcut
         ? `<span class="rw-goto-menu__key" aria-hidden="true">${item.shortcut}</span>`
         : ''
@@ -60,8 +75,18 @@ export function createReplayGoToMenu(opts: {
       opts.onSelect(item.id)
       close()
     })
+    const hint = btn.querySelector<HTMLElement>('.rw-goto-menu__hint')
+    if (hint && item.id !== 'custom') hintNodes.set(item.id, hint)
     root.appendChild(btn)
   }
+
+  function refreshHints() {
+    for (const [id, node] of hintNodes) {
+      node.textContent = opts.hintFor?.(id) ?? ''
+    }
+  }
+
+  refreshHints()
 
   document.body.appendChild(root)
   syncChartThemeToElement(root)
@@ -71,10 +96,14 @@ export function createReplayGoToMenu(opts: {
   function setOpen(v: boolean) {
     if (open === v) return
     open = v
-    if (open) syncChartThemeToElement(root)
+    if (open) {
+      syncChartThemeToElement(root)
+      refreshHints()
+    }
     root.classList.toggle('rw-goto-menu--open', open)
     opts.anchor.setAttribute('aria-expanded', open ? 'true' : 'false')
     opts.anchor.classList.toggle('rw-replay-dock__action--goto-open', open)
+    opts.anchor.classList.toggle('rw-tv-header-btn--goto-open', open)
     opts.onOpenChange?.(open)
     if (open) positionPanel(opts.anchor, root)
   }
@@ -116,16 +145,21 @@ export function createReplayGoToMenu(opts: {
   }
 
   document.addEventListener('pointerdown', onDocPointer, true)
+  const anchorDocument = opts.anchor.ownerDocument
+  if (anchorDocument !== document) anchorDocument.addEventListener('pointerdown', onDocPointer, true)
   document.addEventListener('keydown', onKey, true)
+  if (anchorDocument !== document) anchorDocument.addEventListener('keydown', onKey, true)
   window.addEventListener('resize', onResize)
 
   function dispose() {
     document.removeEventListener('pointerdown', onDocPointer, true)
+    if (anchorDocument !== document) anchorDocument.removeEventListener('pointerdown', onDocPointer, true)
     document.removeEventListener('keydown', onKey, true)
+    if (anchorDocument !== document) anchorDocument.removeEventListener('keydown', onKey, true)
     window.removeEventListener('resize', onResize)
     close()
     root.remove()
   }
 
-  return { open: openMenu, close, toggle, isOpen, dispose }
+  return { open: openMenu, close, toggle, isOpen, dispose, refreshHints }
 }

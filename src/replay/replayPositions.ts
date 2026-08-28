@@ -2,14 +2,36 @@ export type PositionDirection = 'long' | 'short'
 
 export type ReplayExitReason = 'manual' | 'take_profit' | 'stop_loss'
 
+export type PendingOrderKind = 'limit' | 'stop'
+
 export type OpenPosition = {
   id: string
   direction: PositionDirection
   qty: number
+  initialQty?: number
+  realizedPnL?: number
   entryPrice: number
   entryTime: number
   takeProfit: number | null
   stopLoss: number | null
+  initialStopLoss?: number | null
+  maxTakeProfit?: number
+}
+
+export type PendingOrder = {
+  id: string
+  direction: PositionDirection
+  kind: PendingOrderKind
+  qty: number
+  triggerPrice: number
+  createdTime: number
+}
+
+export type ReplayTradeJournal = {
+  notes: string
+  rating: string
+  tags: string[]
+  updatedAt: number
 }
 
 export type ClosedReplayTrade = {
@@ -23,6 +45,10 @@ export type ClosedReplayTrade = {
   exitTime: number
   pnl: number
   exitReason: ReplayExitReason
+  initialStopLoss?: number | null
+  maxTakeProfit?: number
+  maxRiskReward?: number | null
+  journal?: ReplayTradeJournal
 }
 
 export type ReplayAccountState = {
@@ -30,6 +56,7 @@ export type ReplayAccountState = {
   realizedPnL: number
   positions: OpenPosition[]
   closedTrades: ClosedReplayTrade[]
+  pendingOrders: PendingOrder[]
 }
 
 export type ReplayAccountSummary = ReplayAccountState & {
@@ -43,6 +70,8 @@ export type ReplayAccountPersisted = {
   positions: OpenPosition[]
   closedTrades: ClosedReplayTrade[]
   nextId: number
+  pendingOrders?: PendingOrder[]
+  nextPendingId?: number
 }
 
 function defaultTpSl(entry: number, direction: PositionDirection): { tp: number; sl: number } {
@@ -69,6 +98,17 @@ export function isValidReplayExitPrice(
     return kind === 'take_profit' ? price > currentPrice : price < currentPrice
   }
   return kind === 'take_profit' ? price < currentPrice : price > currentPrice
+}
+
+export function isValidPendingOrderPrice(
+  direction: PositionDirection,
+  kind: PendingOrderKind,
+  price: number,
+  currentPrice: number,
+): boolean {
+  if (!Number.isFinite(price) || !Number.isFinite(currentPrice)) return false
+  if (direction === 'long') return kind === 'limit' ? price < currentPrice : price > currentPrice
+  return kind === 'limit' ? price > currentPrice : price < currentPrice
 }
 
 export function positionUnrealized(pos: OpenPosition, markPrice: number): number {
@@ -105,22 +145,41 @@ export function shortOrderMargin(qty: number, bid: number): number {
 }
 
 function clonePositions(list: OpenPosition[]): OpenPosition[] {
-  return list.map((p) => ({ ...p }))
+  return list.map((p) => ({
+    ...p,
+    initialStopLoss: p.initialStopLoss ?? null,
+    maxTakeProfit: Number.isFinite(p.maxTakeProfit) ? p.maxTakeProfit : p.entryPrice,
+    initialQty: Number.isFinite(p.initialQty) ? p.initialQty : p.qty,
+    realizedPnL: Number.isFinite(p.realizedPnL) ? p.realizedPnL : 0,
+  }))
+}
+
+function cloneClosedTrades(list: ClosedReplayTrade[]): ClosedReplayTrade[] {
+  return list.map((trade) => ({
+    ...trade,
+    journal: trade.journal ? { ...trade.journal, tags: [...trade.journal.tags] } : undefined,
+  }))
 }
 
 export function createReplayAccount(initialCash: number, restored?: ReplayAccountPersisted | null) {
   let cash = restored?.cash ?? initialCash
   let realizedPnL = restored?.realizedPnL ?? 0
   const positions: OpenPosition[] = clonePositions(restored?.positions ?? [])
-  const closedTrades: ClosedReplayTrade[] = restored?.closedTrades ? [...restored.closedTrades] : []
+  const closedTrades: ClosedReplayTrade[] = cloneClosedTrades(restored?.closedTrades ?? [])
+  const pendingOrders: PendingOrder[] = (restored?.pendingOrders ?? []).map((order) => ({ ...order }))
   let nextId = restored?.nextId ?? 1
+  let nextPendingId = restored?.nextPendingId ?? 1
 
   function getPositions(): OpenPosition[] {
     return clonePositions(positions)
   }
 
   function getClosedTrades(): ClosedReplayTrade[] {
-    return closedTrades.slice()
+    return cloneClosedTrades(closedTrades)
+  }
+
+  function getPendingOrders(): PendingOrder[] {
+    return pendingOrders.map((order) => ({ ...order }))
   }
 
   function getPersisted(): ReplayAccountPersisted {
@@ -128,8 +187,10 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
       cash,
       realizedPnL,
       positions: clonePositions(positions),
-      closedTrades: closedTrades.slice(),
+      closedTrades: getClosedTrades(),
       nextId,
+      pendingOrders: getPendingOrders(),
+      nextPendingId,
     }
   }
 
@@ -138,7 +199,9 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
     realizedPnL = 0
     positions.length = 0
     closedTrades.length = 0
+    pendingOrders.length = 0
     nextId = 1
+    nextPendingId = 1
   }
 
   function summary(markPrice: number, bidAsk?: { bid: number; ask: number }): ReplayAccountSummary {
@@ -150,7 +213,8 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
       cash,
       realizedPnL,
       positions: clonePositions(positions),
-      closedTrades: closedTrades.slice(),
+      closedTrades: getClosedTrades(),
+      pendingOrders: getPendingOrders(),
       unrealizedPnL,
       equity: cash + unrealizedPnL,
     }
@@ -164,10 +228,14 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
       id: String(nextId++),
       direction: 'long',
       qty: q,
+      initialQty: q,
+      realizedPnL: 0,
       entryPrice: ask,
       entryTime: time,
       takeProfit: null,
       stopLoss: null,
+      initialStopLoss: null,
+      maxTakeProfit: ask,
     }
     cash -= cost
     positions.push(pos)
@@ -182,10 +250,14 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
       id: String(nextId++),
       direction: 'short',
       qty: q,
+      initialQty: q,
+      realizedPnL: 0,
       entryPrice: bid,
       entryTime: time,
       takeProfit: null,
       stopLoss: null,
+      initialStopLoss: null,
+      maxTakeProfit: bid,
     }
     cash += q * bid
     cash -= margin
@@ -198,29 +270,50 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
     exitPrice: number,
     meta?: { exitTime?: number; exitReason?: ReplayExitReason },
   ): ClosedReplayTrade | null {
+    const pos = positions.find((item) => item.id === id)
+    if (!pos) return null
+    return closePartialPosition(id, pos.qty, exitPrice, meta)
+  }
+
+  function closePartialPosition(
+    id: string,
+    closeQty: number,
+    exitPrice: number,
+    meta?: { exitTime?: number; exitReason?: ReplayExitReason },
+  ): ClosedReplayTrade | null {
     const idx = positions.findIndex((p) => p.id === id)
     if (idx < 0) return null
     const pos = positions[idx]!
-    const pnl = positionUnrealized(pos, exitPrice)
+    const qty = Math.min(pos.qty, Math.max(0, closeQty))
+    if (!(qty > 0) || !Number.isFinite(qty)) return null
+    const pnl =
+      pos.direction === 'long'
+        ? (exitPrice - pos.entryPrice) * qty
+        : (pos.entryPrice - exitPrice) * qty
     if (pos.direction === 'long') {
-      cash += pos.qty * exitPrice
+      cash += qty * exitPrice
     } else {
-      cash -= pos.qty * exitPrice
-      cash += pos.qty * pos.entryPrice * 0.05
+      cash -= qty * exitPrice
+      cash += qty * pos.entryPrice * 0.05
     }
     realizedPnL += pnl
-    positions.splice(idx, 1)
+    pos.realizedPnL = (pos.realizedPnL ?? 0) + pnl
+    pos.qty = Math.max(0, pos.qty - qty)
+    if (pos.qty <= 1e-9) positions.splice(idx, 1)
     const trade: ClosedReplayTrade = {
       tradeNum: closedTrades.length + 1,
       positionId: pos.id,
       direction: pos.direction,
-      qty: pos.qty,
+      qty,
       entryPrice: pos.entryPrice,
       exitPrice,
       entryTime: pos.entryTime,
       exitTime: meta?.exitTime ?? Math.floor(Date.now() / 1000),
       pnl,
       exitReason: meta?.exitReason ?? 'manual',
+      initialStopLoss: pos.initialStopLoss ?? null,
+      maxTakeProfit: pos.maxTakeProfit ?? pos.entryPrice,
+      maxRiskReward: maxRiskReward(pos),
     }
     closedTrades.push(trade)
     return trade
@@ -233,7 +326,107 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
 
   function setStopLoss(id: string, sl: number | null) {
     const pos = positions.find((p) => p.id === id)
-    if (pos) pos.stopLoss = sl
+    if (!pos) return
+    pos.stopLoss = sl
+    if (sl != null && pos.initialStopLoss == null) pos.initialStopLoss = sl
+  }
+
+  function updateTradeJournal(tradeNum: number, journal: ReplayTradeJournal): boolean {
+    const trade = closedTrades.find((item) => item.tradeNum === tradeNum)
+    if (!trade) return false
+    trade.journal = {
+      notes: journal.notes,
+      rating: journal.rating,
+      tags: [...journal.tags],
+      updatedAt: journal.updatedAt,
+    }
+    return true
+  }
+
+  function maxRiskReward(pos: OpenPosition): number | null {
+    const sl = pos.initialStopLoss
+    if (sl == null) return null
+    const risk = Math.abs(pos.entryPrice - sl)
+    if (!(risk > 0)) return null
+    const best = pos.maxTakeProfit ?? pos.entryPrice
+    const favorable =
+      pos.direction === 'long' ? Math.max(0, best - pos.entryPrice) : Math.max(0, pos.entryPrice - best)
+    return favorable / risk
+  }
+
+  function updateExcursions(high: number, low: number) {
+    if (!Number.isFinite(high) || !Number.isFinite(low)) return
+    for (const pos of positions) {
+      const current = pos.maxTakeProfit ?? pos.entryPrice
+      pos.maxTakeProfit = pos.direction === 'long' ? Math.max(current, high) : Math.min(current, low)
+    }
+  }
+
+  function placePendingOrder(input: {
+    direction: PositionDirection
+    kind: PendingOrderKind
+    qty: number
+    triggerPrice: number
+    currentPrice: number
+    createdTime: number
+  }): PendingOrder | null {
+    const qty = Math.max(1, Math.floor(input.qty))
+    if (!isValidPendingOrderPrice(input.direction, input.kind, input.triggerPrice, input.currentPrice)) {
+      return null
+    }
+    const required =
+      input.direction === 'long'
+        ? longOrderCost(qty, input.triggerPrice)
+        : shortOrderMargin(qty, input.triggerPrice)
+    if (required > cash) return null
+    const order: PendingOrder = {
+      id: `pending-${nextPendingId++}`,
+      direction: input.direction,
+      kind: input.kind,
+      qty,
+      triggerPrice: input.triggerPrice,
+      createdTime: input.createdTime,
+    }
+    pendingOrders.push(order)
+    return { ...order }
+  }
+
+  function cancelPendingOrder(id: string): boolean {
+    const idx = pendingOrders.findIndex((order) => order.id === id)
+    if (idx < 0) return false
+    pendingOrders.splice(idx, 1)
+    return true
+  }
+
+  function processPendingFills(
+    barTime: number,
+    markPrice: number,
+    range?: { high: number; low: number },
+  ): { filled: OpenPosition[]; cancelled: PendingOrder[] } {
+    const high = Number.isFinite(range?.high) ? range!.high : markPrice
+    const low = Number.isFinite(range?.low) ? range!.low : markPrice
+    const filled: OpenPosition[] = []
+    const cancelled: PendingOrder[] = []
+    for (const order of [...pendingOrders]) {
+      if (barTime <= order.createdTime) continue
+      const touched =
+        order.direction === 'long'
+          ? order.kind === 'limit'
+            ? low <= order.triggerPrice
+            : high >= order.triggerPrice
+          : order.kind === 'limit'
+            ? high >= order.triggerPrice
+            : low <= order.triggerPrice
+      if (!touched) continue
+      const pos =
+        order.direction === 'long'
+          ? openLong(order.qty, order.triggerPrice, barTime)
+          : openShort(order.qty, order.triggerPrice, barTime)
+      cancelPendingOrder(order.id)
+      if (pos) filled.push(pos)
+      else cancelled.push(order)
+    }
+    return { filled, cancelled }
   }
 
   /** Auto-close when a bar's wick (high/low) or close tags TP/SL. Same-bar both: SL wins. */
@@ -280,14 +473,21 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
   return {
     getPositions,
     getClosedTrades,
+    getPendingOrders,
     getPersisted,
     resetAccount,
     summary,
     openLong,
     openShort,
     closePosition,
+    closePartialPosition,
     setTakeProfit,
     setStopLoss,
+    updateTradeJournal,
+    updateExcursions,
+    placePendingOrder,
+    cancelPendingOrder,
+    processPendingFills,
     processExits,
   }
 }

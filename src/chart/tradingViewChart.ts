@@ -87,6 +87,8 @@ export type TradingViewChartHandle = {
   lineXAtBarIndex: (barIndex: number, hostLeft: number, iframeOffsetX?: number) => number | null
   lineXAtBarTimeSec: (timeSec: number, iframeOffsetX?: number) => number | null
   chartBarTimeSecAtIndex: (barIndex: number) => number | null
+  /** Last bar index TV currently holds in the series (feed may be truncated at the cursor). */
+  seriesLastBarIndex: () => number
   plotXForWallTimeMs: (timeMs: number, plotOffsetX: number) => number | null
   hostPointForWallTimeMs: (
     timeMs: number,
@@ -525,8 +527,28 @@ function headerToolbarSlot(el: HTMLElement): HTMLElement {
   return slot
 }
 
+/**
+ * TradingView mirrors the header into hidden `fake-*` toolbars to measure overflow,
+ * so a plain query returns clones before the real control. Every header lookup must
+ * skip them or we end up styling and reordering invisible copies.
+ */
+function isInsideFakeHeaderPanel(el: HTMLElement): boolean {
+  if (el.closest('[data-is-fake-main-panel="true"]')) return true
+  for (let node: HTMLElement | null = el; node; node = node.parentElement) {
+    for (const token of node.classList) {
+      if (token.startsWith('fake-') || token === 'fake') return true
+    }
+  }
+  return false
+}
+
+function realHeaderNodes<T extends HTMLElement>(doc: Document, selector: string): T[] {
+  return Array.from(doc.querySelectorAll<T>(selector)).filter((node) => !isInsideFakeHeaderPanel(node))
+}
+
 function findIndicatorTemplateAnchor(doc: Document): HTMLElement | null {
-  const nodes = doc.querySelectorAll<HTMLElement>(
+  const nodes = realHeaderNodes(
+    doc,
     '[data-tooltip], [title], [aria-label], button, [role="button"], .apply-common-tooltip',
   )
   for (const node of nodes) {
@@ -540,7 +562,7 @@ function findIndicatorTemplateAnchor(doc: Document): HTMLElement | null {
 
 function findHeaderButtonByText(doc: Document, text: string): HTMLElement | null {
   const want = text.trim().toLowerCase()
-  for (const node of doc.querySelectorAll<HTMLElement>('button, [role="button"], .apply-common-tooltip')) {
+  for (const node of realHeaderNodes(doc, 'button, [role="button"], .apply-common-tooltip')) {
     const label = node.textContent?.trim().toLowerCase() ?? ''
     if (label === want) return headerToolbarSlot(node)
   }
@@ -549,7 +571,8 @@ function findHeaderButtonByText(doc: Document, text: string): HTMLElement | null
 
 function findHeaderButtonByTitle(doc: Document, title: string): HTMLElement | null {
   const want = title.trim().toLowerCase()
-  for (const node of doc.querySelectorAll<HTMLElement>(
+  for (const node of realHeaderNodes(
+    doc,
     'button, [role="button"], .apply-common-tooltip, [data-tooltip]',
   )) {
     if (headerTooltip(node) === want) return headerToolbarSlot(node)
@@ -557,27 +580,77 @@ function findHeaderButtonByTitle(doc: Document, title: string): HTMLElement | nu
   return null
 }
 
-function findFirstRightUtilityAnchor(doc: Document): HTMLElement | null {
-  const needles = [
-    'quick search',
-    'symbol search',
-    'search symbols',
-    'chart settings',
-    'manage chart settings',
-    'take a snapshot',
-    'snapshot',
-    'fullscreen mode',
-    'fullscreen',
-  ]
-  const candidates: HTMLElement[] = []
-  for (const node of doc.querySelectorAll<HTMLElement>(
-    'button, [role="button"], .apply-common-tooltip, [data-tooltip]',
-  )) {
-    const tip = headerTooltip(node)
-    if (!tip) continue
-    if (needles.some((n) => tip.includes(n))) candidates.push(headerToolbarSlot(node))
+/**
+ * Right-side utility icons in TV header order. Quick search comes first so custom
+ * buttons land just left of the magnifier; the left symbol field also reports a
+ * "symbol search" tooltip, so it is deliberately excluded here.
+ */
+const RIGHT_UTILITY_TOOLTIP_GROUPS = [
+  ['quick search'],
+  ['chart settings', 'manage chart settings'],
+  ['take a snapshot', 'snapshot'],
+  ['fullscreen mode', 'fullscreen'],
+]
+
+const RIGHT_UTILITY_DATA_NAMES = [
+  'quick-search',
+  'header-toolbar-quick-search',
+  'chart-properties',
+  'header-toolbar-properties',
+  'take-snapshot',
+  'header-toolbar-screenshot',
+  'fullscreen',
+  'header-toolbar-fullscreen',
+]
+
+function tvHeaderRoot(doc: Document): HTMLElement | null {
+  return (
+    doc.querySelector<HTMLElement>('#header-toolbar') ??
+    doc.querySelector<HTMLElement>('.layout__area--top') ??
+    null
+  )
+}
+
+/**
+ * Leftmost built-in icon in the header's right-hand utility cluster. Falls back to
+ * geometry because tooltip text and data-name attributes vary across library builds.
+ */
+function findFirstRightUtilityAnchor(doc: Document, exclude?: HTMLElement | null): HTMLElement | null {
+  const excludes = (node: HTMLElement) =>
+    !!exclude && (exclude === node || exclude.contains(node) || node.contains(exclude))
+
+  for (const name of RIGHT_UTILITY_DATA_NAMES) {
+    const node = realHeaderNodes(doc, `[data-name="${name}"]`).find((n) => !excludes(n))
+    if (node) return headerToolbarSlot(node)
   }
-  return candidates[0] ?? null
+
+  const nodes = realHeaderNodes<HTMLElement>(
+    doc,
+    'button, [role="button"], .apply-common-tooltip, [data-tooltip]',
+  ).filter((node) => !excludes(node))
+
+  for (const group of RIGHT_UTILITY_TOOLTIP_GROUPS) {
+    for (const node of nodes) {
+      const tip = headerTooltip(node)
+      if (!tip) continue
+      if (group.some((n) => tip.includes(n))) return headerToolbarSlot(node)
+    }
+  }
+
+  const header = tvHeaderRoot(doc)
+  if (!header) return null
+  const headerRect = header.getBoundingClientRect()
+  if (headerRect.width <= 0) return null
+  const rightThreshold = headerRect.left + headerRect.width * 0.55
+  let best: { node: HTMLElement; left: number } | null = null
+  for (const node of nodes) {
+    if (!header.contains(node)) continue
+    const rect = node.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) continue
+    if (rect.left < rightThreshold) continue
+    if (!best || rect.left < best.left) best = { node, left: rect.left }
+  }
+  return best ? headerToolbarSlot(best.node) : null
 }
 
 function applyIconHeaderButton(el: HTMLElement, iconHtml: string, title: string, id: string) {
@@ -1055,6 +1128,71 @@ function applyReplayActiveChrome(el: HTMLElement, active: boolean) {
   }
 }
 
+type TvHeaderTextFont = {
+  family: string
+  size: string
+  weight: string
+  lineHeight: string
+  letterSpacing: string
+}
+
+const TV_HEADER_FONT_FALLBACK: TvHeaderTextFont = {
+  family: "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif",
+  size: '13px',
+  weight: '400',
+  lineHeight: '16px',
+  letterSpacing: 'normal',
+}
+
+let tvHeaderTextFontCache: TvHeaderTextFont | null = null
+
+function innermostTextNode(root: HTMLElement, text: string): HTMLElement {
+  const want = text.trim().toLowerCase()
+  for (const node of root.querySelectorAll<HTMLElement>('*')) {
+    if (node.childElementCount > 0) continue
+    if ((node.textContent?.trim().toLowerCase() ?? '') === want) return node
+  }
+  return root
+}
+
+function publishTvHeaderFontVars(font: TvHeaderTextFont, iframeDoc?: Document | null) {
+  const roots = [document.documentElement, iframeDoc?.documentElement]
+  for (const root of roots) {
+    if (!root) continue
+    root.style.setProperty('--rw-tv-header-font-family', font.family)
+    root.style.setProperty('--rw-tv-header-font-size', font.size)
+    root.style.setProperty('--rw-tv-header-font-weight', font.weight)
+    root.style.setProperty('--rw-tv-header-line-height', font.lineHeight)
+    root.style.setProperty('--rw-tv-header-letter-spacing', font.letterSpacing)
+  }
+}
+
+/**
+ * TradingView's own text button ("Indicators") is the typography reference for injected
+ * header controls and their menus. Measuring beats hardcoding — the library changes its
+ * font stack between versions, and a stale hardcode reads as a foreign control.
+ */
+function tvHeaderTextFont(doc: Document | null): TvHeaderTextFont {
+  const view = doc?.defaultView
+  if (doc && view) {
+    const slot = findHeaderButtonByText(doc, 'Indicators')
+    if (slot) {
+      const cs = view.getComputedStyle(innermostTextNode(slot, 'Indicators'))
+      if (cs.fontSize) {
+        tvHeaderTextFontCache = {
+          family: cs.fontFamily || TV_HEADER_FONT_FALLBACK.family,
+          size: cs.fontSize,
+          weight: cs.fontWeight || TV_HEADER_FONT_FALLBACK.weight,
+          lineHeight: cs.lineHeight === 'normal' ? TV_HEADER_FONT_FALLBACK.lineHeight : cs.lineHeight,
+          letterSpacing: cs.letterSpacing || 'normal',
+        }
+        publishTvHeaderFontVars(tvHeaderTextFontCache, doc)
+      }
+    }
+  }
+  return tvHeaderTextFontCache ?? TV_HEADER_FONT_FALLBACK
+}
+
 /**
  * TradingView Replay face (attached reference):
  * idle  — light-gray rounded chip, rewind icon + “Replay”, tooltip “Bar replay”
@@ -1115,16 +1253,16 @@ function paintTextHeaderButtonFace(
     paint.style.setProperty('background', bg, 'important')
     paint.style.setProperty('background-color', bg, 'important')
     paint.style.setProperty('color', fg, 'important')
-    paint.style.setProperty(
-      'font',
-      "400 13px/16px -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif",
-      'important',
-    )
+    const face = isReplay ? TV_HEADER_FONT_FALLBACK : tvHeaderTextFont(paint.ownerDocument)
+    paint.style.setProperty('font-family', face.family, 'important')
+    paint.style.setProperty('font-size', face.size, 'important')
+    paint.style.setProperty('font-weight', face.weight, 'important')
+    paint.style.setProperty('letter-spacing', face.letterSpacing, 'important')
     paint.style.setProperty('cursor', 'pointer', 'important')
     paint.style.setProperty('opacity', '1', 'important')
     paint.style.setProperty('visibility', 'visible', 'important')
     paint.style.setProperty('box-sizing', 'border-box', 'important')
-    paint.style.setProperty('line-height', '16px', 'important')
+    paint.style.setProperty('line-height', face.lineHeight, 'important')
     paint.style.setProperty('white-space', 'nowrap', 'important')
 
     paint.querySelectorAll<HTMLElement>('.rw-tv-header-btn__ico, .rw-tv-header-btn__label, svg, .sx-ico').forEach((child) => {
@@ -1160,22 +1298,51 @@ function resolveCreateButtonElement(
   if (result instanceof HTMLElement) return result
   const doc = tvIframeDocument(mount)
   if (!doc) return null
+  const byId = doc.getElementById(result)
+  if (byId && !isInsideFakeHeaderPanel(byId)) return byId
   return (
-    doc.getElementById(result) ??
-    doc.querySelector<HTMLElement>(`[data-name="${result}"]`) ??
-    doc.querySelector<HTMLElement>(`[data-button-id="${result}"]`)
+    realHeaderNodes<HTMLElement>(doc, `[data-name="${result}"]`)[0] ??
+    realHeaderNodes<HTMLElement>(doc, `[data-button-id="${result}"]`)[0] ??
+    null
   )
 }
 
+/**
+ * Flex `order` keeps the button left of the utility icons even when TradingView
+ * re-appends its own nodes after we reorder the DOM.
+ */
+function pinFlexOrderBefore(parent: HTMLElement, moving: HTMLElement, before: HTMLElement) {
+  const view = parent.ownerDocument.defaultView
+  if (!view) return
+  if (!view.getComputedStyle(parent).display.includes('flex')) return
+  const beforeOrder = Number(view.getComputedStyle(before).order) || 0
+  moving.style.setProperty('order', String(beforeOrder - 1), 'important')
+}
+
+let warnedMissingRightUtilityAnchor = false
+
+/**
+ * Park the button as Quick Search's immediate previous sibling. Reordering at a shared
+ * ancestor instead would move whole toolbar sections, which lands the button at the
+ * far left when TradingView keeps custom buttons and utility icons in separate rows.
+ */
 function repositionBeforeRightUtilities(mount: HTMLElement, button: HTMLElement) {
   const doc = tvIframeDocument(mount)
   if (!doc) return
   const btn = headerToolbarSlot(button)
-  const anchor = findFirstRightUtilityAnchor(doc)
-  if (!btn || !anchor || btn === anchor) return
+  const anchor = findFirstRightUtilityAnchor(doc, btn)
+  if (!anchor && !warnedMissingRightUtilityAnchor) {
+    warnedMissingRightUtilityAnchor = true
+    console.warn('[TradingView] header right-utility anchor not found — custom button stays at header end')
+  }
+  if (!btn || !anchor || btn === anchor || btn.contains(anchor) || anchor.contains(btn)) return
+
   const parent = anchor.parentElement
   if (!parent) return
+  if (btn.nextElementSibling === anchor && btn.parentElement === parent) return
+
   parent.insertBefore(btn, anchor)
+  pinFlexOrderBefore(parent, btn, anchor)
 }
 
 function insertSlotsAfterAnchor(anchor: HTMLElement, slots: HTMLElement[]): void {
@@ -1556,7 +1723,7 @@ export async function createTradingViewChart(
       // Parent `use_localstorage_for_settings` is off; re-enable stars in Indicators dialog.
       'items_favoriting',
     ],
-    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css?v=ind-dev-col-mid-3`,
+    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css?v=goto-font-1`,
     loading_screen: { backgroundColor: opts.theme === 'dark' ? '#131722' : '#ffffff' },
     // settings_overrides wins over any saved chart settings; plain overrides do not.
     settings_overrides: { ...chartChromeOverrides },
@@ -1589,34 +1756,52 @@ export async function createTradingViewChart(
 
   const resolveHeaderButtonEl = (id: string): HTMLElement | null => {
     const cached = headerButtonElements.get(id)
-    if (cached?.isConnected) return headerToolbarSlot(cached)
+    if (cached?.isConnected && !isInsideFakeHeaderPanel(cached)) return headerToolbarSlot(cached)
+
+    const doc = tvIframeDocument(mount)
+    if (!doc) return null
+
+    const byData = realHeaderNodes<HTMLElement>(doc, `[data-rw-tv-btn="${id}"]`)[0]
+    if (byData) return headerToolbarSlot(byData)
 
     const title = headerButtonTitles.get(id)
     if (title) {
-      const doc = tvIframeDocument(mount)
-      if (doc) {
-        const byData = doc.querySelector<HTMLElement>(`[data-rw-tv-btn="${id}"]`)
-        if (byData) return headerToolbarSlot(byData)
-        const byTitle = findHeaderButtonByTitle(doc, title)
-        if (byTitle) return byTitle
-      }
+      const byTitle = findHeaderButtonByTitle(doc, title)
+      if (byTitle) return byTitle
     }
 
     const def = opts.headerButtons?.find((b) => b.id === id)
     if (!def?.text) return null
-    const doc = tvIframeDocument(mount)
-    if (!doc) return null
     return findHeaderButtonByText(doc, def.text)
+  }
+
+  /** Every real header instance of a button — TV can rebuild the row and re-add nodes. */
+  const resolveHeaderButtonEls = (id: string): HTMLElement[] => {
+    const doc = tvIframeDocument(mount)
+    if (!doc) {
+      const cached = headerButtonElements.get(id)
+      return cached?.isConnected ? [headerToolbarSlot(cached)] : []
+    }
+    const out = new Set<HTMLElement>()
+    for (const node of realHeaderNodes<HTMLElement>(doc, `[data-rw-tv-btn="${id}"]`)) {
+      out.add(headerToolbarSlot(node))
+    }
+    if (!out.size) {
+      const single = resolveHeaderButtonEl(id)
+      if (single) out.add(single)
+    }
+    return [...out]
   }
 
   const mountHeaderButtons = () => {
     const afterTemplateItems: Array<string | HTMLElement> = []
-    const beforeUtilityButtons: HTMLElement[] = []
+    const beforeUtilityButtonIds = new Set<string>()
 
     const buttonDefs: TvHeaderButtonDef[] = [...(opts.headerButtons ?? [])]
 
     for (const def of buttonDefs) {
       const align = def.align ?? 'left'
+      if (def.insertBeforeRightUtilities) beforeUtilityButtonIds.add(def.id)
 
       if (def.iconHtml) {
         try {
@@ -1636,7 +1821,6 @@ export async function createTradingViewChart(
           }
           el.addEventListener('click', onClick)
           headerButtonCleanups.push(() => el.removeEventListener('click', onClick))
-          if (def.insertBeforeRightUtilities) beforeUtilityButtons.push(el)
         } catch (err) {
           console.error('[TradingView] createButton failed:', def.id, err)
         }
@@ -1677,36 +1861,61 @@ export async function createTradingViewChart(
       }
     }
 
-    const runPlacement = () => {
+    /** Idempotent: safe to call from a MutationObserver without a repaint loop. */
+    const runReposition = () => {
       if (afterTemplateItems.length) {
         repositionAfterIndicatorTemplate(mount, afterTemplateItems)
       }
-      for (const el of beforeUtilityButtons) {
-        repositionBeforeRightUtilities(mount, el)
-      }
-      for (const def of buttonDefs) {
-        const el = resolveHeaderButtonEl(def.id)
-        if (!el) continue
-        if (def.iconHtml) {
-          applyIconHeaderButton(el, def.iconHtml, def.title, def.id)
-          continue
+      for (const id of beforeUtilityButtonIds) {
+        for (const el of resolveHeaderButtonEls(id)) {
+          repositionBeforeRightUtilities(mount, el)
         }
-        if (def.text) {
-          paintTextHeaderButtonFace(el, {
-            id: def.id,
-            active: headerButtonActiveState.get(def.id) === true,
-            label: def.text,
-            iconHtml: def.leadingIconHtml,
-            title: def.title,
-          })
+      }
+    }
+
+    const runPlacement = () => {
+      runReposition()
+      for (const def of buttonDefs) {
+        for (const el of resolveHeaderButtonEls(def.id)) {
+          if (def.iconHtml) {
+            applyIconHeaderButton(el, def.iconHtml, def.title, def.id)
+            continue
+          }
+          if (def.text) {
+            paintTextHeaderButtonFace(el, {
+              id: def.id,
+              active: headerButtonActiveState.get(def.id) === true,
+              label: def.text,
+              iconHtml: def.leadingIconHtml,
+              title: def.title,
+            })
+          }
         }
       }
     }
 
     runPlacement()
     requestAnimationFrame(runPlacement)
-    for (const delay of [100, 300, 700, 1500, 2500]) {
+    for (const delay of [100, 300, 700, 1500, 2500, 4000, 6000]) {
       window.setTimeout(runPlacement, delay)
+    }
+
+    if (beforeUtilityButtonIds.size) {
+      const doc = tvIframeDocument(mount)
+      const header = doc ? tvHeaderRoot(doc) : null
+      if (header) {
+        let queued = false
+        const observer = new MutationObserver(() => {
+          if (queued) return
+          queued = true
+          requestAnimationFrame(() => {
+            queued = false
+            runReposition()
+          })
+        })
+        observer.observe(header, { childList: true, subtree: true })
+        headerButtonCleanups.push(() => observer.disconnect())
+      }
     }
   }
 
@@ -2116,6 +2325,10 @@ export async function createTradingViewChart(
 
     chartBarTimeSecAtIndex(barIndex) {
       return replayCtrl?.chartBarTimeSecAtIndex(barIndex) ?? null
+    },
+
+    seriesLastBarIndex() {
+      return replayCtrl?.seriesLastBarIndex() ?? 0
     },
 
     plotXForWallTimeMs(timeMs, plotOffsetX) {

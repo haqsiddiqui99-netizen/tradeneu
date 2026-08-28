@@ -20,6 +20,36 @@
   display: none !important;
 }
 
+.rw-pos-pending-line {
+  position: absolute;
+  z-index: 5;
+  height: 0;
+  border-top: 1px dashed #2962ff;
+  color: #2962ff;
+  pointer-events: none;
+}
+
+.rw-pos-pending-line--stop {
+  border-top-color: #f7931a;
+  color: #f7931a;
+}
+
+.rw-pos-pending-line > span {
+  position: absolute;
+  right: 2px;
+  top: -24px;
+  padding: 3px 7px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: #ffffff;
+  font: 700 10px/16px var(--rw-font, sans-serif);
+  white-space: nowrap;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pos-pending-line > span {
+  background: #1e222d;
+}
+
 /* Hover tooltip for the TP/SL chips and the close button. */
 .rw-pos-tip {
   position: absolute;
@@ -75,6 +105,13 @@
   opacity: 1;
   transform: translateY(0);
   transition: opacity 0.24s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Order-ticket errors sit above the Buy/Sell bar, clear of the drawing toolbar. */
+.rw-chart-toast--left {
+  right: auto;
+  left: 58px;
+  text-align: left;
 }
 
 /* Start state: tucked below the axis so it slides up into place. */
@@ -490,18 +527,25 @@
 }
 
 .rw-trade-stats__lbl {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 400;
   line-height: 1.2;
-  color: #787b86;
+  letter-spacing: 0.05em;
+  color: #4b5160;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* Numbers match the take-partials dialog: light weight, tabular figures, slight tracking. */
 .rw-trade-stats__val {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 300;
   line-height: 1.2;
+  letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
-  color: #131722;
+  color: #11141c;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .rw-trade-stats__val--up {
@@ -522,19 +566,44 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #787b86;
+  color: #2c3140;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
 
-.rw-trade-stats__toggle:hover {
-  background: rgba(19, 23, 34, 0.06);
-  color: #131722;
+/* Thin strokes at a slightly larger size, matching the chart settings glyph. */
+.rw-trade-stats__toggle svg {
+  width: 19px;
+  height: 19px;
 }
 
+.rw-trade-stats__toggle svg path,
+.rw-trade-stats__toggle svg circle {
+  stroke-width: 1.35;
+}
+
+.rw-trade-stats__toggle:hover {
+  background: rgba(19, 23, 34, 0.06);
+  color: #11141c;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__toggle {
+  color: #d6d9e2;
+}
+
+/* Hidden values keep their box width so the footer does not reflow, and show dashes instead. */
 .rw-trade-stats--hidden .rw-trade-stats__val {
-  filter: blur(6px);
+  position: relative;
+  color: transparent;
   user-select: none;
+}
+
+.rw-trade-stats--hidden .rw-trade-stats__val::after {
+  content: '------';
+  position: absolute;
+  inset: 0;
+  color: #4b5160;
+  letter-spacing: 0.04em;
 }
 
 .rw-manual-pos {
@@ -581,7 +650,15 @@
 }
 
 .rw-root[data-chart-theme='dark'] .rw-trade-stats__val {
-  color: #d1d4dc;
+  color: #e6e8ee;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__lbl {
+  color: #b4b9c6;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats--hidden .rw-trade-stats__val::after {
+  color: #b4b9c6;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-trade-stats__toggle:hover {

@@ -120,6 +120,8 @@ export type TvReplayChartController = {
   lineXAtBarTimeSec: (timeSec: number, iframeOffsetX?: number) => number | null
   /** Wall time (sec) of bar `i` as drawn on the TV chart (remapped for tick intervals). */
   chartBarTimeSecAtIndex: (barIndex: number) => number | null
+  /** Last bar index TV currently holds in the series (feed may be truncated at the cursor). */
+  seriesLastBarIndex: () => number
   /** Plot X in chart-host pixels for wall-clock tick time (sub-minute). */
   plotXForWallTimeMs: (timeMs: number, plotOffsetX: number) => number | null
   /** Chart-host pixel for tick overlay (time + price). */
@@ -1424,6 +1426,39 @@ export function createTvReplayChartController(opts: {
     return chartUsesMillisecondTime() ? [ms, targetSec] : [targetSec, ms]
   }
 
+  const plotTimeSecAt = (ts: TvTimeScaleApi, x: number): number | null => {
+    try {
+      const raw = ts.coordinateToTime(x)
+      if (raw == null) return null
+      const sec = normalizeChartTimeSec(raw)
+      return Number.isFinite(sec) ? sec : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Invert `coordinateToTime` — the only time↔pixel primitive the Charting Library exposes.
+   * Bisecting it keeps bar X in the same space the pointer is mapped through, so the scissors
+   * line lands on the candle under the cursor.
+   */
+  const bisectPlotXForTimeSec = (ts: TvTimeScaleApi, targetSec: number, w: number): number | null => {
+    const tLeft = plotTimeSecAt(ts, 0)
+    const tRight = plotTimeSecAt(ts, w)
+    if (tLeft == null || tRight == null || tRight <= tLeft) return null
+    if (targetSec <= tLeft || targetSec >= tRight) return null
+    let lo = 0
+    let hi = w
+    for (let i = 0; i < 24; i++) {
+      const mid = (lo + hi) / 2
+      const sec = plotTimeSecAt(ts, mid)
+      if (sec == null) return null
+      if (sec < targetSec) lo = mid
+      else hi = mid
+    }
+    return (lo + hi) / 2
+  }
+
   /** Plot-area X (same coordinate space as `coordinateToTime`). */
   const timeSecToPlotX = (targetSec: number): number | null => {
     const ts = timeScale()
@@ -1431,43 +1466,24 @@ export function createTvReplayChartController(opts: {
     const w = ts.width()
     if (w < 2) return null
 
-    const linear = linearPlotXForTimeSec(targetSec, w)
-    let best: number | null = linear
-
     if (typeof ts.timeToCoordinate === 'function') {
-      let bestErr = Infinity
       for (const t of timeArgCandidatesFromSec(targetSec)) {
         try {
           const x = ts.timeToCoordinate(t)
           if (x == null || !Number.isFinite(x)) continue
-          const clamped = Math.max(0, Math.min(w, x))
-          const err = linear != null ? Math.abs(clamped - linear) : Math.min(clamped, w - clamped)
-          if (err < bestErr) {
-            bestErr = err
-            best = clamped
-          }
+          return Math.max(0, Math.min(w, x))
         } catch {
           /* try next candidate */
         }
       }
-      if (best != null && linear != null && Math.abs(best - linear) > w * 0.45) {
-        return linear
-      }
     }
 
-    if (best != null) return best
+    const bisected = bisectPlotXForTimeSec(ts, targetSec, w)
+    if (bisected != null) return bisected
 
-    let lo = 0
-    let hi = w
-    for (let i = 0; i < 32; i++) {
-      const mid = (lo + hi) / 2
-      const raw = ts.coordinateToTime(mid)
-      if (raw == null) return linear
-      const sec = normalizeChartTimeSec(raw)
-      if (sec < targetSec) lo = mid
-      else hi = mid
-    }
-    return linear ?? (lo + hi) / 2
+    // Interpolating the reported visible range is a last resort: it stretches the bar range
+    // across the full plot, so it is wrong by hundreds of pixels when candles fill only part of it.
+    return linearPlotXForTimeSec(targetSec, w)
   }
 
   const plotXToHostX = (plotX: number, plotOffsetX: number): number => plotOffsetX + plotX
@@ -1547,8 +1563,95 @@ export function createTvReplayChartController(opts: {
     return timeSecToPlotX(Math.floor(timeMs / 1000))
   }
 
+  /**
+   * TV's category axis is uniform: every bar slot is exactly `barSpacing` wide, and
+   * `rightOffset` is the gap (in slots) between the last series bar and the plot's right
+   * edge. That gives an exact plot X for every bar from three cheap getters.
+   *
+   * The Charting Library has no `timeToCoordinate`, so the old path interpolated bar X from
+   * `getVisibleRange`, which skews by hundreds of pixels whenever the candles fill only part
+   * of the plot — the normal state while scissors are open — and that skew froze the pick.
+   */
+  type UniformBarGeometry = { refIdx: number; refX: number; spacing: number }
+
+  const UNIFORM_GEO_TTL_MS = 40
+  let uniformGeoCache: { at: number; geo: UniformBarGeometry | null } | null = null
+
+  /**
+   * Disagreement (in bar slots) between a candidate model and what TV reports at a few plot
+   * positions. `rightOffset` counts from the last bar TV holds, and the feed serves unrevealed
+   * bars through a separate future series, so which bar that is has to be verified, not assumed.
+   */
+  const scoreUniformBarGeometry = (geo: UniformBarGeometry, w: number): number => {
+    const ts = timeScale()
+    if (!ts) return Infinity
+    const bars = opts.replayFeed.getAllBars()
+    const slotSec = Math.max(1, opts.replayFeed.getBarPeriodSec())
+    let best = Infinity
+    for (const ratio of [0.5, 0.35, 0.65]) {
+      const probeX = w * ratio
+      const j = Math.round(geo.refIdx + (probeX - geo.refX) / geo.spacing)
+      const bar = bars[j]
+      if (!bar) continue
+      let raw: number | null = null
+      try {
+        raw = ts.coordinateToTime(probeX)
+      } catch {
+        continue
+      }
+      if (raw == null) continue
+      const sec = normalizeChartTimeSec(raw)
+      if (!Number.isFinite(sec)) continue
+      best = Math.min(best, Math.abs(sec - Math.floor(bar.time / 1000)) / slotSec)
+    }
+    return best
+  }
+
+  const measureUniformBarGeometry = (): UniformBarGeometry | null => {
+    const ts = timeScale()
+    if (!ts) return null
+    const w = ts.width()
+    if (!Number.isFinite(w) || w < 50) return null
+    const spacing = ts.barSpacing?.()
+    if (spacing == null || !Number.isFinite(spacing) || spacing <= 0.3) return null
+    const rightOffset = ts.rightOffset?.()
+    if (rightOffset == null || !Number.isFinite(rightOffset)) return null
+    const bars = opts.replayFeed.getAllBars()
+    if (!bars.length) return null
+    const refX = w - rightOffset * spacing
+    if (!Number.isFinite(refX)) return null
+
+    let best: UniformBarGeometry | null = null
+    let bestScore = Infinity
+    for (const refIdx of new Set([lastSeriesBarIndex(), bars.length - 1])) {
+      const candidate = { refIdx, refX, spacing }
+      const score = scoreUniformBarGeometry(candidate, w)
+      if (score < bestScore) {
+        bestScore = score
+        best = candidate
+      }
+    }
+    // No candidate matches TV's own coordinate mapping — leave the legacy path in charge.
+    return bestScore <= 1.5 ? best : null
+  }
+
+  const uniformBarGeometry = (): UniformBarGeometry | null => {
+    const now = Date.now()
+    if (uniformGeoCache && now - uniformGeoCache.at < UNIFORM_GEO_TTL_MS) return uniformGeoCache.geo
+    const geo = measureUniformBarGeometry()
+    uniformGeoCache = { at: now, geo }
+    return geo
+  }
+
+  const uniformSplitPlotXAfterBar = (barIndex: number): number | null => {
+    const geo = uniformBarGeometry()
+    if (!geo) return null
+    return geo.refX + (barIndex - geo.refIdx) * geo.spacing + geo.spacing / 2
+  }
+
   const plotPickSplitsReady = (cap: number): boolean => {
     if (cap < 1) return false
+    if (uniformBarGeometry()) return true
     const mid = Math.min(cap, Math.max(0, Math.floor(cap / 2)))
     const x0 = timeSecToPlotX(Math.floor(opts.replayFeed.getAllBars()[0]!.time / 1000))
     const xMid = timeSecToPlotX(Math.floor(opts.replayFeed.getAllBars()[mid]!.time / 1000))
@@ -1560,6 +1663,9 @@ export function createTvReplayChartController(opts: {
     const bars = opts.replayFeed.getAllBars()
     const bar = bars[barIndex]
     if (!bar) return null
+
+    const uniform = uniformSplitPlotXAfterBar(barIndex)
+    if (uniform != null) return uniform
 
     const openSec = Math.floor(bar.time / 1000)
     const xCur = timeSecToPlotX(openSec)
@@ -1585,6 +1691,11 @@ export function createTvReplayChartController(opts: {
   /** Snap scissors to the nearest candle center (stable on TV tick bars remapped to 1m slots). */
   const pickNearestBarIndexByPlotX = (plotX: number, cap: number): number => {
     if (cap < 0) return 0
+    const geo = uniformBarGeometry()
+    if (geo) {
+      const raw = geo.refIdx + (plotX - geo.refX) / geo.spacing
+      if (Number.isFinite(raw)) return Math.max(0, Math.min(cap, Math.round(raw)))
+    }
     let lo = 0
     let hi = cap
     while (lo < hi) {
@@ -1902,6 +2013,10 @@ export function createTvReplayChartController(opts: {
 
     lineXAtBarTimeSec(openSec, plotOffsetX = 0) {
       const open = Math.floor(openSec)
+      const uniform = uniformSplitPlotXAfterBar(
+        opts.replayFeed.findBarIndexAtOrBeforeTimeSec(open),
+      )
+      if (uniform != null) return plotXToHostX(uniform, plotOffsetX)
       const xCur = timeSecToPlotX(open)
       if (xCur != null) {
         const bars = opts.replayFeed.getAllBars()
@@ -1930,6 +2045,10 @@ export function createTvReplayChartController(opts: {
       const bars = opts.replayFeed.getAllBars()
       const bar = bars[Math.max(0, Math.min(bars.length - 1, Math.round(barIndex)))]
       return bar ? Math.floor(bar.time / 1000) : null
+    },
+
+    seriesLastBarIndex() {
+      return lastSeriesBarIndex()
     },
 
     plotXForWallTimeMs(timeMs, plotOffsetX = 0) {

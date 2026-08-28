@@ -36,6 +36,16 @@
   height: 28px !important;
 }
 
+/* Injected text buttons (Go To) borrow TradingView's own "Indicators" typography,
+   measured at runtime into these vars, so they read as native header controls. */
+.rw-tv-header-btn--text:not(.rw-tv-header-btn--replay) {
+  font-family: var(--rw-tv-header-font-family, -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif) !important;
+  font-size: var(--rw-tv-header-font-size, 13px) !important;
+  font-weight: var(--rw-tv-header-font-weight, 400) !important;
+  line-height: var(--rw-tv-header-line-height, 16px) !important;
+  letter-spacing: var(--rw-tv-header-letter-spacing, normal) !important;
+}
+
 .rw-tv-header-btn__ico {
   display: inline-flex !important;
   align-items: center !important;

@@ -115,8 +115,9 @@ export const icons = {
     18,
     18,
   ),
+  /** Same eye geometry as `eye` with a slash, so the pupil stays a closed circle. */
   eyeOff: svg(
-    '<path d="M3 3l18 18M10.6 10.6A3 3 0 0012 15a3 3 0 002.4-4.4M6.7 6.7C4.6 8.1 3 10.2 2 12s3.5 7 10 7c1.8 0 3.4-.4 4.8-1.1M17.3 17.3C19.4 15.9 21 13.8 22 12s-3.5-7-10-7c-1.8 0-3.4.4-4.8 1.1" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>',
+    '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.65"/><circle cx="12" cy="12" r="2.75" stroke="currentColor" stroke-width="1.65"/><path d="M4.5 19.5 19.5 4.5" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>',
     18,
     18,
   ),
@@ -151,9 +152,9 @@ export const icons = {
   replayTvJumpStart: svgReplayTv(
     '<path d="M4 4.75v8.5M7 4.75v8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M14.5 4.5 9.25 9 14.5 13.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none" vector-effect="non-scaling-stroke"/>',
   ),
-  /** Bar Replay — circular goto arrow (FXReplay-style). */
+  /** Go To — arrow rising then turning right. Stroked: the TV header forces fill:none. */
   replayGoto: svg(
-    '<path d="M12 4a8 8 0 107.07 4.18M16 4h4v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+    '<path d="M6.5 20v-8.5A3.5 3.5 0 0 1 10 8h7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 4.5 17.5 8 14 11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
     18,
     18,
   ),

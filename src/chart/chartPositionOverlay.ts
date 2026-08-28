@@ -1,7 +1,7 @@
 import './chartPositionOverlay.css'
 import type { IChartApi, IPriceLine, ISeriesApi, SeriesType, Time } from 'lightweight-charts'
 import { LineStyle } from 'lightweight-charts'
-import type { OpenPosition } from '../replay/replayPositions'
+import type { OpenPosition, PendingOrder } from '../replay/replayPositions'
 import { positionMarkPrice, positionPoints, positionUnrealized } from '../replay/replayPositions'
 
 type LineBundle = {
@@ -63,6 +63,7 @@ export function mountChartPositionOverlay(opts: {
   getMinPlotY?: () => number
   getBottomInset?: () => number
   getPositions: () => OpenPosition[]
+  getPendingOrders?: () => PendingOrder[]
   /** Mid/last (used as fallback). Prefer getBidAsk for FXReplay-style points. */
   getMarkPrice: () => number
   /** Bid/ask for mark-to-market (long→bid, short→ask). */
@@ -91,6 +92,7 @@ export function mountChartPositionOverlay(opts: {
   const dragLineMap = new Map<string, DragLineBundle>()
   const exitRowMap = new Map<string, ExitRowBundle>()
   const rowMap = new Map<string, HTMLElement>()
+  const pendingLineMap = new Map<string, HTMLElement>()
   let lastSeriesDataRevision = -1
   let suppressed = false
   let skipDomLines = false
@@ -402,6 +404,37 @@ export function mountChartPositionOverlay(opts: {
     el.style.right = `${right}px`
     el.style.top = `${y}px`
     el.hidden = !Number.isFinite(y)
+  }
+
+  function ensurePendingLine(order: PendingOrder): HTMLElement {
+    let line = pendingLineMap.get(order.id)
+    if (line) return line
+    line = document.createElement('div')
+    line.className = `rw-pos-pending-line rw-pos-pending-line--${order.kind}`
+    line.innerHTML = `<span>${order.direction === 'long' ? 'BUY' : 'SELL'} ${order.kind.toUpperCase()} · ${order.triggerPrice.toFixed(3)}</span>`
+    overlay.appendChild(line)
+    pendingLineMap.set(order.id, line)
+    return line
+  }
+
+  function syncPendingLines() {
+    const orders = opts.getPendingOrders?.() ?? []
+    const ids = new Set(orders.map((order) => order.id))
+    for (const [id, line] of pendingLineMap) {
+      if (ids.has(id)) continue
+      line.remove()
+      pendingLineMap.delete(id)
+    }
+    if (!opts.priceToHostY) return
+    for (const order of orders) {
+      const line = ensurePendingLine(order)
+      const y = opts.priceToHostY(order.triggerPrice)
+      if (y == null || !Number.isFinite(y)) line.hidden = true
+      else {
+        line.hidden = false
+        placeDomLine(line, y)
+      }
+    }
   }
 
   function entryLineLeftPx(pos: OpenPosition): number | null {
@@ -831,6 +864,7 @@ export function mountChartPositionOverlay(opts: {
 
   function layoutRows() {
     if (suppressed) return
+    syncPendingLines()
     const positions = opts.getPositions()
     const hostRect = opts.chartHost.getBoundingClientRect()
     const hostHeight = hostRect.height
@@ -880,6 +914,8 @@ export function mountChartPositionOverlay(opts: {
     ])) {
       removePositionVisual(id)
     }
+    for (const line of pendingLineMap.values()) line.remove()
+    pendingLineMap.clear()
   }
 
   function sync(syncOpts?: { recreateLines?: boolean }) {
