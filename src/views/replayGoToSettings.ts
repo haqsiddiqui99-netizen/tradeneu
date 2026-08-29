@@ -16,7 +16,7 @@ import {
 } from '../playback/replayGoTo'
 
 const SESSION_LABEL: Record<GoToSessionId, string> = {
-  asian: 'Start of Asian Session',
+  asian: 'Start of Asian/Tokyo Session',
   london: 'Start of London Session',
   sydney: 'Start of Sydney Session',
   newyork: 'Start of New York Session',

@@ -615,9 +615,13 @@ function tvHeaderRoot(doc: Document): HTMLElement | null {
  * Leftmost built-in icon in the header's right-hand utility cluster. Falls back to
  * geometry because tooltip text and data-name attributes vary across library builds.
  */
-function findFirstRightUtilityAnchor(doc: Document, exclude?: HTMLElement | null): HTMLElement | null {
+function findFirstRightUtilityAnchor(
+  doc: Document,
+  exclude?: HTMLElement | HTMLElement[] | null,
+): HTMLElement | null {
+  const excluded = exclude ? (Array.isArray(exclude) ? exclude : [exclude]) : []
   const excludes = (node: HTMLElement) =>
-    !!exclude && (exclude === node || exclude.contains(node) || node.contains(exclude))
+    excluded.some((ex) => ex === node || ex.contains(node) || node.contains(ex))
 
   for (const name of RIGHT_UTILITY_DATA_NAMES) {
     const node = realHeaderNodes(doc, `[data-name="${name}"]`).find((n) => !excludes(n))
@@ -656,6 +660,10 @@ function findFirstRightUtilityAnchor(doc: Document, exclude?: HTMLElement | null
 function applyIconHeaderButton(el: HTMLElement, iconHtml: string, title: string, id: string) {
   const slot = headerToolbarSlot(el)
   slot.classList.add('rw-tv-header-btn', 'rw-tv-header-btn--icon')
+  if (id === 'sessions') {
+    slot.classList.add('rw-tv-header-btn--sessions')
+    if (slot.ownerDocument) ensureSessionHeaderCss(slot.ownerDocument)
+  }
   slot.dataset.rwTvBtn = id
   slot.innerHTML = iconHtml
   slot.setAttribute('title', title)
@@ -681,8 +689,11 @@ function resolveHeaderButtonPaintTarget(el: HTMLElement): HTMLElement {
 
 const headerButtonActiveState = new Map<string, boolean>()
 const headerButtonFaceWatchers = new Map<string, MutationObserver>()
+const headerButtonLatestHtml = new Map<string, string>()
 
 const REPLAY_HEADER_CSS_ID = 'rw-tv-replay-header-css'
+const GOTO_HEADER_CSS_ID = 'rw-tv-goto-header-css'
+const SESSION_HEADER_CSS_ID = 'rw-tv-session-header-css'
 const AXIS_HAIRLINE_KILL_CSS_ID = 'rw-tv-axis-hairline-kill-css'
 const INDICATORS_DIALOG_CSS_ID = 'rw-tv-indicators-dialog-css'
 const TV_BACK_PAD_CSS_ID = 'rw-tv-back-pad-css'
@@ -761,6 +772,109 @@ function ensureReplayHeaderCss(doc: Document) {
   content: none !important;
   display: none !important;
 }
+`
+}
+
+/**
+ * Give injected text buttons the same hover highlight as the header's right-side
+ * utility icons (Quick Search). Those use `--tv-toolbar-explicit-hover-*` with a
+ * full-bleed 8px radius, while the header row defaults text buttons to a 6px
+ * radius inset by 2px — hence the mismatch. Setting the tokens on the button also
+ * re-geometries TradingView's own highlight, so both paths agree.
+ */
+function ensureGoToHeaderCss(doc: Document) {
+  let style = doc.getElementById(GOTO_HEADER_CSS_ID) as HTMLStyleElement | null
+  if (!style) {
+    style = doc.createElement('style')
+    style.id = GOTO_HEADER_CSS_ID
+    ;(doc.head ?? doc.documentElement).appendChild(style)
+  }
+  style.textContent = `
+[data-rw-tv-btn="goto"].rw-tv-header-btn {
+  --tv-toolbar-explicit-hover-border-radius: 8px;
+  --tv-toolbar-explicit-hover-margin: 0px;
+  position: relative !important;
+  z-index: 0 !important;
+  height: 34px !important;
+  min-height: 34px !important;
+}
+[data-rw-tv-btn="goto"].rw-tv-header-btn::before {
+  content: '';
+  display: block;
+  position: absolute;
+  top: var(--tv-toolbar-explicit-hover-margin, 0px);
+  bottom: var(--tv-toolbar-explicit-hover-margin, 0px);
+  inset-inline-start: var(--tv-toolbar-explicit-hover-margin, 0px);
+  inset-inline-end: var(--tv-toolbar-explicit-hover-margin, 0px);
+  border-radius: var(--tv-toolbar-explicit-hover-border-radius, 8px);
+  background-color: transparent;
+  pointer-events: none;
+  z-index: -1;
+}
+[data-rw-tv-btn="goto"].rw-tv-header-btn:hover::before,
+[data-rw-tv-btn="goto"].rw-tv-header-btn[aria-expanded="true"]::before,
+[data-rw-tv-btn="goto"].rw-tv-header-btn--goto-open::before {
+  background-color: var(
+    --tv-color-toolbar-button-background-hover,
+    var(--color-toolbar-button-background-hover, #f0f3fa)
+  );
+}
+/* The ::before carries the highlight — don't dim the label on top of it. */
+[data-rw-tv-btn="goto"].rw-tv-header-btn:hover { opacity: 1 !important; }
+`
+}
+
+function ensureSessionHeaderCss(doc: Document) {
+  let style = doc.getElementById(SESSION_HEADER_CSS_ID) as HTMLStyleElement | null
+  if (!style) {
+    style = doc.createElement('style')
+    style.id = SESSION_HEADER_CSS_ID
+    ;(doc.head ?? doc.documentElement).appendChild(style)
+  }
+  style.textContent = `
+[data-rw-tv-btn="sessions"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  padding: 0 8px !important;
+  min-width: auto !important;
+  height: 28px !important;
+  line-height: 0 !important;
+  cursor: default !important;
+  background: transparent !important;
+}
+[data-rw-tv-btn="sessions"]:hover { opacity: 1 !important; }
+.rw-tv-sessions { display: inline-flex; align-items: center; gap: 13px; }
+.rw-tv-session { position: relative; display: inline-flex; width: 18px; height: 18px; flex-shrink: 0; }
+.rw-tv-session__flag {
+  width: 18px; height: 18px; border-radius: 50%; object-fit: contain; display: block;
+  pointer-events: none; box-shadow: 0 0 0 1.5px #b6bac1;
+}
+.rw-tv-session__dot {
+  position: absolute; right: -4px; bottom: -3px; width: 11px; height: 11px;
+  border-radius: 50%; box-sizing: border-box; border: 2px solid #ffffff;
+  background: #8b909a; pointer-events: none;
+  box-shadow: 0 0 0 0.5px rgba(19, 23, 34, 0.28);
+}
+.rw-tv-session[data-status="open"] .rw-tv-session__flag { box-shadow: 0 0 0 1.5px #22c55e; }
+.rw-tv-session[data-status="open"] .rw-tv-session__dot { background: #22c55e; }
+.rw-tv-session[data-status="weekend"] .rw-tv-session__flag { box-shadow: 0 0 0 1.5px #ef4444; }
+.rw-tv-session[data-status="weekend"] .rw-tv-session__dot { background: #ef4444; }
+.rw-tv-volume {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; margin-left: 2px;
+  padding: 0 8px 0 6px; box-sizing: border-box; border: 1px solid #d6d9df;
+  border-radius: 999px; color: #434651;
+  font-family: var(--rw-tv-header-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: 12px; font-weight: 500; line-height: 20px; letter-spacing: 0; white-space: nowrap;
+}
+.rw-tv-volume__dot {
+  width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: #cc2b7a;
+}
+.rw-tv-volume[data-level="medium"] .rw-tv-volume__dot { background: #f2b705; }
+.rw-tv-volume[data-level="high"] .rw-tv-volume__dot { background: #36b84a; }
+html.theme-dark .rw-tv-session__dot { border-color: #131722; box-shadow: none; }
+html.theme-dark .rw-tv-session__flag { box-shadow: 0 0 0 1.5px #50535e; }
+html.theme-dark .rw-tv-volume { border-color: #434651; color: #d1d4dc; }
 `
 }
 
@@ -1216,6 +1330,7 @@ function paintTextHeaderButtonFace(
   paint.dataset.rwFacePainting = '1'
   try {
     if (isReplay && paint.ownerDocument) ensureReplayHeaderCss(paint.ownerDocument)
+    if (opts.id === 'goto' && paint.ownerDocument) ensureGoToHeaderCss(paint.ownerDocument)
     paint.dataset.rwTvBtn = opts.id
     paint.classList.add('rw-tv-header-btn', 'rw-tv-header-btn--text')
     if (isReplay) paint.classList.add('rw-tv-header-btn--replay')
@@ -1295,7 +1410,12 @@ function resolveCreateButtonElement(
   mount: HTMLElement,
   result: string | HTMLElement,
 ): HTMLElement | null {
-  if (result instanceof HTMLElement) return result
+  // The node lives in the TV iframe, so `instanceof HTMLElement` against this
+  // realm is always false — duck-type on nodeType instead of failing the lookup.
+  if (typeof result !== 'string') {
+    const node = result as unknown as { nodeType?: number } | null
+    return node?.nodeType === 1 ? result : null
+  }
   const doc = tvIframeDocument(mount)
   if (!doc) return null
   const byId = doc.getElementById(result)
@@ -1311,38 +1431,63 @@ function resolveCreateButtonElement(
  * Flex `order` keeps the button left of the utility icons even when TradingView
  * re-appends its own nodes after we reorder the DOM.
  */
-function pinFlexOrderBefore(parent: HTMLElement, moving: HTMLElement, before: HTMLElement) {
+function pinFlexOrderBefore(parent: HTMLElement, moving: HTMLElement[], before: HTMLElement) {
   const view = parent.ownerDocument.defaultView
   if (!view) return
   if (!view.getComputedStyle(parent).display.includes('flex')) return
   const beforeOrder = Number(view.getComputedStyle(before).order) || 0
-  moving.style.setProperty('order', String(beforeOrder - 1), 'important')
+  moving.forEach((el, i) => {
+    el.style.setProperty('order', String(beforeOrder - (moving.length - i)), 'important')
+  })
 }
 
 let warnedMissingRightUtilityAnchor = false
 
 /**
- * Park the button as Quick Search's immediate previous sibling. Reordering at a shared
- * ancestor instead would move whole toolbar sections, which lands the button at the
- * far left when TradingView keeps custom buttons and utility icons in separate rows.
+ * Park the buttons as one contiguous block directly before Quick Search. Reordering at a
+ * shared ancestor instead would move whole toolbar sections, which lands the buttons at
+ * the far left when TradingView keeps custom buttons and utility icons in separate rows.
+ *
+ * The whole block is placed in one pass so a second run is a no-op — moving buttons one
+ * at a time makes each steal the "immediate previous sibling" spot from the last, and the
+ * header MutationObserver then re-triggers placement forever, eating clicks mid-gesture.
  */
-function repositionBeforeRightUtilities(mount: HTMLElement, button: HTMLElement) {
+function repositionBeforeRightUtilities(mount: HTMLElement, buttons: HTMLElement[]) {
   const doc = tvIframeDocument(mount)
   if (!doc) return
-  const btn = headerToolbarSlot(button)
-  const anchor = findFirstRightUtilityAnchor(doc, btn)
+
+  const slots: HTMLElement[] = []
+  for (const button of buttons) {
+    const slot = headerToolbarSlot(button)
+    if (slot && !slots.includes(slot)) slots.push(slot)
+  }
+  if (!slots.length) return
+
+  const anchor = findFirstRightUtilityAnchor(doc, slots)
   if (!anchor && !warnedMissingRightUtilityAnchor) {
     warnedMissingRightUtilityAnchor = true
     console.warn('[TradingView] header right-utility anchor not found — custom button stays at header end')
   }
-  if (!btn || !anchor || btn === anchor || btn.contains(anchor) || anchor.contains(btn)) return
+  if (!anchor) return
 
   const parent = anchor.parentElement
   if (!parent) return
-  if (btn.nextElementSibling === anchor && btn.parentElement === parent) return
 
-  parent.insertBefore(btn, anchor)
-  pinFlexOrderBefore(parent, btn, anchor)
+  const placeable = slots.filter(
+    (slot) => slot !== anchor && !slot.contains(anchor) && !anchor.contains(slot),
+  )
+  if (!placeable.length) return
+
+  // Walk right-to-left so each button lands immediately before the one after it.
+  let ref: Element = anchor
+  for (let i = placeable.length - 1; i >= 0; i--) {
+    const slot = placeable[i]!
+    if (slot.parentElement !== parent || slot.nextElementSibling !== ref) {
+      parent.insertBefore(slot, ref)
+    }
+    ref = slot
+  }
+  pinFlexOrderBefore(parent, placeable, anchor)
 }
 
 function insertSlotsAfterAnchor(anchor: HTMLElement, slots: HTMLElement[]): void {
@@ -1723,7 +1868,7 @@ export async function createTradingViewChart(
       // Parent `use_localstorage_for_settings` is off; re-enable stars in Indicators dialog.
       'items_favoriting',
     ],
-    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css?v=goto-font-1`,
+    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css?v=goto-hover-2`,
     loading_screen: { backgroundColor: opts.theme === 'dark' ? '#131722' : '#ffffff' },
     // settings_overrides wins over any saved chart settings; plain overrides do not.
     settings_overrides: { ...chartChromeOverrides },
@@ -1813,6 +1958,7 @@ export async function createTradingViewChart(
           }
           headerButtonElements.set(def.id, el)
           headerButtonTitles.set(def.id, def.title)
+          headerButtonLatestHtml.set(def.id, def.iconHtml)
           applyIconHeaderButton(el, def.iconHtml, def.title, def.id)
           const onClick = (e: Event) => {
             e.preventDefault()
@@ -1866,11 +2012,11 @@ export async function createTradingViewChart(
       if (afterTemplateItems.length) {
         repositionAfterIndicatorTemplate(mount, afterTemplateItems)
       }
+      const beforeUtilitySlots: HTMLElement[] = []
       for (const id of beforeUtilityButtonIds) {
-        for (const el of resolveHeaderButtonEls(id)) {
-          repositionBeforeRightUtilities(mount, el)
-        }
+        beforeUtilitySlots.push(...resolveHeaderButtonEls(id))
       }
+      repositionBeforeRightUtilities(mount, beforeUtilitySlots)
     }
 
     const runPlacement = () => {
@@ -1878,7 +2024,12 @@ export async function createTradingViewChart(
       for (const def of buttonDefs) {
         for (const el of resolveHeaderButtonEls(def.id)) {
           if (def.iconHtml) {
-            applyIconHeaderButton(el, def.iconHtml, def.title, def.id)
+            applyIconHeaderButton(
+              el,
+              headerButtonLatestHtml.get(def.id) ?? def.iconHtml,
+              def.title,
+              def.id,
+            )
             continue
           }
           if (def.text) {
@@ -1987,6 +2138,7 @@ export async function createTradingViewChart(
           const doc = tvIframeDocument(mount)
           if (doc) {
             ensureReplayHeaderCss(doc)
+            ensureGoToHeaderCss(doc)
             ensureIndicatorsDialogCss(doc)
             ensureIndicatorsDialogColumnLabels(doc)
             ensureTvBackPadCss(doc)
@@ -2078,6 +2230,7 @@ export async function createTradingViewChart(
         headerButtonIds.clear()
         headerButtonElements.clear()
         headerButtonTitles.clear()
+        headerButtonLatestHtml.clear()
         disposeTradeneuTvDatafeed()
         widget.remove()
       } catch {
@@ -2129,6 +2282,7 @@ export async function createTradingViewChart(
     setHeaderButtonIcon(id, iconHtml) {
       const def = opts.headerButtons?.find((b) => b.id === id)
       const title = def?.title ?? headerButtonTitles.get(id) ?? 'Toggle theme'
+      headerButtonLatestHtml.set(id, iconHtml)
       const el = resolveHeaderButtonEl(id)
       if (el) applyIconHeaderButton(el, iconHtml, title, id)
     },

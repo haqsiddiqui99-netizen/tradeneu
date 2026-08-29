@@ -173,6 +173,7 @@ import {
 } from '../backtest/backtestReplayUtils'
 import { getBacktestSnapshotAtTime } from '../backtest/backtestReplaySnapshot'
 import { goToUtcOffsetHint, resolveGoToBarIndex, type ReplayGoToTarget } from '../playback/replayGoTo'
+import { sessionHeaderStripHtml } from '../playback/marketSessions'
 import type { SidePanelApi } from './sidePanel'
 
 function setReplayPlayButtonIcon(btn: HTMLButtonElement | null, playing: boolean) {
@@ -183,6 +184,20 @@ function setReplayPlayButtonIcon(btn: HTMLButtonElement | null, playing: boolean
   if (pauseIco) pauseIco.hidden = !playing
   btn.classList.toggle('rw-replay-dock__play--active', playing)
   btn.setAttribute('aria-pressed', playing ? 'true' : 'false')
+}
+
+function sessionAssetUrl(pathFromRoot: string): string {
+  const rel = pathFromRoot.replace(/^\//, '')
+  const base = import.meta.env.BASE_URL || '/'
+  if (base === './' || base === '.') {
+    return new URL(`/${rel}`, window.location.origin).href
+  }
+  const joined = `${base.endsWith('/') ? base : `${base}/`}${rel}`.replace(/\/{2,}/g, '/')
+  return new URL(joined, window.location.origin).href
+}
+
+function sessionStripHtmlAt(unixSec: number): string {
+  return sessionHeaderStripHtml(unixSec, sessionAssetUrl)
 }
 
 const CHART_THEME_STORAGE_KEY = 'suplexity-chart-theme'
@@ -597,7 +612,7 @@ export function mountChartWorkspace(
     el(`
     <div class="rw-root rw-root--fxr${tvChartMode ? ' rw-root--tv' : ''} overflow-hidden" role="application" aria-label="Chart workspace" data-chart-theme="${uiChartTheme}">
       <header class="rw-top">
-        <button type="button" class="rw-top__home" title="Back to dashboard" aria-label="Back to dashboard">${icons.arrowLeft}</button>
+        <button type="button" class="rw-top__home" title="Back to dashboard" aria-label="Back to dashboard">${icons.home}</button>
         <div class="rw-top__cluster">
           <button
             type="button"
@@ -645,7 +660,7 @@ export function mountChartWorkspace(
           data-rw-chart-back
           title="Back to dashboard"
           aria-label="Back to dashboard"
-        >${icons.arrowLeft}</button>
+        >${icons.home}</button>
         <div class="rw-chart-loading" data-rw-chart-loading hidden aria-live="polite" aria-busy="false">
           <div class="rw-chart-loading__veil" aria-hidden="true"></div>
           <div class="rw-chart-loading__panel">
@@ -4058,6 +4073,14 @@ export function mountChartWorkspace(
       positionOverlay?.sync({ recreateLines: recreateLines && !usedTvShapes })
     }
 
+    function sessionReferenceSec(bar?: Bar | null): number {
+      const replayBar = replay ? lastBar(replay.slice()) : null
+      const sessionStartBar = chartBars[Math.max(0, sessionReplayStartIndex)]
+      const candidate = bar ?? replayBar ?? sessionStartBar ?? lastBar(chartBars)
+      const sec = Number(candidate?.time)
+      return Number.isFinite(sec) ? sec : Math.floor(Date.now() / 1000)
+    }
+
     function syncTradingUi(b: Bar | null) {
       const mark = b?.close ?? 0
       const ba = b ? bidAskFromBar(b) : undefined
@@ -4089,6 +4112,8 @@ export function mountChartWorkspace(
       })
       host.querySelectorAll('.rw-rp').forEach((el) => {
         el.textContent = formatMoney(sum.realizedPnL)
+        el.classList.toggle('rw-trade-stats__val--up', sum.realizedPnL > 0)
+        el.classList.toggle('rw-trade-stats__val--down', sum.realizedPnL < 0)
       })
       host.querySelectorAll('.rw-up').forEach((el) => {
         el.textContent = formatMoney(sum.unrealizedPnL)
@@ -4110,6 +4135,7 @@ export function mountChartWorkspace(
       syncPositionOverlay(false)
       if (accountChanged) schedulePersistReplay()
       evaluatePropIfNeeded(b)
+      state.tvChart?.setHeaderButtonIcon('sessions', sessionStripHtmlAt(sessionReferenceSec(b)))
     }
 
     let trading: ReturnType<typeof createTradingChart> | null = null
@@ -4167,6 +4193,14 @@ export function mountChartWorkspace(
             barPeriodSec: tvBarPeriodSecForPill(chartTimeframe),
           },
           headerButtons: [
+            {
+              id: 'sessions',
+              title: 'Market sessions',
+              iconHtml: sessionStripHtmlAt(sessionReferenceSec()),
+              align: 'right',
+              insertBeforeRightUtilities: true,
+              onClick: () => undefined,
+            },
             {
               id: 'goto',
               title: 'Go To',

@@ -46,6 +46,49 @@
   letter-spacing: var(--rw-tv-header-letter-spacing, normal) !important;
 }
 
+/* Go To reuses TradingView's own toolbar highlight: a ::before pill using the library's
+   hover token. It has to be a pseudo element — the painted face carries an inline
+   `background: transparent !important` that no stylesheet rule can override.
+   The geometry tokens are pinned to the values the right-side utility icons (Quick
+   Search) set on themselves — full-bleed, 8px radius — because the header row otherwise
+   defaults text buttons to a 6px radius inset by 2px. */
+[data-rw-tv-btn='goto'].rw-tv-header-btn {
+  --tv-toolbar-explicit-hover-border-radius: 8px;
+  --tv-toolbar-explicit-hover-margin: 0px;
+  position: relative !important;
+  z-index: 0 !important;
+  height: 34px !important;
+  min-height: 34px !important;
+}
+
+[data-rw-tv-btn='goto'].rw-tv-header-btn::before {
+  content: '';
+  display: block;
+  position: absolute;
+  top: var(--tv-toolbar-explicit-hover-margin, 0px);
+  bottom: var(--tv-toolbar-explicit-hover-margin, 0px);
+  inset-inline-start: var(--tv-toolbar-explicit-hover-margin, 0px);
+  inset-inline-end: var(--tv-toolbar-explicit-hover-margin, 0px);
+  border-radius: var(--tv-toolbar-explicit-hover-border-radius, 8px);
+  background-color: transparent;
+  pointer-events: none;
+  z-index: -1;
+}
+
+[data-rw-tv-btn='goto'].rw-tv-header-btn:hover::before,
+[data-rw-tv-btn='goto'].rw-tv-header-btn[aria-expanded='true']::before,
+[data-rw-tv-btn='goto'].rw-tv-header-btn--goto-open::before {
+  background-color: var(
+    --tv-color-toolbar-button-background-hover,
+    var(--color-toolbar-button-background-hover, #f0f3fa)
+  );
+}
+
+/* The ::before carries the highlight — don't dim the label on top of it. */
+[data-rw-tv-btn='goto'].rw-tv-header-btn:hover {
+  opacity: 1 !important;
+}
+
 .rw-tv-header-btn__ico {
   display: inline-flex !important;
   align-items: center !important;
@@ -143,4 +186,124 @@ button.rw-tv-header-btn.rw-tv-header-btn--active:hover,
   height: 0 !important;
   max-height: 0 !important;
   pointer-events: none !important;
+}
+
+/* Forex session strip: flag + open/closed/weekend dot */
+[data-rw-tv-btn='sessions'] {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  padding: 0 8px !important;
+  min-width: auto !important;
+  height: 28px !important;
+  line-height: 0 !important;
+  cursor: default !important;
+  background: transparent !important;
+}
+
+[data-rw-tv-btn='sessions']:hover {
+  opacity: 1 !important;
+}
+
+.rw-tv-sessions {
+  display: inline-flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.rw-tv-session {
+  position: relative;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.rw-tv-session__flag {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  box-shadow: 0 0 0 1.5px #b6bac1;
+}
+
+.rw-tv-session__dot {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  border: 2px solid #ffffff;
+  background: #8b909a;
+  pointer-events: none;
+  box-shadow: 0 0 0 0.5px rgba(19, 23, 34, 0.28);
+}
+
+.rw-tv-session[data-status='open'] .rw-tv-session__flag {
+  box-shadow: 0 0 0 1.5px #22c55e;
+}
+
+.rw-tv-session[data-status='open'] .rw-tv-session__dot {
+  background: #22c55e;
+}
+
+.rw-tv-session[data-status='weekend'] .rw-tv-session__flag {
+  box-shadow: 0 0 0 1.5px #ef4444;
+}
+
+.rw-tv-session[data-status='weekend'] .rw-tv-session__dot {
+  background: #ef4444;
+}
+
+.rw-tv-volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  margin-left: 2px;
+  padding: 0 8px 0 6px;
+  box-sizing: border-box;
+  border: 1px solid #d6d9df;
+  border-radius: 999px;
+  color: #434651;
+  font-family: var(--rw-tv-header-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.rw-tv-volume__dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  background: #cc2b7a;
+}
+
+.rw-tv-volume[data-level='medium'] .rw-tv-volume__dot {
+  background: #f2b705;
+}
+
+.rw-tv-volume[data-level='high'] .rw-tv-volume__dot {
+  background: #36b84a;
+}
+
+html.theme-dark .rw-tv-session__dot {
+  border-color: #131722;
+  box-shadow: none;
+}
+
+html.theme-dark .rw-tv-session__flag {
+  box-shadow: 0 0 0 1.5px #50535e;
+}
+
+html.theme-dark .rw-tv-volume {
+  border-color: #434651;
+  color: #d1d4dc;
 }

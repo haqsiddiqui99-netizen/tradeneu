@@ -53,6 +53,20 @@ function publicBundleMatchesVendor() {
   }
 }
 
+/**
+ * The header override stylesheet is ours, not vendored, so it changes far more often
+ * than the library bundle. Copy it on every run — otherwise an edit never reaches
+ * public/charting_library/ (the URL the chart iframe loads) while the bundle is current.
+ */
+function syncHeaderCss() {
+  if (!existsSync(headerCssSrc) || !existsSync(dest)) return
+  try {
+    copyFileSync(headerCssSrc, headerCssDest)
+  } catch (err) {
+    console.warn(`[tv-chart] could not refresh tv-header-overrides.css: ${err?.code ?? err}`)
+  }
+}
+
 function removeDestTree() {
   if (!existsSync(dest)) return
   try {
@@ -74,6 +88,7 @@ function removeDestTree() {
 
 if (!existsSync(src)) {
   if (publicBundleReady()) {
+    syncHeaderCss()
     console.log('[tv-chart] using committed public/charting_library (submodule not in build context)')
     process.exit(0)
   }
@@ -93,21 +108,21 @@ if (!existsSync(standaloneSrc) || statSync(standaloneSrc).size < 10_000) {
 }
 
 if (publicBundleMatchesVendor()) {
+  syncHeaderCss()
   console.log('[tv-chart] public/charting_library already up to date — skip sync')
   process.exit(0)
 }
 
 const removed = removeDestTree()
 if (!removed && publicBundleReady()) {
+  syncHeaderCss()
   process.exit(0)
 }
 
 mkdirSync(path.dirname(dest), { recursive: true })
 cpSync(src, dest, { recursive: true })
 
-if (existsSync(headerCssSrc)) {
-  copyFileSync(headerCssSrc, headerCssDest)
-}
+syncHeaderCss()
 
 const standaloneDest = path.join(dest, 'charting_library.standalone.js')
 const bundlesDest = path.join(dest, 'bundles')

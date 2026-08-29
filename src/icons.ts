@@ -64,6 +64,12 @@ export const icons = {
     18,
     18,
   ),
+  /** Chart header — dashboard home. */
+  home: svg(
+    '<path d="M3.2 10.6 12 3.6l8.8 7" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.6 9.2V19a1.4 1.4 0 0 0 1.4 1.4h10a1.4 1.4 0 0 0 1.4-1.4V9.2" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.9 20.4v-5.6h4.2v5.6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>',
+    18,
+    18,
+  ),
   help: svg(
     '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.65"/><path d="M9.5 9.5a2.5 2.5 0 015 0c0 2-2.5 2-2.5 4M12 17h.01" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>',
   ),

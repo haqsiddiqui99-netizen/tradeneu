@@ -1,5 +1,6 @@
 import './replayGoToMenu.css'
 import { syncChartThemeToElement } from '../styles/syncChartTheme'
+import { icons } from '../icons'
 import type { ReplayGoToTarget } from '../playback/replayGoTo'
 
 export type ReplayGoToMenuItem = {
@@ -8,14 +9,35 @@ export type ReplayGoToMenuItem = {
   shortcut?: string
 }
 
+type ReplayGoToMenuSection = {
+  label: string
+  items: ReplayGoToMenuItem[]
+}
+
+const REPLAY_GOTO_MENU_SECTIONS: ReplayGoToMenuSection[] = [
+  {
+    label: 'Jump ahead',
+    items: [
+      { id: 'next_day_open', label: 'Next Day Open', shortcut: 'Y' },
+      { id: 'next_session', label: 'Next Session', shortcut: 'Z' },
+    ],
+  },
+  {
+    label: 'Session opens',
+    items: [
+      { id: 'newyork', label: 'New York Session', shortcut: 'N' },
+      { id: 'asian', label: 'Asian/Tokyo Session', shortcut: 'I' },
+      { id: 'london', label: 'London Session', shortcut: 'L' },
+      { id: 'sydney', label: 'Sydney Session', shortcut: 'S' },
+    ],
+  },
+]
+
+const REPLAY_GOTO_FOOTER_ITEM: ReplayGoToMenuItem = { id: 'custom', label: 'Custom Settings' }
+
 export const REPLAY_GOTO_MENU_ITEMS: ReplayGoToMenuItem[] = [
-  { id: 'next_day_open', label: 'Next Day Open', shortcut: 'Y' },
-  { id: 'next_session', label: 'Next Session', shortcut: 'Z' },
-  { id: 'newyork', label: 'Start of New York Session', shortcut: 'N' },
-  { id: 'asian', label: 'Start of Asian Session', shortcut: 'I' },
-  { id: 'london', label: 'Start of London Session', shortcut: 'L' },
-  { id: 'sydney', label: 'Start of Sydney Session', shortcut: 'S' },
-  { id: 'custom', label: 'Custom Settings' },
+  ...REPLAY_GOTO_MENU_SECTIONS.flatMap((section) => section.items),
+  REPLAY_GOTO_FOOTER_ITEM,
 ]
 
 export type ReplayGoToMenuApi = {
@@ -55,7 +77,7 @@ export function createReplayGoToMenu(opts: {
 
   const hintNodes = new Map<ReplayGoToTarget, HTMLElement>()
 
-  for (const item of REPLAY_GOTO_MENU_ITEMS) {
+  const createItemButton = (item: ReplayGoToMenuItem, leadingIconHtml?: string) => {
     const btn = document.createElement('button')
     btn.type = 'button'
     btn.className = 'rw-goto-menu__btn'
@@ -63,11 +85,13 @@ export function createReplayGoToMenu(opts: {
     btn.dataset.gotoId = item.id
     const isNamedSession =
       item.id === 'newyork' || item.id === 'asian' || item.id === 'london' || item.id === 'sydney'
-    btn.innerHTML = `<span class="rw-goto-menu__label">${item.label}</span>${
+    btn.innerHTML = `${
+      leadingIconHtml ? `<span class="rw-goto-menu__icon" aria-hidden="true">${leadingIconHtml}</span>` : ''
+    }<span class="rw-goto-menu__label">${item.label}</span>${
       isNamedSession ? '<span class="rw-goto-menu__hint"></span>' : ''
     }${
       item.shortcut
-        ? `<span class="rw-goto-menu__key" aria-hidden="true">${item.shortcut}</span>`
+        ? `<kbd class="rw-goto-menu__key" aria-hidden="true">${item.shortcut}</kbd>`
         : ''
     }`
     btn.addEventListener('click', (e) => {
@@ -77,8 +101,28 @@ export function createReplayGoToMenu(opts: {
     })
     const hint = btn.querySelector<HTMLElement>('.rw-goto-menu__hint')
     if (hint && item.id !== 'custom') hintNodes.set(item.id, hint)
-    root.appendChild(btn)
+    return btn
   }
+
+  for (const section of REPLAY_GOTO_MENU_SECTIONS) {
+    const group = document.createElement('div')
+    group.className = 'rw-goto-menu__group'
+    group.setAttribute('role', 'group')
+    group.setAttribute('aria-label', section.label)
+
+    const heading = document.createElement('div')
+    heading.className = 'rw-goto-menu__grouplabel'
+    heading.textContent = section.label
+    group.appendChild(heading)
+
+    for (const item of section.items) group.appendChild(createItemButton(item))
+    root.appendChild(group)
+  }
+
+  const footer = document.createElement('div')
+  footer.className = 'rw-goto-menu__footer'
+  footer.appendChild(createItemButton(REPLAY_GOTO_FOOTER_ITEM, icons.gear))
+  root.appendChild(footer)
 
   function refreshHints() {
     for (const [id, node] of hintNodes) {
