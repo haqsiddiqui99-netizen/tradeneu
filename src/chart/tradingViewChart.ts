@@ -135,6 +135,27 @@ export type TradingViewChartHandle = {
     }>,
     opts?: { maxTimeSec?: number },
   ) => void
+  /**
+   * Highlight a closed trade's entry→exit span (reward/risk boxes + start/end candle markers).
+   * Pass null to clear.
+   */
+  setTradeRangeHighlight: (
+    range: {
+      direction: 'long' | 'short'
+      entryTime: number
+      exitTime: number
+      entryPrice: number
+      exitPrice: number
+      stopLoss?: number | null
+      takeProfit?: number | null
+      profit: boolean
+      mode?: 'drawing' | 'arrows'
+      formatPrice?: (n: number) => string
+      /** Candles the fills landed on — arrow marks hang off the wick, clear of the body. */
+      entryBar?: { high: number; low: number } | null
+      exitBar?: { high: number; low: number } | null
+    } | null,
+  ) => void
   getPlotClipInsets: (hostEl: HTMLElement) => { top: number; bottom: number; left: number; right: number } | null
   getPlotLayout: (hostEl: HTMLElement) => {
     top: number
@@ -196,6 +217,21 @@ export type TradingViewChartOpts = {
 type TvSubscription = {
   subscribe: (obj: null, cb: () => void) => void
   unsubscribe: (obj: null, cb: () => void) => void
+}
+
+/** Trading primitive behind FXReplay-style buy/sell marks (thin arrow + fill label). */
+type TvExecutionShape = {
+  setText: (text: string) => TvExecutionShape
+  setTooltip: (text: string) => TvExecutionShape
+  setTextColor: (color: string) => TvExecutionShape
+  setFont: (font: string) => TvExecutionShape
+  setArrowColor: (color: string) => TvExecutionShape
+  setArrowHeight: (height: number) => TvExecutionShape
+  setArrowSpacing: (spacing: number) => TvExecutionShape
+  setDirection: (direction: 'buy' | 'sell') => TvExecutionShape
+  setTime: (timeSec: number) => TvExecutionShape
+  setPrice: (price: number) => TvExecutionShape
+  remove: () => void
 }
 
 type TvChartApi = {
@@ -1715,6 +1751,19 @@ export async function createTradingViewChart(
   const backtestMarkerIds: string[] = []
   let backtestMarkerGen = 0
   const MAX_BACKTEST_MARKER_TRADES = 120
+  const EXEC_BUY_COLOR = '#089981'
+  const EXEC_SELL_COLOR = '#f23645'
+  /** Blue label reads clearly over candles in both themes. */
+  const execTextColor = () => (currentTheme === 'dark' ? '#4d8bff' : '#2962ff')
+  const EXEC_FONT = '11px Verdana'
+  const EXEC_ARROW_HEIGHT = 8
+  const EXEC_ARROW_SPACING = 1
+  /** Hand-drawn fallback mark, in screen pixels off the candle wick. */
+  const ARROW_GAP_PX = 3
+  const ARROW_LEN_PX = 13
+  const ARROW_LABEL_GAP_PX = 9
+  /** Rough advance width of the 11px label font, used to centre it on the arrow. */
+  const LABEL_CHAR_PX = 5.6
 
   const toTimeSec = (t: number) => (t > 1e12 ? Math.floor(t / 1000) : Math.floor(t))
 
@@ -1726,6 +1775,72 @@ export async function createTradingViewChart(
       /* ignore */
     }
     ownedShapeIds.delete(id)
+  }
+
+  const tradeRangeShapeIds: string[] = []
+  /** Execution primitives are adapters, not shape ids — they clean themselves up. */
+  const tradeRangeExecutions: Array<{ remove: () => void }> = []
+  let tradeRangeGen = 0
+
+  const clearTradeRangeHighlight = () => {
+    tradeRangeGen += 1
+    try {
+      const chart = widget.activeChart()
+      for (const id of tradeRangeShapeIds) removeShapeId(chart, id)
+    } catch {
+      /* ignore */
+    }
+    tradeRangeShapeIds.length = 0
+    for (const execution of tradeRangeExecutions) {
+      try {
+        execution.remove()
+      } catch {
+        /* ignore */
+      }
+    }
+    tradeRangeExecutions.length = 0
+  }
+
+  /**
+   * FXReplay-style buy/sell mark: a small arrow beside the candle with the fill price
+   * next to it. TradingView's execution primitive draws exactly that; the arrow line
+   * tool is a heavy glyph that swallows the candle, so it is only a fallback.
+   */
+  const addExecutionMark = async (
+    chart: { createExecutionShape?: () => Promise<TvExecutionShape> | TvExecutionShape },
+    gen: number,
+    mark: { timeSec: number; anchor: number; buy: boolean; text: string },
+  ): Promise<boolean> => {
+    if (typeof chart.createExecutionShape !== 'function') return false
+    let execution: TvExecutionShape | null = null
+    try {
+      execution = (await chart.createExecutionShape()) ?? null
+      if (!execution || typeof execution.setPrice !== 'function') return false
+      if (disposed || gen !== tradeRangeGen) {
+        execution.remove()
+        return true
+      }
+      execution.setText(mark.text)
+      execution.setTooltip(mark.text)
+      execution.setTextColor(execTextColor())
+      execution.setFont(EXEC_FONT)
+      execution.setArrowColor(mark.buy ? EXEC_BUY_COLOR : EXEC_SELL_COLOR)
+      execution.setArrowHeight(EXEC_ARROW_HEIGHT)
+      execution.setArrowSpacing(EXEC_ARROW_SPACING)
+      execution.setDirection(mark.buy ? 'buy' : 'sell')
+      execution.setTime(mark.timeSec)
+      execution.setPrice(mark.anchor)
+      tradeRangeExecutions.push(execution)
+      return true
+    } catch (err) {
+      console.warn('[TradingView] execution mark failed', err)
+      try {
+        execution?.remove()
+      } catch {
+        /* ignore */
+      }
+      return false
+    }
   }
 
   const clearBacktestMarkers = () => {
@@ -2206,6 +2321,7 @@ export async function createTradingViewChart(
       try {
         clearTvPositionLines()
         clearBacktestMarkers()
+        clearTradeRangeHighlight()
         replayCtrl?.dispose()
         replayCtrl = null
         headerButtonCleanups.forEach((fn) => fn())
@@ -2683,6 +2799,244 @@ export async function createTradingViewChart(
       }
 
       return true
+    },
+
+    setTradeRangeHighlight(range) {
+      clearTradeRangeHighlight()
+      if (!range) return
+      const mode = range.mode ?? 'drawing'
+      const chart = (() => {
+        try {
+          return widget.activeChart() as unknown as {
+            createMultipointShape?: (
+              points: Array<{ time: number; price: number }>,
+              options: Record<string, unknown>,
+            ) => Promise<string> | string
+            createShape?: (
+              point: { time: number; price: number },
+              options: Record<string, unknown>,
+            ) => Promise<string> | string
+            createExecutionShape?: () => Promise<TvExecutionShape> | TvExecutionShape
+          }
+        } catch {
+          return null
+        }
+      })()
+      if (!chart || typeof chart.createMultipointShape !== 'function') return
+
+      const entrySec = toTimeSec(range.entryTime)
+      // Anchor the right edge inside loaded bars — points past the last bar are held by
+      // projected index, so they drift once the replay seek streams more candles in.
+      const lastBarSec = (() => {
+        try {
+          const lastIndex = replayCtrl?.seriesLastBarIndex() ?? 0
+          const sec = replayCtrl?.chartBarTimeSecAtIndex(lastIndex) ?? null
+          return sec != null && Number.isFinite(sec) ? toTimeSec(sec) : null
+        } catch {
+          return null
+        }
+      })()
+      const rawExitSec = Math.max(toTimeSec(range.exitTime), entrySec + 1)
+      const exitSec =
+        lastBarSec != null && lastBarSec > entrySec && rawExitSec > lastBarSec
+          ? lastBarSec
+          : rawExitSec
+      const reward = range.takeProfit ?? (range.profit ? range.exitPrice : null)
+      const risk = range.stopLoss ?? (range.profit ? null : range.exitPrice)
+      const gen = tradeRangeGen
+
+      const addShape = async (
+        points: Array<{ time: number; price: number }>,
+        options: Record<string, unknown>,
+      ) => {
+        try {
+          const id = await chart.createMultipointShape!(points, {
+            lock: true,
+            disableSelection: true,
+            disableSave: true,
+            disableUndo: true,
+            showInObjectsTree: false,
+            ...options,
+          })
+          if (disposed || gen !== tradeRangeGen) {
+            if (id) removeShapeId(chart as { removeEntity?: (id: string) => void }, String(id))
+            return
+          }
+          if (id) {
+            ownedShapeIds.add(String(id))
+            tradeRangeShapeIds.push(String(id))
+          }
+        } catch (err) {
+          console.warn('[TradingView] trade range highlight failed', err)
+        }
+      }
+
+      if (mode === 'arrows') {
+        const formatPrice = range.formatPrice ?? ((n: number) => n.toFixed(3))
+        const entryIsBuy = range.direction === 'long'
+        // A buy mark hangs under the candle's low, a sell mark over its high, so the arrow
+        // never lands on the body it belongs to.
+        const anchorFor = (
+          buy: boolean,
+          price: number,
+          bar?: { high: number; low: number } | null,
+        ) => {
+          if (!bar) return price
+          const edge = buy ? Math.min(bar.low, price) : Math.max(bar.high, price)
+          return Number.isFinite(edge) ? edge : price
+        }
+        const marks = [
+          {
+            timeSec: entrySec,
+            price: range.entryPrice,
+            anchor: anchorFor(entryIsBuy, range.entryPrice, range.entryBar),
+            buy: entryIsBuy,
+            text: `${entryIsBuy ? 'buy' : 'sell'} at ${formatPrice(range.entryPrice)}`,
+          },
+          {
+            timeSec: exitSec,
+            price: range.exitPrice,
+            anchor: anchorFor(!entryIsBuy, range.exitPrice, range.exitBar),
+            buy: !entryIsBuy,
+            text: `${entryIsBuy ? 'sell' : 'buy'} at ${formatPrice(range.exitPrice)}`,
+          },
+        ]
+
+        /** Screen-space offset so the arrow keeps its length at any zoom or instrument. */
+        const priceAtPixelOffset = (price: number, pixels: number): number | null => {
+          try {
+            const y = replayCtrl?.priceToPlotY(price)
+            if (y == null || !Number.isFinite(y)) return null
+            const shifted = replayCtrl?.plotYToPrice(y + pixels)
+            return shifted != null && Number.isFinite(shifted) ? shifted : null
+          } catch {
+            return null
+          }
+        }
+        const fallbackGap = Math.max(
+          Math.abs(range.exitPrice - range.entryPrice) * 0.35,
+          Math.abs(range.entryPrice) * 0.0002,
+        )
+        /**
+         * The text tool anchors its box by the left edge, so the label would trail off to
+         * the right of the arrow. Pull it back half its width to sit centred underneath.
+         */
+        const secPerPixel = (() => {
+          try {
+            const view = replayCtrl?.captureVisibleRange()
+            if (!view) return null
+            const span = view.to - view.from
+            const width = Math.max(160, mount.clientWidth - 72)
+            return span > 0 ? span / width : null
+          } catch {
+            return null
+          }
+        })()
+        const labelTimeShift = (text: string) =>
+          secPerPixel == null ? 0 : Math.round(((text.length * LABEL_CHAR_PX) / 2) * secPerPixel)
+
+        void (async () => {
+          for (const mark of marks) {
+            if (await addExecutionMark(chart, gen, mark)) continue
+            // No trading primitives in this build: draw the mark by hand. The arrow line
+            // tool is a heavy glyph that covers the candle, so use a short thin
+            // arrow-ended segment just off the wick with the label right behind it.
+            const color = mark.buy ? EXEC_BUY_COLOR : EXEC_SELL_COLOR
+            const away = mark.buy ? 1 : -1
+            const headPrice =
+              priceAtPixelOffset(mark.anchor, ARROW_GAP_PX * away) ??
+              mark.anchor - fallbackGap * 0.25 * away
+            const tailPrice =
+              priceAtPixelOffset(mark.anchor, (ARROW_GAP_PX + ARROW_LEN_PX) * away) ??
+              mark.anchor - fallbackGap * away
+            const labelPrice =
+              priceAtPixelOffset(
+                mark.anchor,
+                (ARROW_GAP_PX + ARROW_LEN_PX + ARROW_LABEL_GAP_PX) * away,
+              ) ?? mark.anchor - fallbackGap * 1.5 * away
+            await addShape(
+              [
+                { time: mark.timeSec, price: tailPrice },
+                { time: mark.timeSec, price: headPrice },
+              ],
+              {
+                shape: 'trend_line',
+                overrides: {
+                  linecolor: color,
+                  linewidth: 1,
+                  linestyle: 0,
+                  leftEnd: 0,
+                  rightEnd: 1,
+                  extendLeft: false,
+                  extendRight: false,
+                },
+              },
+            )
+            await addShape([{ time: mark.timeSec - labelTimeShift(mark.text), price: labelPrice }], {
+              shape: 'text',
+              text: mark.text,
+              overrides: {
+                color: execTextColor(),
+                fontsize: 11,
+                bold: false,
+                italic: false,
+                fillBackground: false,
+                drawBorder: false,
+                fixedSize: true,
+              },
+            })
+          }
+        })()
+        return
+      }
+
+      const boxOverrides = (color: string) => ({
+        color,
+        backgroundColor: color,
+        fillBackground: true,
+        transparency: 78,
+        linewidth: 1,
+        extendLeft: false,
+        extendRight: false,
+      })
+
+      void (async () => {
+        if (reward != null && Number.isFinite(reward) && reward !== range.entryPrice) {
+          await addShape(
+            [
+              { time: entrySec, price: range.entryPrice },
+              { time: exitSec, price: reward },
+            ],
+            { shape: 'rectangle', overrides: boxOverrides('#089981') },
+          )
+        }
+        if (risk != null && Number.isFinite(risk) && risk !== range.entryPrice) {
+          await addShape(
+            [
+              { time: entrySec, price: range.entryPrice },
+              { time: exitSec, price: risk },
+            ],
+            { shape: 'rectangle', overrides: boxOverrides('#f23645') },
+          )
+        }
+        await addShape(
+          [
+            { time: entrySec, price: range.entryPrice },
+            { time: exitSec, price: range.exitPrice },
+          ],
+          {
+            shape: 'trend_line',
+            overrides: {
+              linecolor: range.profit ? '#089981' : '#f23645',
+              linestyle: 2,
+              linewidth: 1,
+              showLabel: false,
+              leftEnd: 0,
+              rightEnd: 0,
+            },
+          },
+        )
+      })()
     },
 
     setBacktestTradeMarkers(trades, opts) {

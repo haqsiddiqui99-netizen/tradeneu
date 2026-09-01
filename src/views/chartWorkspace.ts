@@ -98,9 +98,15 @@ import { createChartTypeMenu } from './chartTypeMenu'
 import { createChartSnapshotMenu, type ChartSnapshotAction } from './chartSnapshotMenu'
 import { createReplayGoToMenu, type ReplayGoToMenuApi } from './replayGoToMenu'
 import { createReplayGoToSettingsDialog, type ReplayGoToSettingsApi } from './replayGoToSettings'
+import { createReplayScalperModeDialog } from './replayScalperModeDialog'
+import {
+  createReplayPlaceOrderDialog,
+  type ReplayPlaceOrderDraft,
+} from './replayPlaceOrderDialog'
 import {
   captureChartSnapshotCanvas,
   chartSnapshotFilename,
+  chartSnapshotPreviewDataUrl,
   copyChartShareLink,
   copyChartSnapshotCanvas,
   downloadChartSnapshotCanvas,
@@ -134,6 +140,14 @@ import {
 import { mountReplayOrderBook } from '../replay/replayOrderBookUi'
 import { mountReplayTradeJournalPanel } from '../replay/replayTradeJournalPanel'
 import { mountPartialCloseDialog } from '../replay/partialCloseDialog'
+import {
+  applyScalperProtection,
+  canUseScalperAutoBreakEven,
+  isScalperModeActive,
+  readScalperModePrefs,
+  type ReplayScalperModePrefs,
+} from '../replay/replayScalperMode'
+import { replayInstrumentSizing } from '../replay/replayInstrumentSizing'
 import { confirmDialog } from './confirmDialog'
 import { showBacktestResultDialog } from './backtestResultDialog'
 import { mountChartPositionOverlay } from '../chart/chartPositionOverlay'
@@ -864,8 +878,8 @@ export function mountChartWorkspace(
                     id="rw-order-qty"
                     class="rw-qty__field"
                     type="number"
-                    min="1"
-                    step="1"
+                    min="0.01"
+                    step="0.01"
                     value="1"
                     placeholder="Quantity"
                     inputmode="numeric"
@@ -923,6 +937,14 @@ export function mountChartWorkspace(
                       .join('')}
                   </div>
                 </div>
+                <button
+                  type="button"
+                  class="rw-scalper-mode-btn"
+                  data-rw-scalper-mode
+                  data-scalper-tooltip="Scalper mode: off"
+                  aria-label="Open Scalper mode settings"
+                  aria-haspopup="dialog"
+                ><span class="rw-scalper-mode-btn__ico" aria-hidden="true"></span></button>
               </div>
               <span class="rw-trade-bar__spacer" aria-hidden="true"></span>
               <div class="rw-trade-stats" data-rw-trade-stats>
@@ -1328,9 +1350,7 @@ export function mountChartWorkspace(
   const ticketSell = host.querySelector('.rw-ticket-sell') as HTMLButtonElement
   const tradeStatsEl = host.querySelector('[data-rw-trade-stats]') as HTMLElement | null
   const btnStatsToggle = host.querySelector('[data-rw-stats-toggle]') as HTMLButtonElement | null
-  const pendingPlaceOverlay = host.querySelector('[data-rw-pending-place]') as HTMLElement | null
-  const pendingPlaceLine = host.querySelector('[data-rw-pending-place-line]') as HTMLElement | null
-  const pendingPlacePrice = host.querySelector('[data-rw-pending-place-price]') as HTMLElement | null
+  const btnScalperMode = host.querySelector('[data-rw-scalper-mode]') as HTMLButtonElement | null
   const sessionPositionEl: HTMLElement | null = null
   const clockEl = host.querySelector('.rw-foot__clock') as HTMLElement | null
   const btnHome = host.querySelector('.rw-top__home') as HTMLButtonElement | null
@@ -2070,7 +2090,7 @@ export function mountChartWorkspace(
 
   function clampOrderQty(n: number): number {
     if (!Number.isFinite(n)) return 1
-    return Math.max(1, Math.min(999_999_999, Math.floor(n)))
+    return Math.max(0.01, Math.min(999_999_999, Math.round(n * 100) / 100))
   }
   /** Parsed field value, or null when empty / invalid (do not coerce empty → 1 for steppers). */
   const readOrderQtyRaw = (): number | null => {
@@ -2094,20 +2114,20 @@ export function mountChartWorkspace(
     if (!qtyInput) return
     const n = readOrderQtyRaw()
     // Empty / 0 / invalid → start at 1 (not 1+1 → 2).
-    if (n === null || n < 1) {
+    if (n === null || n < 0.01) {
       qtyInput.value = '1'
       return
     }
-    qtyInput.value = String(clampOrderQty(n + 1))
+    qtyInput.value = String(clampOrderQty(n + 0.01))
   }
   const onQtyStepDown = () => {
     if (!qtyInput) return
     const n = readOrderQtyRaw()
-    if (n === null || n <= 1) {
-      qtyInput.value = '1'
+    if (n === null || n <= 0.01) {
+      qtyInput.value = '0.01'
       return
     }
-    qtyInput.value = String(clampOrderQty(n - 1))
+    qtyInput.value = String(clampOrderQty(n - 0.01))
   }
   const onQtyChange = () => syncOrderQtyField()
   qtyUp?.addEventListener('click', onQtyStepUp)
@@ -2118,6 +2138,33 @@ export function mountChartWorkspace(
   cleanupFns.push(() => qtyDown?.removeEventListener('click', onQtyStepDown))
   cleanupFns.push(() => qtyInput?.removeEventListener('change', onQtyChange))
   cleanupFns.push(() => qtyInput?.removeEventListener('blur', onQtyChange))
+
+  let scalperPrefs: ReplayScalperModePrefs = readScalperModePrefs()
+  function paintScalperModeButton() {
+    if (!btnScalperMode) return
+    const active = isScalperModeActive(scalperPrefs)
+    btnScalperMode.classList.toggle('rw-scalper-mode-btn--active', active)
+    btnScalperMode.dataset.scalperTooltip = `Scalper mode: ${active ? 'on' : 'off'}`
+    btnScalperMode.setAttribute(
+      'aria-label',
+      `Open Scalper mode settings. Scalper mode is ${active ? 'on' : 'off'}.`,
+    )
+  }
+  const scalperModeDialog = createReplayScalperModeDialog({
+    canUseAutoBreakEven: canUseScalperAutoBreakEven,
+    onSaved: (prefs) => {
+      scalperPrefs = prefs
+      paintScalperModeButton()
+      showReplayToast(`Scalper mode ${isScalperModeActive(prefs) ? 'enabled' : 'disabled'}`)
+    },
+  })
+  const onScalperModeClick = () => scalperModeDialog.open()
+  btnScalperMode?.addEventListener('click', onScalperModeClick)
+  paintScalperModeButton()
+  cleanupFns.push(() => {
+    btnScalperMode?.removeEventListener('click', onScalperModeClick)
+    scalperModeDialog.dispose()
+  })
 
   const onStatsToggle = () => {
     if (!tradeStatsEl || !btnStatsToggle) return
@@ -3770,7 +3817,26 @@ export function mountChartWorkspace(
     intervalPill.textContent = chartTimeframe
     if (replayDockTf) replayDockTf.textContent = chartTimeframe
 
-    const replayAccount = createReplayAccount(initialCash, restoredReplay?.account ?? null)
+    const replayAccount = createReplayAccount(
+      initialCash,
+      restoredReplay?.account ?? null,
+      replayInstrumentSizing(currentChartSymbol),
+    )
+    const applyCurrentScalperProtection = (position: {
+      id: string
+      entryPrice: number
+      direction: 'long' | 'short'
+      stopLoss: number | null
+      takeProfit: number | null
+      pipSize?: number
+    }) =>
+      applyScalperProtection(
+        position,
+        canUseScalperAutoBreakEven()
+          ? scalperPrefs
+          : { ...scalperPrefs, autoBreakEven: false },
+        replayAccount,
+      )
     let positionOverlay: ReturnType<typeof mountChartPositionOverlay> | null = null
     let tickLineOverlay: TickLineOverlayHandle | null = null
     let journalHighlightTrade: number | undefined
@@ -3836,9 +3902,83 @@ export function mountChartWorkspace(
             schedulePersistReplay()
           },
           onJumpToEntry: jumpReplayToTime,
+          onCaptureScreenshot: async () => {
+            const canvas = captureSnapshotOrNotice()
+            if (!canvas) return null
+            const screenshot = chartSnapshotPreviewDataUrl(canvas)
+            if (!screenshot) {
+              showReplayError('Could not capture the chart screenshot.')
+              return null
+            }
+            showReplayNotice('Chart screenshot added to journal.')
+            return screenshot
+          },
         })
       : null
     if (tradeJournal) cleanupFns.push(() => tradeJournal.destroy())
+
+    let highlightedTradeNum: number | null = null
+    let tradeHighlightGen = 0
+
+    const tradeTimeSec = (t: number) => {
+      const n = Number(t)
+      if (!Number.isFinite(n)) return 0
+      return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n)
+    }
+
+    /** Candle a fill landed on — arrow marks hang off its wick, not the fill price. */
+    function tradeBarRangeAt(timeSec: number): { high: number; low: number } | null {
+      const bars = state.replay?.getBars() ?? []
+      if (!bars.length) return null
+      let match: Bar | null = null
+      for (const bar of bars) {
+        if (tradeTimeSec(Number(bar.time)) <= timeSec) match = bar
+        else break
+      }
+      const bar = match ?? bars[0]!
+      const high = Number(bar.high)
+      const low = Number(bar.low)
+      if (!Number.isFinite(high) || !Number.isFinite(low)) return null
+      return { high, low }
+    }
+
+    function applyTradeHighlight(mode: 'drawing' | 'arrows' = 'drawing') {
+      const tv = state.tvChart
+      if (!tv) return
+      if (highlightedTradeNum == null) {
+        tv.setTradeRangeHighlight(null)
+        return
+      }
+      const trade = replayAccount
+        .getClosedTrades()
+        .find((item) => item.tradeNum === highlightedTradeNum)
+      if (!trade) {
+        tv.setTradeRangeHighlight(null)
+        return
+      }
+      tv.setTradeRangeHighlight({
+        direction: trade.direction,
+        entryTime: trade.entryTime,
+        exitTime: trade.exitTime,
+        entryPrice: trade.entryPrice,
+        exitPrice: trade.exitPrice,
+        stopLoss: trade.initialStopLoss ?? null,
+        takeProfit:
+          trade.maxTakeProfit != null && Number.isFinite(trade.maxTakeProfit)
+            ? trade.maxTakeProfit
+            : null,
+        profit: trade.pnl >= 0,
+        mode,
+        formatPrice: formatSessionPrice,
+        entryBar: tradeBarRangeAt(tradeTimeSec(trade.entryTime)),
+        exitBar: tradeBarRangeAt(tradeTimeSec(trade.exitTime)),
+      })
+    }
+
+    cleanupFns.push(() => {
+      tradeHighlightGen += 1
+      highlightedTradeNum = null
+    })
 
     const orderBookEl = host.querySelector('[data-rw-order-book]') as HTMLElement | null
     const orderBook = orderBookEl
@@ -3857,9 +3997,40 @@ export function mountChartWorkspace(
           onJumpToTime: (timeSec) => {
             jumpReplayToTime(timeSec)
           },
+          onHighlightTrade: (tradeNum, mode) => {
+            highlightedTradeNum = tradeNum
+            const gen = ++tradeHighlightGen
+            applyTradeHighlight(mode)
+            if (tradeNum == null) return
+            const trade = replayAccount
+              .getClosedTrades()
+              .find((item) => item.tradeNum === tradeNum)
+            if (!trade) return
+            // Never rescale the chart: keep the current pan/zoom and only slide the window
+            // sideways (same span, so candle width is unchanged) if the trade is off-screen.
+            const entrySec = tradeTimeSec(trade.entryTime)
+            const exitSec = Math.max(tradeTimeSec(trade.exitTime), entrySec + 60)
+            const view = state.tvChart?.captureVisibleRange()
+            if (!view) return
+            if (entrySec >= view.from && exitSec <= view.to) return
+            const span = view.to - view.from
+            if (!Number.isFinite(span) || span <= 0) return
+            const center = (entrySec + exitSec) / 2
+            void state.tvChart
+              ?.restoreVisibleRange({ from: center - span / 2, to: center + span / 2 })
+              .then(() => {
+                if (state.disposed || gen !== tradeHighlightGen) return
+                applyTradeHighlight(mode)
+              })
+          },
           onOpenJournal: (tradeNum) => {
             const trade = replayAccount.getClosedTrades().find((item) => item.tradeNum === tradeNum)
-            if (trade) tradeJournal?.open(trade, formatDisplaySymbol(currentChartSymbol))
+            if (trade) {
+              tradeJournal?.open(
+                trade,
+                `${brokerTag(feedLabel)}:${formatDisplaySymbol(currentChartSymbol)}`,
+              )
+            }
           },
         })
       : null
@@ -4093,12 +4264,23 @@ export function mountChartWorkspace(
           low: b.low,
         })
         if (pending.filled.length) {
+          pending.filled.forEach(applyCurrentScalperProtection)
           accountChanged = true
           showReplayToast(`${pending.filled.length} pending order${pending.filled.length === 1 ? '' : 's'} filled`)
         }
         if (pending.cancelled.length) {
           accountChanged = true
           showReplayToast('Pending order cancelled: insufficient buying power', 'error')
+        }
+        const breakEvenMoved = replayAccount.processBreakEven(Number(b.time), {
+          high: b.high,
+          low: b.low,
+        })
+        if (breakEvenMoved.length) {
+          accountChanged = true
+          showReplayToast(
+            `Auto Break-even moved ${breakEvenMoved.length} Stop Loss${breakEvenMoved.length === 1 ? '' : 'es'} to entry`,
+          )
         }
         const closed = replayAccount.processExits(Number(b.time), mark, bid, ask, {
           high: b.high,
@@ -4124,6 +4306,7 @@ export function mountChartWorkspace(
       renderJournalPanel(mark)
       orderBook?.sync({
         asset: formatDisplaySymbol(currentChartSymbol),
+        provider: brokerTag(feedLabel),
         positions: replayAccount.getPositions(),
         pendingOrders: replayAccount.getPendingOrders(),
         closedTrades: replayAccount.getClosedTrades(),
@@ -5427,6 +5610,56 @@ export function mountChartWorkspace(
       return true
     }
 
+    /**
+     * Bracket levels on a working order are measured against its trigger price, not the
+     * market, so the order keeps a valid stop/target whenever it eventually fills.
+     */
+    function setPendingExitPrice(
+      id: string,
+      kind: 'take_profit' | 'stop_loss',
+      price: number,
+    ): boolean {
+      const order = replayAccount.getPendingOrders().find((item) => item.id === id)
+      if (!order) return false
+      const next = Math.round(price * 1000) / 1000
+      if (!isValidReplayExitPrice(order.direction, kind, next, order.triggerPrice)) {
+        showReplayToast(
+          kind === 'take_profit'
+            ? `Take Profit (TP) must be ${order.direction === 'long' ? 'above' : 'below'} the order entry price.`
+            : `Stop Loss (SL) must be ${order.direction === 'long' ? 'below' : 'above'} the order entry price.`,
+          'error',
+        )
+        return false
+      }
+      const isNew = (kind === 'take_profit' ? order.takeProfit : order.stopLoss) == null
+      const applied =
+        kind === 'take_profit'
+          ? replayAccount.setPendingTakeProfit(id, next)
+          : replayAccount.setPendingStopLoss(id, next)
+      if (!applied) return false
+      schedulePersistReplay()
+      syncTradingUi(lastBar(replay.slice()))
+      showReplayToast(
+        `${kind === 'take_profit' ? 'Take Profit' : 'Stop Loss'} ${isNew ? 'Added' : 'Updated'} @ ${formatSessionPrice(next)}`,
+      )
+      return true
+    }
+
+    function togglePendingExit(id: string, kind: 'take_profit' | 'stop_loss') {
+      const order = replayAccount.getPendingOrders().find((item) => item.id === id)
+      if (!order) return
+      const current = kind === 'take_profit' ? order.takeProfit : order.stopLoss
+      if (current != null) {
+        if (kind === 'take_profit') replayAccount.setPendingTakeProfit(id, null)
+        else replayAccount.setPendingStopLoss(id, null)
+        schedulePersistReplay()
+        syncTradingUi(lastBar(replay.slice()))
+        return
+      }
+      const defaults = defaultTpSl(order.triggerPrice, order.direction)
+      setPendingExitPrice(id, kind, kind === 'take_profit' ? defaults.tp : defaults.sl)
+    }
+
     const positionOverlayHandlers = {
       getPositions: () => replayAccount.getPositions(),
       getPendingOrders: () => replayAccount.getPendingOrders(),
@@ -5470,6 +5703,21 @@ export function mountChartWorkspace(
       },
       onSetTakeProfit: (id: string, price: number) => setPositionExitPrice(id, 'take_profit', price),
       onSetStopLoss: (id: string, price: number) => setPositionExitPrice(id, 'stop_loss', price),
+      onCancelPendingOrder: (id: string) => {
+        const order = replayAccount.getPendingOrders().find((item) => item.id === id)
+        if (!order || !replayAccount.cancelPendingOrder(id)) return
+        schedulePersistReplay()
+        syncTradingUi(lastBar(replay.slice()))
+        showReplayToast(
+          `${order.direction === 'long' ? 'Buy' : 'Sell'} ${order.kind === 'limit' ? 'Limit' : 'Stop'} cancelled`,
+        )
+      },
+      onSetPendingTakeProfit: (id: string, price: number) =>
+        setPendingExitPrice(id, 'take_profit', price),
+      onSetPendingStopLoss: (id: string, price: number) =>
+        setPendingExitPrice(id, 'stop_loss', price),
+      onTogglePendingTakeProfit: (id: string) => togglePendingExit(id, 'take_profit'),
+      onTogglePendingStopLoss: (id: string) => togglePendingExit(id, 'stop_loss'),
     }
 
     if (tvChartMode) {
@@ -8470,28 +8718,72 @@ export function mountChartWorkspace(
     })
     cleanupFns.push(() => replayHandlers.forEach(({ el, fn }) => el.removeEventListener('click', fn)))
 
-    type PendingPlacement = {
-      direction: 'long' | 'short'
-      kind: 'limit' | 'stop'
-      qty: number
-      createdTime: number
-    }
-    let pendingPlacement: PendingPlacement | null = null
+    const placeOrderDialog = createReplayPlaceOrderDialog({
+      onSubmit: (draft: ReplayPlaceOrderDraft) => {
+        const b = lastBar(replay.slice())
+        if (!b || !propTradingAllowed) return false
+        if (
+          !isValidPendingOrderPrice(
+            draft.direction,
+            draft.kind,
+            draft.triggerPrice,
+            b.close,
+          )
+        ) {
+          showReplayToast('Entry price is no longer valid against the current market price.', 'error')
+          return false
+        }
+        const instrument = replayInstrumentSizing(currentChartSymbol)
+        const placed = replayAccount.placePendingOrder({
+          direction: draft.direction,
+          kind: draft.kind,
+          qty: draft.qty,
+          triggerPrice: draft.triggerPrice,
+          currentPrice: b.close,
+          createdTime: Number(b.time),
+          stopLoss: draft.stopLoss,
+          takeProfit: draft.takeProfit,
+          takeProfitTargets: draft.takeProfitTargets,
+          autoBreakEven: draft.autoBreakEven,
+          instrument,
+        })
+        if (!placed) {
+          const required =
+            draft.direction === 'long'
+              ? longOrderCost(
+                  draft.qty,
+                  draft.triggerPrice,
+                  instrument.contractSize,
+                  instrument.marginRate,
+                )
+              : shortOrderMargin(
+                  draft.qty,
+                  draft.triggerPrice,
+                  instrument.contractSize,
+                  instrument.marginRate,
+                )
+          showReplayToast(`Insufficient buying power. Need ${formatMoney(required)}.`, 'error')
+          return false
+        }
+        schedulePersistReplay()
+        syncTradingUi(b)
+        showReplayToast(
+          `${draft.direction === 'long' ? 'Buy' : 'Sell'} ${draft.kind === 'limit' ? 'Limit' : 'Stop'} added @ ${formatSessionPrice(draft.triggerPrice)}`,
+        )
+        if (draft.openPendingTab && orderBook && tradeDockRow && btnTradeDockCollapse) {
+          tradeDockRow.classList.remove('rw-foot__trade-dock-row--collapsed')
+          btnTradeDockCollapse.setAttribute('aria-label', 'Hide positions panel')
+          btnTradeDockCollapse.title = 'Hide positions'
+          btnTradeDockCollapse.setAttribute('aria-expanded', 'true')
+          orderBook.selectTab('pending')
+          resizeChartAfterLayout()
+        }
+        return true
+      },
+    })
+    cleanupFns.push(() => placeOrderDialog.dispose())
 
-    const priceAtHostY = (hostY: number): number | null => {
-      if (tvChartMode) return state.tvChart?.hostYToPrice(hostY, chartHost) ?? null
-      if (!trading) return null
-      const price = trading.getMainSeries().coordinateToPrice(hostY)
-      return price == null ? null : Number(price)
-    }
-
-    const cancelPendingPlacement = () => {
-      pendingPlacement = null
-      if (pendingPlaceOverlay) pendingPlaceOverlay.hidden = true
-      chartHost.classList.remove('rw-chart-host--placing-order')
-    }
-
-    const beginPendingPlacement = (direction: 'long' | 'short') => {
+    const beginPendingOrderDialog = (direction: 'long' | 'short') => {
       if (!propTradingAllowed) {
         showOrderTicketError('Prop challenge is no longer active — reset the account in Journal to start over.')
         return
@@ -8503,100 +8795,20 @@ export function mountChartWorkspace(
       }
       const kind = orderTypeSelect?.value
       if (kind !== 'limit' && kind !== 'stop') return
-      pendingPlacement = {
+      placeOrderDialog.open({
         direction,
         kind,
         qty: readOrderQty(),
-        createdTime: Number(b.time),
-      }
-      if (pendingPlaceOverlay) pendingPlaceOverlay.hidden = false
-      chartHost.classList.add('rw-chart-host--placing-order')
-      showReplayToast(
-        `Click the chart to place ${direction === 'long' ? 'Buy' : 'Sell'} ${kind === 'limit' ? 'Limit' : 'Stop'}`,
-      )
-    }
-
-    const pendingPlaceY = (event: PointerEvent): number => {
-      const rect = chartHost.getBoundingClientRect()
-      return Math.max(0, Math.min(rect.height, event.clientY - rect.top))
-    }
-
-    const onPendingPlaceMove = (event: PointerEvent) => {
-      if (!pendingPlacement || !pendingPlaceLine) return
-      const y = pendingPlaceY(event)
-      const price = priceAtHostY(y)
-      pendingPlaceLine.style.top = `${y}px`
-      if (pendingPlacePrice) {
-        pendingPlacePrice.textContent =
-          price != null && Number.isFinite(price) ? formatSessionPrice(price) : '—'
-      }
-    }
-
-    const onPendingPlaceClick = (event: PointerEvent) => {
-      const placement = pendingPlacement
-      if (!placement) return
-      event.preventDefault()
-      event.stopPropagation()
-      const priceRaw = priceAtHostY(pendingPlaceY(event))
-      const b = lastBar(replay.slice())
-      if (priceRaw == null || !Number.isFinite(priceRaw) || !b) {
-        showReplayToast('Select a valid price inside the chart area.', 'error')
-        return
-      }
-      const price = Math.round(priceRaw * 1000) / 1000
-      const current = b.close
-      if (!isValidPendingOrderPrice(placement.direction, placement.kind, price, current)) {
-        const side = placement.direction === 'long' ? 'Buy' : 'Sell'
-        const relation =
-          placement.direction === 'long'
-            ? placement.kind === 'limit'
-              ? 'below'
-              : 'above'
-            : placement.kind === 'limit'
-              ? 'above'
-              : 'below'
-        showReplayToast(`${side} ${placement.kind} price must be ${relation} current price.`, 'error')
-        return
-      }
-      const placed = replayAccount.placePendingOrder({
-        ...placement,
-        triggerPrice: price,
-        currentPrice: current,
+        currentPrice: b.close,
+        equity: replayAccount.summary(b.close, bidAskFromBar(b)).equity,
+        initialBalance: initialCash,
+        sizing: replayInstrumentSizing(currentChartSymbol),
+        canUseAutoBreakEven: canUseScalperAutoBreakEven(),
       })
-      if (!placed) {
-        const required =
-          placement.direction === 'long'
-            ? longOrderCost(placement.qty, price)
-            : shortOrderMargin(placement.qty, price)
-        showReplayToast(`Insufficient buying power. Need ${formatMoney(required)}.`, 'error')
-        return
-      }
-      cancelPendingPlacement()
-      schedulePersistReplay()
-      syncTradingUi(b)
-      showReplayToast(
-        `${placement.direction === 'long' ? 'Buy' : 'Sell'} ${placement.kind === 'limit' ? 'Limit' : 'Stop'} added @ ${formatSessionPrice(price)}`,
-      )
     }
-
-    pendingPlaceOverlay?.addEventListener('pointermove', onPendingPlaceMove)
-    pendingPlaceOverlay?.addEventListener('pointerdown', onPendingPlaceClick)
-    const onOrderTypeChange = () => cancelPendingPlacement()
-    orderTypeSelect?.addEventListener('change', onOrderTypeChange)
-    cleanupFns.push(() => {
-      pendingPlaceOverlay?.removeEventListener('pointermove', onPendingPlaceMove)
-      pendingPlaceOverlay?.removeEventListener('pointerdown', onPendingPlaceClick)
-      orderTypeSelect?.removeEventListener('change', onOrderTypeChange)
-      cancelPendingPlacement()
-    })
 
     const onReplayKeydown = (e: KeyboardEvent) => {
       if (state.disposed) return
-      if (pendingPlacement && e.code === 'Escape') {
-        e.preventDefault()
-        cancelPendingPlacement()
-        return
-      }
       if (selectBarChartActive) {
         if (e.code === 'Escape') {
           e.preventDefault()
@@ -8654,7 +8866,7 @@ export function mountChartWorkspace(
 
     const onBuy = () => {
       if (orderTypeSelect?.value === 'limit' || orderTypeSelect?.value === 'stop') {
-        beginPendingPlacement('long')
+        beginPendingOrderDialog('long')
         return
       }
       if (!propTradingAllowed) {
@@ -8668,16 +8880,18 @@ export function mountChartWorkspace(
       }
       const fill = entryFillPrice(b)
       const qty = readOrderQty()
+      const instrument = replayInstrumentSizing(currentChartSymbol)
       if (qtyInput && !qtyInput.value.trim()) qtyInput.value = String(qty)
-      const cost = longOrderCost(qty, fill)
+      const cost = longOrderCost(qty, fill, instrument.contractSize, instrument.marginRate)
       const { cash } = replayAccount.summary(fill)
-      const opened = replayAccount.openLong(qty, fill, Number(b.time))
+      const opened = replayAccount.openLong(qty, fill, Number(b.time), { instrument })
       if (!opened) {
         showOrderTicketError(
           `Insufficient cash for long order. Need ${formatMoney(cost)} (${qty} × ${formatSessionPrice(fill)}), available ${formatMoney(cash)}.`,
         )
         return
       }
+      applyCurrentScalperProtection(opened)
       schedulePersistReplay()
       syncTradingUi(b)
       // Re-layout after TV price scale settles so the entry line locks to the candle.
@@ -8687,7 +8901,7 @@ export function mountChartWorkspace(
     }
     const onSell = () => {
       if (orderTypeSelect?.value === 'limit' || orderTypeSelect?.value === 'stop') {
-        beginPendingPlacement('short')
+        beginPendingOrderDialog('short')
         return
       }
       if (!propTradingAllowed) {
@@ -8701,16 +8915,18 @@ export function mountChartWorkspace(
       }
       const fill = entryFillPrice(b)
       const qty = readOrderQty()
+      const instrument = replayInstrumentSizing(currentChartSymbol)
       if (qtyInput && !qtyInput.value.trim()) qtyInput.value = String(qty)
-      const margin = shortOrderMargin(qty, fill)
+      const margin = shortOrderMargin(qty, fill, instrument.contractSize, instrument.marginRate)
       const { cash } = replayAccount.summary(fill)
-      const opened = replayAccount.openShort(qty, fill, Number(b.time))
+      const opened = replayAccount.openShort(qty, fill, Number(b.time), { instrument })
       if (!opened) {
         showOrderTicketError(
           `Insufficient margin for short order. Need ${formatMoney(margin)} (5% of ${qty} × ${formatSessionPrice(fill)}), available ${formatMoney(cash)}.`,
         )
         return
       }
+      applyCurrentScalperProtection(opened)
       schedulePersistReplay()
       syncTradingUi(b)
       requestAnimationFrame(() => {

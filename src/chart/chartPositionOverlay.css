@@ -10,8 +10,9 @@
 /* Overlay parts set `display` on their class, so [hidden] needs to win explicitly. */
 .rw-pos-row[hidden],
 .rw-pos-row__tools[hidden],
-.rw-pos-row__sep[hidden],
+.rw-pos-row__badge[hidden],
 .rw-pos-chip[hidden],
+.rw-pos-pending-chip[hidden],
 .rw-pos-dragline[hidden],
 .rw-pos-hline[hidden],
 .rw-pos-preview[hidden],
@@ -34,16 +35,181 @@
   color: #f7931a;
 }
 
+.rw-pos-pending-line--sl {
+  border-top-color: #f23645;
+  color: #f23645;
+}
+
+.rw-pos-pending-line--tp {
+  border-top-color: #089981;
+  color: #089981;
+}
+
 .rw-pos-pending-line > span {
   position: absolute;
   right: 2px;
   top: -24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 3px 7px;
   border: 1px solid currentColor;
   border-radius: 4px;
   background: #ffffff;
   font: 700 10px/16px var(--rw-font, sans-serif);
   white-space: nowrap;
+}
+
+/* The line owns pointer-events: none, so re-enable them just for the remove control. */
+.rw-pos-pending-line__clear {
+  padding: 0 1px;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: inherit;
+  font: 400 13px/1 var(--rw-font, sans-serif);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.1s ease;
+}
+
+.rw-pos-pending-line__clear:hover {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  color: inherit;
+}
+
+/* Working-order ticket: separate TP / SL boxes, then the order badge with qty + cancel. */
+.rw-pos-pending-line--ticket > .rw-pos-pending-ticket {
+  position: absolute;
+  right: 2px;
+  top: 0;
+  display: inline-flex;
+  align-items: stretch;
+  gap: 5px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  transform: translateY(-50%);
+  pointer-events: auto;
+}
+
+/* Transparent cards: the dashed entry line reads straight through the ticket. */
+.rw-pos-pending-chip,
+.rw-pos-pending-badge {
+  display: inline-flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: transparent;
+}
+
+/* Drag handle: drop the chip on a price to attach that level to the working order. */
+.rw-pos-pending-chip {
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px 0 5px;
+  appearance: none;
+  font: 700 10px/1 var(--rw-font, sans-serif);
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  touch-action: none;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+
+.rw-pos-pending-chip:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+/* Both levels placed: only the order badge remains, so drop the leading gap. */
+.rw-pos-pending-ticket--bare {
+  gap: 0;
+}
+
+.rw-pos-pending-ticket--bare .rw-pos-pending-badge {
+  margin-left: 0;
+}
+
+.rw-pos-pending-chip--tp {
+  color: #089981;
+}
+
+.rw-pos-pending-chip--sl {
+  color: #f7931a;
+}
+
+/* Exactly four dots: 4 × 2px marks separated by 3 × 2px gaps. */
+.rw-pos-grip4 {
+  flex: 0 0 auto;
+  width: 2px;
+  height: 14px;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    currentColor 0 2px,
+    transparent 2px 4px
+  );
+}
+
+.rw-pos-pending-badge {
+  align-items: center;
+  gap: 0;
+  /* Wider separation from the TP/SL pair, matching the order ticket layout. */
+  margin-left: 12px;
+  padding-left: 5px;
+  color: inherit;
+}
+
+.rw-pos-pending-badge > span,
+.rw-pos-pending-badge > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 100%;
+  white-space: nowrap;
+}
+
+.rw-pos-pending-badge__label {
+  padding: 0 7px;
+  color: inherit;
+  font: 700 11px/1 var(--rw-font, sans-serif);
+  font-variant-numeric: tabular-nums;
+}
+
+/* `currentColor` cannot fill this box: the white digits would reset it, so key off the kind. */
+.rw-pos-pending-badge__qty {
+  min-width: 22px;
+  padding: 0 7px;
+  background: #2962ff;
+  color: #fff;
+  font: 700 11px/1 var(--rw-font, sans-serif);
+  font-variant-numeric: tabular-nums;
+}
+
+.rw-pos-pending-line--stop .rw-pos-pending-badge__qty {
+  background: #f7931a;
+}
+
+.rw-pos-pending-badge__close {
+  width: 22px;
+  padding: 0;
+  border: none;
+  border-left: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: 400 14px/1 var(--rw-font, sans-serif);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.rw-pos-pending-badge__close:hover {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  color: inherit;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-pos-pending-line > span {
@@ -324,6 +490,27 @@
   height: 26px;
 }
 
+/* Order ticket: TP / SL are standalone cards, the P&L pill carries its own frame. */
+.rw-pos-row--order {
+  gap: 5px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.rw-pos-row__badge {
+  display: inline-flex;
+  align-items: stretch;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(19, 23, 34, 0.12);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(19, 23, 34, 0.16);
+}
+
 .rw-pos-row__tools {
   display: inline-flex;
   align-items: center;
@@ -333,11 +520,11 @@
   border-right: 1px solid rgba(19, 23, 34, 0.1);
 }
 
-.rw-pos-row__sep {
-  width: 0;
-  height: 14px;
-  border-left: 1px dashed rgba(19, 23, 34, 0.28);
-  margin: 0 1px;
+.rw-pos-row--order .rw-pos-row__tools {
+  gap: 5px;
+  padding: 0;
+  border-right: 0;
+  background: transparent;
 }
 
 .rw-pos-chip {
@@ -354,6 +541,16 @@
   cursor: pointer;
   touch-action: none;
   transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.rw-pos-row--order .rw-pos-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-sizing: border-box;
+  padding: 0 8px 0 5px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
 }
 
 .rw-pos-chip--dragging {
@@ -676,6 +873,16 @@
   border-right-color: rgba(255, 255, 255, 0.12);
 }
 
+.rw-root[data-chart-theme='dark'] .rw-pos-row--order,
+.rw-root[data-chart-theme='dark'] .rw-pos-row--order .rw-pos-row__tools {
+  background: transparent;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-pos-row__badge {
+  background: #1e222d;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
 .rw-root[data-chart-theme='dark'] .rw-pos-row--exit {
   border-color: var(--rw-pos-exit-color, #089981);
 }
@@ -686,10 +893,6 @@
 
 .rw-root[data-chart-theme='dark'] .rw-pos-close--exit {
   background: #1e222d;
-}
-
-.rw-root[data-chart-theme='dark'] .rw-pos-row__sep {
-  border-left-color: rgba(255, 255, 255, 0.28);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-pos-close {

@@ -4,6 +4,13 @@ export type ReplayExitReason = 'manual' | 'take_profit' | 'stop_loss'
 
 export type PendingOrderKind = 'limit' | 'stop'
 
+export type TakeProfitTarget = {
+  id: string
+  price: number
+  percent: number
+  filled?: boolean
+}
+
 export type OpenPosition = {
   id: string
   direction: PositionDirection
@@ -14,8 +21,22 @@ export type OpenPosition = {
   entryTime: number
   takeProfit: number | null
   stopLoss: number | null
+  takeProfitTargets?: TakeProfitTarget[]
   initialStopLoss?: number | null
+  breakEvenTime?: number | null
+  /**
+   * Bar the level was placed on. The wick of that bar has already printed, so it must
+   * not stop out / take profit a level the trader only just dragged into it.
+   */
+  stopLossSetTime?: number | null
+  takeProfitSetTime?: number | null
   maxTakeProfit?: number
+  contractSize?: number
+  pipSize?: number
+  marginRate?: number
+  remainingMargin?: number
+  marginAccounting?: boolean
+  autoBreakEven?: boolean
 }
 
 export type PendingOrder = {
@@ -25,13 +46,101 @@ export type PendingOrder = {
   qty: number
   triggerPrice: number
   createdTime: number
+  stopLoss?: number | null
+  takeProfit?: number | null
+  takeProfitTargets?: TakeProfitTarget[]
+  contractSize?: number
+  pipSize?: number
+  marginRate?: number
+  autoBreakEven?: boolean
+}
+
+export type ReplayJournalScreenshotAlign = 'left' | 'center' | 'right'
+
+export type ReplayJournalScreenshot = {
+  src: string
+  caption: string
+  align: ReplayJournalScreenshotAlign
+  showCaption: boolean
+}
+
+export type ReplayJournalBlockType =
+  | 'paragraph'
+  | 'heading'
+  | 'quote'
+  | 'toggle'
+  | 'numbered-list'
+  | 'bullet-list'
+  | 'check-list'
+  | 'code'
+  | 'divider'
+  | 'table'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'file'
+
+export type ReplayJournalBlock = {
+  id: string
+  type: ReplayJournalBlockType
+  text?: string
+  level?: number
+  checked?: boolean
+  open?: boolean
+  rows?: string[][]
+  src?: string
+  name?: string
+  caption?: string
 }
 
 export type ReplayTradeJournal = {
   notes: string
   rating: string
   tags: string[]
+  screenshots?: Array<string | ReplayJournalScreenshot>
+  blocks?: ReplayJournalBlock[]
   updatedAt: number
+}
+
+export function normalizeJournalScreenshots(
+  list?: Array<string | ReplayJournalScreenshot>,
+): ReplayJournalScreenshot[] {
+  return (list ?? []).flatMap((item) => {
+    if (typeof item === 'string') {
+      return item ? [{ src: item, caption: '', align: 'left' as const, showCaption: true }] : []
+    }
+    if (!item?.src) return []
+    return [
+      {
+        src: item.src,
+        caption: item.caption ?? '',
+        align: item.align === 'center' || item.align === 'right' ? item.align : 'left',
+        showCaption: item.showCaption !== false,
+      },
+    ]
+  })
+}
+
+export function normalizeJournalBlocks(list?: ReplayJournalBlock[]): ReplayJournalBlock[] {
+  if (!Array.isArray(list)) return []
+  return list.flatMap((block) => {
+    if (!block?.id || !block.type) return []
+    const normalized: ReplayJournalBlock = {
+      ...block,
+      id: String(block.id),
+      text: typeof block.text === 'string' ? block.text : '',
+    }
+    if (block.type === 'table') {
+      const rows = Array.isArray(block.rows)
+        ? block.rows
+            .filter(Array.isArray)
+            .map((row) => row.map((cell) => String(cell ?? '')))
+            .filter((row) => row.length)
+        : []
+      normalized.rows = rows.length ? rows : [['', ''], ['', '']]
+    }
+    return [normalized]
+  })
 }
 
 export type ClosedReplayTrade = {
@@ -74,6 +183,14 @@ export type ReplayAccountPersisted = {
   nextPendingId?: number
 }
 
+export type OpenPositionSetup = {
+  stopLoss?: number | null
+  takeProfit?: number | null
+  takeProfitTargets?: TakeProfitTarget[]
+  instrument?: { contractSize: number; pipSize: number; marginRate: number }
+  autoBreakEven?: boolean
+}
+
 function defaultTpSl(entry: number, direction: PositionDirection): { tp: number; sl: number } {
   const tpPct = 0.001
   const slPct = 0.0005
@@ -112,8 +229,9 @@ export function isValidPendingOrderPrice(
 }
 
 export function positionUnrealized(pos: OpenPosition, markPrice: number): number {
-  if (pos.direction === 'long') return (markPrice - pos.entryPrice) * pos.qty
-  return (pos.entryPrice - markPrice) * pos.qty
+  const multiplier = pos.contractSize ?? 1
+  if (pos.direction === 'long') return (markPrice - pos.entryPrice) * pos.qty * multiplier
+  return (pos.entryPrice - markPrice) * pos.qty * multiplier
 }
 
 /**
@@ -131,23 +249,41 @@ export function positionMarkPrice(
 
 export function positionPoints(pos: OpenPosition, markPrice: number): number {
   const raw = pos.direction === 'long' ? markPrice - pos.entryPrice : pos.entryPrice - markPrice
-  return Math.round(raw * 1000)
+  const pipSize = pos.pipSize ?? 0.001
+  return Math.round(raw / pipSize)
 }
 
-export function longOrderCost(qty: number, ask: number): number {
-  const q = Math.max(1, Math.floor(qty))
-  return q * ask
+export function longOrderCost(
+  qty: number,
+  ask: number,
+  contractSize = 1,
+  marginRate = 1,
+): number {
+  const q = normalizeReplayQty(qty)
+  return q * ask * contractSize * marginRate
 }
 
-export function shortOrderMargin(qty: number, bid: number): number {
-  const q = Math.max(1, Math.floor(qty))
-  return q * bid * 0.05
+export function shortOrderMargin(
+  qty: number,
+  bid: number,
+  contractSize = 1,
+  marginRate = 0.05,
+): number {
+  const q = normalizeReplayQty(qty)
+  return q * bid * contractSize * marginRate
+}
+
+export function normalizeReplayQty(qty: number): number {
+  if (!Number.isFinite(qty)) return 0.01
+  return Math.max(0.01, Math.round(qty * 100) / 100)
 }
 
 function clonePositions(list: OpenPosition[]): OpenPosition[] {
   return list.map((p) => ({
     ...p,
+    takeProfitTargets: (p.takeProfitTargets ?? []).map((target) => ({ ...target })),
     initialStopLoss: p.initialStopLoss ?? null,
+    breakEvenTime: Number.isFinite(p.breakEvenTime) ? p.breakEvenTime : null,
     maxTakeProfit: Number.isFinite(p.maxTakeProfit) ? p.maxTakeProfit : p.entryPrice,
     initialQty: Number.isFinite(p.initialQty) ? p.initialQty : p.qty,
     realizedPnL: Number.isFinite(p.realizedPnL) ? p.realizedPnL : 0,
@@ -157,18 +293,39 @@ function clonePositions(list: OpenPosition[]): OpenPosition[] {
 function cloneClosedTrades(list: ClosedReplayTrade[]): ClosedReplayTrade[] {
   return list.map((trade) => ({
     ...trade,
-    journal: trade.journal ? { ...trade.journal, tags: [...trade.journal.tags] } : undefined,
+    journal: trade.journal
+      ? {
+          ...trade.journal,
+          tags: [...trade.journal.tags],
+          screenshots: normalizeJournalScreenshots(trade.journal.screenshots),
+          blocks: normalizeJournalBlocks(trade.journal.blocks),
+        }
+      : undefined,
   }))
 }
 
-export function createReplayAccount(initialCash: number, restored?: ReplayAccountPersisted | null) {
+function clonePendingOrders(list: PendingOrder[]): PendingOrder[] {
+  return list.map((order) => ({
+    ...order,
+    takeProfitTargets: (order.takeProfitTargets ?? []).map((target) => ({ ...target })),
+  }))
+}
+
+export function createReplayAccount(
+  initialCash: number,
+  restored?: ReplayAccountPersisted | null,
+  instrument?: { contractSize: number; pipSize: number; marginRate: number },
+) {
+  const defaultInstrument = instrument ?? { contractSize: 1, pipSize: 0.001, marginRate: 0.05 }
   let cash = restored?.cash ?? initialCash
   let realizedPnL = restored?.realizedPnL ?? 0
   const positions: OpenPosition[] = clonePositions(restored?.positions ?? [])
   const closedTrades: ClosedReplayTrade[] = cloneClosedTrades(restored?.closedTrades ?? [])
-  const pendingOrders: PendingOrder[] = (restored?.pendingOrders ?? []).map((order) => ({ ...order }))
+  const pendingOrders: PendingOrder[] = clonePendingOrders(restored?.pendingOrders ?? [])
   let nextId = restored?.nextId ?? 1
   let nextPendingId = restored?.nextPendingId ?? 1
+  /** Last bar the replay clock reported — stamps levels set between bars. */
+  let lastBarTime = 0
 
   function getPositions(): OpenPosition[] {
     return clonePositions(positions)
@@ -179,7 +336,7 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
   }
 
   function getPendingOrders(): PendingOrder[] {
-    return pendingOrders.map((order) => ({ ...order }))
+    return clonePendingOrders(pendingOrders)
   }
 
   function getPersisted(): ReplayAccountPersisted {
@@ -209,6 +366,11 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
       const mark = bidAsk ? positionMarkPrice(p.direction, bidAsk.bid, bidAsk.ask) : markPrice
       return a + positionUnrealized(p, mark)
     }, 0)
+    const reservedMargin = positions.reduce(
+      (sum, position) =>
+        sum + (position.marginAccounting ? Math.max(0, position.remainingMargin ?? 0) : 0),
+      0,
+    )
     return {
       cash,
       realizedPnL,
@@ -216,13 +378,25 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
       closedTrades: getClosedTrades(),
       pendingOrders: getPendingOrders(),
       unrealizedPnL,
-      equity: cash + unrealizedPnL,
+      equity: cash + reservedMargin + unrealizedPnL,
     }
   }
 
-  function openLong(qty: number, ask: number, time: number): OpenPosition | null {
-    const q = Math.max(1, Math.floor(qty))
-    const cost = q * ask
+  function openLong(
+    qty: number,
+    ask: number,
+    time: number,
+    setup: OpenPositionSetup = {},
+  ): OpenPosition | null {
+    const q = normalizeReplayQty(qty)
+    const sizing = setup.instrument ?? defaultInstrument
+    const marginAccounting = instrument != null || setup.instrument != null
+    const cost = longOrderCost(
+      q,
+      ask,
+      sizing.contractSize,
+      marginAccounting ? sizing.marginRate : 1,
+    )
     if (cost > cash) return null
     const pos: OpenPosition = {
       id: String(nextId++),
@@ -232,19 +406,37 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
       realizedPnL: 0,
       entryPrice: ask,
       entryTime: time,
-      takeProfit: null,
-      stopLoss: null,
-      initialStopLoss: null,
+      takeProfit: setup.takeProfit ?? null,
+      stopLoss: setup.stopLoss ?? null,
+      takeProfitTargets: (setup.takeProfitTargets ?? []).map((target) => ({ ...target })),
+      initialStopLoss: setup.stopLoss ?? null,
+      breakEvenTime: null,
+      stopLossSetTime: setup.stopLoss != null ? time : null,
+      takeProfitSetTime:
+        setup.takeProfit != null || (setup.takeProfitTargets?.length ?? 0) > 0 ? time : null,
       maxTakeProfit: ask,
+      contractSize: sizing.contractSize,
+      pipSize: sizing.pipSize,
+      marginRate: sizing.marginRate,
+      remainingMargin: cost,
+      marginAccounting,
+      autoBreakEven: setup.autoBreakEven === true,
     }
     cash -= cost
     positions.push(pos)
     return pos
   }
 
-  function openShort(qty: number, bid: number, time: number): OpenPosition | null {
-    const q = Math.max(1, Math.floor(qty))
-    const margin = q * bid * 0.05
+  function openShort(
+    qty: number,
+    bid: number,
+    time: number,
+    setup: OpenPositionSetup = {},
+  ): OpenPosition | null {
+    const q = normalizeReplayQty(qty)
+    const sizing = setup.instrument ?? defaultInstrument
+    const marginAccounting = instrument != null || setup.instrument != null
+    const margin = shortOrderMargin(q, bid, sizing.contractSize, sizing.marginRate)
     if (margin > cash) return null
     const pos: OpenPosition = {
       id: String(nextId++),
@@ -254,13 +446,27 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
       realizedPnL: 0,
       entryPrice: bid,
       entryTime: time,
-      takeProfit: null,
-      stopLoss: null,
-      initialStopLoss: null,
+      takeProfit: setup.takeProfit ?? null,
+      stopLoss: setup.stopLoss ?? null,
+      takeProfitTargets: (setup.takeProfitTargets ?? []).map((target) => ({ ...target })),
+      initialStopLoss: setup.stopLoss ?? null,
+      breakEvenTime: null,
+      stopLossSetTime: setup.stopLoss != null ? time : null,
+      takeProfitSetTime:
+        setup.takeProfit != null || (setup.takeProfitTargets?.length ?? 0) > 0 ? time : null,
       maxTakeProfit: bid,
+      contractSize: sizing.contractSize,
+      pipSize: sizing.pipSize,
+      marginRate: sizing.marginRate,
+      remainingMargin: margin,
+      marginAccounting,
+      autoBreakEven: setup.autoBreakEven === true,
     }
-    cash += q * bid
-    cash -= margin
+    if (marginAccounting) cash -= margin
+    else {
+      cash += q * bid
+      cash -= margin
+    }
     positions.push(pos)
     return pos
   }
@@ -286,11 +492,17 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
     const pos = positions[idx]!
     const qty = Math.min(pos.qty, Math.max(0, closeQty))
     if (!(qty > 0) || !Number.isFinite(qty)) return null
+    const multiplier = pos.contractSize ?? 1
     const pnl =
       pos.direction === 'long'
-        ? (exitPrice - pos.entryPrice) * qty
-        : (pos.entryPrice - exitPrice) * qty
-    if (pos.direction === 'long') {
+        ? (exitPrice - pos.entryPrice) * qty * multiplier
+        : (pos.entryPrice - exitPrice) * qty * multiplier
+    if (pos.marginAccounting) {
+      const marginBefore = Math.max(0, pos.remainingMargin ?? 0)
+      const marginRelease = pos.qty > 0 ? marginBefore * (qty / pos.qty) : marginBefore
+      cash += marginRelease + pnl
+      pos.remainingMargin = Math.max(0, marginBefore - marginRelease)
+    } else if (pos.direction === 'long') {
       cash += qty * exitPrice
     } else {
       cash -= qty * exitPrice
@@ -321,7 +533,10 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
 
   function setTakeProfit(id: string, tp: number | null) {
     const pos = positions.find((p) => p.id === id)
-    if (pos) pos.takeProfit = tp
+    if (!pos) return
+    pos.takeProfit = tp
+    pos.takeProfitTargets = []
+    pos.takeProfitSetTime = tp == null ? null : Math.max(lastBarTime, pos.entryTime)
   }
 
   function setStopLoss(id: string, sl: number | null) {
@@ -329,6 +544,29 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
     if (!pos) return
     pos.stopLoss = sl
     if (sl != null && pos.initialStopLoss == null) pos.initialStopLoss = sl
+    pos.stopLossSetTime = sl == null ? null : Math.max(lastBarTime, pos.entryTime)
+  }
+
+  function setAutoBreakEven(id: string, enabled: boolean) {
+    const pos = positions.find((p) => p.id === id)
+    if (pos) pos.autoBreakEven = enabled
+  }
+
+  /** Attach or clear the bracket levels a working order carries into its fill. */
+  function setPendingTakeProfit(id: string, tp: number | null): boolean {
+    const order = pendingOrders.find((item) => item.id === id)
+    if (!order) return false
+    order.takeProfit = tp
+    order.takeProfitTargets = []
+    return true
+  }
+
+  function setPendingStopLoss(id: string, sl: number | null): boolean {
+    const order = pendingOrders.find((item) => item.id === id)
+    if (!order) return false
+    order.stopLoss = sl
+    if (sl == null) order.autoBreakEven = false
+    return true
   }
 
   function updateTradeJournal(tradeNum: number, journal: ReplayTradeJournal): boolean {
@@ -338,6 +576,8 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
       notes: journal.notes,
       rating: journal.rating,
       tags: [...journal.tags],
+      screenshots: normalizeJournalScreenshots(journal.screenshots),
+      blocks: normalizeJournalBlocks(journal.blocks),
       updatedAt: journal.updatedAt,
     }
     return true
@@ -369,15 +609,31 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
     triggerPrice: number
     currentPrice: number
     createdTime: number
+    stopLoss?: number | null
+    takeProfit?: number | null
+    takeProfitTargets?: TakeProfitTarget[]
+    instrument?: { contractSize: number; pipSize: number; marginRate: number }
+    autoBreakEven?: boolean
   }): PendingOrder | null {
-    const qty = Math.max(1, Math.floor(input.qty))
+    const qty = normalizeReplayQty(input.qty)
+    const orderInstrument = input.instrument ?? defaultInstrument
     if (!isValidPendingOrderPrice(input.direction, input.kind, input.triggerPrice, input.currentPrice)) {
       return null
     }
     const required =
       input.direction === 'long'
-        ? longOrderCost(qty, input.triggerPrice)
-        : shortOrderMargin(qty, input.triggerPrice)
+        ? longOrderCost(
+            qty,
+            input.triggerPrice,
+            orderInstrument.contractSize,
+            instrument || input.instrument ? orderInstrument.marginRate : 1,
+          )
+        : shortOrderMargin(
+            qty,
+            input.triggerPrice,
+            orderInstrument.contractSize,
+            orderInstrument.marginRate,
+          )
     if (required > cash) return null
     const order: PendingOrder = {
       id: `pending-${nextPendingId++}`,
@@ -386,6 +642,13 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
       qty,
       triggerPrice: input.triggerPrice,
       createdTime: input.createdTime,
+      stopLoss: input.stopLoss ?? null,
+      takeProfit: input.takeProfit ?? null,
+      takeProfitTargets: (input.takeProfitTargets ?? []).map((target) => ({ ...target })),
+      contractSize: orderInstrument.contractSize,
+      pipSize: orderInstrument.pipSize,
+      marginRate: orderInstrument.marginRate,
+      autoBreakEven: input.autoBreakEven === true,
     }
     pendingOrders.push(order)
     return { ...order }
@@ -403,6 +666,7 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
     markPrice: number,
     range?: { high: number; low: number },
   ): { filled: OpenPosition[]; cancelled: PendingOrder[] } {
+    if (Number.isFinite(barTime)) lastBarTime = barTime
     const high = Number.isFinite(range?.high) ? range!.high : markPrice
     const low = Number.isFinite(range?.low) ? range!.low : markPrice
     const filled: OpenPosition[] = []
@@ -418,10 +682,24 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
             ? high >= order.triggerPrice
             : low <= order.triggerPrice
       if (!touched) continue
+      const setup: OpenPositionSetup = {
+        stopLoss: order.stopLoss ?? null,
+        takeProfit: order.takeProfit ?? null,
+        takeProfitTargets: order.takeProfitTargets ?? [],
+        autoBreakEven: order.autoBreakEven === true,
+        instrument:
+          instrument != null || order.contractSize != null
+            ? {
+                contractSize: order.contractSize ?? defaultInstrument.contractSize,
+                pipSize: order.pipSize ?? defaultInstrument.pipSize,
+                marginRate: order.marginRate ?? defaultInstrument.marginRate,
+              }
+            : undefined,
+      }
       const pos =
         order.direction === 'long'
-          ? openLong(order.qty, order.triggerPrice, barTime)
-          : openShort(order.qty, order.triggerPrice, barTime)
+          ? openLong(order.qty, order.triggerPrice, barTime, setup)
+          : openShort(order.qty, order.triggerPrice, barTime, setup)
       cancelPendingOrder(order.id)
       if (pos) filled.push(pos)
       else cancelled.push(order)
@@ -429,42 +707,131 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
     return { filled, cancelled }
   }
 
+  /**
+   * Move eligible stops to entry once price reaches 1R. If the same OHLC bar also
+   * touches the original stop, leave it unchanged so the existing SL-first rule
+   * remains deterministic.
+   */
+  function processBreakEven(
+    barTime: number,
+    range: { high: number; low: number },
+  ): string[] {
+    if (Number.isFinite(barTime)) lastBarTime = barTime
+    if (!Number.isFinite(range.high) || !Number.isFinite(range.low)) return []
+    const moved: string[] = []
+    for (const pos of positions) {
+      if (barTime < pos.entryTime) continue
+      if (!pos.autoBreakEven) continue
+      const initialStop = pos.initialStopLoss
+      const currentStop = pos.stopLoss
+      if (initialStop == null || currentStop == null || currentStop === pos.entryPrice) continue
+      const risk = Math.abs(pos.entryPrice - initialStop)
+      if (!(risk > 0)) continue
+
+      const stopTouched =
+        pos.direction === 'long' ? range.low <= currentStop : range.high >= currentStop
+      if (stopTouched) continue
+      const trigger =
+        pos.direction === 'long' ? pos.entryPrice + risk : pos.entryPrice - risk
+      const reached = pos.direction === 'long' ? range.high >= trigger : range.low <= trigger
+      if (!reached) continue
+      pos.stopLoss = pos.entryPrice
+      pos.breakEvenTime = barTime
+      moved.push(pos.id)
+    }
+    return moved
+  }
+
   /** Auto-close when a bar's wick (high/low) or close tags TP/SL. Same-bar both: SL wins. */
   function processExits(
     barTime: number,
     markPrice: number,
-    bid: number,
-    ask: number,
+    _bid: number,
+    _ask: number,
     range?: { high: number; low: number },
   ): ClosedReplayTrade[] {
+    if (Number.isFinite(barTime)) lastBarTime = barTime
     const high = Number.isFinite(range?.high) ? range!.high : markPrice
     const low = Number.isFinite(range?.low) ? range!.low : markPrice
     const closed: ClosedReplayTrade[] = []
     for (let i = positions.length - 1; i >= 0; i--) {
       const pos = positions[i]!
       if (barTime < pos.entryTime) continue
-      let hit: 'tp' | 'sl' | null = null
-      let fill = pos.direction === 'long' ? bid : ask
+      // A level placed on this bar only reacts to price from here on: the bar's wick is
+      // already history, so it must not retroactively hit a stop the trader just dragged.
+      const slFresh = pos.stopLossSetTime != null && pos.stopLossSetTime >= barTime
+      const tpFresh = pos.takeProfitSetTime != null && pos.takeProfitSetTime >= barTime
+      const slLow = slFresh ? markPrice : low
+      const slHigh = slFresh ? markPrice : high
+      const tpLow = tpFresh ? markPrice : low
+      const tpHigh = tpFresh ? markPrice : high
+      let stopHit = false
       if (pos.direction === 'long') {
-        if (pos.stopLoss != null && low <= pos.stopLoss) {
-          hit = 'sl'
-          fill = pos.stopLoss
-        } else if (pos.takeProfit != null && high >= pos.takeProfit) {
-          hit = 'tp'
-          fill = pos.takeProfit
+        if (
+          pos.stopLoss != null &&
+          pos.breakEvenTime !== barTime &&
+          slLow <= pos.stopLoss
+        ) {
+          stopHit = true
         }
       } else {
-        if (pos.stopLoss != null && high >= pos.stopLoss) {
-          hit = 'sl'
-          fill = pos.stopLoss
-        } else if (pos.takeProfit != null && low <= pos.takeProfit) {
-          hit = 'tp'
-          fill = pos.takeProfit
+        if (
+          pos.stopLoss != null &&
+          pos.breakEvenTime !== barTime &&
+          slHigh >= pos.stopLoss
+        ) {
+          stopHit = true
         }
       }
-      if (!hit) continue
-      const reason: ReplayExitReason = hit === 'tp' ? 'take_profit' : 'stop_loss'
-      const trade = closePosition(pos.id, fill, { exitTime: barTime, exitReason: reason })
+      if (stopHit) {
+        const trade = closePosition(pos.id, pos.stopLoss!, {
+          exitTime: barTime,
+          exitReason: 'stop_loss',
+        })
+        if (trade) closed.push(trade)
+        continue
+      }
+
+      const targets = (pos.takeProfitTargets ?? [])
+        .filter((target) => !target.filled)
+        .sort((a, b) =>
+          pos.direction === 'long' ? a.price - b.price : b.price - a.price,
+        )
+      if (targets.length) {
+        for (const target of targets) {
+          const touched =
+            pos.direction === 'long' ? tpHigh >= target.price : tpLow <= target.price
+          if (!touched || pos.qty <= 1e-9) continue
+          target.filled = true
+          const remainingTargets = (pos.takeProfitTargets ?? []).filter((item) => !item.filled)
+          const originalQty = pos.initialQty ?? pos.qty
+          const requested =
+            remainingTargets.length === 0
+              ? pos.qty
+              : normalizeReplayQty((originalQty * target.percent) / 100)
+          const trade = closePartialPosition(pos.id, Math.min(pos.qty, requested), target.price, {
+            exitTime: barTime,
+            exitReason: 'take_profit',
+          })
+          if (trade) closed.push(trade)
+        }
+        const nextTarget = (pos.takeProfitTargets ?? [])
+          .filter((target) => !target.filled)
+          .sort((a, b) =>
+            pos.direction === 'long' ? a.price - b.price : b.price - a.price,
+          )[0]
+        pos.takeProfit = nextTarget?.price ?? null
+        continue
+      }
+
+      const takeProfitHit =
+        pos.takeProfit != null &&
+        (pos.direction === 'long' ? tpHigh >= pos.takeProfit : tpLow <= pos.takeProfit)
+      if (!takeProfitHit) continue
+      const trade = closePosition(pos.id, pos.takeProfit!, {
+        exitTime: barTime,
+        exitReason: 'take_profit',
+      })
       if (trade) closed.push(trade)
     }
     return closed
@@ -483,11 +850,15 @@ export function createReplayAccount(initialCash: number, restored?: ReplayAccoun
     closePartialPosition,
     setTakeProfit,
     setStopLoss,
+    setAutoBreakEven,
     updateTradeJournal,
     updateExcursions,
     placePendingOrder,
+    setPendingTakeProfit,
+    setPendingStopLoss,
     cancelPendingOrder,
     processPendingFills,
+    processBreakEven,
     processExits,
   }
 }

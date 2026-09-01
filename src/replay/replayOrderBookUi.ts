@@ -9,8 +9,11 @@ import {
 
 export type OrderBookTab = 'open' | 'pending' | 'closed'
 
+export type HistoricalTradesVisualization = 'drawing' | 'arrows'
+
 export type OrderBookSyncInput = {
   asset: string
+  provider: string
   positions: OpenPosition[]
   pendingOrders: PendingOrder[]
   closedTrades: ClosedReplayTrade[]
@@ -25,6 +28,8 @@ export type MountReplayOrderBookOpts = {
   onCancelPendingOrder: (id: string) => void
   onJumpToTime: (timeSec: number) => void
   onOpenJournal: (tradeNum: number) => void
+  /** Mark a closed trade's start/end candles on the chart (null clears). */
+  onHighlightTrade?: (tradeNum: number | null, mode: HistoricalTradesVisualization) => void
 }
 
 const PAGE_SIZES = [10, 25, 50] as const
@@ -77,13 +82,28 @@ function pageSlice<T>(rows: T[], page: number, size: number): { rows: T[]; page:
 }
 
 export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBookOpts) {
+  const STORAGE_KEY = 'rw-ob-historical-viz'
+  const loadedMode = localStorage.getItem(STORAGE_KEY) as HistoricalTradesVisualization | null
+  let historicalVizMode: HistoricalTradesVisualization =
+    loadedMode === 'arrows' || loadedMode === 'drawing' ? loadedMode : 'drawing'
+
+  function saveHistoricalVizMode() {
+    try {
+      localStorage.setItem(STORAGE_KEY, historicalVizMode)
+    } catch {
+      /* ignore quota errors */
+    }
+  }
+
   let tab: OrderBookTab = 'open'
   let page = 1
   let rowsPerPage: (typeof PAGE_SIZES)[number] = 10
   let menuId: string | null = null
+  let highlightedTrade: number | null = null
   let selected = new Set<string>()
   let last: OrderBookSyncInput = {
     asset: '—',
+    provider: '',
     positions: [],
     pendingOrders: [],
     closedTrades: [],
@@ -114,7 +134,7 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
 
   function signature(data: OrderBookSyncInput): string {
     const pos = data.positions
-      .map((p) => `${p.id}:${p.qty}:${p.takeProfit ?? ''}:${p.stopLoss ?? ''}`)
+      .map((p) => `${p.id}:${p.qty}:${p.takeProfit ?? ''}:${p.stopLoss ?? ''}:${p.takeProfitTargets?.filter((target) => !target.filled).length ?? 0}`)
       .join('|')
     const closed = data.closedTrades.length
       ? data.closedTrades
@@ -125,9 +145,15 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
           .join('|')
       : '0'
     const pending = data.pendingOrders
-      .map((order) => `${order.id}:${order.kind}:${order.qty}:${order.triggerPrice}`)
+      .map((order) => `${order.id}:${order.kind}:${order.qty}:${order.triggerPrice}:${order.stopLoss ?? ''}:${order.takeProfit ?? ''}:${order.takeProfitTargets?.length ?? 0}`)
       .join('|')
-    return `${tab}|${page}|${rowsPerPage}|${data.asset}|${pos}|${pending}|${closed}|${menuId ?? ''}|${selected.size}`
+    return `${tab}|${page}|${rowsPerPage}|${data.provider}|${data.asset}|${pos}|${pending}|${closed}|${menuId ?? ''}|${selected.size}|${highlightedTrade ?? ''}|${historicalVizMode}`
+  }
+
+  function assetLabel(): string {
+    const asset = last.asset.trim() || '—'
+    const provider = last.provider.trim()
+    return escapeHtml(provider ? `${provider}:${asset}` : asset)
   }
 
   function closeMenu() {
@@ -176,10 +202,10 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
               </div>
             </div>
           </td>
-          <td>${escapeHtml(last.asset)}</td>
+          <td class="rw-order-book__asset">${assetLabel()}</td>
           <td class="${side.cls}">${side.text}</td>
           <td>${pos.qty} lots</td>
-          <td>${naPrice(pos.takeProfit, opts.formatPrice)}</td>
+          <td>${pos.takeProfitTargets?.filter((target) => !target.filled).length ? `${pos.takeProfitTargets.filter((target) => !target.filled).length} targets` : naPrice(pos.takeProfit, opts.formatPrice)}</td>
           <td>${naPrice(pos.stopLoss, opts.formatPrice)}</td>
           <td class="rw-order-book__pnl${pnlClass(uPnl)}" data-rw-ob-upnl="${escapeHtml(pos.id)}">${escapeHtml(opts.formatMoney(uPnl))}</td>
           <td>${escapeHtml(opts.formatMoney(0))}</td>
@@ -221,13 +247,13 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
               </div>
             </div>
           </td>
-          <td>${escapeHtml(last.asset)}</td>
+          <td class="rw-order-book__asset">${assetLabel()}</td>
           <td class="${side.cls}">${side.text}</td>
           <td>${order.kind === 'limit' ? 'Limit' : 'Stop'}</td>
           <td>${order.qty} lots</td>
           <td>${escapeHtml(opts.formatPrice(order.triggerPrice))}</td>
-          <td>N/A</td>
-          <td>N/A</td>
+          <td>${order.takeProfitTargets?.length ? `${order.takeProfitTargets.length} targets` : naPrice(order.takeProfit, opts.formatPrice)}</td>
+          <td>${naPrice(order.stopLoss, opts.formatPrice)}</td>
           <td>—</td>
         </tr>`
       })
@@ -240,6 +266,19 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
     const { rows, page: p, pages } = pageSlice(ordered, page, rowsPerPage)
     page = p
     const allOnPage = rows.length > 0 && rows.every((t) => selected.has(String(t.tradeNum)))
+    const vizToggle = `<div class="rw-order-book__historical-viz">
+      <label class="rw-order-book__viz-label">Show Historical Trades as</label>
+      <div class="rw-order-book__viz-radios">
+        <label class="rw-order-book__viz-radio">
+          <input type="radio" name="rw-ob-viz" value="drawing" ${historicalVizMode === 'drawing' ? 'checked' : ''} data-rw-ob-viz-mode />
+          <span>Position Drawing</span>
+        </label>
+        <label class="rw-order-book__viz-radio">
+          <input type="radio" name="rw-ob-viz" value="arrows" ${historicalVizMode === 'arrows' ? 'checked' : ''} data-rw-ob-viz-mode />
+          <span>Arrows</span>
+        </label>
+      </div>
+    </div>`
     const head = `<thead><tr>
       <th class="rw-order-book__col-check" scope="col">
         <input type="checkbox" data-rw-ob-select-all ${allOnPage ? 'checked' : ''} aria-label="Select all on page" />
@@ -259,18 +298,19 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
       <th scope="col">Journal</th>
     </tr></thead>`
     if (!rows.length) {
-      return `<table class="rw-order-book__table">${head}<tbody>${emptyRow(14)}</tbody></table>${pagerHtml(pages)}`
+      return `${vizToggle}<table class="rw-order-book__table">${head}<tbody>${emptyRow(14)}</tbody></table>${pagerHtml(pages)}`
     }
     const body = rows
       .map((t) => {
         const side = sideLabel(t.direction)
         const id = String(t.tradeNum)
         const checked = selected.has(id) ? 'checked' : ''
-        return `<tr data-rw-ob-trade="${id}">
+        const marked = highlightedTrade === t.tradeNum
+        return `<tr data-rw-ob-trade="${id}"${marked ? ' class="rw-order-book__row--marked"' : ''}>
           <td class="rw-order-book__col-check"><input type="checkbox" data-rw-ob-select="${id}" ${checked} aria-label="Select trade ${id}" /></td>
-          <td>${escapeHtml(last.asset)}</td>
+          <td class="rw-order-book__asset">${assetLabel()}</td>
           <td class="${side.cls}">${side.text}</td>
-          <td><button type="button" class="rw-order-book__link" data-rw-ob-jump="${t.entryTime}">${escapeHtml(formatObDateTime(t.entryTime))}</button></td>
+          <td><button type="button" class="rw-order-book__link" data-rw-ob-mark="${id}" title="Mark this trade on the chart" aria-pressed="${marked ? 'true' : 'false'}">${escapeHtml(formatObDateTime(t.entryTime))}</button></td>
           <td>${escapeHtml(formatObDateTime(t.exitTime))}</td>
           <td>${escapeHtml(opts.formatPrice(t.entryPrice))}</td>
           <td>${naPrice(t.initialStopLoss, opts.formatPrice)}</td>
@@ -284,7 +324,7 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
         </tr>`
       })
       .join('')
-    return `<table class="rw-order-book__table">${head}<tbody>${body}</tbody></table>${pagerHtml(pages)}`
+    return `${vizToggle}<table class="rw-order-book__table">${head}<tbody>${body}</tbody></table>${pagerHtml(pages)}`
   }
 
   function pagerHtml(pages: number): string {
@@ -390,6 +430,17 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
       opts.onCancelPendingOrder(cancelBtn.dataset.rwObCancel)
       return
     }
+    const mark = t.closest<HTMLElement>('[data-rw-ob-mark]')
+    if (mark?.dataset.rwObMark) {
+      const tradeNum = Number(mark.dataset.rwObMark)
+      const clearing = highlightedTrade === tradeNum
+      highlightedTrade = clearing ? null : tradeNum
+      // No replay seek here: rewinding the cursor would drop the very candles the
+      // highlight spans. The chart pans to the trade instead.
+      opts.onHighlightTrade?.(highlightedTrade, historicalVizMode)
+      fullRender()
+      return
+    }
     const jump = t.closest<HTMLElement>('[data-rw-ob-jump]')
     if (jump?.dataset.rwObJump) {
       const sec = Number(jump.dataset.rwObJump)
@@ -414,6 +465,19 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
   function onChange(ev: Event) {
     const t = ev.target as HTMLElement | null
     if (!t) return
+    if (t.matches('[data-rw-ob-viz-mode]')) {
+      const radio = t as HTMLInputElement
+      const mode = radio.value as HistoricalTradesVisualization
+      if (mode === 'drawing' || mode === 'arrows') {
+        historicalVizMode = mode
+        saveHistoricalVizMode()
+        if (highlightedTrade != null) {
+          opts.onHighlightTrade?.(highlightedTrade, historicalVizMode)
+        }
+        fullRender()
+      }
+      return
+    }
     if (t.matches('[data-rw-ob-page-size]')) {
       const n = Number((t as HTMLSelectElement).value)
       rowsPerPage = (PAGE_SIZES as readonly number[]).includes(n)
@@ -460,6 +524,12 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
 
   return {
     sync,
+    selectTab(next: OrderBookTab) {
+      tab = next
+      page = 1
+      menuId = null
+      fullRender()
+    },
     destroy() {
       root.removeEventListener('click', onRootClick)
       root.removeEventListener('change', onChange)

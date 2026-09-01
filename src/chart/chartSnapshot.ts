@@ -36,6 +36,21 @@ export function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob | null>
   })
 }
 
+/** Build a compact image suitable for storing inside a trade journal. */
+export function chartSnapshotPreviewDataUrl(
+  canvas: HTMLCanvasElement,
+  maxWidth = 1200,
+): string | null {
+  const scale = Math.min(1, maxWidth / canvas.width)
+  const preview = document.createElement('canvas')
+  preview.width = Math.max(1, Math.round(canvas.width * scale))
+  preview.height = Math.max(1, Math.round(canvas.height * scale))
+  const ctx = preview.getContext('2d')
+  if (!ctx) return null
+  ctx.drawImage(canvas, 0, 0, preview.width, preview.height)
+  return preview.toDataURL('image/webp', 0.86)
+}
+
 export function downloadChartSnapshotCanvas(canvas: HTMLCanvasElement, filename: string): void {
   const url = canvas.toDataURL('image/png')
   const a = document.createElement('a')

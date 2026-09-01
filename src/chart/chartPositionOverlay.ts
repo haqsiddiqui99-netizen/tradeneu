@@ -78,6 +78,13 @@ export function mountChartPositionOverlay(opts: {
   onToggleStopLoss?: (id: string) => void
   onSetTakeProfit?: (id: string, price: number) => boolean
   onSetStopLoss?: (id: string, price: number) => boolean
+  /** Cancel a working order from its chart ticket. */
+  onCancelPendingOrder?: (id: string) => void
+  /** Bracket levels dragged onto the chart from a working order's ticket. */
+  onSetPendingTakeProfit?: (id: string, price: number) => boolean
+  onSetPendingStopLoss?: (id: string, price: number) => boolean
+  onTogglePendingTakeProfit?: (id: string) => void
+  onTogglePendingStopLoss?: (id: string) => void
   /** Re-layout when scales change (TV subscribeTimeScaleChange). */
   subscribeScaleChange?: (cb: () => void) => () => void
 }): ChartPositionOverlayHandle {
@@ -93,6 +100,7 @@ export function mountChartPositionOverlay(opts: {
   const exitRowMap = new Map<string, ExitRowBundle>()
   const rowMap = new Map<string, HTMLElement>()
   const pendingLineMap = new Map<string, HTMLElement>()
+  const partialTargetLineMap = new Map<string, HTMLElement>()
   let lastSeriesDataRevision = -1
   let suppressed = false
   let skipDomLines = false
@@ -152,12 +160,12 @@ export function mountChartPositionOverlay(opts: {
     el.addEventListener('pointerdown', hideTip)
   }
 
-  /** Distance from entry in pips (0.001 price steps), matching the badge's points scale. */
+  /** Distance from entry in instrument-aware pips, matching the badge's points scale. */
   function pipsFromEntry(posId: string, price: number | null | undefined): number {
     if (price == null || !Number.isFinite(price)) return 0
     const pos = opts.getPositions().find((p) => p.id === posId)
     if (!pos) return 0
-    return Math.abs(Math.round((price - pos.entryPrice) * 1000))
+    return Math.abs(Math.round((price - pos.entryPrice) / (pos.pipSize ?? 0.001)))
   }
 
   function exitTipText(posId: string, kind: ExitKind): string {
@@ -193,9 +201,16 @@ export function mountChartPositionOverlay(opts: {
     if (previewEl) previewEl.hidden = true
   }
 
-  /** FXReplay-style: drag the TP/SL chip off the order badge to place the level. */
-  function attachChipDetachDrag(btn: HTMLElement, posId: string, kind: ExitKind) {
-    const key = `${posId}:${kind}`
+  /**
+   * FXReplay-style: drag the TP/SL chip off the ticket to place the level. Shared by open
+   * positions and working orders, which differ only in where the dropped price is applied.
+   */
+  function attachChipDetachDrag(
+    btn: HTMLElement,
+    key: string,
+    kind: ExitKind,
+    commitPrice: (price: number) => void,
+  ) {
     let startY = 0
     let moved = false
 
@@ -236,10 +251,7 @@ export function mountChartPositionOverlay(opts: {
       if (commit && opts.hostYToPrice) {
         const y = clampDragY(event.clientY)
         const price = opts.hostYToPrice(y)
-        if (price != null && Number.isFinite(price)) {
-          if (kind === 'tp') opts.onSetTakeProfit?.(posId, price)
-          else opts.onSetStopLoss?.(posId, price)
-        }
+        if (price != null && Number.isFinite(price)) commitPrice(price)
       }
       sync()
     }
@@ -406,34 +418,259 @@ export function mountChartPositionOverlay(opts: {
     el.hidden = !Number.isFinite(y)
   }
 
-  function ensurePendingLine(order: PendingOrder): HTMLElement {
-    let line = pendingLineMap.get(order.id)
+  function ensurePendingLine(
+    key: string,
+    label: string,
+    kind: string,
+    onClear?: () => void,
+  ): HTMLElement {
+    let line = pendingLineMap.get(key)
     if (line) return line
     line = document.createElement('div')
-    line.className = `rw-pos-pending-line rw-pos-pending-line--${order.kind}`
-    line.innerHTML = `<span>${order.direction === 'long' ? 'BUY' : 'SELL'} ${order.kind.toUpperCase()} · ${order.triggerPrice.toFixed(3)}</span>`
+    line.className = `rw-pos-pending-line rw-pos-pending-line--${kind}`
+    line.innerHTML = `
+      <span>
+        <b data-pending-level>${label}</b>
+        ${
+          onClear
+            ? `<button type="button" class="rw-pos-pending-line__clear" data-pending-clear aria-label="Remove level">×</button>`
+            : ''
+        }
+      </span>
+    `
+    const clearBtn = line.querySelector<HTMLElement>('[data-pending-clear]')
+    if (clearBtn && onClear) {
+      clearBtn.addEventListener('click', (event) => {
+        event.stopPropagation()
+        onClear()
+      })
+      attachTip(clearBtn, () =>
+        kind === 'tp' ? 'Remove Take Profit' : 'Remove Stop Loss',
+      )
+    }
     overlay.appendChild(line)
-    pendingLineMap.set(order.id, line)
+    pendingLineMap.set(key, line)
     return line
+  }
+
+  /** Entry ticket for a working order: TP / SL boxes, then the order badge with qty + cancel. */
+  function ensurePendingTicket(order: PendingOrder): HTMLElement {
+    const key = `${order.id}:entry`
+    let line = pendingLineMap.get(key)
+    if (line) return line
+    line = document.createElement('div')
+    line.className = `rw-pos-pending-line rw-pos-pending-line--${order.kind} rw-pos-pending-line--ticket`
+    line.innerHTML = `
+      <span class="rw-pos-pending-ticket">
+        <button type="button" class="rw-pos-pending-chip rw-pos-pending-chip--tp" data-pending-tp>
+          <i class="rw-pos-grip4" aria-hidden="true"></i>TP
+        </button>
+        <button type="button" class="rw-pos-pending-chip rw-pos-pending-chip--sl" data-pending-sl>
+          <i class="rw-pos-grip4" aria-hidden="true"></i>SL
+        </button>
+        <span class="rw-pos-pending-badge">
+          <i class="rw-pos-grip4" aria-hidden="true"></i>
+          <span class="rw-pos-pending-badge__label" data-pending-label></span>
+          <span class="rw-pos-pending-badge__qty" data-pending-qty></span>
+          <button type="button" class="rw-pos-pending-badge__close" data-pending-cancel aria-label="Cancel order">×</button>
+        </span>
+      </span>
+    `
+    const cancelBtn = line.querySelector<HTMLElement>('[data-pending-cancel]')
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', (event) => {
+        event.stopPropagation()
+        opts.onCancelPendingOrder?.(order.id)
+      })
+      attachTip(cancelBtn, () => 'Cancel Order')
+    }
+
+    const chips: Array<{ el: HTMLElement | null; kind: ExitKind }> = [
+      { el: line.querySelector<HTMLElement>('[data-pending-tp]'), kind: 'tp' },
+      { el: line.querySelector<HTMLElement>('[data-pending-sl]'), kind: 'sl' },
+    ]
+    for (const { el, kind } of chips) {
+      if (!el) continue
+      attachChipDetachDrag(el, `pending:${order.id}:${kind}`, kind, (price) => {
+        if (kind === 'tp') opts.onSetPendingTakeProfit?.(order.id, price)
+        else opts.onSetPendingStopLoss?.(order.id, price)
+      })
+      el.addEventListener('click', (event) => {
+        event.stopPropagation()
+        if (suppressChipClick) {
+          suppressChipClick = false
+          return
+        }
+        if (kind === 'tp') opts.onTogglePendingTakeProfit?.(order.id)
+        else opts.onTogglePendingStopLoss?.(order.id)
+      })
+      attachTip(el, () => pendingTipText(order.id, kind))
+    }
+    overlay.appendChild(line)
+    pendingLineMap.set(key, line)
+    return line
+  }
+
+  function pendingProtectionPips(order: PendingOrder, price: number | null | undefined): number {
+    if (price == null || !Number.isFinite(price)) return 0
+    const pipSize = order.pipSize ?? 0.001
+    return Math.abs(Math.round((price - order.triggerPrice) / pipSize))
+  }
+
+  /** Live text, so the tooltip tracks the level after a drag without rebuilding the chip. */
+  function pendingTipText(orderId: string, kind: ExitKind): string {
+    const order = opts.getPendingOrders?.().find((item) => item.id === orderId)
+    const price = kind === 'tp' ? order?.takeProfit : order?.stopLoss
+    const pips = order ? pendingProtectionPips(order, price) : 0
+    return `${kind === 'tp' ? 'Take Profit' : 'Stop Loss'}, ${pips} pips`
+  }
+
+  /** Pip distance between the working order and the live market, on the badge points scale. */
+  function pendingEntryPoints(order: PendingOrder): number {
+    const mark = opts.getMarkPrice()
+    if (!Number.isFinite(mark)) return 0
+    return Math.abs(Math.round((mark - order.triggerPrice) / (order.pipSize ?? 0.001)))
+  }
+
+  function syncPendingTicket(line: HTMLElement, order: PendingOrder) {
+    const label = line.querySelector<HTMLElement>('[data-pending-label]')
+    const qty = line.querySelector<HTMLElement>('[data-pending-qty]')
+    const tp = line.querySelector<HTMLElement>('[data-pending-tp]')
+    const sl = line.querySelector<HTMLElement>('[data-pending-sl]')
+    const side = order.direction === 'long' ? 'Buy' : 'Sell'
+    const kind = order.kind === 'limit' ? 'limit' : 'stop'
+    if (label) {
+      label.textContent = `${String(pendingEntryPoints(order)).padStart(3, '0')}→${side} ${kind}`
+      label.title = `${side} ${kind} @ ${order.triggerPrice.toFixed(3)}`
+    }
+    if (qty) qty.textContent = String(order.qty)
+    // A placed level lives on its own line from here, so its handle leaves the ticket.
+    const tpPlaced = order.takeProfit != null || (order.takeProfitTargets?.length ?? 0) > 0
+    if (tp) tp.hidden = tpPlaced
+    if (sl) sl.hidden = order.stopLoss != null
+    const tools = line.querySelector<HTMLElement>('.rw-pos-pending-ticket')
+    tools?.classList.toggle(
+      'rw-pos-pending-ticket--bare',
+      tpPlaced && order.stopLoss != null,
+    )
   }
 
   function syncPendingLines() {
     const orders = opts.getPendingOrders?.() ?? []
-    const ids = new Set(orders.map((order) => order.id))
+    const keys = new Set<string>()
+    for (const order of orders) {
+      keys.add(`${order.id}:entry`)
+      if (order.stopLoss != null) keys.add(`${order.id}:sl`)
+      if (order.takeProfitTargets?.length) {
+        order.takeProfitTargets.forEach((_, index) => keys.add(`${order.id}:tp:${index}`))
+      } else if (order.takeProfit != null) keys.add(`${order.id}:tp`)
+    }
     for (const [id, line] of pendingLineMap) {
-      if (ids.has(id)) continue
+      if (keys.has(id)) continue
       line.remove()
       pendingLineMap.delete(id)
     }
     if (!opts.priceToHostY) return
     for (const order of orders) {
-      const line = ensurePendingLine(order)
-      const y = opts.priceToHostY(order.triggerPrice)
-      if (y == null || !Number.isFinite(y)) line.hidden = true
+      const ticket = ensurePendingTicket(order)
+      syncPendingTicket(ticket, order)
+      const entryY = opts.priceToHostY(order.triggerPrice)
+      if (entryY == null || !Number.isFinite(entryY)) ticket.hidden = true
       else {
-        line.hidden = false
-        placeDomLine(line, y)
+        ticket.hidden = false
+        placeDomLine(ticket, entryY)
       }
+
+      const levels: Array<{
+        key: string
+        price: number
+        label: string
+        kind: string
+        clear?: () => void
+      }> = []
+      if (order.stopLoss != null) {
+        levels.push({
+          key: `${order.id}:sl`,
+          price: order.stopLoss,
+          label: `SL · ${order.stopLoss.toFixed(3)}`,
+          kind: 'sl',
+          clear: () => opts.onTogglePendingStopLoss?.(order.id),
+        })
+      }
+      if (order.takeProfitTargets?.length) {
+        order.takeProfitTargets.forEach((target, index) => {
+          levels.push({
+            key: `${order.id}:tp:${index}`,
+            price: target.price,
+            label: `TP${index + 1} ${target.percent}% · ${target.price.toFixed(3)}`,
+            kind: 'tp',
+          })
+        })
+      } else if (order.takeProfit != null) {
+        levels.push({
+          key: `${order.id}:tp`,
+          price: order.takeProfit,
+          label: `TP · ${order.takeProfit.toFixed(3)}`,
+          kind: 'tp',
+          clear: () => opts.onTogglePendingTakeProfit?.(order.id),
+        })
+      }
+      for (const level of levels) {
+        const line = ensurePendingLine(level.key, level.label, level.kind, level.clear)
+        line.querySelector('[data-pending-level]')!.textContent = level.label
+        const y = opts.priceToHostY(level.price)
+        if (y == null || !Number.isFinite(y)) line.hidden = true
+        else {
+          line.hidden = false
+          placeDomLine(line, y)
+        }
+      }
+    }
+  }
+
+  /** The native position renderer owns the nearest TP; draw additional partial targets here. */
+  function syncPartialTargetLines() {
+    const positions = opts.getPositions()
+    const keys = new Set<string>()
+    for (const position of positions) {
+      const active = (position.takeProfitTargets ?? [])
+        .filter((target) => !target.filled)
+        .sort((a, b) =>
+          position.direction === 'long' ? a.price - b.price : b.price - a.price,
+        )
+      active.slice(1).forEach((target) => keys.add(`${position.id}:${target.id}`))
+    }
+    for (const [key, line] of partialTargetLineMap) {
+      if (keys.has(key)) continue
+      line.remove()
+      partialTargetLineMap.delete(key)
+    }
+    if (!opts.priceToHostY) return
+    for (const position of positions) {
+      const active = (position.takeProfitTargets ?? [])
+        .filter((target) => !target.filled)
+        .sort((a, b) =>
+          position.direction === 'long' ? a.price - b.price : b.price - a.price,
+        )
+      active.slice(1).forEach((target, index) => {
+        const key = `${position.id}:${target.id}`
+        let line = partialTargetLineMap.get(key)
+        if (!line) {
+          line = document.createElement('div')
+          line.className = 'rw-pos-pending-line rw-pos-pending-line--tp'
+          line.innerHTML = '<span></span>'
+          overlay.appendChild(line)
+          partialTargetLineMap.set(key, line)
+        }
+        line.querySelector('span')!.textContent =
+          `TP${index + 2} ${target.percent}% · ${target.price.toFixed(3)}`
+        const y = opts.priceToHostY!(target.price)
+        if (y == null || !Number.isFinite(y)) line.hidden = true
+        else {
+          line.hidden = false
+          placeDomLine(line, y)
+        }
+      })
     }
   }
 
@@ -738,19 +975,24 @@ export function mountChartPositionOverlay(opts: {
     let row = rowMap.get(pos.id)
     if (!row) {
       row = document.createElement('div')
-      row.className = 'rw-pos-row'
+      row.className = 'rw-pos-row rw-pos-row--order'
       row.dataset.posId = pos.id
       // Stay hidden until layoutRows assigns a valid plot Y (avoids top-left flash).
       row.hidden = true
       row.innerHTML = `
         <div class="rw-pos-row__tools">
-          <button type="button" class="rw-pos-chip rw-pos-chip--tp" data-pos-tp title="Take profit">TP</button>
-          <span class="rw-pos-row__sep" aria-hidden="true"></span>
-          <button type="button" class="rw-pos-chip rw-pos-chip--sl" data-pos-sl title="Stop loss">SL</button>
+          <button type="button" class="rw-pos-chip rw-pos-chip--tp" data-pos-tp title="Take profit">
+            <i class="rw-pos-grip4" aria-hidden="true"></i>TP
+          </button>
+          <button type="button" class="rw-pos-chip rw-pos-chip--sl" data-pos-sl title="Stop loss">
+            <i class="rw-pos-grip4" aria-hidden="true"></i>SL
+          </button>
         </div>
-        <span class="rw-pos-pnl" data-pos-pnl></span>
-        <span class="rw-pos-qty" data-pos-qty></span>
-        <button type="button" class="rw-pos-close" data-pos-close title="Close position" aria-label="Close position">×</button>
+        <span class="rw-pos-row__badge">
+          <span class="rw-pos-pnl" data-pos-pnl></span>
+          <span class="rw-pos-qty" data-pos-qty></span>
+          <button type="button" class="rw-pos-close" data-pos-close title="Close position" aria-label="Close position">×</button>
+        </span>
       `
       const closeBtn = row.querySelector('[data-pos-close]') as HTMLElement | null
       closeBtn?.addEventListener('click', (e) => {
@@ -781,12 +1023,16 @@ export function mountChartPositionOverlay(opts: {
       })
       if (tpChip) {
         tpChip.removeAttribute('title')
-        attachChipDetachDrag(tpChip, pos.id, 'tp')
+        attachChipDetachDrag(tpChip, `${pos.id}:tp`, 'tp', (price) => {
+          opts.onSetTakeProfit?.(pos.id, price)
+        })
         attachTip(tpChip, () => exitTipText(pos.id, 'tp'))
       }
       if (slChip) {
         slChip.removeAttribute('title')
-        attachChipDetachDrag(slChip, pos.id, 'sl')
+        attachChipDetachDrag(slChip, `${pos.id}:sl`, 'sl', (price) => {
+          opts.onSetStopLoss?.(pos.id, price)
+        })
         attachTip(slChip, () => exitTipText(pos.id, 'sl'))
       }
       overlay.appendChild(row)
@@ -821,8 +1067,6 @@ export function mountChartPositionOverlay(opts: {
     const slDetached = pos.stopLoss != null
     if (tpBtn) tpBtn.hidden = tpDetached
     if (slBtn) slBtn.hidden = slDetached
-    const sepEl = row.querySelector('.rw-pos-row__sep') as HTMLElement | null
-    if (sepEl) sepEl.hidden = tpDetached || slDetached
     const toolsEl = row.querySelector('.rw-pos-row__tools') as HTMLElement | null
     if (toolsEl) toolsEl.hidden = tpDetached && slDetached
 
@@ -865,6 +1109,7 @@ export function mountChartPositionOverlay(opts: {
   function layoutRows() {
     if (suppressed) return
     syncPendingLines()
+    syncPartialTargetLines()
     const positions = opts.getPositions()
     const hostRect = opts.chartHost.getBoundingClientRect()
     const hostHeight = hostRect.height
@@ -916,6 +1161,8 @@ export function mountChartPositionOverlay(opts: {
     }
     for (const line of pendingLineMap.values()) line.remove()
     pendingLineMap.clear()
+    for (const line of partialTargetLineMap.values()) line.remove()
+    partialTargetLineMap.clear()
   }
 
   function sync(syncOpts?: { recreateLines?: boolean }) {

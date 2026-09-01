@@ -85,6 +85,14 @@ export const icons = {
   expand: svg(
     '<path d="M9 3H3v6M15 3h6v6M21 15v6h-6M3 15v6h6" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>',
   ),
+  /** Painter's palette — journal templates. */
+  palette: svg(
+    '<path d="M12 3.4c-4.8 0-8.6 3.7-8.6 8.5 0 4.9 3.8 8.7 8.6 8.7 1.3 0 2.1-.8 2.1-1.9 0-.5-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8h1.5c2.5 0 4.2-1.8 4.2-4.4 0-3.7-3.7-6.4-8.6-6.4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="7.7" cy="11.6" r="1.15" fill="currentColor"/><circle cx="10.3" cy="7.8" r="1.15" fill="currentColor"/><circle cx="14.8" cy="7.7" r="1.15" fill="currentColor"/>',
+  ),
+  /** Floppy disk — save action. */
+  floppyDisk: svg(
+    '<path d="M5 3.5h9.7L20.5 9.3V19a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V5A1.5 1.5 0 0 1 5 3.5z" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 3.5h5.2v4.1H8.5z" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.4 20.5v-6.1h9.2v6.1" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
+  ),
   /** TradingView toolbar — hex nut settings. */
   tvToolbarSettings: svg(
     '<path d="M12 3.25 16.4 5.6v4.8L16.4 15.2 12 17.5l-4.4-2.3v-4.8L7.6 5.6 12 3.25z" stroke="currentColor" stroke-width="1.55" stroke-linejoin="round"/><circle cx="12" cy="10.4" r="2" stroke="currentColor" stroke-width="1.55"/>',
@@ -307,5 +315,50 @@ export const icons = {
     '<path d="M17 8a7 7 0 10-1.75 4.67M7 8H4M7 8l2-2M7 8l2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
     16,
     16,
+  ),
+  shotCrop: svg(
+    '<path d="M8 5v14M16 5v14M8 12h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+    18,
+    18,
+  ),
+  shotImage: svg(
+    '<rect x="3.5" y="5.5" width="17" height="13" rx="1.8" stroke="currentColor" stroke-width="1.55"/><path d="M5.5 16.2 9.2 12l3.1 3.2 2.4-2.6 3.8 3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="16.2" cy="9.1" r="1.15" fill="currentColor"/>',
+    18,
+    18,
+  ),
+  shotText: svg(
+    '<path d="M6 7h12M12 7v11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8.2 18h7.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    18,
+    18,
+  ),
+  trash: svg(
+    '<path d="M5 7h14M10 7V5h4v2M8 7l.7 12.2h6.6L16 7" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"/>',
+    18,
+    18,
+  ),
+  download: svg(
+    '<path d="M12 4v10M8.2 11.2 12 15l3.8-3.8M5 19h14" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>',
+    18,
+    18,
+  ),
+  shotAdd: svg(
+    '<rect x="3.5" y="5.5" width="17" height="13" rx="1.8" stroke="currentColor" stroke-width="1.55"/><path d="M12 9.2v5.6M9.2 12h5.6" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>',
+    18,
+    18,
+  ),
+  alignLeft: svg(
+    '<path d="M4 6h16M4 10h11M4 14h16M4 18h11" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+    18,
+    18,
+  ),
+  alignCenter: svg(
+    '<path d="M4 6h16M7 10h10M4 14h16M7 18h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+    18,
+    18,
+  ),
+  alignRight: svg(
+    '<path d="M4 6h16M9 10h11M4 14h16M9 18h11" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+    18,
+    18,
   ),
 }
