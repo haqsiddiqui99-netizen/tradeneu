@@ -64,6 +64,18 @@ export type ReplayJournalScreenshot = {
   showCaption: boolean
 }
 
+export type ReplayJournalBackground =
+  | 'default'
+  | 'gray'
+  | 'brown'
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'blue'
+  | 'purple'
+  | 'pink'
+
 export type ReplayJournalBlockType =
   | 'paragraph'
   | 'heading'
@@ -97,6 +109,7 @@ export type ReplayTradeJournal = {
   notes: string
   rating: string
   tags: string[]
+  background?: ReplayJournalBackground
   screenshots?: Array<string | ReplayJournalScreenshot>
   blocks?: ReplayJournalBlock[]
   updatedAt: number

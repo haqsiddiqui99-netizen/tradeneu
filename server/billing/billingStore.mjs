@@ -89,6 +89,20 @@ export function readTransactions(dataDir, opts = {}) {
   }
 }
 
+/** @param {string} dataDir @param {string} email */
+export function readBillingForEmail(dataDir, email) {
+  const key = String(email || '')
+    .trim()
+    .toLowerCase()
+  if (!key) return { subscription: null, transactions: [] }
+
+  const subscription = readSubscriptionsMap(dataDir)[key] ?? null
+  const transactions = readTransactions(dataDir, { limit: 200 }).filter(
+    (row) => String(row?.email || '').trim().toLowerCase() === key,
+  )
+  return { subscription, transactions }
+}
+
 /**
  * @param {string} dataDir
  * @param {string} email

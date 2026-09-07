@@ -24,7 +24,9 @@ function collectBattlePnlEvents(range: DashboardPerfRange, now = Date.now()): Pn
   return battlesInRange(range, now).map((b) => ({ ts: b.ranAt, pnl: b.margin }))
 }
 
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+export const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const DAY_LETTER = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function sessionMatchesPerfMode(session: StoredSession, mode: DashboardPerfMode): boolean {
   if (mode === 'all') return true
@@ -588,6 +590,56 @@ function roundedBarPath(x: number, y: number, w: number, h: number, r: number): 
   ].join(' ')
 }
 
+export type EquityCurveSeries = {
+  labels: string[]
+  monthLabels: string[]
+  cumulative: number[]
+  currentMonthIndex: number
+  hasData: boolean
+}
+
+/**
+ * Data for the "Equity Curve" card: cumulative net P&L across the 12
+ * calendar months of the current year (or the latest year with activity),
+ * meant to be rendered as a connected line + dot chart (e.g. via Chart.js).
+ */
+export function computeEquityCurveSeries(
+  sessions: StoredSession[],
+  mode: DashboardPerfMode,
+  now = Date.now(),
+): EquityCurveSeries {
+  const nowDate = new Date(now)
+  const events = resolveChartEvents(sessions, mode, 'lifetime', now)
+
+  let year = nowDate.getFullYear()
+  let monthly = bucketMonthly(events, nowDate)
+  const hasThisYear = monthly.some((v) => Math.abs(v) > 1e-9)
+  if (!hasThisYear && events.length > 0) {
+    let latest = events[0]!
+    for (const e of events) {
+      if (e.ts > latest.ts) latest = e
+    }
+    const latestDate = new Date(latest.ts)
+    year = latestDate.getFullYear()
+    monthly = bucketMonthly(events, latestDate)
+  }
+
+  const cumulative: number[] = []
+  let running = 0
+  for (const delta of monthly) {
+    running += delta
+    cumulative.push(running)
+  }
+
+  return {
+    labels: MONTH_SHORT.map((m) => m[0]!),
+    monthLabels: MONTH_SHORT.map((m) => `${m} ${year}`),
+    cumulative,
+    currentMonthIndex: year === nowDate.getFullYear() ? nowDate.getMonth() : -1,
+    hasData: events.length > 0,
+  }
+}
+
 export function formatDashboardPerfMoney(n: number): string {
   const sign = n < 0 ? '-' : n > 0 ? '+' : ''
   const v = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -603,6 +655,8 @@ export type SessionPulseSymbolStat = {
   symbol: string
   trades: number
   share: number
+  wins: number
+  losses: number
 }
 
 export type SessionPulsePracticeRow = {
@@ -635,6 +689,10 @@ export type SessionPulseStats = {
   sessionsTouched: number
   monthlyPracticeMs: number[]
   practiceMonths: { year: number; month: number; label: string; practiceMs: number }[]
+  practiceDays: { year: number; month: number; date: number; label: string; fullLabel: string; practiceMs: number }[]
+  practiceWeeks: { weekStartMs: number; label: string; fullLabel: string; practiceMs: number }[]
+  practiceYears: { year: number; label: string; practiceMs: number }[]
+  winRateMonths: { year: number; month: number; label: string; winRate: number | null; trades: number }[]
   symbols: SessionPulseSymbolStat[]
   insights: string[]
   hasData: boolean
@@ -739,8 +797,24 @@ export function computeSessionPulseStats(
   let sessionsTouched = 0
   const monthlyPracticeMs = new Array<number>(12).fill(0)
   const PRACTICE_MONTH_WINDOW = 6
+  const PRACTICE_DAY_WINDOW = 7
+  const PRACTICE_WEEK_WINDOW = 4
+  const PRACTICE_YEAR_WINDOW = 6
   const practiceMonthMap = new Map<string, number>()
+  const practiceDayMap = new Map<string, number>()
+  const practiceWeekMap = new Map<number, number>()
+  const practiceYearMap = new Map<number, number>()
+  const monthWinsMap = new Map<string, number>()
+  const monthTradesMap = new Map<string, number>()
+  const mondayStartMs = (d: Date): number => {
+    const day = d.getDay()
+    const diffToMonday = (day === 0 ? -6 : 1) - day
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diffToMonday)
+    return monday.getTime()
+  }
   const symbolMap = new Map<string, number>()
+  const symbolWinsMap = new Map<string, number>()
+  const symbolLossesMap = new Map<string, number>()
   const nowDate = new Date(now)
   const touchedSessions: { session: StoredSession; practice: number; touchedAt: number }[] = []
 
@@ -769,6 +843,11 @@ export function computeSessionPulseStats(
     }
     const monthKey = `${year}-${monthIdx}`
     practiceMonthMap.set(monthKey, (practiceMonthMap.get(monthKey) ?? 0) + practice)
+    const dayKey = `${year}-${monthIdx}-${touchedDate.getDate()}`
+    practiceDayMap.set(dayKey, (practiceDayMap.get(dayKey) ?? 0) + practice)
+    const weekKey = mondayStartMs(touchedDate)
+    practiceWeekMap.set(weekKey, (practiceWeekMap.get(weekKey) ?? 0) + practice)
+    practiceYearMap.set(year, (practiceYearMap.get(year) ?? 0) + practice)
 
     const symbol = primarySessionSymbol(session.assets)
 
@@ -780,13 +859,23 @@ export function computeSessionPulseStats(
         if (t.pnl > 0) wins += 1
         else if (t.pnl < 0) losses += 1
         symbolMap.set(symbol, (symbolMap.get(symbol) ?? 0) + 1)
+        if (t.pnl > 0) symbolWinsMap.set(symbol, (symbolWinsMap.get(symbol) ?? 0) + 1)
+        else if (t.pnl < 0) symbolLossesMap.set(symbol, (symbolLossesMap.get(symbol) ?? 0) + 1)
+        const tradeMonthKey = `${new Date(t.ts).getFullYear()}-${new Date(t.ts).getMonth()}`
+        monthTradesMap.set(tradeMonthKey, (monthTradesMap.get(tradeMonthKey) ?? 0) + 1)
+        if (t.pnl > 0) monthWinsMap.set(tradeMonthKey, (monthWinsMap.get(tradeMonthKey) ?? 0) + 1)
       }
     } else if (btInRange && bt) {
       tradesTaken += bt.totalTrades
       const estimatedWins = Math.round((bt.winRate / 100) * bt.totalTrades)
+      const estimatedLosses = Math.max(0, bt.totalTrades - estimatedWins)
       wins += estimatedWins
-      losses += Math.max(0, bt.totalTrades - estimatedWins)
+      losses += estimatedLosses
       symbolMap.set(symbol, (symbolMap.get(symbol) ?? 0) + bt.totalTrades)
+      symbolWinsMap.set(symbol, (symbolWinsMap.get(symbol) ?? 0) + estimatedWins)
+      symbolLossesMap.set(symbol, (symbolLossesMap.get(symbol) ?? 0) + estimatedLosses)
+      monthTradesMap.set(monthKey, (monthTradesMap.get(monthKey) ?? 0) + bt.totalTrades)
+      monthWinsMap.set(monthKey, (monthWinsMap.get(monthKey) ?? 0) + estimatedWins)
     }
   }
 
@@ -827,6 +916,8 @@ export function computeSessionPulseStats(
       symbol,
       trades,
       share: tradesTaken > 0 ? (trades / tradesTaken) * 100 : 0,
+      wins: symbolWinsMap.get(symbol) ?? 0,
+      losses: symbolLossesMap.get(symbol) ?? 0,
     }))
     .sort((a, b) => b.trades - a.trades)
     .slice(0, 6)
@@ -874,6 +965,69 @@ export function computeSessionPulseStats(
     })
   }
 
+  const practiceDays: { year: number; month: number; date: number; label: string; fullLabel: string; practiceMs: number }[] = []
+  for (let i = PRACTICE_DAY_WINDOW - 1; i >= 0; i--) {
+    const d = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate() - i)
+    const year = d.getFullYear()
+    const month = d.getMonth()
+    const date = d.getDate()
+    const key = `${year}-${month}-${date}`
+    practiceDays.push({
+      year,
+      month,
+      date,
+      label: DAY_LETTER[d.getDay()] ?? '',
+      fullLabel: `${DAY_SHORT[d.getDay()]}, ${MONTH_SHORT[month]} ${date}`,
+      practiceMs: practiceDayMap.get(key) ?? 0,
+    })
+  }
+
+  const currentWeekStartMs = mondayStartMs(nowDate)
+  const practiceWeeks: { weekStartMs: number; label: string; fullLabel: string; practiceMs: number }[] = []
+  for (let i = PRACTICE_WEEK_WINDOW - 1; i >= 0; i--) {
+    const weekStartMs = currentWeekStartMs - i * 7 * MS_DAY
+    const weekStart = new Date(weekStartMs)
+    const weekEnd = new Date(weekStartMs + 6 * MS_DAY)
+    const label = `${String(weekStart.getDate()).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`
+    const sameMonth = weekStart.getMonth() === weekEnd.getMonth()
+    const fullLabel = sameMonth
+      ? `${MONTH_SHORT[weekStart.getMonth()]} ${weekStart.getDate()}–${weekEnd.getDate()}`
+      : `${MONTH_SHORT[weekStart.getMonth()]} ${weekStart.getDate()}–${MONTH_SHORT[weekEnd.getMonth()]} ${weekEnd.getDate()}`
+    practiceWeeks.push({
+      weekStartMs,
+      label,
+      fullLabel,
+      practiceMs: practiceWeekMap.get(weekStartMs) ?? 0,
+    })
+  }
+
+  const practiceYears: { year: number; label: string; practiceMs: number }[] = []
+  for (let i = PRACTICE_YEAR_WINDOW - 1; i >= 0; i--) {
+    const year = nowDate.getFullYear() - i
+    practiceYears.push({
+      year,
+      label: `${year}`,
+      practiceMs: practiceYearMap.get(year) ?? 0,
+    })
+  }
+
+  const winRateMonths: { year: number; month: number; label: string; winRate: number | null; trades: number }[] = []
+  for (let i = PRACTICE_MONTH_WINDOW - 1; i >= 0; i--) {
+    const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1)
+    const year = d.getFullYear()
+    const month = d.getMonth()
+    const key = `${year}-${month}`
+    const monthTrades = monthTradesMap.get(key) ?? 0
+    const monthWins = monthWinsMap.get(key) ?? 0
+    winRateMonths.push({
+      year,
+      month,
+      label: `${MONTH_SHORT[month]} ${year}`,
+      winRate: monthTrades > 0 ? (monthWins / monthTrades) * 100 : null,
+      trades: monthTrades,
+    })
+  }
+
   return {
     practiceMs,
     activeSessionId: activeId,
@@ -891,6 +1045,10 @@ export function computeSessionPulseStats(
     sessionsTouched,
     monthlyPracticeMs,
     practiceMonths,
+    practiceDays,
+    practiceWeeks,
+    practiceYears,
+    winRateMonths,
     symbols,
     insights: insights.slice(0, 3),
     hasData: sessionsTouched > 0 || tradesTaken > 0 || practiceMs > 0,
@@ -972,19 +1130,21 @@ function formatIntenseTick(v: number): string {
 }
 
 export function buildPulseActivityChartSvg(
-  practiceMonths: { year: number; month: number; label: string; practiceMs: number }[],
+  practiceDays: { year: number; month: number; date: number; label: string; fullLabel: string; practiceMs: number }[],
   now = Date.now(),
 ): string {
   const nowDate = new Date(now)
   const series =
-    practiceMonths.length > 0
-      ? practiceMonths
-      : Array.from({ length: 6 }, (_, i) => {
-          const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - (5 - i), 1)
+    practiceDays.length > 0
+      ? practiceDays
+      : Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate() - (6 - i))
           return {
             year: d.getFullYear(),
             month: d.getMonth(),
-            label: `${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`,
+            date: d.getDate(),
+            label: DAY_LETTER[d.getDay()] ?? '',
+            fullLabel: `${DAY_SHORT[d.getDay()]}, ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`,
             practiceMs: 0,
           }
         })
@@ -998,23 +1158,22 @@ export function buildPulseActivityChartSvg(
   const n = series.length
   const yLabelX = 34
   const x0 = 40
-  const y0 = 16
-  const y1 = 72
+  const y0 = 14
+  const y1 = 96
   const plotW = Math.max(200, n * 44)
   const x1 = x0 + plotW
   const slot = plotW / n
   const barW = Math.min(28, slot * 0.48)
   const vbW = Math.ceil(x1 + 8)
-  const vbH = 108
-  const gradId = 'sx-intense-bar-grad'
-  const currentKey = `${nowDate.getFullYear()}-${nowDate.getMonth()}`
+  const vbH = 132
+  const currentKey = `${nowDate.getFullYear()}-${nowDate.getMonth()}-${nowDate.getDate()}`
 
   const lines: string[] = []
   const yTicks: string[] = []
   for (const v of tickVals) {
     const y = valueToY(v, y0, y1, yMax)
     lines.push(
-      `<line x1="${x0}" y1="${y.toFixed(2)}" x2="${x1}" y2="${y.toFixed(2)}" stroke="var(--sx-pulse-grid)" stroke-width="1" stroke-dasharray="3 4" />`,
+      `<line x1="${x0}" y1="${y.toFixed(2)}" x2="${x1}" y2="${y.toFixed(2)}" stroke="var(--sx-pulse-grid)" stroke-width="1" />`,
     )
     yTicks.push(
       `<text x="${yLabelX}" y="${y.toFixed(2)}" text-anchor="end" dominant-baseline="middle" fill="var(--sx-pulse-axis)" font-size="9" font-weight="500" font-family="inherit">${formatIntenseTick(v)}</text>`,
@@ -1024,60 +1183,59 @@ export function buildPulseActivityChartSvg(
   const bars: string[] = []
   const valueLabels: string[] = []
   const labels: string[] = []
+  const hits: string[] = []
   for (let i = 0; i < n; i++) {
     const row = series[i]!
     const cx = x0 + (i + 0.5) * slot
     const v = vals[i] ?? 0
     const hRaw = yMax > 0 ? (v / yMax) * (y1 - y0) : 0
-    const h = v > 0 ? Math.max(hRaw, 4) : 0
+    const h = v > 0 ? Math.max(hRaw, 5) : 4
     const x = cx - barW / 2
-    const active = `${row.year}-${row.month}` === currentKey
-    if (h > 0) {
-      const r = Math.min(5, barW / 2)
-      const top = y1 - h
-      const d = [
-        `M ${x.toFixed(2)} ${y1.toFixed(2)}`,
-        `L ${x.toFixed(2)} ${(top + r).toFixed(2)}`,
-        `Q ${x.toFixed(2)} ${top.toFixed(2)} ${(x + r).toFixed(2)} ${top.toFixed(2)}`,
-        `L ${(x + barW - r).toFixed(2)} ${top.toFixed(2)}`,
-        `Q ${(x + barW).toFixed(2)} ${top.toFixed(2)} ${(x + barW).toFixed(2)} ${(top + r).toFixed(2)}`,
-        `L ${(x + barW).toFixed(2)} ${y1.toFixed(2)}`,
-        'Z',
-      ].join(' ')
-      bars.push(
-        `<path class="sx-dash-pulse-bar${active ? ' sx-dash-pulse-bar--active' : ''}" d="${d}" fill="url(#${gradId})" opacity="${active ? '1' : '0.92'}" />`,
-      )
-      bars.push(
-        `<line x1="${(x + 1).toFixed(2)}" y1="${top.toFixed(2)}" x2="${(x + barW - 1).toFixed(2)}" y2="${top.toFixed(2)}" stroke="#f97316" stroke-width="1.25" stroke-linecap="round" opacity="0.85" />`,
-      )
+    const active = `${row.year}-${row.month}-${row.date}` === currentKey
+    const r = Math.min(5, barW / 2, h / 2)
+    const top = y1 - h
+    const d = [
+      `M ${x.toFixed(2)} ${y1.toFixed(2)}`,
+      `L ${x.toFixed(2)} ${(top + r).toFixed(2)}`,
+      `Q ${x.toFixed(2)} ${top.toFixed(2)} ${(x + r).toFixed(2)} ${top.toFixed(2)}`,
+      `L ${(x + barW - r).toFixed(2)} ${top.toFixed(2)}`,
+      `Q ${(x + barW).toFixed(2)} ${top.toFixed(2)} ${(x + barW).toFixed(2)} ${(top + r).toFixed(2)}`,
+      `L ${(x + barW).toFixed(2)} ${y1.toFixed(2)}`,
+      'Z',
+    ].join(' ')
+    const isGhost = v <= 0
+    const barFill = isGhost ? 'var(--sx-pulse-grid)' : active ? '#16a34a' : '#22c55e'
+    bars.push(
+      `<path class="sx-dash-pulse-bar${active ? ' sx-dash-pulse-bar--active' : ''}${isGhost ? ' sx-dash-pulse-bar--ghost' : ''}" d="${d}" fill="${barFill}" opacity="${isGhost ? '0.5' : '1'}" />`,
+    )
+    if (!isGhost) {
       const hoursLabel = formatIntenseHoursLabel(v)
       if (hoursLabel) {
         valueLabels.push(
-          `<text x="${cx.toFixed(2)}" y="${(top - 5).toFixed(2)}" text-anchor="middle" fill="${active ? '#9a3412' : '#c2410c'}" font-size="9" font-weight="800" font-family="inherit">${hoursLabel}</text>`,
+          `<text x="${cx.toFixed(2)}" y="${(top - 5).toFixed(2)}" text-anchor="middle" fill="${active ? '#15803d' : '#16a34a'}" font-size="9" font-weight="800" font-family="inherit">${hoursLabel}</text>`,
         )
       }
     }
 
-    const shortLabel = `${MONTH_SHORT[row.month]}`
+    const shortLabel = row.label
     labels.push(
-      `<text x="${cx.toFixed(2)}" y="${(y1 + 14).toFixed(2)}" text-anchor="middle" fill="var(--sx-pulse-axis)" font-size="9" font-weight="${active ? '700' : '500'}" font-family="inherit">${shortLabel}</text>`,
+      `<text x="${cx.toFixed(2)}" y="${(y1 + 16).toFixed(2)}" text-anchor="middle" fill="var(--sx-pulse-axis)" font-size="11" font-weight="${active ? '700' : '500'}" font-family="inherit">${shortLabel}</text>`,
+    )
+
+    const tipValue = v > 0 ? formatIntenseHoursLabel(v) || `${v.toFixed(1)}hr` : 'No practice yet'
+    const tipLabel = `${row.fullLabel}`.replace(/[<>&"']/g, '')
+    hits.push(
+      `<rect class="sx-dash-pulse-hit" x="${(cx - slot / 2).toFixed(2)}" y="${y0}" width="${slot.toFixed(2)}" height="${(y1 - y0).toFixed(2)}" fill="transparent" data-tip-label="${tipLabel}" data-tip-value="${tipValue}" />`,
     )
   }
 
-  return `<svg class="sx-dash-pulse-chart__svg sx-dash-pulse-chart__svg--intense" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vbW} ${vbH}" width="100%" height="${vbH}" preserveAspectRatio="xMidYMid meet" role="img" aria-hidden="true">
-  <defs>
-    <linearGradient id="${gradId}" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0%" stop-color="#fff7ed" stop-opacity="0.35" />
-      <stop offset="35%" stop-color="#fdba74" stop-opacity="0.75" />
-      <stop offset="72%" stop-color="#fb923c" />
-      <stop offset="100%" stop-color="#ea580c" />
-    </linearGradient>
-  </defs>
+  return `<svg class="sx-dash-pulse-chart__svg sx-dash-pulse-chart__svg--intense" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vbW} ${vbH}" width="100%" height="100%" preserveAspectRatio="none" role="img" aria-hidden="true">
   <g>${lines.join('')}</g>
   <g>${bars.join('')}</g>
   <g>${valueLabels.join('')}</g>
   <g>${yTicks.join('')}</g>
   <g>${labels.join('')}</g>
+  <g>${hits.join('')}</g>
 </svg>`
 }
 

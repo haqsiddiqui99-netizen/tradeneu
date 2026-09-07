@@ -8715,10 +8715,118 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   color: #787b86;
 }
 
-.rw-trade-journal__editor-tools span {
+.rw-trade-journal__grip > span {
   font: 700 23px/1 var(--rw-font, sans-serif);
   letter-spacing: -5px;
 }
+
+.rw-trade-journal__block-menu {
+  position: absolute;
+  top: 40px;
+  left: 42px;
+  z-index: 30;
+  width: 140px;
+  padding: 6px;
+  border: 1px solid #e0e3eb;
+  border-radius: 9px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(19, 23, 34, 0.18);
+}
+
+.rw-trade-journal__editor-tools .rw-trade-journal__block-menu > button,
+.rw-trade-journal__editor-tools .rw-trade-journal__color-menu > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #3d4048;
+  font: 500 14px/1.2 var(--rw-font, sans-serif);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rw-trade-journal__editor-tools .rw-trade-journal__block-menu > button:hover,
+.rw-trade-journal__editor-tools .rw-trade-journal__color-menu > button:hover {
+  background: #f2f4f8;
+  color: #131722;
+}
+
+.rw-trade-journal__block-menu > button b {
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.rw-trade-journal__color-menu {
+  position: absolute;
+  top: 42px;
+  left: calc(100% + 7px);
+  width: 176px;
+  max-height: min(430px, calc(100vh - 210px));
+  padding: 7px;
+  overflow-y: auto;
+  border: 1px solid #e0e3eb;
+  border-radius: 9px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(19, 23, 34, 0.2);
+}
+
+.rw-trade-journal__color-menu h3 {
+  margin: 2px 8px 5px;
+  color: #555965;
+  font: 600 12px/1.4 var(--rw-font, sans-serif);
+}
+
+.rw-trade-journal__color-menu > button {
+  gap: 9px;
+}
+
+.rw-trade-journal__color-menu > button > span:nth-child(2) {
+  flex: 1;
+}
+
+.rw-trade-journal__color-menu > button > b {
+  color: #3d4048;
+  font-size: 15px;
+}
+
+.rw-trade-journal__color-swatch {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 5px;
+  color: #555965;
+  font: 500 14px/1 var(--rw-font, sans-serif);
+  letter-spacing: 0;
+}
+
+.rw-trade-journal__color-swatch--default { background: #f4f5f7; }
+.rw-trade-journal__color-swatch--gray { background: #e7e8ea; }
+.rw-trade-journal__color-swatch--brown { background: #eee2d8; }
+.rw-trade-journal__color-swatch--red { background: #f9dedf; }
+.rw-trade-journal__color-swatch--orange { background: #f6e5cf; }
+.rw-trade-journal__color-swatch--yellow { background: #f7edc9; }
+.rw-trade-journal__color-swatch--green { background: #dfece5; }
+.rw-trade-journal__color-swatch--blue { background: #dfeaed; }
+.rw-trade-journal__color-swatch--purple { background: #e9e2ef; }
+.rw-trade-journal__color-swatch--pink { background: #f3dfeb; }
+
+.rw-trade-journal__editor--bg-default { background: #fbfcfe; }
+.rw-trade-journal__editor--bg-gray { background: #f1f2f4; }
+.rw-trade-journal__editor--bg-brown { background: #f5eee8; }
+.rw-trade-journal__editor--bg-red { background: #fdf0f0; }
+.rw-trade-journal__editor--bg-orange { background: #fbf2e7; }
+.rw-trade-journal__editor--bg-yellow { background: #fbf7df; }
+.rw-trade-journal__editor--bg-green { background: #edf6f1; }
+.rw-trade-journal__editor--bg-blue { background: #edf5f8; }
+.rw-trade-journal__editor--bg-purple { background: #f4eff8; }
+.rw-trade-journal__editor--bg-pink { background: #faeff6; }
 
 .rw-trade-journal__notes {
   display: block;
@@ -9767,6 +9875,72 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 .rw-root[data-chart-theme='dark'] .rw-trade-journal__editor-tools button[aria-expanded='true'] {
   background: rgba(255, 255, 255, 0.08);
   color: #d1d4dc;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__block-menu,
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__color-menu {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #2a2e39;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.rw-root[data-chart-theme='dark']
+  .rw-trade-journal__editor-tools
+  .rw-trade-journal__block-menu
+  > button,
+.rw-root[data-chart-theme='dark']
+  .rw-trade-journal__editor-tools
+  .rw-trade-journal__color-menu
+  > button {
+  color: #d1d4dc;
+}
+
+.rw-root[data-chart-theme='dark']
+  .rw-trade-journal__editor-tools
+  .rw-trade-journal__block-menu
+  > button:hover,
+.rw-root[data-chart-theme='dark']
+  .rw-trade-journal__editor-tools
+  .rw-trade-journal__color-menu
+  > button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__color-menu h3,
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__color-menu > button > b {
+  color: #aeb2bd;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__editor--bg-default {
+  background: #252936;
+}
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__editor--bg-gray {
+  background: #30343e;
+}
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__editor--bg-brown {
+  background: #3a302b;
+}
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__editor--bg-red {
+  background: #402d31;
+}
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__editor--bg-orange {
+  background: #40352a;
+}
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__editor--bg-yellow {
+  background: #3d3928;
+}
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__editor--bg-green {
+  background: #293a34;
+}
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__editor--bg-blue {
+  background: #293841;
+}
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__editor--bg-purple {
+  background: #352f40;
+}
+.rw-root[data-chart-theme='dark'] .rw-trade-journal__editor--bg-pink {
+  background: #402f3b;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-trade-journal__command-menu {

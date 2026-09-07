@@ -17,6 +17,7 @@ ml-service/artifacts/*.pt
 ml-service/data/*.db
 dist
 dist-ssr
+.vite
 public/charting_library
 *.local
 

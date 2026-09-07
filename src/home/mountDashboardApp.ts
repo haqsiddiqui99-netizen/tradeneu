@@ -2,6 +2,432 @@ import './traderLocal.css'
 import './dashboardTheme.css'
 import './surrealHero.css'
 import {
+  Chart,
+  LineController,
+  LineElement,
+  PointElement,
+  BarController,
+  BarElement,
+  LinearScale,
+  CategoryScale,
+  Tooltip,
+  Filler,
+  type ChartConfiguration,
+  type ChartType,
+  type TooltipModel,
+  type TooltipPositionerFunction,
+} from 'chart.js'
+
+declare module 'chart.js' {
+  interface TooltipPositionerMap {
+    barMiddle: TooltipPositionerFunction<ChartType>
+  }
+}
+
+Chart.register(
+  LineController,
+  LineElement,
+  PointElement,
+  BarController,
+  BarElement,
+  LinearScale,
+  CategoryScale,
+  Tooltip,
+  Filler,
+)
+
+// Custom tooltip positioner: anchors the tooltip caret to the horizontal
+// midpoint of the hovered bar segment instead of Chart.js's default (the
+// segment's end edge), so the tooltip points at the middle of each trade
+// win/loss bar rather than its tip.
+Tooltip.positioners.barMiddle = ((items, eventPosition) => {
+  const el = items[0]?.element as unknown as { getProps?: (props: string[], final?: boolean) => Record<string, number> } | undefined
+  if (!el?.getProps) return eventPosition
+  const props = el.getProps(['x', 'y', 'base', 'height'], true)
+  const halfHeight = Number.isFinite(props.height) ? props.height / 2 : 9
+  return {
+    x: (props.x + props.base) / 2,
+    y: props.y + halfHeight + 6,
+  }
+}) as TooltipPositionerFunction<ChartType>
+
+const DASH_KPI_INFO_ICON_SVG = `<img src="/icons/kpi-info.png" alt="" aria-hidden="true" />`
+
+const sxEquityChartRegistry = new WeakMap<HTMLCanvasElement, Chart<'line'> & { $sxFullLabels?: string[] }>()
+
+function sxNiceCeilStep(v: number): number {
+  if (!(v > 0)) return 100
+  const pow = 10 ** Math.floor(Math.log10(v))
+  const n = v / pow
+  const nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10
+  return nice * pow
+}
+
+function sxEquityTooltipHandler(context: { chart: Chart; tooltip: TooltipModel<'line'> }) {
+  const { chart, tooltip } = context
+  const parent = chart.canvas.parentNode as HTMLElement | null
+  if (!parent) return
+  let tipEl = parent.querySelector<HTMLDivElement>('.sx-dash-equity-tip')
+  if (!tipEl) {
+    tipEl = document.createElement('div')
+    tipEl.className = 'sx-dash-equity-tip'
+    parent.appendChild(tipEl)
+  }
+  if (tooltip.opacity === 0) {
+    tipEl.style.opacity = '0'
+    return
+  }
+  if (tooltip.body) {
+    const point = tooltip.dataPoints[0]
+    const idx = point?.dataIndex ?? 0
+    const fullLabels = (chart as Chart & { $sxFullLabels?: string[] }).$sxFullLabels
+    const title = fullLabels?.[idx] ?? tooltip.title[0] ?? ''
+    const raw = point?.raw
+    const valueText = formatDashboardPerfMoney(typeof raw === 'number' ? raw : 0)
+    tipEl.innerHTML = `<div class="sx-dash-equity-tip__title">${title}</div><div class="sx-dash-equity-tip__row"><span class="sx-dash-equity-tip__dot"></span><span>P&amp;L: ${valueText}</span></div>`
+  }
+  const { offsetLeft: posX, offsetTop: posY } = chart.canvas
+  tipEl.style.opacity = '1'
+  tipEl.style.left = `${posX + tooltip.caretX}px`
+  tipEl.style.top = `${posY + tooltip.caretY}px`
+}
+
+function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<typeof computeEquityCurveSeries>) {
+  const cumulative = equity.hasData ? equity.cumulative : new Array(12).fill(0)
+  const maxVal = Math.max(0, ...cumulative, 1)
+  const minVal = Math.min(0, ...cumulative)
+  const suggestedMax = sxNiceCeilStep(maxVal * 1.15)
+  const suggestedMin = minVal < 0 ? -sxNiceCeilStep(-minVal * 1.15) : 0
+  const pointRadius = cumulative.map(() => 4)
+  const pointColors = cumulative.map(() => '#4caf50')
+
+  let chart = sxEquityChartRegistry.get(canvas)
+  if (!chart) {
+    const parent = canvas.parentElement
+    if (parent) parent.style.position = 'relative'
+    const config: ChartConfiguration<'line'> = {
+      type: 'line',
+      data: {
+        labels: equity.labels,
+        datasets: [
+          {
+            data: cumulative,
+            borderColor: '#4caf50',
+            backgroundColor: '#4caf50',
+            pointBackgroundColor: pointColors,
+            pointBorderColor: '#4caf50',
+            pointRadius,
+            pointHoverRadius: 6,
+            borderWidth: 2,
+            tension: 0,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'nearest', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false, external: sxEquityTooltipHandler },
+        },
+        scales: {
+          y: {
+            min: suggestedMin,
+            suggestedMax,
+            ticks: { stepSize: (suggestedMax - suggestedMin) / 4, color: '#475467' },
+            grid: { color: '#eeeeee' },
+            border: { display: false },
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: '#475467' },
+            border: { display: false },
+          },
+        },
+      },
+    }
+    chart = new Chart(canvas, config)
+    sxEquityChartRegistry.set(canvas, chart)
+  } else {
+    chart.data.labels = equity.labels
+    const dataset = chart.data.datasets[0]!
+    dataset.data = cumulative
+    const yScale = chart.options.scales?.y as { min?: number; suggestedMax?: number; ticks?: { stepSize?: number } }
+    if (yScale) {
+      yScale.min = suggestedMin
+      yScale.suggestedMax = suggestedMax
+      if (yScale.ticks) yScale.ticks.stepSize = (suggestedMax - suggestedMin) / 4
+    }
+  }
+  ;(chart as Chart & { $sxFullLabels?: string[] }).$sxFullLabels = equity.monthLabels
+  chart.update()
+}
+
+const sxActivityChartRegistry = new WeakMap<HTMLCanvasElement, Chart<'bar'>>()
+const sxSymbolsChartRegistry = new WeakMap<HTMLCanvasElement, Chart<'bar'>>()
+const sxWinRateChartRegistry = new WeakMap<HTMLCanvasElement, Chart<'bar'>>()
+
+function sxFormatDurationHours(hoursValue: number): string {
+  const totalMinutes = Math.round(Math.max(0, hoursValue) * 60)
+  if (totalMinutes <= 0) return '0min'
+  const hrs = Math.floor(totalMinutes / 60)
+  const mins = totalMinutes % 60
+  if (hrs === 0) return `${mins}min`
+  if (mins === 0) return `${hrs}hr`
+  return `${hrs}hr ${mins}m`
+}
+
+const SX_NICE_HOUR_STEPS = [0.5, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 24, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500]
+
+/** Picks a round hour increment (2hr, 4hr, 6hr, ...) targeting ~5 ticks. */
+function sxNiceHourStep(max: number): number {
+  const target = max / 5
+  for (const step of SX_NICE_HOUR_STEPS) {
+    if (step >= target) return step
+  }
+  return SX_NICE_HOUR_STEPS[SX_NICE_HOUR_STEPS.length - 1]!
+}
+
+function syncActivityBarChart(
+  canvas: HTMLCanvasElement,
+  points: { label: string; fullLabel?: string; practiceMs: number }[],
+  floorHours = 4,
+) {
+  const labels = points.map((d) => d.label)
+  const fullLabels = points.map((d) => d.fullLabel ?? d.label)
+  const hours = points.map((d) => Math.round((d.practiceMs / 3_600_000) * 100) / 100)
+  const maxVal = Math.max(0, ...hours, 1)
+  const rawMax = Math.max(floorHours, sxNiceCeilStep(maxVal * 1.15))
+  const stepSize = sxNiceHourStep(rawMax)
+  const suggestedMax = Math.ceil(rawMax / stepSize) * stepSize
+
+  let chart = sxActivityChartRegistry.get(canvas)
+  if (!chart) {
+    const config: ChartConfiguration<'bar'> = {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            data: hours,
+            backgroundColor: '#4caf50',
+            borderRadius: 0,
+            borderSkipped: false,
+            barPercentage: 0.5,
+            categoryPercentage: 0.7,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: true,
+            callbacks: {
+              title: (items) => {
+                const idx = items[0]?.dataIndex
+                const full = (chart as Chart & { $sxFullLabels?: string[] }).$sxFullLabels
+                return idx != null ? full?.[idx] ?? items[0]?.label ?? '' : ''
+              },
+              label: (item) => `  ${sxFormatDurationHours(typeof item.raw === 'number' ? item.raw : 0)}`,
+            },
+          },
+        },
+        scales: {
+          y: {
+            min: 0,
+            suggestedMax,
+            ticks: {
+              stepSize,
+              color: '#475467',
+              callback: (value) => sxFormatDurationHours(Number(value)),
+            },
+            grid: { color: '#eeeeee' },
+            border: { display: false },
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: '#475467', font: { weight: '500' } },
+            border: { display: false },
+          },
+        },
+      },
+    }
+    chart = new Chart(canvas, config)
+    sxActivityChartRegistry.set(canvas, chart)
+    ;(chart as Chart & { $sxFullLabels?: string[] }).$sxFullLabels = fullLabels
+  } else {
+    chart.data.labels = labels
+    chart.data.datasets[0]!.data = hours
+    ;(chart as Chart & { $sxFullLabels?: string[] }).$sxFullLabels = fullLabels
+    const yScale = chart.options.scales?.y as { suggestedMax?: number; ticks?: { stepSize?: number } }
+    if (yScale) {
+      yScale.suggestedMax = suggestedMax
+      if (yScale.ticks) yScale.ticks.stepSize = stepSize
+    }
+  }
+  chart.update()
+}
+
+function syncSymbolsBarChart(
+  canvas: HTMLCanvasElement,
+  points: { symbol: string; trades: number; wins: number; losses: number }[],
+) {
+  const top = points.slice(0, 8)
+  const labels = top.map((p) => p.symbol)
+  const winValues = top.map((p) => p.wins)
+  const lossValues = top.map((p) => p.losses)
+  const totalValues = top.map((p) => p.wins + p.losses)
+  const maxVal = Math.max(0, ...totalValues, 1)
+  // Trade counts are always whole numbers, so pick an integer step (1, 2, 5,
+  // 10, 20, 50, ...) and derive the max from it — avoids decimal axis ticks
+  // like 12.5 / 37.5.
+  const stepSize = Math.max(1, Math.round(sxNiceCeilStep(Math.max(1, maxVal / 4))))
+  const suggestedMax = stepSize * 4
+
+  let chart = sxSymbolsChartRegistry.get(canvas)
+  if (!chart) {
+    const config: ChartConfiguration<'bar'> = {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Wins',
+            data: winValues,
+            backgroundColor: '#2e9e35',
+            borderRadius: (ctx) => {
+              const lossesVal = Number(ctx.chart.data.datasets[1]?.data[ctx.dataIndex] ?? 0)
+              return lossesVal > 0 ? { topLeft: 6, bottomLeft: 6, topRight: 0, bottomRight: 0 } : 6
+            },
+            borderSkipped: false,
+            barThickness: 18,
+            stack: 'trades',
+          },
+          {
+            label: 'Losses',
+            data: lossValues,
+            backgroundColor: '#9ca3af',
+            borderRadius: (ctx) => {
+              const winsVal = Number(ctx.chart.data.datasets[0]?.data[ctx.dataIndex] ?? 0)
+              return winsVal > 0 ? { topLeft: 0, bottomLeft: 0, topRight: 6, bottomRight: 6 } : 6
+            },
+            borderSkipped: false,
+            barThickness: 18,
+            stack: 'trades',
+          },
+        ],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: true,
+            position: 'barMiddle',
+            yAlign: 'top',
+            callbacks: {
+              label: (item) => `${item.dataset.label}: ${item.raw} trade${item.raw === 1 ? '' : 's'}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            stacked: true,
+            min: 0,
+            suggestedMax,
+            ticks: { stepSize, precision: 0, color: '#475467' },
+            grid: { color: '#eeeeee' },
+            border: { display: false },
+          },
+          y: {
+            stacked: true,
+            grid: { display: false },
+            ticks: { color: '#475467', font: { size: 12 } },
+            border: { display: false },
+          },
+        },
+      },
+    }
+    chart = new Chart(canvas, config)
+    sxSymbolsChartRegistry.set(canvas, chart)
+  } else {
+    chart.data.labels = labels
+    chart.data.datasets[0]!.data = winValues
+    chart.data.datasets[1]!.data = lossValues
+    const xScale = chart.options.scales?.x as { suggestedMax?: number; ticks?: { stepSize?: number } }
+    if (xScale) {
+      xScale.suggestedMax = suggestedMax
+      if (xScale.ticks) xScale.ticks.stepSize = stepSize
+    }
+  }
+  chart.update()
+}
+
+function syncWinRateBarChart(canvas: HTMLCanvasElement, points: { label: string; winRate: number | null }[]) {
+  const labels = points.map((p) => p.label)
+  const values = points.map((p) => (p.winRate == null ? 0 : Math.round(p.winRate * 100) / 100))
+
+  let chart = sxWinRateChartRegistry.get(canvas)
+  if (!chart) {
+    const config: ChartConfiguration<'bar'> = {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            data: values,
+            backgroundColor: '#2e9e35',
+            borderRadius: 6,
+            borderSkipped: false,
+            barPercentage: 0.5,
+            categoryPercentage: 0.7,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: true,
+            callbacks: {
+              label: (item) => `${typeof item.raw === 'number' ? item.raw.toFixed(0) : 0}% win rate`,
+            },
+          },
+        },
+        scales: {
+          y: {
+            min: 0,
+            max: 100,
+            ticks: { stepSize: 20, color: '#475467', callback: (v) => `${v}%` },
+            grid: { color: '#eeeeee' },
+            border: { display: false },
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: '#475467', font: { weight: '500' } },
+            border: { display: false },
+          },
+        },
+      },
+    }
+    chart = new Chart(canvas, config)
+    sxWinRateChartRegistry.set(canvas, chart)
+  } else {
+    chart.data.labels = labels
+    chart.data.datasets[0]!.data = values
+  }
+  chart.update()
+}
+import {
   appPageFromPath,
   applyLocaleFromPath,
   dashCodeToLocaleTag,
@@ -40,12 +466,14 @@ import { resolveStrategy } from '../strategy/strategyCatalog'
 import { mountStrategyPage } from '../views/mountStrategyPage'
 import { mountSettingsPage } from '../views/mountSettingsPage'
 import { mountSubscriptionPage } from '../views/mountSubscriptionPage'
+import { mountBillingPage } from '../views/mountBillingPage'
 import { mountProfilePage, type ProfileSessionStats } from '../views/mountProfilePage'
 import { postTelemetryEvent } from '../telemetry/telemetryApi'
 import { DASH_LOCALES, dashLocaleMenuLabel, isDashLocaleCode } from './dashboardLocales'
 import { readDisplayName, readUserAvatar } from './dashboardUserPrefs'
 import {
   buildDashboardPerfChartSvg,
+  computeEquityCurveSeries,
   describeDashboardPerfChartPeriod,
   buildPulseActivityChartSvg,
   buildPulsePracticeRowsHtml,
@@ -57,6 +485,7 @@ import {
   formatDashboardPerfMoney,
   formatDashboardWinRate,
   formatPulseDuration,
+  MONTH_SHORT,
   type DashboardPerfRange,
 } from './dashboardPerfStats'
 import { openSessionSummaryDialog } from '../views/sessionSummaryDialog'
@@ -71,6 +500,9 @@ const LS_TESTING_TAB = 'suplexity-dash-testing-tab'
 
 const TESTING_TABS = ['dashboard', 'sessions', 'trades', 'analytics'] as const
 type TestingTab = (typeof TESTING_TABS)[number]
+
+/** Sidebar entries — the four testing tabs plus the standalone pages. */
+type DashNavKey = TestingTab | 'strategy' | 'subscription' | 'billing' | 'settings' | 'profile'
 
 const PERF_RANGE_VALUES = ['week', 'month', 'lifetime'] as const
 
@@ -548,55 +980,105 @@ function saveSessionDraft(p: SessionCreatedPayload) {
   saveSessionDraftCompat(p)
 }
 
-function buildSessionPulseKpiHtml(opts?: { titleId?: string; extraClass?: string }): string {
+function buildPulseRangeHtml(): string {
+  return `<div class="sx-dash-pulse__range" role="group" aria-label="Pulse time range">
+                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="week">7d</button>
+                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="month">30d</button>
+                  <button type="button" class="sx-dash-pulse__range-btn sx-dash-pulse__range-btn--active" data-pulse-range="lifetime" aria-pressed="true">All</button>
+                </div>`
+}
+
+function buildSessionPulseKpiHtml(opts?: {
+  titleId?: string
+  extraClass?: string
+  /** Render only the KPI grid — used where the page already has a title and range picker. */
+  bare?: boolean
+}): string {
   const titleId = opts?.titleId ?? 'sx-dash-pulse-title'
   const extraClass = opts?.extraClass ? ` ${opts.extraClass}` : ''
-  return `
-            <section class="sx-dash-pulse sx-dash-pulse--pro sx-dash-pulse--kpi-only${extraClass}" aria-labelledby="${titleId}" data-sx-session-pulse>
-              <div class="sx-dash-pulse__head">
+  const head = opts?.bare
+    ? ''
+    : `<div class="sx-dash-pulse__head">
                 <div>
                   <h3 id="${titleId}" class="sx-dash-pulse__title">Session Pulse</h3>
                   <p class="sx-dash-pulse__sub">Your practice desk at a glance — time, edge, and equity path.</p>
                 </div>
-                <div class="sx-dash-pulse__range" role="group" aria-label="Pulse time range">
-                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="week">7d</button>
-                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="month">30d</button>
-                  <button type="button" class="sx-dash-pulse__range-btn sx-dash-pulse__range-btn--active" data-pulse-range="lifetime" aria-pressed="true">All</button>
-                </div>
-              </div>
+                ${buildPulseRangeHtml()}
+              </div>`
+  const labelAttr = opts?.bare ? 'aria-label="Key pulse metrics"' : `aria-labelledby="${titleId}"`
+  const bareClass = opts?.bare ? ' sx-dash-pulse--bare' : ''
+  return `
+            <section class="sx-dash-pulse sx-dash-pulse--pro sx-dash-pulse--kpi-only${bareClass}${extraClass}" ${labelAttr} data-sx-session-pulse>
+              ${head}
 
               <div class="sx-dash-pulse__kpi" role="group" aria-label="Key pulse metrics">
                 <div class="sx-dash-pulse__kpi-item">
                   <div class="sx-dash-pulse__kpi-top">
-                    <span class="sx-dash-pulse__kpi-label">Practice time</span>
-                    <button type="button" class="sx-dash-pulse__info" title="Estimated desk time across sessions in this range." aria-label="About practice time">i</button>
+                    <span class="sx-dash-pulse__kpi-label">Time Invested</span>
+                    <span class="sx-dash-pulse__kpi-icon" aria-hidden="true"><i class="fa-solid fa-stopwatch"></i></span>
                   </div>
                   <p class="sx-dash-pulse__kpi-value" data-sx-pulse="practice">—</p>
-                  <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="practice-hint">Across sessions</p>
+                  <div class="sx-dash-pulse__kpi-foot">
+                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="practice-hint">Across sessions</p>
+                    <button
+                      type="button"
+                      class="sx-dash-pulse__kpi-info"
+                      data-sx-pulse="practice-info"
+                      data-tip="Across sessions"
+                      aria-label="About time invested"
+                    >${DASH_KPI_INFO_ICON_SVG}</button>
+                  </div>
                 </div>
                 <div class="sx-dash-pulse__kpi-item">
                   <div class="sx-dash-pulse__kpi-top">
-                    <span class="sx-dash-pulse__kpi-label">Market tape</span>
-                    <button type="button" class="sx-dash-pulse__info" title="Sum of market date ranges you replayed." aria-label="About market tape">i</button>
+                    <span class="sx-dash-pulse__kpi-label">Replayed time</span>
+                    <span class="sx-dash-pulse__kpi-icon" aria-hidden="true"><i class="fa-solid fa-chart-line"></i></span>
                   </div>
                   <p class="sx-dash-pulse__kpi-value" data-sx-pulse="historical">—</p>
-                  <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="historical-hint">Historical coverage</p>
+                  <div class="sx-dash-pulse__kpi-foot">
+                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="historical-hint">Historical coverage</p>
+                    <button
+                      type="button"
+                      class="sx-dash-pulse__kpi-info"
+                      data-sx-pulse="historical-info"
+                      data-tip="Historical coverage"
+                      aria-label="About replayed time"
+                    >${DASH_KPI_INFO_ICON_SVG}</button>
+                  </div>
                 </div>
                 <div class="sx-dash-pulse__kpi-item">
                   <div class="sx-dash-pulse__kpi-top">
                     <span class="sx-dash-pulse__kpi-label">Net P&amp;L</span>
-                    <button type="button" class="sx-dash-pulse__info" title="Net profit and loss from backtests in this range." aria-label="About Net P&amp;L">i</button>
+                    <span class="sx-dash-pulse__kpi-icon" aria-hidden="true"><i class="fa-solid fa-sack-dollar"></i></span>
                   </div>
                   <p class="sx-dash-pulse__kpi-value" data-sx-pulse="pnl">—</p>
-                  <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="pnl-hint">Backtest results</p>
+                  <div class="sx-dash-pulse__kpi-foot">
+                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="pnl-hint">Backtest results</p>
+                    <button
+                      type="button"
+                      class="sx-dash-pulse__kpi-info"
+                      data-sx-pulse="pnl-info"
+                      data-tip="Backtest results"
+                      aria-label="About net P&L"
+                    >${DASH_KPI_INFO_ICON_SVG}</button>
+                  </div>
                 </div>
                 <div class="sx-dash-pulse__kpi-item">
                   <div class="sx-dash-pulse__kpi-top">
                     <span class="sx-dash-pulse__kpi-label">Win rate</span>
-                    <button type="button" class="sx-dash-pulse__info" title="Share of winning trades over closed trades." aria-label="About win rate">i</button>
+                    <span class="sx-dash-pulse__kpi-icon" aria-hidden="true"><i class="fa-solid fa-trophy"></i></span>
                   </div>
                   <p class="sx-dash-pulse__kpi-value" data-sx-pulse="winrate">—</p>
-                  <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="winrate-hint">Closed trade edge</p>
+                  <div class="sx-dash-pulse__kpi-foot">
+                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="winrate-hint">Closed trade edge</p>
+                    <button
+                      type="button"
+                      class="sx-dash-pulse__kpi-info"
+                      data-sx-pulse="winrate-info"
+                      data-tip="Closed trade edge"
+                      aria-label="About win rate"
+                    >${DASH_KPI_INFO_ICON_SVG}</button>
+                  </div>
                 </div>
               </div>
             </section>`
@@ -722,18 +1204,247 @@ function buildRecentSessionsSectionHtml(): string {
             </section>`
 }
 
+const DASH_NAV_LABELS: Record<DashNavKey, string> = {
+  dashboard: 'Dashboard',
+  sessions: 'Sessions',
+  trades: 'Trades',
+  analytics: 'Analytics',
+  strategy: 'Strategy',
+  subscription: 'Subscription',
+  billing: 'Billing',
+  settings: 'Settings',
+  profile: 'Profile',
+}
+
+const DASH_GRID_ICON_SVG = `<svg class="sx-dash-side__ico sx-dash-side__ico--grid" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="3" y="3" width="7.5" height="7.5" rx="1.7"></rect>
+              <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.7"></rect>
+              <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.7"></rect>
+              <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.7"></rect>
+            </svg>`
+
+function sideLinkHtml(
+  key: DashNavKey,
+  icon: string,
+  attrs: string,
+  active = false,
+  iconHtml?: string,
+): string {
+  return `<button
+              type="button"
+              class="sx-dash-side__link${active ? ' sx-dash-side__link--active' : ''}"
+              data-sx-side-link="${key}"
+              ${attrs}
+              ${active ? 'aria-current="page"' : ''}
+            >
+              ${iconHtml ?? `<i class="${icon} sx-dash-side__ico" aria-hidden="true"></i>`}
+              <span>${DASH_NAV_LABELS[key]}</span>
+            </button>`
+}
+
+function buildDashSidebarHtml(): string {
+  return `
+      <aside class="sx-dash-side" aria-label="Dashboard sections">
+        <div class="sx-dash-side__account">
+          <div class="sx-dash-account-static">
+            <span class="sx-dash-account-static__greet">Welcome <span data-sx-account-label>Guest</span>,</span>
+            <span class="sx-dash-account-static__plan">
+              You're on <strong data-sx-account-plan>Basic</strong> Plan
+            </span>
+          </div>
+        </div>
+
+        <nav class="sx-dash-side__nav">
+          ${sideLinkHtml('dashboard', 'fa-solid fa-table-cells-large', 'data-action="dashboard" data-testing-tab="dashboard"', true, DASH_GRID_ICON_SVG)}
+          ${sideLinkHtml('sessions', 'fa-solid fa-list-ul', 'data-testing-tab="sessions"')}
+          ${sideLinkHtml('trades', 'fa-regular fa-file-lines', 'data-testing-tab="trades"')}
+          ${sideLinkHtml('analytics', 'fa-solid fa-chart-line', 'data-testing-tab="analytics"')}
+          ${sideLinkHtml('strategy', 'fa-solid fa-bolt', 'data-action="strategy"')}
+          ${sideLinkHtml('subscription', 'fa-regular fa-credit-card', 'data-action="subscription"')}
+          ${sideLinkHtml('billing', 'fa-regular fa-file-lines', 'data-action="billing"')}
+          ${sideLinkHtml('settings', 'fa-solid fa-gear', 'data-action="settings"')}
+
+          <p class="sx-dash-side__section">Account pages</p>
+          ${sideLinkHtml('profile', 'fa-regular fa-user', 'data-action="profile"')}
+          <button type="button" class="sx-dash-side__link" data-nav="logout">
+            <i class="fa-solid fa-arrow-right-from-bracket sx-dash-side__ico" aria-hidden="true"></i>
+            <span>Sign out</span>
+          </button>
+        </nav>
+      </aside>`
+}
+
+function buildDashTopbarHtml(): string {
+  return `
+        <header class="sx-dash-bar" role="banner">
+          <label for="sx-nav-drawer" class="sx-dash-bar__burger" aria-label="Open menu">
+            <i class="fa-solid fa-bars" aria-hidden="true"></i>
+          </label>
+
+          <div class="sx-dash-bar__brand" aria-hidden="true">
+            <span class="sx-dash-side__mono">TN</span>
+            <span class="sx-dash-side__name">
+              <span class="sx-dash-side__name-trade">TRADE</span><span class="sx-dash-side__name-neu">NEU</span>
+            </span>
+          </div>
+          <span class="sr-only">Tradeneu Premium Backtesting</span>
+
+          <div class="sx-dash-bar__tools" role="toolbar" aria-label="Dashboard actions">
+            <button type="button" class="sx-dash-bar__upgrade" data-action="pro-upgrade">
+              <i class="fa-solid fa-crown" aria-hidden="true"></i>
+              <span>Upgrade</span>
+            </button>
+
+            <span class="sx-dash-tip-wrap inline-flex">
+              <button type="button" data-action="ai-chat" class="sx-dash-bar__icon" aria-label="Open AI assistant">
+                <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+              </button>
+              <span class="sx-dash-tip">AI Assistant</span>
+            </span>
+
+            <span class="sx-dash-tip-wrap relative inline-flex">
+              <div class="sx-dash-locale-dd relative" data-sx-locale-dropdown>
+                <button
+                  type="button"
+                  class="sx-dash-locale-trigger sx-dash-bar__locale"
+                  aria-expanded="false"
+                  aria-haspopup="listbox"
+                  aria-label="Language"
+                >
+                  <span class="sx-dash-locale-trigger__code">EN</span>
+                  <i class="fa-solid fa-chevron-down sx-dash-locale-trigger__chev" aria-hidden="true"></i>
+                </button>
+                <div class="sx-dash-locale-panel hidden" role="listbox" aria-label="Choose language"></div>
+              </div>
+              <span class="sx-dash-tip">Translate</span>
+            </span>
+
+            <span class="sx-dash-tip-wrap inline-flex">
+              <button type="button" class="sx-dash-bar__icon sx-dash-theme-icon-btn" aria-label="Switch theme">
+                <i class="fa-solid fa-sun sx-dash-theme-icon--when-dark" aria-hidden="true"></i>
+                <i class="fa-solid fa-moon sx-dash-theme-icon--when-light" aria-hidden="true"></i>
+              </button>
+              <span class="sx-dash-tip">Change theme</span>
+            </span>
+
+            <span class="sx-dash-tip-wrap inline-flex">
+              <button type="button" data-action="dash-fullscreen" class="sx-dash-bar__icon sx-dash-fullscreen-btn" aria-label="Enter fullscreen">
+                <i class="fa-solid fa-expand sx-dash-fs-icon-expand" aria-hidden="true"></i>
+                <i class="fa-solid fa-compress sx-dash-fs-icon-compress" aria-hidden="true"></i>
+              </button>
+              <span class="sx-dash-tip">Fullscreen</span>
+            </span>
+
+            <span class="sx-dash-tip-wrap inline-flex">
+              <button type="button" data-action="settings" class="sx-dash-bar__icon" aria-label="Settings">
+                <i class="fa-solid fa-gear" aria-hidden="true"></i>
+              </button>
+              <span class="sx-dash-tip">Settings</span>
+            </span>
+
+          </div>
+        </header>`
+}
+
+function buildDashboardPageHeadHtml(): string {
+  return `
+            <div class="sx-dash-page-head">
+              <div class="sx-dash-page-head__copy">
+                <h1 class="sx-dash-page-title">Backtesting</h1>
+                <p class="sx-dash-page-sub">Practice on the past, profit in the present — track sessions, tape and edge.</p>
+              </div>
+              <div class="sx-dash-page-head__actions">
+                <button type="button" data-action="backtest" class="sx-dash-cta-btn sx-dash-cta-btn--primary">
+                  <span class="sx-dash-cta-btn__icon" aria-hidden="true">+</span>
+                  Backtesting Session
+                </button>
+                <button type="button" data-action="prop" class="sx-dash-cta-btn sx-dash-cta-btn--secondary">
+                  <span class="sx-dash-cta-pro" title="Pro feature" role="img" aria-label="Pro feature">
+                    <i class="fa-solid fa-crown" aria-hidden="true"></i>
+                  </span>
+                  Target Challenge
+                </button>
+              </div>
+            </div>`
+}
+
+function buildDashGraphCardsHtml(): string {
+  return `
+            <div class="sx-dash-graphs">
+              <article class="sx-dash-graph">
+                <div class="sx-dash-graph__head">
+                  <div>
+                    <h3 class="sx-dash-graph__title">Time Invested</h3>
+                  </div>
+                  <div class="sx-dash-graph__head-right">
+                    <div class="sx-dash-graph__tabs" role="tablist" aria-label="Time Invested range">
+                      <button type="button" class="sx-dash-graph__tab sx-dash-graph__tab--active" data-sx-activity-range="daily" role="tab" aria-selected="true">Daily</button>
+                      <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="weekly" role="tab" aria-selected="false">Weekly</button>
+                      <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="monthly" role="tab" aria-selected="false">Monthly</button>
+                      <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="yearly" role="tab" aria-selected="false">Yearly</button>
+                    </div>
+                    <p class="sx-dash-graph__total"><strong data-sx-activity-total>—</strong> spent in this range</p>
+                  </div>
+                </div>
+                <div class="sx-dash-graph__chart sx-dash-activity-chart" role="img" aria-label="Practice hours by day">
+                  <canvas data-sx-activity-chart-canvas></canvas>
+                </div>
+              </article>
+
+              <article class="sx-dash-graph sx-dash-graph--wide">
+                <h3 class="sx-dash-graph__title">Equity Curve</h3>
+                <div class="sx-dash-graph__chart sx-dash-equity-chart" role="img" aria-label="Equity curve by month">
+                  <canvas data-sx-equity-chart-canvas></canvas>
+                </div>
+              </article>
+
+              <div class="sx-dash-graph--full sx-dash-graphs-row">
+                <article class="sx-dash-graph">
+                  <div class="sx-dash-graph__head">
+                    <h3 class="sx-dash-graph__title">Win Rate</h3>
+                    <button
+                      type="button"
+                      class="sx-dash-pulse__kpi-info"
+                      data-tip="Share of your closed trades that ended as wins, by month."
+                      aria-label="About win rate"
+                    >${DASH_KPI_INFO_ICON_SVG}</button>
+                  </div>
+                  <div class="sx-dash-graph__chart sx-dash-winrate-chart" role="img" aria-label="Win rate by month">
+                    <canvas data-sx-winrate-chart-canvas></canvas>
+                  </div>
+                </article>
+
+                <article class="sx-dash-graph">
+                  <div class="sx-dash-graph__head">
+                    <h3 class="sx-dash-graph__title">Trades by symbol</h3>
+                    <button
+                      type="button"
+                      class="sx-dash-pulse__kpi-info"
+                      data-tip="Distribution of your closed trades across each symbol you've traded."
+                      aria-label="About trades by symbol"
+                    >${DASH_KPI_INFO_ICON_SVG}</button>
+                  </div>
+                  <div class="sx-dash-graph__chart sx-dash-symbols-chart" role="img" aria-label="Trades by symbol">
+                    <canvas data-sx-symbols-chart-canvas></canvas>
+                  </div>
+                </article>
+              </div>
+            </div>`
+}
+
 /**
  * TraderLocal-style dark dashboard — session launcher & markets.
  */
 export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   document.documentElement.removeAttribute('data-theme')
   document.title = 'Tradeneu — Dashboard'
+  let activityChartRange: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'daily'
 
   root.replaceChildren()
   appendElementsFromHtml(
     root,
     `
-<div class="flex h-full min-h-0 flex-col overflow-hidden bg-[#f5f3ff] text-slate-800" id="sx-app-root" data-dashboard-theme="light">
+<div class="flex h-full min-h-0 flex-col overflow-hidden bg-[#f0f0f0] text-slate-800" id="sx-app-root" data-dashboard-theme="light">
   <div id="view-dash" class="sx-dash relative flex min-h-0 flex-1 flex-col overflow-hidden font-sans text-slate-800 selection:bg-indigo-500/20">
     <div class="sx-dash__mesh" aria-hidden="true"></div>
     <div class="sx-dash__noise" aria-hidden="true"></div>
@@ -741,242 +1452,47 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     <div class="sx-dash__orb sx-dash__orb--b" aria-hidden="true"></div>
     <div class="sx-dash__orb sx-dash__orb--c" aria-hidden="true"></div>
 
-    <div class="sx-dash__layer flex min-h-0 flex-1 flex-col overflow-hidden">
-    <header class="sx-dash-header sx-dash-topbar relative z-[45] w-full shrink-0 border-b border-slate-200/90 bg-white">
-      <div class="sx-dash-header__bar relative mx-auto flex w-full max-w-[1440px] items-center gap-3 px-4 py-2.5 sm:gap-5 sm:px-6 sm:py-3 lg:px-8">
-        <div class="sx-dash__brand-mark relative z-[1] min-w-0 shrink-0">
-          <div class="sx-dash-account" data-sx-account-menu>
-            <span class="sx-dash-cta-ai sx-dash-account-ai">
-              <span class="sx-dash-cta-ai__glow" aria-hidden="true"></span>
-              <span class="sx-dash-cta-ai__border" aria-hidden="true"><span class="sx-dash-cta-ai__ring" style="animation-delay:-0.8s"></span></span>
-              <button
-                type="button"
-                class="sx-dash-account-btn sx-dash-account-btn--ai"
-                data-sx-account-toggle
-                aria-label="Guest menu"
-                aria-haspopup="menu"
-                aria-expanded="false"
-                aria-controls="sx-dash-account-panel"
-                title="Guest"
-              >
-                <span class="sx-dash-account-btn__icon" data-sx-account-avatar aria-hidden="true">
-                  <i class="fa-solid fa-user" data-sx-account-avatar-fallback></i>
-                </span>
-                <span class="sx-dash-account-btn__label" data-sx-account-label>Guest</span>
-                <span class="sx-dash-account-btn__plan sx-dash-account-btn__plan--free" data-sx-account-plan>Free</span>
-                <i class="fa-solid fa-chevron-down sx-dash-account-btn__chev" aria-hidden="true"></i>
-              </button>
-            </span>
-            <div class="sx-dash-account__menu" id="sx-dash-account-panel" role="menu" hidden>
-              <button type="button" role="menuitem" class="sx-dash-account__item sx-dash-account__item--danger" data-nav="logout">
-                <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
-                <span>Sign out</span>
-              </button>
-            </div>
-          </div>
-        </div>
+    <input type="checkbox" id="sx-nav-drawer" class="sr-only" />
+    <label for="sx-nav-drawer" class="sx-dash-side__scrim" aria-hidden="true"></label>
 
-        <div class="sx-dash-wordmark pointer-events-none absolute inset-x-0 top-1/2 z-0 flex -translate-y-1/2 justify-center px-28 sm:px-36">
-          <div class="sx-dash-wordmark__stack">
-            <p class="sx-dash-wordmark__mark sx-dash-wordmark__mark--e">
-              <span class="sx-dash-wordmark__mono" aria-hidden="true">TN</span>
-              <span class="sx-dash-wordmark__copy">
-                <span class="sx-dash-wordmark__tag">Premium Backtesting</span>
-                <span class="sx-dash-wordmark__name">
-                  <span class="sx-dash-wordmark__trade">TRADE</span><span class="sx-dash-wordmark__neu">NEU</span>
-                </span>
-              </span>
-              <span class="sr-only">Tradeneu Premium Backtesting</span>
-            </p>
-          </div>
-        </div>
+    <div class="sx-dash__layer sx-dash-shell">
+      ${buildDashSidebarHtml()}
 
-        <div class="relative z-[1] ml-auto flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
-          <span class="sr-only" id="sx-dash-display-name">${escapeHtml(readDisplayName())}</span>
-          <span class="sr-only" id="sx-dash-plan-badge">Free user</span>
-          <span class="sr-only" id="sx-ml-pill" title="ML API">ML …</span>
+      <div class="sx-dash-shell__main">
+        ${buildDashTopbarHtml()}
 
-          <div class="sx-dash-topbar-tools flex flex-wrap items-center justify-end gap-2 sm:gap-2.5" role="toolbar" aria-label="Dashboard actions">
-        <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" class="sx-dash-pro-upgrade-btn inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-amber-300/60 bg-gradient-to-br from-amber-50 via-violet-50 to-sky-50 text-amber-700 transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/55" data-action="pro-upgrade" aria-label="Upgrade to Pro">
-                <i class="fa-solid fa-crown text-[0.8rem]" aria-hidden="true"></i>
-          </button>
-          <span class="sx-dash-tip">Upgrade Pro</span>
-        </span>
-        <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" data-action="ai-chat" class="sx-dash-ai-chat-btn inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 text-slate-600 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45" aria-label="Open AI assistant">
-                <i class="fa-solid fa-wand-magic-sparkles text-[0.75rem] shrink-0" aria-hidden="true"></i>
-            <span class="text-[11px] font-bold leading-none tracking-tight">AI</span>
-          </button>
-          <span class="sx-dash-tip">AI Assistant</span>
-        </span>
-        <span class="sx-dash-tip-wrap relative inline-flex h-9 shrink-0">
-          <div class="sx-dash-locale-dd relative h-9 shrink-0" data-sx-locale-dropdown>
-            <button
-              type="button"
-                  class="sx-dash-locale-trigger inline-flex h-9 min-w-[3.1rem] shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white py-0 pl-2.5 pr-2 text-left text-[10px] font-bold text-slate-700 outline-none transition hover:border-slate-300 focus-visible:ring-2 focus-visible:ring-sky-400/45"
-              aria-expanded="false"
-              aria-haspopup="listbox"
-              aria-label="Language"
-            >
-              <span class="sx-dash-locale-trigger__code">EN</span>
-                  <i class="fa-solid fa-chevron-down sx-dash-locale-trigger__chev text-[0.55rem] text-slate-400" aria-hidden="true"></i>
-            </button>
-            <div class="sx-dash-locale-panel hidden" role="listbox" aria-label="Choose language"></div>
-          </div>
-          <span class="sx-dash-tip">Translate</span>
-        </span>
-        <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" class="sx-dash-theme-icon-btn relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45" aria-label="Switch to light theme">
-                <i class="fa-solid fa-sun sx-dash-theme-icon--when-dark pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.88rem]" aria-hidden="true"></i>
-                <i class="fa-solid fa-moon sx-dash-theme-icon--when-light pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.82rem]" aria-hidden="true"></i>
-            </button>
-              <span class="sx-dash-tip">Change theme</span>
-          </span>
-          <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" data-action="dash-fullscreen" class="sx-dash-fullscreen-btn relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45" aria-label="Enter fullscreen">
-              <i class="fa-solid fa-expand sx-dash-fs-icon-expand pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.78rem]" aria-hidden="true"></i>
-              <i class="fa-solid fa-compress sx-dash-fs-icon-compress pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[0.78rem]" aria-hidden="true"></i>
-            </button>
-            <span class="sx-dash-tip">Fullscreen</span>
-          </span>
-            <label
-              for="sx-nav-drawer"
-              class="sx-dash-header__menu-btn inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900 md:hidden"
-              aria-label="Open menu"
-            >☰</label>
-        </div>
-      </div>
-    </div>
+        <span class="sr-only" id="sx-dash-display-name">${escapeHtml(readDisplayName())}</span>
+        <span class="sr-only" id="sx-dash-plan-badge">Free user</span>
+        <span class="sr-only" id="sx-ml-pill" title="ML API">ML …</span>
 
-      <input type="checkbox" id="sx-nav-drawer" class="peer sr-only" />
-      <label
-        for="sx-nav-drawer"
-        class="pointer-events-none fixed inset-0 z-40 bg-slate-900/35 opacity-0 transition-opacity duration-200 peer-checked:pointer-events-auto peer-checked:opacity-100 md:hidden"
-        style="top: 3.5rem"
-        aria-hidden="true"
-      ></label>
-      <nav
-        class="sx-dash-hnav-mobile absolute left-0 right-0 top-full z-50 hidden max-h-[min(70vh,28rem)] flex-col gap-1 overflow-y-auto border-b border-slate-200 bg-white px-4 py-3 shadow-lg peer-checked:flex md:!hidden"
-        aria-label="Mobile"
-      >
-        <button type="button" data-nav="logout" class="sx-dash-hnav__link sx-dash-hnav__link--block sx-dash-hnav__link--logout">
-          <i class="fa-solid fa-arrow-right-from-bracket w-5 shrink-0 text-center text-[0.9rem]" aria-hidden="true"></i>
-          Sign out
-            </button>
-        <button type="button" data-action="dashboard" class="sx-dash-hnav__link sx-dash-hnav__link--active sx-dash-hnav__link--block">Backtesting</button>
-        <button type="button" data-action="strategy" class="sx-dash-hnav__link sx-dash-hnav__link--block">Strategy</button>
-        <button type="button" data-action="subscription" class="sx-dash-hnav__link sx-dash-hnav__link--block">Subscription</button>
-            <span
-          class="sx-dash-hnav__link sx-dash-hnav__link--disabled sx-dash-hnav__link--block"
-              title="Coming soon"
-              role="presentation"
-            >
-          Tutorials
-          <span class="sx-dash-hnav__badge">Soon</span>
-              </span>
-        <button type="button" data-action="settings" class="sx-dash-hnav__link sx-dash-hnav__link--block">Settings</button>
-      </nav>
-    </header>
-
-    <div class="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-      <main class="mx-auto min-h-0 min-w-0 w-full max-w-[1440px] flex-1 overflow-y-auto overflow-x-hidden px-4 pt-1 pb-4 sm:px-6 sm:pt-2 sm:pb-6 lg:px-8 lg:pb-10" id="sx-welcome">
-        <div class="sx-dash__panel sx-dash-home-panel min-h-0 space-y-2 p-3 sm:space-y-3 sm:p-4 lg:space-y-3 lg:p-5 lg:pt-2">
-        <nav class="sx-dash-subnav sx-dash-hnav hidden items-center gap-1 overflow-x-auto md:flex" aria-label="Main">
-          <button type="button" data-action="dashboard" class="sx-dash-hnav__link sx-dash-hnav__link--active">Backtesting</button>
-          <button type="button" data-action="strategy" class="sx-dash-hnav__link">Strategy</button>
-          <button type="button" data-action="subscription" class="sx-dash-hnav__link">Subscription</button>
-          <span class="sx-dash-hnav__link sx-dash-hnav__link--disabled" title="Coming soon" role="presentation">
-            Tutorials
-            <span class="sx-dash-hnav__badge">Soon</span>
-            </span>
-          <button type="button" data-action="settings" class="sx-dash-hnav__link">Settings</button>
-        </nav>
+      <main class="sx-dash-shell__scroll" id="sx-welcome">
+        <div class="sx-dash-home-panel">
 
         <div class="sx-dash-testing" data-sx-testing>
-          <div class="sx-dash-testing__head">
-            <nav class="sx-dash-testing-tabs" role="tablist" aria-label="Backtesting sections">
-              <button type="button" role="tab" class="sx-dash-testing-tab sx-dash-testing-tab--active" data-testing-tab="dashboard" aria-selected="true">
-                <i class="fa-solid fa-table-cells-large" aria-hidden="true"></i>
-                Dashboard
-            </button>
-              <button type="button" role="tab" class="sx-dash-testing-tab" data-testing-tab="sessions" aria-selected="false">
-                <i class="fa-solid fa-list-ul" aria-hidden="true"></i>
-                Sessions
-            </button>
-              <button type="button" role="tab" class="sx-dash-testing-tab" data-testing-tab="trades" aria-selected="false">
-                <i class="fa-regular fa-file-lines" aria-hidden="true"></i>
-                Trades
-            </button>
-              <button type="button" role="tab" class="sx-dash-testing-tab" data-testing-tab="analytics" aria-selected="false">
-                <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
-                Analytics
-            </button>
-            </nav>
-        </div>
 
-          <div class="sx-dash-testing__panels space-y-5 sm:space-y-6 lg:space-y-7">
-          <div class="sx-dash-testing-panel space-y-5 sm:space-y-6" data-testing-panel="dashboard" role="tabpanel">
-        <header class="sx-surreal-hero sx-dash-premium-hero sx-dash-premium-hero--compact relative overflow-hidden px-4 pb-1.5 pt-4 sm:px-6 sm:pb-2 sm:pt-5">
-          <div class="sx-surreal-hero__aurora" aria-hidden="true"></div>
-          <div class="sx-surreal-hero__grid" aria-hidden="true"></div>
-          <div class="sx-surreal-hero__ring" aria-hidden="true"></div>
-          <div class="sx-surreal-hero__mist" aria-hidden="true"></div>
-          <div class="relative z-[1]">
-            <div class="min-w-0">
-              <h2 class="sx-dash-welcome-title mb-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Practice on the past. Profit in the present.</h2>
-              <p class="sx-dash-welcome-sub sx-dash-welcome-sub--below text-left text-xl leading-snug sm:text-2xl">
-                Create a session, pick a date, and replay the tape — or resume where you left off.
-              </p>
-          </div>
-          </div>
-        </header>
+          <div class="sx-dash-testing__panels">
+          <div class="sx-dash-testing-panel sx-dash-testing-panel--dashboard" data-testing-panel="dashboard" role="tabpanel">
+            ${buildDashboardPageHeadHtml()}
 
-        <div class="sx-dash-launch-stack">
-        <ul class="sx-dash-premium-pills flex flex-wrap gap-3" aria-label="Workspace highlights">
-          <li class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-slate-600">Tick-accurate replay</li>
-          <li class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-slate-600">Multi-symbol sessions</li>
-          <li class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-slate-600">Strategy ready</li>
-        </ul>
+            <section class="sx-dash-performance" aria-labelledby="sx-dash-performance-title">
+              <header class="sx-dash-performance__head">
+                <div>
+                  <h2 id="sx-dash-performance-title">Performance</h2>
+                  <p>Your practice, market coverage, and trading results.</p>
+                </div>
+                ${buildPulseRangeHtml()}
+              </header>
 
-        <section class="sx-dash-action-row flex flex-wrap items-center justify-start gap-3">
-          <span class="sx-dash-cta-ai">
-            <span class="sx-dash-cta-ai__glow" aria-hidden="true"></span>
-            <span class="sx-dash-cta-ai__border" aria-hidden="true"><span class="sx-dash-cta-ai__ring"></span></span>
-          <button
-            type="button"
-            data-action="backtest"
-              class="sx-dash-cta-session sx-dash-cta-session--ai inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#0f172a] px-7 py-3.5 text-sm font-bold tracking-tight text-white transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f3ff] active:translate-y-0"
-            >
-              <span class="sx-dash-cta-mark sx-dash-cta-mark--plus" aria-hidden="true">+</span> Backtesting Session <span class="sx-dash-cta-mark sx-dash-cta-mark--arrow" aria-hidden="true">→</span>
-          </button>
-          </span>
-          <span class="sx-dash-cta-ai">
-            <span class="sx-dash-cta-ai__glow" aria-hidden="true"></span>
-            <span class="sx-dash-cta-ai__border" aria-hidden="true"><span class="sx-dash-cta-ai__ring" style="animation-delay:-1.6s"></span></span>
-          <button
-            type="button"
-            data-action="prop"
-              class="sx-dash-cta-session sx-dash-cta-session--ai inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#0f172a] px-7 py-3.5 text-sm font-bold tracking-tight text-white transition hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f3ff] active:translate-y-0"
-            >
-              <span class="sx-dash-cta-pro" title="Pro feature" role="img" aria-label="Pro feature">
-                <i class="fa-solid fa-crown" aria-hidden="true"></i>
-              </span>
-              Target Challenge
-              <span class="sx-dash-cta-mark sx-dash-cta-mark--arrow" aria-hidden="true">→</span>
-          </button>
-          </span>
-        </section>
-        </div>
+              ${buildSessionPulseKpiHtml({ bare: true })}
 
-          ${buildSessionPulseKpiHtml({ titleId: 'sx-dash-pulse-title' })}
-
+              ${buildDashGraphCardsHtml()}
+            </section>
           </div>
 
-          <div class="sx-dash-testing-panel hidden" data-testing-panel="sessions" role="tabpanel" hidden></div>
-
-          <div class="sx-dash-recent-sessions-host mt-1" data-sx-recent-sessions-host>
+          <div class="sx-dash-testing-panel hidden" data-testing-panel="sessions" role="tabpanel" hidden>
+            <div class="sx-dash-recent-sessions-host" data-sx-recent-sessions-host>
         ${buildRecentSessionsSectionHtml()}
+            </div>
           </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="analytics" role="tabpanel" hidden>
@@ -1029,7 +1545,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                     </div>
                 <button type="button" class="sx-dash-pulse__info" title="Hours invested practicing across the last 6 months." aria-label="About intense practice">i</button>
               </header>
-              <div class="sx-dash-pulse-chart sx-dash-pulse-chart--intense" data-sx-pulse="activity" role="img" aria-label="Intense practice hours by month"></div>
+              <div class="sx-dash-pulse-chart sx-dash-pulse-chart--intense" data-sx-pulse="activity" role="img" aria-label="Intense practice hours by day"></div>
             </article>
 
             <article class="sx-dash-pulse__panel sx-dash-pulse__panel--pnl">
@@ -1087,6 +1603,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           ${buildPartnersSectionHtml()}
                 </div>
         <div id="sx-dash-subscription-panel" class="sx-dash-subscription-panel hidden" hidden></div>
+        <div id="sx-dash-billing-panel" class="sx-dash-billing-panel hidden" hidden></div>
         <div id="sx-dash-strategy-panel" class="sx-dash-strategy-panel hidden" hidden></div>
         <div id="sx-dash-settings-panel" class="sx-dash-settings-panel hidden" hidden></div>
         </div>
@@ -1120,6 +1637,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   const viewDash = root.querySelector('#view-dash') as HTMLElement
   const viewChart = root.querySelector('#view-chart') as HTMLElement
   const viewSubscriptionPanel = root.querySelector('#sx-dash-subscription-panel') as HTMLElement
+  const viewBillingPanel = root.querySelector('#sx-dash-billing-panel') as HTMLElement
   const viewStrategyPanel = root.querySelector('#sx-dash-strategy-panel') as HTMLElement
   const viewSettingsPanel = root.querySelector('#sx-dash-settings-panel') as HTMLElement
   const viewTesting = root.querySelector('[data-sx-testing]') as HTMLElement | null
@@ -1204,6 +1722,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   let disposeStrategy: (() => void) | null = null
   let disposeSettings: (() => void) | null = null
   let disposeSubscription: (() => void) | null = null
+  let disposeBilling: (() => void) | null = null
   let disposeProfile: (() => void) | null = null
   let activeSessionId: string | null = null
   let lastSessionPayload: SessionCreatedPayload | null = null
@@ -1277,11 +1796,19 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (viewStocks) viewStocks.classList.add('hidden')
   }
 
-  function setMainNavActive(action: 'dashboard' | 'subscription' | 'strategy' | 'settings' | 'profile') {
-    root.querySelectorAll<HTMLElement>('.sx-dash-hnav__link[data-action]').forEach((btn) => {
-      const a = btn.getAttribute('data-action')
-      btn.classList.toggle('sx-dash-hnav__link--active', a === action)
+  function setSideNavActive(key: DashNavKey) {
+    root.querySelectorAll<HTMLElement>('[data-sx-side-link]').forEach((btn) => {
+      const on = btn.getAttribute('data-sx-side-link') === key
+      btn.classList.toggle('sx-dash-side__link--active', on)
+      if (on) btn.setAttribute('aria-current', 'page')
+      else btn.removeAttribute('aria-current')
     })
+    const crumb = root.querySelector<HTMLElement>('[data-sx-crumb]')
+    if (crumb) crumb.textContent = DASH_NAV_LABELS[key]
+  }
+
+  function setMainNavActive(action: 'dashboard' | 'subscription' | 'billing' | 'strategy' | 'settings' | 'profile') {
+    setSideNavActive(action)
   }
 
   function clearSubscriptionPanel() {
@@ -1291,6 +1818,16 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (viewSubscriptionPanel) {
       viewSubscriptionPanel.hidden = true
       viewSubscriptionPanel.classList.add('hidden')
+    }
+  }
+
+  function clearBillingPanel() {
+    disposeBilling?.()
+    disposeBilling = null
+    viewBillingPanel?.replaceChildren()
+    if (viewBillingPanel) {
+      viewBillingPanel.hidden = true
+      viewBillingPanel.classList.add('hidden')
     }
   }
 
@@ -1316,6 +1853,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
   function showHomeTestingSection() {
     clearSubscriptionPanel()
+    clearBillingPanel()
     clearStrategyPanel()
     clearSettingsPanel()
     if (viewTesting) {
@@ -1355,11 +1893,14 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeSettings = null
     disposeSubscription?.()
     disposeSubscription = null
+    disposeBilling?.()
+    disposeBilling = null
     disposeProfile?.()
     disposeProfile = null
     viewStrategyPanel?.replaceChildren()
     viewSettingsPanel?.replaceChildren()
     viewSubscriptionPanel?.replaceChildren()
+    viewBillingPanel?.replaceChildren()
     viewProfile?.replaceChildren()
     hideOverlayViews()
     if (viewChart) {
@@ -1451,6 +1992,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeStocks = null
     clearStrategyPanel()
     clearSubscriptionPanel()
+    clearBillingPanel()
     disposeProfile?.()
     disposeProfile = null
     viewStocks?.replaceChildren()
@@ -1562,6 +2104,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeStocks = null
     clearStrategyPanel()
     clearSettingsPanel()
+    clearBillingPanel()
     disposeProfile?.()
     disposeProfile = null
     viewStocks?.replaceChildren()
@@ -1597,6 +2140,39 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeSubscription = mountSubscriptionPage(viewSubscriptionPanel, subOpts)
   }
 
+  function showBillingPage() {
+    if (!viewBillingPanel) return
+    disposeChart?.()
+    disposeChart = null
+    disposeStocks?.()
+    disposeStocks = null
+    clearStrategyPanel()
+    clearSettingsPanel()
+    clearSubscriptionPanel()
+    disposeProfile?.()
+    disposeProfile = null
+    viewStocks?.replaceChildren()
+    viewChart?.replaceChildren()
+    viewProfile?.replaceChildren()
+    hideOverlayViews()
+    if (viewDash) viewDash.hidden = false
+    if (viewTesting) {
+      viewTesting.hidden = true
+      viewTesting.classList.add('hidden')
+    }
+    viewBillingPanel.hidden = false
+    viewBillingPanel.classList.remove('hidden')
+    setMainNavActive('billing')
+    closeDrawer()
+    if (appRoot) setAiChatOpen(appRoot, false)
+    disposeBilling?.()
+    disposeBilling = mountBillingPage(viewBillingPanel, {
+      readTier: readAccountTier,
+      getAuthUser: () => getAuthUser(),
+      onOpenSubscription: openUpgradePlansModal,
+    })
+  }
+
   function showProfilePage() {
     if (!viewProfile) return
     disposeChart?.()
@@ -1606,6 +2182,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     clearStrategyPanel()
     clearSettingsPanel()
     clearSubscriptionPanel()
+    clearBillingPanel()
     viewStocks?.replaceChildren()
     viewChart?.replaceChildren()
     hideOverlayViews()
@@ -1636,6 +2213,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeStocks = null
     clearSettingsPanel()
     clearSubscriptionPanel()
+    clearBillingPanel()
     disposeProfile?.()
     disposeProfile = null
     viewStocks?.replaceChildren()
@@ -1696,6 +2274,9 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const tier = readAccountTier()
     const limit = tier === 'pro' ? Math.max(allSessions.length, FREE_SESSION_LIMIT) : FREE_SESSION_LIMIT
     const visible = allSessions.length
+    root.querySelectorAll<HTMLElement>('[data-sx-sessions-total]').forEach((el) => {
+      el.textContent = String(visible)
+    })
     countEl.textContent =
       tier === 'pro'
         ? `${visible} session${visible === 1 ? '' : 's'}`
@@ -1748,7 +2329,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     } catch {
       /* ignore */
     }
-    root.querySelectorAll<HTMLButtonElement>('[data-testing-tab]').forEach((btn) => {
+    // Only real tabs get the pill treatment; sidebar links are handled by setSideNavActive.
+    root.querySelectorAll<HTMLButtonElement>('[data-testing-tab][role="tab"]').forEach((btn) => {
       const on = btn.getAttribute('data-testing-tab') === tab
       btn.classList.toggle('sx-dash-testing-tab--active', on)
       btn.setAttribute('aria-selected', on ? 'true' : 'false')
@@ -1760,10 +2342,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     })
     const sessionsHost = root.querySelector<HTMLElement>('[data-sx-recent-sessions-host]')
     if (sessionsHost) {
-      const showSessions = tab === 'dashboard' || tab === 'sessions'
+      const showSessions = tab === 'sessions'
       sessionsHost.hidden = !showSessions
       sessionsHost.classList.toggle('hidden', !showSessions)
     }
+    setSideNavActive(tab)
     if (tab === 'dashboard' || tab === 'sessions') syncRecentSessionsUi()
     if (tab === 'dashboard' || tab === 'analytics') {
       syncSessionPulse()
@@ -1921,10 +2504,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const tier = readAccountTier()
     const label = tier === 'pro' ? 'Premium Plan user' : tier === 'intermediate' ? 'Ultra Plan user' : 'Free user'
     const planShort = tier === 'pro' ? 'Premium Plan' : tier === 'intermediate' ? 'Ultra Plan' : 'Free'
+    const planTag = tier === 'pro' ? 'Premium' : tier === 'intermediate' ? 'Ultra' : 'Basic'
+    const planNote = tier === 'pro' ? '(Full access)' : tier === 'intermediate' ? '(Upgraded)' : '(Always free)'
     const badge = root.querySelector('#sx-dash-plan-badge')
     if (badge) badge.textContent = label
     root.querySelectorAll<HTMLElement>('[data-sx-account-plan]').forEach((el) => {
-      el.textContent = planShort
+      el.textContent = planTag
       el.classList.remove(
         'sx-dash-account-btn__plan--free',
         'sx-dash-account-btn__plan--pro',
@@ -1937,6 +2522,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
             ? 'sx-dash-account-btn__plan--pro'
             : 'sx-dash-account-btn__plan--free',
       )
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-account-plan-note]').forEach((el) => {
+      el.textContent = planNote
+      el.classList.toggle('sx-dash-account-static__note--pro', tier !== 'free')
     })
     root.querySelectorAll('.sx-dash-pro-upgrade-btn').forEach((el) => {
       el.classList.toggle('hidden', tier === 'pro')
@@ -2036,25 +2625,35 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const directed = pulse.longTrades + pulse.shortTrades
     const longPct = directed > 0 ? Math.round((pulse.longTrades / directed) * 100) : 50
     const shortPct = directed > 0 ? 100 - longPct : 50
+    const longPctPrecise = directed > 0 ? (pulse.longTrades / directed) * 100 : 50
+    const shortPctPrecise = directed > 0 ? 100 - longPctPrecise : 50
 
     const practiceText = formatPulseDuration(pulse.practiceMs)
     const histText = formatPulseDuration(pulse.historicalMs)
     const practiceHintText = pulse.sessionsTouched
       ? `${pulse.sessionsTouched} session${pulse.sessionsTouched === 1 ? '' : 's'} · Active ${formatPulseDuration(pulse.activePracticeMs)}`
       : 'Across sessions'
-    const histHintText =
+    const practiceInfoText = 'Total real-world time you spent actively practicing across your sessions in this range.'
+    const histMultiplier =
       pulse.practiceMs > 0 && pulse.historicalMs > 0
-        ? `${Math.max(1, Math.round(pulse.historicalMs / Math.max(pulse.practiceMs, 1)))}× tape vs practice`
-        : 'Historical coverage'
+        ? Math.max(1, Math.round(pulse.historicalMs / Math.max(pulse.practiceMs, 1)))
+        : null
+    const histHintText = histMultiplier != null ? `${histMultiplier}× tape vs practice` : 'Historical coverage'
+    const histInfoText =
+      histMultiplier != null
+        ? `The market history you loaded is ${histMultiplier}× longer than the actual time you spent practicing on it.`
+        : 'Compares the historical market time you loaded against the actual time you spent practicing on it.'
     const pnlText = pnlTotals.hasData ? formatDashboardPerfMoney(pnlTotals.netPnl) : '—'
     const pnlHintText = pnlTotals.hasData
       ? `${pnlTotals.sessionsActive} session${pnlTotals.sessionsActive === 1 ? '' : 's'} · ${pnlTotals.tradesTaken} trades`
       : 'Backtest results'
+    const pnlInfoText = 'Net profit or loss from your backtest results across sessions in this range.'
     const winrateText = formatDashboardWinRate(pulse.winRate)
     const winrateHintText =
       pulse.tradesTaken > 0
         ? `${pulse.wins}W / ${pulse.losses}L on ${pulse.tradesTaken}`
         : 'Closed trade edge'
+    const winrateInfoText = 'Share of your closed journal trades that ended as wins.'
 
     root.querySelectorAll<HTMLElement>('[data-sx-pulse="practice"]').forEach((el) => {
       el.textContent = practiceText
@@ -2065,8 +2664,16 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     root.querySelectorAll<HTMLElement>('[data-sx-pulse="practice-hint"]').forEach((el) => {
       el.textContent = practiceHintText
     })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="practice-info"]').forEach((el) => {
+      el.setAttribute('data-tip', practiceInfoText)
+      el.setAttribute('aria-label', practiceInfoText)
+    })
     root.querySelectorAll<HTMLElement>('[data-sx-pulse="historical-hint"]').forEach((el) => {
       el.textContent = histHintText
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="historical-info"]').forEach((el) => {
+      el.setAttribute('data-tip', histInfoText)
+      el.setAttribute('aria-label', histInfoText)
     })
     root.querySelectorAll<HTMLElement>('[data-sx-pulse="pnl"]').forEach((el) => {
       el.textContent = pnlText
@@ -2075,6 +2682,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     })
     root.querySelectorAll<HTMLElement>('[data-sx-pulse="pnl-hint"]').forEach((el) => {
       el.textContent = pnlHintText
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="pnl-info"]').forEach((el) => {
+      el.setAttribute('data-tip', pnlInfoText)
+      el.setAttribute('aria-label', pnlInfoText)
     })
     root.querySelectorAll<HTMLElement>('[data-sx-pulse="winrate"]').forEach((el) => {
       el.textContent = winrateText
@@ -2087,50 +2698,108 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     root.querySelectorAll<HTMLElement>('[data-sx-pulse="winrate-hint"]').forEach((el) => {
       el.textContent = winrateHintText
     })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="winrate-info"]').forEach((el) => {
+      el.setAttribute('data-tip', winrateInfoText)
+      el.setAttribute('aria-label', winrateInfoText)
+    })
 
-    const activeSessionEl = root.querySelector<HTMLElement>('[data-sx-pulse="active-session"]')
-    const practiceSplit = root.querySelector<HTMLElement>('[data-sx-pulse="practice-split"]')
-    const practiceSessions = root.querySelector<HTMLElement>('[data-sx-pulse="practice-sessions"]')
-    const tradesEl = root.querySelector<HTMLElement>('[data-sx-pulse="trades"]')
-    const splitLabel = root.querySelector<HTMLElement>('[data-sx-pulse="split-label"]')
-    const longBar = root.querySelector<HTMLElement>('[data-sx-pulse="long-bar"]')
-    const shortBar = root.querySelector<HTMLElement>('[data-sx-pulse="short-bar"]')
-    const ringHost = root.querySelector<HTMLElement>('[data-sx-pulse="ring"]')
-    const activityHost = root.querySelector<HTMLElement>('[data-sx-pulse="activity"]')
-    const symbolsHost = root.querySelector<HTMLElement>('[data-sx-pulse="symbols"]')
-    const insightsHost = root.querySelector<HTMLElement>('[data-sx-pulse="insights"]')
+    // Several of these hosts appear on both the Dashboard and Analytics pages.
+    const pulseHosts = (key: string) => root.querySelectorAll<HTMLElement>(`[data-sx-pulse="${key}"]`)
 
-    if (activeSessionEl) {
+    pulseHosts('active-session').forEach((el) => {
       if (pulse.activeSessionName) {
-        activeSessionEl.textContent = `Active · ${pulse.activeSessionName} · ${formatPulseDuration(pulse.activePracticeMs)}`
-        activeSessionEl.title = `${pulse.activeSessionName} — ${formatPulseDuration(pulse.activePracticeMs)} practice`
+        el.textContent = `Active · ${pulse.activeSessionName} · ${formatPulseDuration(pulse.activePracticeMs)}`
+        el.title = `${pulse.activeSessionName} — ${formatPulseDuration(pulse.activePracticeMs)} practice`
       } else {
-        activeSessionEl.textContent = 'No active session'
-        activeSessionEl.removeAttribute('title')
+        el.textContent = 'No active session'
+        el.removeAttribute('title')
       }
+    })
+    const practiceSplitHtml = buildPulsePracticeSplitHtml(pulse.sessionPractice)
+    pulseHosts('practice-split').forEach((el) => {
+      el.innerHTML = practiceSplitHtml
+    })
+    const practiceRowsHtml = buildPulsePracticeRowsHtml(pulse.sessionPractice)
+    pulseHosts('practice-sessions').forEach((el) => {
+      el.innerHTML = practiceRowsHtml
+    })
+    const tradesText =
+      pulse.tradesTaken > 0
+        ? `${pulse.tradesTaken} trade${pulse.tradesTaken === 1 ? '' : 's'} · ${pulse.wins}W / ${pulse.losses}L`
+        : 'No closed trades yet'
+    pulseHosts('trades').forEach((el) => {
+      el.textContent = tradesText
+    })
+    const splitLabelText =
+      directed > 0 ? `${longPct}% buys · ${shortPct}% sells` : 'Buys / sells appear after journal closes'
+    pulseHosts('split-label').forEach((el) => {
+      el.textContent = splitLabelText
+    })
+    pulseHosts('long-bar').forEach((el) => {
+      el.style.width = `${longPct}%`
+    })
+    pulseHosts('short-bar').forEach((el) => {
+      el.style.width = `${shortPct}%`
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="trades-count"]').forEach((el) => {
+      el.textContent = `${pulse.tradesTaken}`
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="trades-wl"]').forEach((el) => {
+      el.textContent = `${pulse.wins}W / ${pulse.losses}L`
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="trades-long-pct"]').forEach((el) => {
+      el.textContent = `${longPctPrecise.toFixed(2)}%`
+    })
+    root.querySelectorAll<HTMLElement>('[data-sx-pulse="trades-short-pct"]').forEach((el) => {
+      el.textContent = `${shortPctPrecise.toFixed(2)}%`
+    })
+    const ringHtml = buildPulseWinRingSvg(pulse.winRate)
+    pulseHosts('ring').forEach((el) => {
+      el.innerHTML = ringHtml
+    })
+    const activityHtml = buildPulseActivityChartSvg(pulse.practiceDays)
+    pulseHosts('activity').forEach((el) => {
+      el.innerHTML = activityHtml
+    })
+    const activityPointsByRange: Record<
+      'daily' | 'weekly' | 'monthly' | 'yearly',
+      { label: string; fullLabel?: string; practiceMs: number }[]
+    > = {
+      daily: pulse.practiceDays,
+      weekly: pulse.practiceWeeks,
+      monthly: pulse.practiceMonths.map((m) => ({ label: MONTH_SHORT[m.month] ?? m.label, practiceMs: m.practiceMs })),
+      yearly: pulse.practiceYears,
     }
-    if (practiceSplit) practiceSplit.innerHTML = buildPulsePracticeSplitHtml(pulse.sessionPractice)
-    if (practiceSessions) practiceSessions.innerHTML = buildPulsePracticeRowsHtml(pulse.sessionPractice)
-    if (tradesEl) {
-        tradesEl.textContent =
-        pulse.tradesTaken > 0
-          ? `${pulse.tradesTaken} trade${pulse.tradesTaken === 1 ? '' : 's'} · ${pulse.wins}W / ${pulse.losses}L`
-          : 'No closed trades yet'
+    const activityFloorByRange: Record<'daily' | 'weekly' | 'monthly' | 'yearly', number> = {
+      daily: 4,
+      weekly: 4,
+      monthly: 10,
+      yearly: 80,
     }
-    if (splitLabel) {
-      splitLabel.textContent =
-        directed > 0 ? `${longPct}% buys · ${shortPct}% sells` : 'Buys / sells appear after journal closes'
-    }
-    if (longBar) longBar.style.width = `${longPct}%`
-    if (shortBar) shortBar.style.width = `${shortPct}%`
-    if (ringHost) ringHost.innerHTML = buildPulseWinRingSvg(pulse.winRate)
-    if (activityHost) activityHost.innerHTML = buildPulseActivityChartSvg(pulse.practiceMonths)
-    if (symbolsHost) symbolsHost.innerHTML = buildPulseSymbolRowsHtml(pulse.symbols)
-    if (insightsHost) {
-      insightsHost.innerHTML = pulse.insights
-        .map((line) => `<li class="sx-dash-pulse__insight"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i><span>${line}</span></li>`)
-        .join('')
-    }
+    const activityPoints = activityPointsByRange[activityChartRange]
+    const activityTotalMs = activityPoints.reduce((sum, p) => sum + p.practiceMs, 0)
+    root.querySelectorAll<HTMLElement>('[data-sx-activity-total]').forEach((el) => {
+      el.textContent = sxFormatDurationHours(activityTotalMs / 3_600_000)
+    })
+    root.querySelectorAll<HTMLCanvasElement>('[data-sx-activity-chart-canvas]').forEach((canvas) => {
+      syncActivityBarChart(canvas, activityPoints, activityFloorByRange[activityChartRange])
+    })
+    const symbolsHtml = buildPulseSymbolRowsHtml(pulse.symbols)
+    pulseHosts('symbols').forEach((el) => {
+      el.innerHTML = symbolsHtml
+    })
+    root.querySelectorAll<HTMLCanvasElement>('[data-sx-symbols-chart-canvas]').forEach((canvas) => {
+      syncSymbolsBarChart(canvas, pulse.symbols)
+    })
+    root.querySelectorAll<HTMLCanvasElement>('[data-sx-winrate-chart-canvas]').forEach((canvas) => {
+      syncWinRateBarChart(canvas, pulse.winRateMonths)
+    })
+    const insightsHtml = pulse.insights
+      .map((line) => `<li class="sx-dash-pulse__insight"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i><span>${line}</span></li>`)
+      .join('')
+    pulseHosts('insights').forEach((el) => {
+      el.innerHTML = insightsHtml
+    })
 
     root.querySelectorAll<HTMLButtonElement>('[data-pulse-range]').forEach((btn) => {
       const on = btn.getAttribute('data-pulse-range') === range
@@ -2155,6 +2824,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     root.querySelectorAll<HTMLElement>('[data-sx-time-chart]').forEach((roleImg) => {
       roleImg.setAttribute('aria-label', `Net P&L path for ${period}`)
     })
+
+    const equity = computeEquityCurveSeries(sessions, 'backtest')
+    root.querySelectorAll<HTMLCanvasElement>('[data-sx-equity-chart-canvas]').forEach((canvas) => {
+      syncEquityCurveChart(canvas, equity)
+    })
   }
 
   const sessionFilterPanel = root.querySelector<HTMLElement>('[data-sx-session-dd="filter"] .sx-dash-perf-panel')
@@ -2173,9 +2847,135 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     },
   })
 
+  const activityTip = document.createElement('div')
+  activityTip.className = 'sx-dash-pulse-tip'
+  activityTip.setAttribute('role', 'status')
+  activityTip.hidden = true
+  activityTip.innerHTML = `<span class="sx-dash-pulse-tip__label"></span><span class="sx-dash-pulse-tip__row"><span class="sx-dash-pulse-tip__dot"></span><span class="sx-dash-pulse-tip__value"></span></span>`
+  document.body.appendChild(activityTip)
+  const activityTipLabel = activityTip.querySelector<HTMLElement>('.sx-dash-pulse-tip__label')!
+  const activityTipValue = activityTip.querySelector<HTMLElement>('.sx-dash-pulse-tip__value')!
+
+  const positionActivityTip = (hit: SVGRectElement) => {
+    const rect = hit.getBoundingClientRect()
+    const tipRect = activityTip.getBoundingClientRect()
+    let left = rect.left + rect.width / 2 - tipRect.width / 2
+    left = Math.max(8, Math.min(window.innerWidth - tipRect.width - 8, left))
+    const top = rect.top - tipRect.height - 10
+    activityTip.style.left = `${left}px`
+    activityTip.style.top = `${Math.max(8, top)}px`
+  }
+
+  root.addEventListener('mouseover', (e) => {
+    const t = e.target as Element | null
+    const hit = t?.closest<SVGRectElement>('.sx-dash-pulse-hit')
+    if (!hit || !root.contains(hit)) return
+    activityTipLabel.textContent = hit.getAttribute('data-tip-label') || ''
+    activityTipValue.textContent = hit.getAttribute('data-tip-value') || ''
+    activityTip.hidden = false
+    positionActivityTip(hit)
+  })
+  root.addEventListener('mousemove', (e) => {
+    if (activityTip.hidden) return
+    const t = e.target as Element | null
+    const hit = t?.closest<SVGRectElement>('.sx-dash-pulse-hit')
+    if (!hit) return
+    positionActivityTip(hit)
+  })
+  root.addEventListener('mouseout', (e) => {
+    const t = e.target as Element | null
+    const hit = t?.closest<SVGRectElement>('.sx-dash-pulse-hit')
+    if (!hit) return
+    const related = (e as MouseEvent).relatedTarget as Element | null
+    if (related && related.closest('.sx-dash-pulse-hit') === hit) return
+    activityTip.hidden = true
+  })
+
+  const kpiInfoTip = document.createElement('div')
+  kpiInfoTip.className = 'sx-dash-kpi-tip'
+  kpiInfoTip.setAttribute('role', 'tooltip')
+  document.body.appendChild(kpiInfoTip)
+
+  const positionKpiInfoTip = (btn: HTMLElement) => {
+    const rect = btn.getBoundingClientRect()
+    const tipRect = kpiInfoTip.getBoundingClientRect()
+    const iconCenter = rect.left + rect.width / 2
+    let left = iconCenter - tipRect.width / 2
+    left = Math.max(8, Math.min(window.innerWidth - tipRect.width - 8, left))
+    let top = rect.bottom + 10
+    const flip = top + tipRect.height > window.innerHeight - 8
+    kpiInfoTip.classList.toggle('sx-dash-kpi-tip--above', flip)
+    if (flip) top = rect.top - tipRect.height - 10
+    kpiInfoTip.style.left = `${left}px`
+    kpiInfoTip.style.top = `${Math.max(8, top)}px`
+    const arrowLeft = Math.max(12, Math.min(tipRect.width - 12, iconCenter - left))
+    kpiInfoTip.style.setProperty('--sx-kpi-tip-arrow-left', `${arrowLeft}px`)
+  }
+
+  const showKpiInfoTip = (btn: HTMLElement) => {
+    const text = btn.getAttribute('data-tip')
+    if (!text) return
+    kpiInfoTip.textContent = text
+    kpiInfoTip.classList.add('sx-dash-kpi-tip--visible')
+    positionKpiInfoTip(btn)
+  }
+  const hideKpiInfoTip = () => {
+    kpiInfoTip.classList.remove('sx-dash-kpi-tip--visible')
+  }
+
+  root.addEventListener('mouseover', (e) => {
+    const t = e.target as Element | null
+    const btn = t?.closest<HTMLElement>('.sx-dash-pulse__kpi-info')
+    if (btn && root.contains(btn)) showKpiInfoTip(btn)
+  })
+  root.addEventListener('mousemove', (e) => {
+    if (!kpiInfoTip.classList.contains('sx-dash-kpi-tip--visible')) return
+    const t = e.target as Element | null
+    const btn = t?.closest<HTMLElement>('.sx-dash-pulse__kpi-info')
+    if (btn) positionKpiInfoTip(btn)
+  })
+  root.addEventListener('mouseout', (e) => {
+    const t = e.target as Element | null
+    const btn = t?.closest<HTMLElement>('.sx-dash-pulse__kpi-info')
+    if (!btn) return
+    const related = (e as MouseEvent).relatedTarget as Element | null
+    if (related && related.closest('.sx-dash-pulse__kpi-info') === btn) return
+    hideKpiInfoTip()
+  })
+  root.addEventListener('focusin', (e) => {
+    const t = e.target as Element | null
+    const btn = t?.closest<HTMLElement>('.sx-dash-pulse__kpi-info')
+    if (btn) showKpiInfoTip(btn)
+  })
+  root.addEventListener('focusout', (e) => {
+    const t = e.target as Element | null
+    const btn = t?.closest<HTMLElement>('.sx-dash-pulse__kpi-info')
+    if (btn) hideKpiInfoTip()
+  })
+
   root.addEventListener('click', (e) => {
     const t = e.target as HTMLElement | null
     if (!t) return
+
+    const activityRangeBtn = t.closest<HTMLButtonElement>('[data-sx-activity-range]')
+    if (activityRangeBtn && root.contains(activityRangeBtn)) {
+      const range = activityRangeBtn.getAttribute('data-sx-activity-range') as
+        | 'daily'
+        | 'weekly'
+        | 'monthly'
+        | 'yearly'
+        | null
+      if (range && range !== activityChartRange) {
+        activityChartRange = range
+        root.querySelectorAll<HTMLButtonElement>('[data-sx-activity-range]').forEach((btn) => {
+          const on = btn === activityRangeBtn
+          btn.classList.toggle('sx-dash-graph__tab--active', on)
+          btn.setAttribute('aria-selected', on ? 'true' : 'false')
+        })
+        syncSessionPulse()
+      }
+      return
+    }
 
     const newSessionBtn = t.closest<HTMLButtonElement>('[data-action="backtest"]')
     if (newSessionBtn && root.contains(newSessionBtn) && !newSessionBtn.disabled) {
@@ -2357,10 +3157,23 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   root.querySelectorAll<HTMLButtonElement>('[data-testing-tab]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const tab = btn.getAttribute('data-testing-tab')
-      if (tab && (TESTING_TABS as readonly string[]).includes(tab)) {
-        setTestingTab(tab as TestingTab)
-      }
+      if (!tab || !(TESTING_TABS as readonly string[]).includes(tab)) return
+      closeDrawer()
+      // Sidebar nav can be clicked while Strategy/Subscription/Settings is showing.
+      showHomeTestingSection()
+      setTestingTab(tab as TestingTab)
     })
+  })
+
+  const globalSearch = root.querySelector<HTMLInputElement>('[data-sx-global-search]')
+  globalSearch?.addEventListener('input', () => {
+    const sessionSearch = root.querySelector<HTMLInputElement>('#sx-dash-sessions-search')
+    if (sessionSearch) sessionSearch.value = globalSearch.value
+    if (globalSearch.value.trim()) {
+      showHomeTestingSection()
+      setTestingTab('sessions')
+    }
+    syncRecentSessionsUi()
   })
 
   function onPopState() {
@@ -2443,6 +3256,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   root.querySelectorAll('[data-action="subscription"]').forEach((el) => {
     el.addEventListener('click', () => {
       showSubscriptionPage()
+    })
+  })
+
+  root.querySelectorAll('[data-action="billing"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      showBillingPage()
     })
   })
 

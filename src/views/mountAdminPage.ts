@@ -604,7 +604,7 @@ function buildAdminShellHtml(): string {
   const email = user?.email || '—'
 
   return `
-<div class="flex h-full min-h-0 flex-col overflow-hidden bg-[#f5f3ff] text-slate-800" id="sx-app-root" data-dashboard-theme="light">
+<div class="flex h-full min-h-0 flex-col overflow-hidden bg-[#f0f0f0] text-slate-800" id="sx-app-root" data-dashboard-theme="light">
   <div id="view-admin" class="sx-dash relative flex min-h-0 flex-1 flex-col overflow-hidden font-sans text-slate-800 selection:bg-indigo-500/20">
     <div class="sx-dash__mesh" aria-hidden="true"></div>
     <div class="sx-dash__noise" aria-hidden="true"></div>

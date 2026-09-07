@@ -1,7 +1,17 @@
 import { readSessionFromRequest } from '../auth/sessionCookie.mjs'
-import { recordCheckout } from './billingStore.mjs'
+import { readBillingForEmail, recordCheckout } from './billingStore.mjs'
 
 export function mountBillingRoutes(app, { dataDir }) {
+  app.get('/api/billing/me', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = readSessionFromRequest(req)
+    if (!session?.email) {
+      res.status(401).json({ ok: false, error: 'not_authenticated' })
+      return
+    }
+    res.json({ ok: true, ...readBillingForEmail(dataDir, session.email) })
+  })
+
   app.post('/api/billing/checkout-complete', (req, res) => {
     res.setHeader('Cache-Control', 'no-store')
     const session = readSessionFromRequest(req)

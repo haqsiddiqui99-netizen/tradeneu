@@ -3,6 +3,7 @@ import type { ClosedReplayTrade, ReplayTradeJournal } from './replayPositions'
 import {
   normalizeJournalBlocks,
   normalizeJournalScreenshots,
+  type ReplayJournalBackground,
   type ReplayJournalBlock,
   type ReplayJournalBlockType,
   type ReplayJournalScreenshot,
@@ -41,15 +42,38 @@ function blankJournal(): ReplayTradeJournal {
     notes: '',
     rating: '',
     tags: [],
+    background: 'default',
     screenshots: [],
     blocks: [],
     updatedAt: Date.now(),
   }
 }
 
+const journalBackgrounds: Array<{
+  id: ReplayJournalBackground
+  label: string
+}> = [
+  { id: 'default', label: 'Default' },
+  { id: 'gray', label: 'Gray' },
+  { id: 'brown', label: 'Brown' },
+  { id: 'red', label: 'Red' },
+  { id: 'orange', label: 'Orange' },
+  { id: 'yellow', label: 'Yellow' },
+  { id: 'green', label: 'Green' },
+  { id: 'blue', label: 'Blue' },
+  { id: 'purple', label: 'Purple' },
+  { id: 'pink', label: 'Pink' },
+]
+
 function cloneJournal(journal: ReplayTradeJournal): ReplayTradeJournal {
+  const background: ReplayJournalBackground = journalBackgrounds.some(
+    (item) => item.id === journal.background,
+  )
+    ? (journal.background as ReplayJournalBackground)
+    : 'default'
   return {
     ...journal,
+    background,
     tags: [...journal.tags],
     screenshots: normalizeJournalScreenshots(journal.screenshots),
     blocks: normalizeJournalBlocks(journal.blocks),
@@ -172,6 +196,8 @@ export function mountReplayTradeJournalPanel(root: HTMLElement, opts: JournalPan
   let search = ''
   let selectedShot = -1
   let commandMenuOpen = false
+  let blockMenuOpen = false
+  let colorMenuOpen = false
   let pendingMediaType: ReplayJournalBlockType | null = null
   let saveTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -426,6 +452,32 @@ export function mountReplayTradeJournalPanel(root: HTMLElement, opts: JournalPan
     </div>`
   }
 
+  function renderBlockMenu(journal: ReplayTradeJournal): string {
+    if (!blockMenuOpen) return ''
+    const current = journal.background ?? 'default'
+    const colors = colorMenuOpen
+      ? `<div class="rw-trade-journal__color-menu" role="menu" aria-label="Background color">
+          <h3>Background</h3>
+          ${journalBackgrounds
+            .map(
+              (item) => `<button type="button" role="menuitemradio" aria-checked="${item.id === current ? 'true' : 'false'}" data-rw-journal-background="${item.id}">
+                <span class="rw-trade-journal__color-swatch rw-trade-journal__color-swatch--${item.id}">A</span>
+                <span>${item.label}</span>
+                ${item.id === current ? '<b aria-hidden="true">✓</b>' : ''}
+              </button>`,
+            )
+            .join('')}
+        </div>`
+      : ''
+    return `<div class="rw-trade-journal__block-menu" role="menu" data-rw-journal-block-menu>
+      <button type="button" role="menuitem" data-rw-journal-delete-content>Delete</button>
+      <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded="${colorMenuOpen ? 'true' : 'false'}" data-rw-journal-colors>
+        <span>Colors</span><b aria-hidden="true">›</b>
+      </button>
+      ${colors}
+    </div>`
+  }
+
   function renderBody() {
     if (!trade) return
     const journal = currentJournal()
@@ -504,10 +556,11 @@ export function mountReplayTradeJournalPanel(root: HTMLElement, opts: JournalPan
           <h2>${escapeHtml(asset)}, ${trade.direction === 'long' ? 'buy' : 'sell'} <span>${escapeHtml(formatDateTime(trade.entryTime))}</span></h2>
           <button type="button" data-rw-journal-jump>Jump to entry</button>
         </div>
-        <div class="rw-trade-journal__editor${screenshotHtml ? ' rw-trade-journal__editor--with-screenshot' : ''}${blockHtml ? ' rw-trade-journal__editor--with-blocks' : ''}${journal.notes.trim() ? ' rw-trade-journal__editor--with-notes' : ''}">
+        <div class="rw-trade-journal__editor rw-trade-journal__editor--bg-${journal.background ?? 'default'}${screenshotHtml ? ' rw-trade-journal__editor--with-screenshot' : ''}${blockHtml ? ' rw-trade-journal__editor--with-blocks' : ''}${journal.notes.trim() ? ' rw-trade-journal__editor--with-notes' : ''}">
           <div class="rw-trade-journal__editor-tools">
             <button type="button" data-rw-journal-command-toggle aria-label="Insert template or block" aria-expanded="${commandMenuOpen ? 'true' : 'false'}">＋</button>
-            <span aria-hidden="true">⠿</span>
+            <button type="button" class="rw-trade-journal__grip" data-rw-journal-block-menu-toggle aria-label="Journal content options" aria-expanded="${blockMenuOpen ? 'true' : 'false'}"><span aria-hidden="true">⠿</span></button>
+            ${renderBlockMenu(journal)}
           </div>
           <textarea class="rw-trade-journal__notes" data-rw-journal-notes placeholder="Enter text or type '/' for commands">${escapeHtml(journal.notes)}</textarea>
           ${blockHtml}
@@ -662,6 +715,8 @@ export function mountReplayTradeJournalPanel(root: HTMLElement, opts: JournalPan
   function close() {
     flushSave()
     commandMenuOpen = false
+    blockMenuOpen = false
+    colorMenuOpen = false
     trade = null
     root.hidden = true
   }
@@ -784,9 +839,11 @@ export function mountReplayTradeJournalPanel(root: HTMLElement, opts: JournalPan
       render()
       return
     }
-    if (event.key === 'Escape' && commandMenuOpen) {
+    if (event.key === 'Escape' && (commandMenuOpen || blockMenuOpen)) {
       event.preventDefault()
       commandMenuOpen = false
+      blockMenuOpen = false
+      colorMenuOpen = false
       render()
       return
     }
@@ -910,6 +967,57 @@ export function mountReplayTradeJournalPanel(root: HTMLElement, opts: JournalPan
   async function onClick(event: Event) {
     if (!trade) return
     const target = event.target as HTMLElement
+    if (target.closest('[data-rw-journal-block-menu-toggle]')) {
+      blockMenuOpen = !blockMenuOpen
+      colorMenuOpen = false
+      commandMenuOpen = false
+      render()
+      return
+    }
+    if (target.closest('[data-rw-journal-colors]')) {
+      colorMenuOpen = !colorMenuOpen
+      render()
+      return
+    }
+    const background = target.closest<HTMLElement>('[data-rw-journal-background]')
+    if (background?.dataset.rwJournalBackground) {
+      const color = background.dataset.rwJournalBackground as ReplayJournalBackground
+      if (!journalBackgrounds.some((item) => item.id === color)) return
+      const journal = currentJournal()
+      journal.background = color
+      scheduleSave(journal)
+      blockMenuOpen = false
+      colorMenuOpen = false
+      render()
+      return
+    }
+    if (target.closest('[data-rw-journal-delete-content]')) {
+      if (
+        !window.confirm(
+          'Delete the notes, blocks, and screenshots from this trade journal?',
+        )
+      ) {
+        return
+      }
+      const journal = currentJournal()
+      journal.notes = ''
+      journal.blocks = []
+      journal.screenshots = []
+      selectedShot = -1
+      blockMenuOpen = false
+      colorMenuOpen = false
+      scheduleSave(journal)
+      render()
+      return
+    }
+    if (blockMenuOpen && !target.closest('[data-rw-journal-block-menu]')) {
+      blockMenuOpen = false
+      colorMenuOpen = false
+      root.querySelector('[data-rw-journal-block-menu]')?.remove()
+      root
+        .querySelector('[data-rw-journal-block-menu-toggle]')
+        ?.setAttribute('aria-expanded', 'false')
+    }
     const command = target.closest<HTMLElement>('[data-rw-journal-command]')
     if (command?.dataset.rwJournalCommand) {
       await applyJournalCommand(command.dataset.rwJournalCommand)
@@ -920,6 +1028,8 @@ export function mountReplayTradeJournalPanel(root: HTMLElement, opts: JournalPan
       target.closest('[data-rw-journal-template]')
     ) {
       commandMenuOpen = !commandMenuOpen
+      blockMenuOpen = false
+      colorMenuOpen = false
       render()
       return
     }
@@ -1153,6 +1263,8 @@ export function mountReplayTradeJournalPanel(root: HTMLElement, opts: JournalPan
       screen = 'detail'
       activeTab = 'tags'
       commandMenuOpen = false
+      blockMenuOpen = false
+      colorMenuOpen = false
       selectedShot = shots().length ? 0 : -1
       root.hidden = false
       render()
