@@ -2503,7 +2503,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   function applyAccountTierUi() {
     const tier = readAccountTier()
     const label = tier === 'pro' ? 'Premium Plan user' : tier === 'intermediate' ? 'Ultra Plan user' : 'Free user'
-    const planShort = tier === 'pro' ? 'Premium Plan' : tier === 'intermediate' ? 'Ultra Plan' : 'Free'
     const planTag = tier === 'pro' ? 'Premium' : tier === 'intermediate' ? 'Ultra' : 'Basic'
     const planNote = tier === 'pro' ? '(Full access)' : tier === 'intermediate' ? '(Upgraded)' : '(Always free)'
     const badge = root.querySelector('#sx-dash-plan-badge')
