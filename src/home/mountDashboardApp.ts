@@ -93,9 +93,19 @@ function sxEquityTooltipHandler(context: { chart: Chart; tooltip: TooltipModel<'
 }
 
 function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<typeof computeEquityCurveSeries>) {
-  const cumulative = equity.hasData ? equity.cumulative : new Array(12).fill(0)
-  const maxVal = Math.max(0, ...cumulative, 1)
-  const minVal = Math.min(0, ...cumulative)
+  const rawCumulative = equity.hasData ? equity.cumulative : new Array(12).fill(0)
+  // Don't plot (or flat-line) months that are still in the future relative to
+  // "now" — the running total naturally stays flat past the last real data
+  // point, which made the line render straight through Oct/Nov/Dec even
+  // though no data exists yet for those months. Cut the series off after the
+  // current month so the chart only shows months that have actually passed.
+  const cumulative: (number | null)[] =
+    equity.currentMonthIndex >= 0
+      ? rawCumulative.map((v, i) => (i <= equity.currentMonthIndex ? v : null))
+      : rawCumulative
+  const plottedValues = cumulative.filter((v): v is number => v != null)
+  const maxVal = Math.max(0, ...plottedValues, 1)
+  const minVal = Math.min(0, ...plottedValues)
   const suggestedMax = sxNiceCeilStep(maxVal * 1.15)
   const suggestedMin = minVal < 0 ? -sxNiceCeilStep(-minVal * 1.15) : 0
   const pointRadius = cumulative.map(() => 4)
@@ -1032,7 +1042,7 @@ function buildSessionPulseKpiHtml(opts?: {
                 <div class="sx-dash-pulse__kpi-item">
                   <div class="sx-dash-pulse__kpi-top">
                     <span class="sx-dash-pulse__kpi-label">Replayed time</span>
-                    <span class="sx-dash-pulse__kpi-icon" aria-hidden="true"><i class="fa-solid fa-chart-line"></i></span>
+                    <span class="sx-dash-pulse__kpi-icon sx-dash-pulse__kpi-icon--blue" aria-hidden="true"><i class="fa-solid fa-chart-line"></i></span>
                   </div>
                   <p class="sx-dash-pulse__kpi-value" data-sx-pulse="historical">—</p>
                   <div class="sx-dash-pulse__kpi-foot">
@@ -1049,7 +1059,7 @@ function buildSessionPulseKpiHtml(opts?: {
                 <div class="sx-dash-pulse__kpi-item">
                   <div class="sx-dash-pulse__kpi-top">
                     <span class="sx-dash-pulse__kpi-label">Net P&amp;L</span>
-                    <span class="sx-dash-pulse__kpi-icon" aria-hidden="true"><i class="fa-solid fa-sack-dollar"></i></span>
+                    <span class="sx-dash-pulse__kpi-icon sx-dash-pulse__kpi-icon--green" aria-hidden="true"><i class="fa-solid fa-sack-dollar"></i></span>
                   </div>
                   <p class="sx-dash-pulse__kpi-value" data-sx-pulse="pnl">—</p>
                   <div class="sx-dash-pulse__kpi-foot">
@@ -1066,7 +1076,7 @@ function buildSessionPulseKpiHtml(opts?: {
                 <div class="sx-dash-pulse__kpi-item">
                   <div class="sx-dash-pulse__kpi-top">
                     <span class="sx-dash-pulse__kpi-label">Win rate</span>
-                    <span class="sx-dash-pulse__kpi-icon" aria-hidden="true"><i class="fa-solid fa-trophy"></i></span>
+                    <span class="sx-dash-pulse__kpi-icon sx-dash-pulse__kpi-icon--gold" aria-hidden="true"><i class="fa-solid fa-trophy"></i></span>
                   </div>
                   <p class="sx-dash-pulse__kpi-value" data-sx-pulse="winrate">—</p>
                   <div class="sx-dash-pulse__kpi-foot">
@@ -1247,7 +1257,7 @@ function buildDashSidebarHtml(): string {
       <aside class="sx-dash-side" aria-label="Dashboard sections">
         <div class="sx-dash-side__account">
           <div class="sx-dash-account-static">
-            <span class="sx-dash-account-static__greet">Welcome <span data-sx-account-label>Guest</span>,</span>
+            <span class="sx-dash-account-static__greet">Hi <span data-sx-account-label>Guest</span>,</span>
             <span class="sx-dash-account-static__plan">
               You're on <strong data-sx-account-plan>Basic</strong> Plan
             </span>
@@ -1356,13 +1366,19 @@ function buildDashboardPageHeadHtml(): string {
               <div class="sx-dash-page-head__actions">
                 <button type="button" data-action="backtest" class="sx-dash-cta-btn sx-dash-cta-btn--primary">
                   <span class="sx-dash-cta-btn__icon" aria-hidden="true">+</span>
-                  Backtesting Session
+                  <span class="sx-dash-cta-btn__text">
+                    <span class="sx-dash-cta-btn__title">Backtesting Session</span>
+                    <span class="sx-dash-cta-btn__sub">Start a session</span>
+                  </span>
                 </button>
                 <button type="button" data-action="prop" class="sx-dash-cta-btn sx-dash-cta-btn--secondary">
                   <span class="sx-dash-cta-pro" title="Pro feature" role="img" aria-label="Pro feature">
                     <i class="fa-solid fa-crown" aria-hidden="true"></i>
                   </span>
-                  Target Challenge
+                  <span class="sx-dash-cta-btn__text">
+                    <span class="sx-dash-cta-btn__title">Target Challenge</span>
+                    <span class="sx-dash-cta-btn__sub">Start a challenge</span>
+                  </span>
                 </button>
               </div>
             </div>`
@@ -1371,32 +1387,34 @@ function buildDashboardPageHeadHtml(): string {
 function buildDashGraphCardsHtml(): string {
   return `
             <div class="sx-dash-graphs">
-              <article class="sx-dash-graph">
-                <div class="sx-dash-graph__head">
-                  <div>
-                    <h3 class="sx-dash-graph__title">Time Invested</h3>
-                  </div>
-                  <div class="sx-dash-graph__head-right">
-                    <div class="sx-dash-graph__tabs" role="tablist" aria-label="Time Invested range">
-                      <button type="button" class="sx-dash-graph__tab sx-dash-graph__tab--active" data-sx-activity-range="daily" role="tab" aria-selected="true">Daily</button>
-                      <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="weekly" role="tab" aria-selected="false">Weekly</button>
-                      <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="monthly" role="tab" aria-selected="false">Monthly</button>
-                      <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="yearly" role="tab" aria-selected="false">Yearly</button>
+              <div class="sx-dash-graph--full sx-dash-graphs-row">
+                <article class="sx-dash-graph">
+                  <div class="sx-dash-graph__head">
+                    <div>
+                      <h3 class="sx-dash-graph__title">Time Invested</h3>
+                      <p class="sx-dash-graph__total"><strong data-sx-activity-total>—</strong> spent in this range</p>
                     </div>
-                    <p class="sx-dash-graph__total"><strong data-sx-activity-total>—</strong> spent in this range</p>
+                    <div class="sx-dash-graph__head-right">
+                      <div class="sx-dash-graph__tabs" role="tablist" aria-label="Time Invested range">
+                        <button type="button" class="sx-dash-graph__tab sx-dash-graph__tab--active" data-sx-activity-range="daily" role="tab" aria-selected="true">Daily</button>
+                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="weekly" role="tab" aria-selected="false">Weekly</button>
+                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="monthly" role="tab" aria-selected="false">Monthly</button>
+                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="yearly" role="tab" aria-selected="false">Yearly</button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div class="sx-dash-graph__chart sx-dash-activity-chart" role="img" aria-label="Practice hours by day">
-                  <canvas data-sx-activity-chart-canvas></canvas>
-                </div>
-              </article>
+                  <div class="sx-dash-graph__chart sx-dash-activity-chart" role="img" aria-label="Practice hours by day">
+                    <canvas data-sx-activity-chart-canvas></canvas>
+                  </div>
+                </article>
 
-              <article class="sx-dash-graph sx-dash-graph--wide">
-                <h3 class="sx-dash-graph__title">Equity Curve</h3>
-                <div class="sx-dash-graph__chart sx-dash-equity-chart" role="img" aria-label="Equity curve by month">
-                  <canvas data-sx-equity-chart-canvas></canvas>
-                </div>
-              </article>
+                <article class="sx-dash-graph">
+                  <h3 class="sx-dash-graph__title">Equity Curve</h3>
+                  <div class="sx-dash-graph__chart sx-dash-equity-chart" role="img" aria-label="Equity curve by month">
+                    <canvas data-sx-equity-chart-canvas></canvas>
+                  </div>
+                </article>
+              </div>
 
               <div class="sx-dash-graph--full sx-dash-graphs-row">
                 <article class="sx-dash-graph">
@@ -1568,39 +1586,173 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                 </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="trades" role="tabpanel" hidden>
-            <section class="sx-dash-trades sx-dash-card-surface overflow-hidden rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-8" aria-labelledby="sx-dash-trades-title">
-              <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <section class="sxt-trades" aria-labelledby="sx-dash-trades-title">
+              <div class="sxt-page-head">
                 <div>
-                  <h3 id="sx-dash-trades-title" class="text-lg font-bold tracking-tight text-slate-900 dark:text-white sm:text-xl">Trades</h3>
-                  <p class="mt-1 text-sm text-zinc-500">Closed trades from your replay journals across sessions.</p>
+                  <h3 id="sx-dash-trades-title" class="sxt-h1">Trades</h3>
+                  <p class="sxt-sub">Closed trades from your replay journals across sessions.</p>
+                </div>
+                <button type="button" data-sx-trades-export class="sxt-export-btn">
+                  <i class="fa-solid fa-download" aria-hidden="true"></i>
+                  Export
+                </button>
+              </div>
+
+              <div class="sxt-kpi-strip">
+                <div class="sxt-kpi">
+                  <div class="sxt-kpi-label">Trades</div>
+                  <div class="sxt-kpi-value" data-sxt-kpi="count">0</div>
+                  <div class="sxt-kpi-sub" data-sxt-kpi="count-sub">&nbsp;</div>
+                </div>
+                <div class="sxt-kpi">
+                  <div class="sxt-kpi-label">Net P&amp;L</div>
+                  <div class="sxt-kpi-value" data-sxt-kpi="netpnl">$0.00</div>
+                  <div class="sxt-kpi-sub" data-sxt-kpi="netpnl-sub">&nbsp;</div>
+                </div>
+                <div class="sxt-kpi">
+                  <div class="sxt-kpi-label">Win rate</div>
+                  <div class="sxt-kpi-value" data-sxt-kpi="winrate">0%</div>
+                  <div class="sxt-kpi-sub" data-sxt-kpi="winrate-sub">&nbsp;</div>
+                </div>
+                <div class="sxt-kpi">
+                  <div class="sxt-kpi-label">Avg return (R)</div>
+                  <div class="sxt-kpi-value" data-sxt-kpi="avgr">0.00R</div>
+                  <div class="sxt-kpi-sub" data-sxt-kpi="avgr-sub">&nbsp;</div>
+                </div>
+                <div class="sxt-spark-cell">
+                  <div class="sxt-kpi-label">Equity, this range</div>
+                  <div class="sxt-spark-end" data-sxt-kpi="spark-end">$0.00</div>
+                  <canvas data-sxt-spark-canvas></canvas>
+                </div>
+              </div>
+
+              <div class="sxt-toolbar">
+                <div class="sxt-select-pill">
+                  <select data-sx-trades-session-filter>
+                    <option value="">All sessions</option>
+                  </select>
+                  <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                </div>
+                <div class="sxt-search-box">
+                  <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                  <input type="search" data-sx-trades-search placeholder="Search trades" autocomplete="off" />
+                </div>
+                <div class="sxt-spacer"></div>
+                <button type="button" data-sx-trades-clear-all class="hidden sxt-clear-all">
+                  Clear All
+                  <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                </button>
+                <button type="button" data-sx-trades-refresh class="sxt-icon-btn" title="Refresh" aria-label="Refresh">
+                  <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+                </button>
+                <button type="button" data-sx-trades-edit class="sxt-icon-btn" title="Edit columns" aria-label="Edit columns">
+                  <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                </button>
+                <div class="relative">
+                  <button type="button" data-sx-trades-filters-toggle class="sxt-filter-btn" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa-solid fa-filter" aria-hidden="true"></i>
+                    Filters
+                    <span class="hidden sxt-filter-count" data-sx-trades-filters-count></span>
+                  </button>
+
+                  <div class="sx-dash-trades-filters-backdrop hidden" data-sx-trades-filters-backdrop></div>
+                  <div class="sx-dash-trades-filters-panel hidden" data-sx-trades-filters-panel role="dialog" aria-modal="true" aria-label="Filters">
+                    <div class="sx-dash-trades-filters-panel__head">
+                      <span class="sx-dash-trades-filters-panel__title"><i class="fa-solid fa-filter" aria-hidden="true"></i> Filters</span>
+                      <button type="button" class="sx-dash-trades-filters-panel__close" data-sx-trades-filters-close aria-label="Close filters">
+                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                      </button>
                     </div>
-                <span class="text-sm font-medium text-zinc-500" data-sx-trades-count>0 trades</span>
+
+                    <div class="sx-dash-trades-filters-panel__tabs" role="tablist" aria-label="Filter category">
+                      <button type="button" class="sx-dash-trades-filter-tab sx-dash-trades-filter-tab--active" data-sx-trades-filter-tab="basic" role="tab" aria-selected="true">
+                        <i class="fa-solid fa-sliders" aria-hidden="true"></i> Basic
+                      </button>
+                      <button type="button" class="sx-dash-trades-filter-tab" data-sx-trades-filter-tab="tags" role="tab" aria-selected="false">
+                        <i class="fa-solid fa-tag" aria-hidden="true"></i> Tags
+                      </button>
+                    </div>
+
+                    <div class="sx-dash-trades-filters-panel__search">
+                      <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                      <input type="search" data-sx-trades-filters-search placeholder="Search filter" autocomplete="off" />
+                    </div>
+
+                    <div class="sx-dash-trades-filters-panel__body" data-sx-trades-filters-body></div>
+
+                    <div class="sx-dash-trades-filters-panel__foot">
+                      <button type="button" class="sx-dash-trades-filters-clear" data-sx-trades-filters-clear>Clear All</button>
+                      <button type="button" class="sx-dash-trades-filters-apply" data-sx-trades-filters-apply>Apply Filters</button>
+                    </div>
                   </div>
-              <div class="overflow-x-auto">
-                <table class="sx-dash-trades-table w-full min-w-[40rem] border-collapse text-left text-sm">
-                  <thead>
-                    <tr class="border-b border-zinc-200 text-[11px] font-bold uppercase tracking-wide text-zinc-500 dark:border-white/10 dark:text-zinc-400">
-                      <th class="px-2 py-2.5 font-bold">Session</th>
-                      <th class="px-2 py-2.5 font-bold">Side</th>
-                      <th class="px-2 py-2.5 font-bold">Qty</th>
-                      <th class="px-2 py-2.5 font-bold">Entry</th>
-                      <th class="px-2 py-2.5 font-bold">Exit</th>
-                      <th class="px-2 py-2.5 font-bold">P&amp;L</th>
-                    </tr>
-                  </thead>
-                  <tbody data-sx-trades-body>
-                    <tr>
-                      <td colspan="6" class="px-2 py-8 text-center text-sm text-zinc-500">No closed trades yet. Resume a session and close positions to see them here.</td>
-                    </tr>
-                  </tbody>
-                </table>
-                      </div>
+                </div>
+              </div>
+
+              <div class="sxt-table-card">
+                <div class="sxt-table-scroll" data-sx-trades-scroll>
+                  <table class="sxt-table" data-sx-trades-table>
+                    <thead>
+                      <tr class="sxt-group-row">
+                        <th class="sxt-sticky-col sxt-col-check"></th>
+                        <th class="sxt-sticky-col sxt-col-asset"></th>
+                        <th></th>
+                        <th class="sxt-group-divide" colspan="6">Entry</th>
+                        <th class="sxt-group-divide" colspan="2">Risk</th>
+                        <th class="sxt-group-divide" colspan="2">Exit</th>
+                        <th class="sxt-group-divide" colspan="6">Result</th>
+                      </tr>
+                      <tr class="sxt-col-row">
+                        <th class="sxt-sticky-col sxt-col-check"><input type="checkbox" data-sx-trades-select-all class="sxt-row-check" aria-label="Select all trades" /></th>
+                        <th class="sxt-sticky-col sxt-col-asset">Asset</th>
+                        <th>Side</th>
+                        <th class="sxt-group-divide">Session</th>
+                        <th>Type</th>
+                        <th>Source</th>
+                        <th>Entry type</th>
+                        <th>Entry date (realtime)</th>
+                        <th>Entry date (chart)</th>
+                        <th class="sxt-num sxt-group-divide">Entry price</th>
+                        <th class="sxt-num">Size</th>
+                        <th class="sxt-num sxt-group-divide">Stop loss</th>
+                        <th class="sxt-num">Take profit</th>
+                        <th class="sxt-group-divide">Exit date</th>
+                        <th class="sxt-num">Exit price</th>
+                        <th class="sxt-num sxt-group-divide">Return ($)</th>
+                        <th class="sxt-num">Return (%)</th>
+                        <th class="sxt-num">Return (R)</th>
+                        <th>Rating</th>
+                        <th class="sxt-num">Gross PnL</th>
+                        <th class="sxt-num">Fees</th>
+                      </tr>
+                    </thead>
+                    <tbody data-sx-trades-body>
+                      <tr>
+                        <td colspan="21" class="sxt-empty">No closed trades yet. Resume a session and close positions to see them here.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="sxt-table-footer">
+                  <div class="sxt-footer-status">
+                    <span data-sx-trades-footer-default>0 trades</span>
+                    <span data-sx-trades-footer-selected class="hidden">
+                      <strong><span data-sx-trades-selected-count>0</span> selected</strong>
+                      &nbsp;&middot;&nbsp;
+                      <button type="button" data-sx-trades-delete-selected class="sxt-link-btn">Delete</button>
+                      &nbsp;&middot;&nbsp;
+                      <button type="button" data-sx-trades-export-selected class="sxt-link-btn">Export selected</button>
+                    </span>
+                  </div>
+                  <div class="sxt-page-btns" data-sx-trades-pagination></div>
+                  <div class="sxt-footer-spacer" aria-hidden="true"></div>
+                </div>
+              </div>
             </section>
                     </div>
 
                   </div>
 
-          ${buildPartnersSectionHtml()}
+          <div data-sx-partners-section>${buildPartnersSectionHtml()}</div>
                 </div>
         <div id="sx-dash-subscription-panel" class="sx-dash-subscription-panel hidden" hidden></div>
         <div id="sx-dash-billing-panel" class="sx-dash-billing-panel hidden" hidden></div>
@@ -1609,6 +1761,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         </div>
       </main>
     </div>
+    </div>
+  </div>
+
+  <div class="sx-dash-trades-fixedbar" data-sx-trades-fixedbar hidden aria-hidden="true">
+    <div class="sx-dash-trades-fixedbar__track" data-sx-trades-fixedbar-track>
+      <div class="sx-dash-trades-fixedbar__thumb" data-sx-trades-fixedbar-inner></div>
     </div>
   </div>
 
@@ -1908,6 +2066,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       viewChart.classList.remove('hidden')
     }
     if (viewDash) viewDash.hidden = true
+    hideTradesFixedBar()
     const page = appPageFromPath(window.location.pathname)
     if (page !== 'chart') {
       history.pushState({ sx: 'chart', sessionId: session.id }, '', resolveAppPath('chart'))
@@ -2187,6 +2346,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     viewChart?.replaceChildren()
     hideOverlayViews()
     if (viewDash) viewDash.hidden = true
+    hideTradesFixedBar()
     if (viewProfile) {
       viewProfile.hidden = false
       viewProfile.classList.remove('hidden')
@@ -2346,6 +2506,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       sessionsHost.hidden = !showSessions
       sessionsHost.classList.toggle('hidden', !showSessions)
     }
+    const partnersSection = root.querySelector<HTMLElement>('[data-sx-partners-section]')
+    if (partnersSection) {
+      const hidePartners = tab === 'trades'
+      partnersSection.hidden = hidePartners
+      partnersSection.classList.toggle('hidden', hidePartners)
+    }
+    if (tab === 'trades') {
+      requestAnimationFrame(() => syncTradesFixedScrollbar())
+    } else {
+      const bar = root.querySelector<HTMLElement>('[data-sx-trades-fixedbar]')
+      if (bar) bar.hidden = true
+    }
     setSideNavActive(tab)
     if (tab === 'dashboard' || tab === 'sessions') syncRecentSessionsUi()
     if (tab === 'dashboard' || tab === 'analytics') {
@@ -2355,63 +2527,790 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (tab === 'trades') syncTradesUi()
   }
 
-  function syncTradesUi() {
-    const body = root.querySelector('[data-sx-trades-body]')
-    const countEl = root.querySelector('[data-sx-trades-count]')
-    if (!body) return
+  function hideTradesFixedBar() {
+    const bar = root.querySelector<HTMLElement>('[data-sx-trades-fixedbar]')
+    if (bar) bar.hidden = true
+  }
 
-    type TradeRow = {
-      sessionName: string
-      direction: string
-      qty: number
-      entryPrice: number
-      exitPrice: number
-      pnl: number
-      exitTime: number
+  let sxTradesFixedBarBound = false
+
+  function syncTradesFixedScrollbar() {
+    const bar = root.querySelector<HTMLElement>('[data-sx-trades-fixedbar]')
+    const track = root.querySelector<HTMLElement>('[data-sx-trades-fixedbar-track]')
+    const thumb = root.querySelector<HTMLElement>('[data-sx-trades-fixedbar-inner]')
+    const scrollEl = root.querySelector<HTMLElement>('[data-sx-trades-scroll]')
+    if (!bar || !track || !thumb || !scrollEl) return
+
+    const activeTab = root.querySelector<HTMLElement>('[data-testing-panel="trades"]')
+    const isTradesActive = !!activeTab && !activeTab.hidden
+    const overflowing = scrollEl.scrollWidth > scrollEl.clientWidth + 1
+
+    if (!isTradesActive || !overflowing) {
+      bar.hidden = true
+      return
     }
-    const rows: TradeRow[] = []
+
+    const rect = scrollEl.getBoundingClientRect()
+    bar.hidden = false
+    bar.style.left = `${rect.left}px`
+    bar.style.width = `${rect.width}px`
+    thumb.style.width = `${scrollEl.scrollWidth}px`
+    if (Math.abs(track.scrollLeft - scrollEl.scrollLeft) > 1) {
+      track.scrollLeft = scrollEl.scrollLeft
+    }
+
+    if (!sxTradesFixedBarBound) {
+      sxTradesFixedBarBound = true
+      let syncingFromTrack = false
+      let syncingFromTable = false
+      track.addEventListener('scroll', () => {
+        if (syncingFromTable) return
+        syncingFromTrack = true
+        scrollEl.scrollLeft = track.scrollLeft
+        syncingFromTrack = false
+      })
+      scrollEl.addEventListener('scroll', () => {
+        if (syncingFromTrack) return
+        syncingFromTable = true
+        track.scrollLeft = scrollEl.scrollLeft
+        syncingFromTable = false
+      })
+      window.addEventListener('resize', () => syncTradesFixedScrollbar())
+    }
+  }
+
+  type SxTradeSortKey = 'entryTime' | 'entryRealTime' | 'exitTime' | 'pnl'
+  let sxTradesSortKey: SxTradeSortKey = 'exitTime'
+  let sxTradesSortDir: 'asc' | 'desc' = 'desc'
+  let sxTradesSearch = ''
+  let sxTradesPage = 1
+  const sxTradesPageSize = 10
+  const sxTradesSelected = new Set<string>()
+
+  function sxFormatTradeDate(seconds: number): string {
+    if (!Number.isFinite(seconds) || seconds <= 0) return '-'
+    const d = new Date(seconds * 1000)
+    if (Number.isNaN(d.getTime())) return '-'
+    return d.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: '2-digit',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  }
+
+  type SxTradeRow = {
+    key: string
+    sessionId: string
+    sessionName: string
+    tradeNum: number
+    direction: string
+    qty: number
+    entryPrice: number
+    exitPrice: number
+    pnl: number
+    entryTime: number
+    entryRealTime: number
+    exitTime: number
+    exitReason: string
+    initialStopLoss: number | null
+    asset: string
+    rating: string | undefined
+    entryKind: string | undefined
+    hasNotes: boolean
+    tags: string[]
+  }
+
+  function sxCollectTradeRows(): SxTradeRow[] {
+    const rows: SxTradeRow[] = []
     for (const session of listSessions()) {
       const closed = session.replayState?.account.closedTrades ?? []
       for (const trade of closed) {
         rows.push({
+          key: `${session.id}:${trade.tradeNum}`,
+          sessionId: session.id,
           sessionName: session.name,
+          tradeNum: trade.tradeNum,
           direction: trade.direction,
           qty: trade.qty,
           entryPrice: trade.entryPrice,
           exitPrice: trade.exitPrice,
           pnl: trade.pnl,
+          entryTime: trade.entryTime,
+          entryRealTime: trade.entryRealTime ?? trade.entryTime * 1000,
           exitTime: trade.exitTime,
+          exitReason: trade.exitReason,
+          initialStopLoss: trade.initialStopLoss ?? null,
+          asset: primarySessionSymbol(session.assets) || session.assets || '-',
+          rating: trade.journal?.rating,
+          entryKind: trade.entryKind,
+          hasNotes: !!trade.journal?.notes?.trim(),
+          tags: trade.journal?.tags ?? [],
         })
       }
     }
-    rows.sort((a, b) => b.exitTime - a.exitTime)
+    return rows
+  }
 
-    if (countEl) {
-      countEl.textContent = `${rows.length} trade${rows.length === 1 ? '' : 's'}`
+  function sxTradesSearchFilter(rows: SxTradeRow[]): SxTradeRow[] {
+    const q = sxTradesSearch.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter(
+      (r) =>
+        r.asset.toLowerCase().includes(q) ||
+        r.sessionName.toLowerCase().includes(q) ||
+        r.direction.toLowerCase().includes(q) ||
+        (r.entryKind ?? 'market').toLowerCase().includes(q),
+    )
+  }
+
+  function sxFormatTradeDateMs(ms: number | undefined): string {
+    if (!ms || !Number.isFinite(ms) || ms <= 0) return '-'
+    const d = new Date(ms)
+    if (Number.isNaN(d.getTime())) return '-'
+    return d.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: '2-digit',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  }
+
+  function sxFormatSignedMoney(v: number): string {
+    const sign = v >= 0 ? '+' : '\u2212'
+    return `${sign}$${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
+  const sxTradesSparkChartRegistry = new WeakMap<HTMLCanvasElement, Chart<'line'>>()
+
+  function sxSyncTradesSparkChart(points: number[]) {
+    const canvas = root.querySelector<HTMLCanvasElement>('[data-sxt-spark-canvas]')
+    if (!canvas) return
+    const labels = points.map((_, i) => `T${i + 1}`)
+    let chart = sxTradesSparkChartRegistry.get(canvas)
+    if (!chart) {
+      const config: ChartConfiguration<'line'> = {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              data: points,
+              borderColor: '#1a9d5c',
+              backgroundColor: 'rgba(26,157,92,0.08)',
+              fill: true,
+              tension: 0.3,
+              borderWidth: 1.75,
+              pointRadius: 2.5,
+              pointBackgroundColor: '#1a9d5c',
+              pointHoverRadius: 4,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (items) => `Trade ${String(items[0]?.label ?? '').replace('T', '')}`,
+                label: (item) => `Equity: ${sxFormatSignedMoney(typeof item.parsed.y === 'number' ? item.parsed.y : 0)}`,
+              },
+            },
+          },
+          scales: {
+            y: {
+              ticks: {
+                font: { family: 'IBM Plex Mono', size: 9.5 },
+                color: '#a6acb8',
+                maxTicksLimit: 3,
+                callback: (v) => {
+                  const n = typeof v === 'number' ? v : Number(v)
+                  return `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`
+                },
+              },
+              grid: { color: '#f0f1f4' },
+              border: { display: false },
+            },
+            x: {
+              ticks: { font: { size: 9.5 }, color: '#a6acb8', maxRotation: 0 },
+              grid: { display: false },
+              border: { display: false },
+            },
+          },
+        },
+      }
+      chart = new Chart(canvas, config)
+      sxTradesSparkChartRegistry.set(canvas, chart)
+      return
     }
+    const dataset = chart.data.datasets[0]
+    if (dataset) dataset.data = points
+    chart.data.labels = labels
+    chart.update()
+  }
+
+  type SxTradesFilters = {
+    sessionId: string
+    sides: Set<string>
+    outcomes: Set<'win' | 'loss' | 'breakeven'>
+    types: Set<string>
+    assets: Set<string>
+    tags: Set<string>
+    notes: Set<'with' | 'without'>
+    years: Set<number>
+    months: Set<number>
+    hours: Set<number>
+    dateFrom: string
+    dateTo: string
+  }
+
+  const sxTradesFilters: SxTradesFilters = {
+    sessionId: '',
+    sides: new Set(),
+    outcomes: new Set(),
+    types: new Set(),
+    assets: new Set(),
+    tags: new Set(),
+    notes: new Set(),
+    years: new Set(),
+    months: new Set(),
+    hours: new Set(),
+    dateFrom: '',
+    dateTo: '',
+  }
+
+  function sxTradeOutcome(pnl: number): 'win' | 'loss' | 'breakeven' {
+    return pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven'
+  }
+
+  function sxTradesFiltersActiveCount(): number {
+    return (
+      (sxTradesFilters.sessionId ? 1 : 0) +
+      sxTradesFilters.sides.size +
+      sxTradesFilters.outcomes.size +
+      sxTradesFilters.types.size +
+      sxTradesFilters.assets.size +
+      sxTradesFilters.tags.size +
+      sxTradesFilters.notes.size +
+      sxTradesFilters.years.size +
+      sxTradesFilters.months.size +
+      sxTradesFilters.hours.size +
+      (sxTradesFilters.dateFrom ? 1 : 0) +
+      (sxTradesFilters.dateTo ? 1 : 0)
+    )
+  }
+
+  function sxApplyTradesFilters(rows: SxTradeRow[]): SxTradeRow[] {
+    const fromTs = sxTradesFilters.dateFrom ? new Date(`${sxTradesFilters.dateFrom}T00:00:00`).getTime() / 1000 : null
+    const toTs = sxTradesFilters.dateTo ? new Date(`${sxTradesFilters.dateTo}T23:59:59`).getTime() / 1000 : null
+    return rows.filter((r) => {
+      if (sxTradesFilters.sessionId && r.sessionId !== sxTradesFilters.sessionId) return false
+      if (sxTradesFilters.sides.size && !sxTradesFilters.sides.has(r.direction)) return false
+      if (sxTradesFilters.outcomes.size && !sxTradesFilters.outcomes.has(sxTradeOutcome(r.pnl))) return false
+      if (sxTradesFilters.types.size && !sxTradesFilters.types.has(r.entryKind ?? 'market')) return false
+      if (sxTradesFilters.assets.size && !sxTradesFilters.assets.has(r.asset)) return false
+      if (sxTradesFilters.tags.size && !r.tags.some((tag) => sxTradesFilters.tags.has(tag))) return false
+      if (sxTradesFilters.notes.size) {
+        const wantWith = sxTradesFilters.notes.has('with')
+        const wantWithout = sxTradesFilters.notes.has('without')
+        if (wantWith && !wantWithout && !r.hasNotes) return false
+        if (wantWithout && !wantWith && r.hasNotes) return false
+      }
+      const entryDate = new Date(r.entryTime * 1000)
+      if (sxTradesFilters.years.size && !sxTradesFilters.years.has(entryDate.getFullYear())) return false
+      if (sxTradesFilters.months.size && !sxTradesFilters.months.has(entryDate.getMonth())) return false
+      if (sxTradesFilters.hours.size && !sxTradesFilters.hours.has(entryDate.getHours())) return false
+      if (fromTs != null && r.entryTime < fromTs) return false
+      if (toTs != null && r.entryTime > toTs) return false
+      return true
+    })
+  }
+
+  function sxCurrentTradeRows(): SxTradeRow[] {
+    const allRows = sxCollectTradeRows()
+    const filtered = sxApplyTradesFilters(allRows)
+    const searched = sxTradesSearchFilter(filtered)
+    const dir = sxTradesSortDir === 'asc' ? 1 : -1
+    searched.sort((a, b) => (a[sxTradesSortKey] - b[sxTradesSortKey]) * dir)
+    return searched
+  }
+
+  function syncTradesUi() {
+    const body = root.querySelector('[data-sx-trades-body]')
+    if (!body) return
+
+    const allRows = sxCollectTradeRows()
+    const rows = sxCurrentTradeRows()
+
+    // Drop selection entries that no longer exist in the dataset at all.
+    const allKeys = new Set(allRows.map((r) => r.key))
+    for (const key of Array.from(sxTradesSelected)) {
+      if (!allKeys.has(key)) sxTradesSelected.delete(key)
+    }
+
+    sxSyncTradesSessionOptions(allRows)
+    sxSyncTradesFiltersToggleBadge()
+    sxSyncTradesKpis(rows)
+
+    const pageCount = Math.max(1, Math.ceil(rows.length / sxTradesPageSize))
+    if (sxTradesPage > pageCount) sxTradesPage = pageCount
+    if (sxTradesPage < 1) sxTradesPage = 1
+    const pageStart = (sxTradesPage - 1) * sxTradesPageSize
+    const pageRows = rows.slice(pageStart, pageStart + sxTradesPageSize)
 
     if (rows.length === 0) {
       body.innerHTML = `<tr>
-                      <td colspan="6" class="px-2 py-8 text-center text-sm text-zinc-500">No closed trades yet. Resume a session and close positions to see them here.</td>
-                    </tr>`
+        <td colspan="21" class="sxt-empty">No closed trades yet. Resume a session and close positions to see them here.</td>
+      </tr>`
+    } else {
+      body.innerHTML = pageRows
+        .map((t) => {
+          const isGain = t.pnl >= 0
+          const side = t.direction === 'long' ? 'Buy' : 'Sell'
+          const sideCls = t.direction === 'long' ? 'sxt-side-buy' : 'sxt-side-sell'
+          const risk = t.initialStopLoss != null ? Math.abs(t.entryPrice - t.initialStopLoss) : 0
+          const reward = t.direction === 'long' ? t.exitPrice - t.entryPrice : t.entryPrice - t.exitPrice
+          const rMultiple = risk > 0 ? reward / risk : null
+          const returnPct = t.entryPrice * t.qty !== 0 ? (t.pnl / (t.entryPrice * t.qty)) * 100 : 0
+          const takeProfit = t.exitReason === 'take_profit' ? t.exitPrice : null
+          const checked = sxTradesSelected.has(t.key)
+          return `<tr class="${checked ? 'sxt-row-selected' : ''}">
+          <td class="sxt-sticky-col sxt-col-check"><input type="checkbox" class="sxt-row-check sxt-row-select" data-sx-trades-row-select="${escapeHtml(t.key)}" ${checked ? 'checked' : ''} aria-label="Select trade" /></td>
+          <td class="sxt-sticky-col sxt-col-asset sxt-asset-cell"><span class="sxt-ticker">${escapeHtml(t.asset)}</span></td>
+          <td><span class="${sideCls}">${side}</span></td>
+          <td class="sxt-group-divide">${escapeHtml(t.sessionName)}</td>
+          <td><span class="sxt-status-pill">Closed</span></td>
+          <td class="sxt-muted">Replay</td>
+          <td><span class="sxt-entry-type-pill">${escapeHtml(t.entryKind ?? 'market')}</span></td>
+          <td class="sxt-mono">${sxFormatTradeDateMs(t.entryRealTime)}</td>
+          <td class="sxt-mono sxt-muted">${sxFormatTradeDate(t.entryTime)}</td>
+          <td class="sxt-num sxt-mono sxt-group-divide">${escapeHtml(String(t.entryPrice))}</td>
+          <td class="sxt-num sxt-mono">${escapeHtml(String(t.qty))}</td>
+          <td class="sxt-num sxt-mono sxt-group-divide" style="color:var(--sxt-loss)">${t.initialStopLoss != null ? escapeHtml(String(t.initialStopLoss)) : '\u2014'}</td>
+          <td class="sxt-num sxt-mono" style="color:${takeProfit != null ? 'var(--sxt-gain)' : 'var(--sxt-ink-300)'}">${takeProfit != null ? escapeHtml(String(takeProfit)) : '\u2014'}</td>
+          <td class="sxt-mono sxt-group-divide">${sxFormatTradeDate(t.exitTime)}</td>
+          <td class="sxt-num sxt-mono">${escapeHtml(String(t.exitPrice))}</td>
+          <td class="sxt-num sxt-mono sxt-return-value ${isGain ? 'sxt-gain' : 'sxt-loss'} sxt-group-divide">${sxFormatSignedMoney(t.pnl)}</td>
+          <td class="sxt-num sxt-mono sxt-return-value ${isGain ? 'sxt-gain' : 'sxt-loss'}">${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(2)}%</td>
+          <td class="sxt-num sxt-mono sxt-r-value ${rMultiple != null && rMultiple >= 0 ? 'sxt-gain' : rMultiple != null ? 'sxt-loss' : ''}">${rMultiple != null ? `${rMultiple >= 0 ? '+' : ''}${rMultiple.toFixed(2)}R` : '\u2014'}</td>
+          <td class="sxt-muted">${t.rating ?? '\u2014'}</td>
+          <td class="sxt-num sxt-mono sxt-pnl-value ${isGain ? 'sxt-gain' : 'sxt-loss'}">${sxFormatSignedMoney(t.pnl)}</td>
+          <td class="sxt-num sxt-mono sxt-muted">0</td>
+        </tr>`
+        })
+        .join('')
+    }
+
+    sxSyncTradesSelectionUi(rows, pageRows.length)
+    sxRenderTradesPagination(pageCount)
+
+    requestAnimationFrame(() => syncTradesFixedScrollbar())
+  }
+
+  function sxSyncTradesKpis(rows: SxTradeRow[]) {
+    const setKpi = (key: string, value: string, cls?: 'sxt-gain' | 'sxt-loss') => {
+      const el = root.querySelector<HTMLElement>(`[data-sxt-kpi="${key}"]`)
+      if (!el) return
+      el.textContent = value
+      el.classList.remove('sxt-gain', 'sxt-loss')
+      if (cls) el.classList.add(cls)
+    }
+
+    const count = rows.length
+    const wins = rows.filter((r) => r.pnl > 0).length
+    const losses = rows.filter((r) => r.pnl < 0).length
+    const netPnl = rows.reduce((sum, r) => sum + r.pnl, 0)
+    const winRate = count > 0 ? (wins / count) * 100 : 0
+    const rValues = rows
+      .map((r) => {
+        const risk = r.initialStopLoss != null ? Math.abs(r.entryPrice - r.initialStopLoss) : 0
+        const reward = r.direction === 'long' ? r.exitPrice - r.entryPrice : r.entryPrice - r.exitPrice
+        return risk > 0 ? reward / risk : null
+      })
+      .filter((v): v is number => v != null)
+    const avgR = rValues.length ? rValues.reduce((a, b) => a + b, 0) / rValues.length : 0
+    const bestR = rValues.length ? Math.max(...rValues) : null
+    const worstR = rValues.length ? Math.min(...rValues) : null
+
+    const assets = new Set(rows.map((r) => r.asset))
+    const assetLabel = assets.size === 0 ? '\u2014' : assets.size === 1 ? Array.from(assets)[0] : `${assets.size} assets`
+
+    setKpi('count', String(count))
+    const countSub = root.querySelector<HTMLElement>('[data-sxt-kpi="count-sub"]')
+    if (countSub) countSub.textContent = count > 0 ? `All closed \u00b7 ${assetLabel}` : '\u00a0'
+
+    setKpi('netpnl', sxFormatSignedMoney(netPnl), netPnl > 0 ? 'sxt-gain' : netPnl < 0 ? 'sxt-loss' : undefined)
+    const netpnlSub = root.querySelector<HTMLElement>('[data-sxt-kpi="netpnl-sub"]')
+    if (netpnlSub) netpnlSub.textContent = count > 0 ? `${wins} win${wins === 1 ? '' : 's'} \u00b7 ${losses} loss${losses === 1 ? '' : 'es'}` : '\u00a0'
+
+    setKpi('winrate', `${winRate.toFixed(0)}%`)
+    const winrateSub = root.querySelector<HTMLElement>('[data-sxt-kpi="winrate-sub"]')
+    if (winrateSub) winrateSub.textContent = count > 0 ? `${wins} of ${count} trades` : '\u00a0'
+
+    setKpi('avgr', `${avgR >= 0 ? '' : ''}${avgR.toFixed(2)}R`)
+    const avgrSub = root.querySelector<HTMLElement>('[data-sxt-kpi="avgr-sub"]')
+    if (avgrSub) {
+      avgrSub.textContent =
+        bestR != null && worstR != null
+          ? `Best ${bestR >= 0 ? '+' : ''}${bestR.toFixed(2)}R \u00b7 Worst ${worstR >= 0 ? '+' : ''}${worstR.toFixed(2)}R`
+          : '\u00a0'
+    }
+
+    const ordered = [...rows].sort((a, b) => a.exitTime - b.exitTime)
+    let cumulative = 0
+    const points = ordered.map((r) => (cumulative += r.pnl))
+    const sparkEndEl = root.querySelector<HTMLElement>('[data-sxt-kpi="spark-end"]')
+    if (sparkEndEl) {
+      const end = points.length ? points[points.length - 1]! : 0
+      sparkEndEl.textContent = sxFormatSignedMoney(end)
+      sparkEndEl.classList.toggle('sxt-loss', end < 0)
+    }
+    sxSyncTradesSparkChart(points)
+  }
+
+  function sxSyncTradesSelectionUi(rows: SxTradeRow[], pageRowCount: number) {
+    const selectAllBox = root.querySelector<HTMLInputElement>('[data-sx-trades-select-all]')
+    const rowBoxes = Array.from(root.querySelectorAll<HTMLInputElement>('.sxt-row-select'))
+    const checkedCount = sxTradesSelected.size
+    const visibleChecked = rowBoxes.filter((b) => b.checked).length
+
+    if (selectAllBox) {
+      selectAllBox.checked = rowBoxes.length > 0 && visibleChecked === rowBoxes.length
+      selectAllBox.indeterminate = visibleChecked > 0 && visibleChecked < rowBoxes.length
+    }
+
+    const footerDefault = root.querySelector<HTMLElement>('[data-sx-trades-footer-default]')
+    const footerSelected = root.querySelector<HTMLElement>('[data-sx-trades-footer-selected]')
+    const selectedCountEl = root.querySelector<HTMLElement>('[data-sx-trades-selected-count]')
+
+    if (checkedCount > 0) {
+      footerDefault?.classList.add('hidden')
+      footerSelected?.classList.remove('hidden')
+      if (selectedCountEl) selectedCountEl.textContent = String(checkedCount)
+    } else {
+      footerDefault?.classList.remove('hidden')
+      footerSelected?.classList.add('hidden')
+      if (footerDefault) {
+        footerDefault.textContent =
+          rows.length === 0
+            ? '0 rows'
+            : `Displaying ${pageRowCount} of ${rows.length} row${rows.length === 1 ? '' : 's'}`
+      }
+    }
+  }
+
+  function sxExportTrades(rows: SxTradeRow[]) {
+    if (rows.length === 0) return
+    const headers = [
+      'Session',
+      'Type',
+      'Source',
+      'Entry Date (Realtime)',
+      'Entry Date (Chart)',
+      'Asset',
+      'Side',
+      'Entry Type',
+      'Entry Price',
+      'Size',
+      'Stop Loss',
+      'Take Profit',
+      'Exit Date',
+      'Exit Price',
+      'Return ($)',
+      'Return (%)',
+      'Return (R)',
+      'Trade Rating',
+      'Gross PnL',
+      'Fees',
+    ]
+    const lines = [headers.join(',')]
+    for (const t of rows) {
+      const risk = t.initialStopLoss != null ? Math.abs(t.entryPrice - t.initialStopLoss) : 0
+      const reward = t.direction === 'long' ? t.exitPrice - t.entryPrice : t.entryPrice - t.exitPrice
+      const rMultiple = risk > 0 ? reward / risk : null
+      const returnPct = t.entryPrice * t.qty !== 0 ? (t.pnl / (t.entryPrice * t.qty)) * 100 : 0
+      const takeProfit = t.exitReason === 'take_profit' ? t.exitPrice : null
+      const cells = [
+        t.sessionName,
+        'Closed',
+        'Replay',
+        sxFormatTradeDateMs(t.entryRealTime),
+        sxFormatTradeDate(t.entryTime),
+        t.asset,
+        t.direction === 'long' ? 'Buy' : 'Sell',
+        t.entryKind ?? 'market',
+        String(t.entryPrice),
+        String(t.qty),
+        t.initialStopLoss != null ? String(t.initialStopLoss) : '',
+        takeProfit != null ? String(takeProfit) : '',
+        sxFormatTradeDate(t.exitTime),
+        String(t.exitPrice),
+        sxFormatSignedMoney(t.pnl),
+        `${returnPct.toFixed(2)}%`,
+        rMultiple != null ? rMultiple.toFixed(2) : '',
+        t.rating ?? '',
+        sxFormatSignedMoney(t.pnl),
+        '0',
+      ]
+      lines.push(cells.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `trades-export-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  function sxDeleteSelectedTrades() {
+    const bySession = new Map<string, Set<number>>()
+    for (const key of sxTradesSelected) {
+      const idx = key.lastIndexOf(':')
+      if (idx < 0) continue
+      const sessionId = key.slice(0, idx)
+      const tradeNum = Number(key.slice(idx + 1))
+      if (!Number.isFinite(tradeNum)) continue
+      if (!bySession.has(sessionId)) bySession.set(sessionId, new Set())
+      bySession.get(sessionId)!.add(tradeNum)
+    }
+    for (const [sessionId, tradeNums] of bySession) {
+      const session = getSession(sessionId)
+      if (!session?.replayState) continue
+      const closedTrades = (session.replayState.account.closedTrades ?? []).filter((tr) => !tradeNums.has(tr.tradeNum))
+      updateSessionReplay(sessionId, {
+        ...session.replayState,
+        account: { ...session.replayState.account, closedTrades },
+      })
+    }
+    sxTradesSelected.clear()
+    syncRecentSessionsUi()
+    syncTradesUi()
+  }
+
+  function sxRenderTradesPagination(pageCount: number) {
+    const host = root.querySelector<HTMLElement>('[data-sx-trades-pagination]')
+    if (!host) return
+
+    const nav = (dir: 'first' | 'prev' | 'next' | 'last', label: string, disabled: boolean) =>
+      `<button type="button" class="sxt-page-nav" data-sx-trades-page-nav="${dir}" ${disabled ? 'disabled' : ''} aria-label="${dir} page">${label}</button>`
+
+    const atFirst = sxTradesPage <= 1
+    const atLast = sxTradesPage >= pageCount
+
+    const buttons: string[] = []
+    const windowSize = 5
+    let start = Math.max(1, sxTradesPage - Math.floor(windowSize / 2))
+    const end = Math.min(pageCount, start + windowSize - 1)
+    start = Math.max(1, end - windowSize + 1)
+    for (let p = start; p <= end; p += 1) {
+      buttons.push(
+        `<button type="button" data-sx-trades-page="${p}" class="${p === sxTradesPage ? 'sxt-page-btn--active' : ''}">${p}</button>`,
+      )
+    }
+
+    host.innerHTML = [
+      nav('first', '&laquo;', atFirst),
+      nav('prev', '&lsaquo;', atFirst),
+      ...buttons,
+      nav('next', '&rsaquo;', atLast),
+      nav('last', '&raquo;', atLast),
+    ].join('')
+  }
+
+  function sxSyncTradesSessionOptions(rows: SxTradeRow[]) {
+    const select = root.querySelector<HTMLSelectElement>('[data-sx-trades-session-filter]')
+    if (!select) return
+    const seen = new Map<string, string>()
+    for (const r of rows) seen.set(r.sessionId, r.sessionName)
+    const current = select.value
+    select.innerHTML =
+      `<option value="">All sessions</option>` +
+      Array.from(seen.entries())
+        .map(([id, name]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`)
+        .join('')
+    if (seen.has(current)) select.value = current
+  }
+
+  function sxSyncTradesFiltersToggleBadge() {
+    const count = sxTradesFiltersActiveCount()
+    const badge = root.querySelector<HTMLElement>('[data-sx-trades-filters-count]')
+    if (badge) {
+      badge.textContent = String(count)
+      badge.classList.toggle('hidden', count === 0)
+    }
+    const clearAllBtn = root.querySelector<HTMLElement>('[data-sx-trades-clear-all]')
+    if (clearAllBtn) clearAllBtn.classList.toggle('hidden', count === 0)
+  }
+
+  let sxTradesFilterTab: 'basic' | 'tags' = 'basic'
+  let sxTradesFilterSearch = ''
+  const sxTradesAccordionOpen = new Set<string>(['assets'])
+
+  function sxRenderTradesFilterSection(opts: {
+    id: string
+    label: string
+    items: { value: string; label: string }[]
+    selected: Set<string>
+  }): string {
+    const open = sxTradesAccordionOpen.has(opts.id)
+    const q = sxTradesFilterSearch.trim().toLowerCase()
+    const items = q ? opts.items.filter((i) => i.label.toLowerCase().includes(q)) : opts.items
+    return `<div class="sx-dash-trades-accordion${open ? ' sx-dash-trades-accordion--open' : ''}" data-sx-trades-accordion="${opts.id}">
+      <button type="button" class="sx-dash-trades-accordion__head" data-sx-trades-accordion-toggle="${opts.id}">
+        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        <span>${escapeHtml(opts.label)}</span>
+        ${opts.selected.size ? `<span class="sx-dash-trades-accordion__badge">${opts.selected.size}</span>` : ''}
+      </button>
+      <div class="sx-dash-trades-accordion__body">
+        ${
+          items.length
+            ? items
+                .map(
+                  (item) => `<label class="sx-dash-trades-checkbox">
+                <input type="checkbox" data-sx-trades-filter-check="${opts.id}" value="${escapeHtml(item.value)}"${opts.selected.has(item.value) ? ' checked' : ''} />
+                <span>${escapeHtml(item.label)}</span>
+              </label>`,
+                )
+                .join('')
+            : `<p class="sx-dash-trades-accordion__empty">No options</p>`
+        }
+      </div>
+    </div>`
+  }
+
+  function sxRenderTradesFiltersBody() {
+    const bodyEl = root.querySelector<HTMLElement>('[data-sx-trades-filters-body]')
+    if (!bodyEl) return
+    const allRows = sxCollectTradeRows()
+
+    if (sxTradesFilterTab === 'tags') {
+      const tagSet = new Set<string>()
+      for (const r of allRows) for (const tag of r.tags) tagSet.add(tag)
+      const q = sxTradesFilterSearch.trim().toLowerCase()
+      const tags = Array.from(tagSet).filter((t) => !q || t.toLowerCase().includes(q))
+      bodyEl.innerHTML = tags.length
+        ? `<div class="sx-dash-trades-tag-list">${tags
+            .map(
+              (tag) => `<label class="sx-dash-trades-checkbox">
+              <input type="checkbox" data-sx-trades-filter-check="tags" value="${escapeHtml(tag)}"${sxTradesFilters.tags.has(tag) ? ' checked' : ''} />
+              <span>${escapeHtml(tag)}</span>
+            </label>`,
+            )
+            .join('')}</div>`
+        : `<p class="sx-dash-trades-accordion__empty">No tags added to any trade journal yet.</p>`
       return
     }
 
-    body.innerHTML = rows
-      .slice(0, 200)
-      .map((t) => {
-        const pnlClass = t.pnl > 0 ? 'text-emerald-600 dark:text-emerald-400' : t.pnl < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-600'
-        const side = t.direction === 'long' ? 'Long' : 'Short'
-        return `<tr class="border-b border-zinc-100 dark:border-white/[0.06]">
-          <td class="px-2 py-2.5 font-medium text-slate-800 dark:text-zinc-100">${escapeHtml(t.sessionName)}</td>
-          <td class="px-2 py-2.5 text-zinc-600 dark:text-zinc-300">${side}</td>
-          <td class="px-2 py-2.5 text-zinc-600 dark:text-zinc-300">${escapeHtml(String(t.qty))}</td>
-          <td class="px-2 py-2.5 text-zinc-600 dark:text-zinc-300">${escapeHtml(String(t.entryPrice))}</td>
-          <td class="px-2 py-2.5 text-zinc-600 dark:text-zinc-300">${escapeHtml(String(t.exitPrice))}</td>
-          <td class="px-2 py-2.5 font-semibold ${pnlClass}">${formatDashMoney(t.pnl)}</td>
-        </tr>`
-      })
-      .join('')
+    const assetItems = Array.from(new Set(allRows.map((r) => r.asset))).map((a) => ({ value: a, label: a }))
+    const years = Array.from(new Set(allRows.map((r) => new Date(r.entryTime * 1000).getFullYear()))).sort((a, b) => b - a)
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const monthsPresent = Array.from(new Set(allRows.map((r) => new Date(r.entryTime * 1000).getMonth()))).sort((a, b) => a - b)
+
+    bodyEl.innerHTML = [
+      sxRenderTradesFilterSection({
+        id: 'notes',
+        label: 'Notes',
+        items: [
+          { value: 'with', label: 'With Notes' },
+          { value: 'without', label: 'Without Notes' },
+        ],
+        selected: sxTradesFilters.notes,
+      }),
+      sxRenderTradesFilterSection({ id: 'assets', label: 'Assets', items: assetItems, selected: sxTradesFilters.assets }),
+      sxRenderTradesFilterSection({
+        id: 'side',
+        label: 'Side',
+        items: [
+          { value: 'long', label: 'Long' },
+          { value: 'short', label: 'Short' },
+        ],
+        selected: sxTradesFilters.sides,
+      }),
+      sxRenderTradesFilterSection({
+        id: 'outcome',
+        label: 'Outcome',
+        items: [
+          { value: 'win', label: 'Win' },
+          { value: 'loss', label: 'Lose' },
+          { value: 'breakeven', label: 'Breakeven' },
+        ],
+        selected: sxTradesFilters.outcomes,
+      }),
+      sxRenderTradesFilterSection({
+        id: 'type',
+        label: 'Entry type',
+        items: [
+          { value: 'market', label: 'Market' },
+          { value: 'limit', label: 'Limit' },
+          { value: 'stop', label: 'Stop' },
+        ],
+        selected: sxTradesFilters.types,
+      }),
+      sxRenderTradesDateRangeSection(),
+      sxRenderTradesFilterSection({
+        id: 'year',
+        label: 'Year',
+        items: years.map((y) => ({ value: String(y), label: String(y) })),
+        selected: new Set(Array.from(sxTradesFilters.years).map(String)),
+      }),
+      sxRenderTradesFilterSection({
+        id: 'month',
+        label: 'Month',
+        items: monthsPresent.map((m) => ({ value: String(m), label: monthNames[m]! })),
+        selected: new Set(Array.from(sxTradesFilters.months).map(String)),
+      }),
+      sxRenderTradesFilterSection({
+        id: 'hour',
+        label: 'Hour of the day',
+        items: Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${String(h).padStart(2, '0')}:00` })),
+        selected: new Set(Array.from(sxTradesFilters.hours).map(String)),
+      }),
+    ].join('')
+  }
+
+  function sxRenderTradesDateRangeSection(): string {
+    const id = 'daterange'
+    const open = sxTradesAccordionOpen.has(id)
+    const activeCount = (sxTradesFilters.dateFrom ? 1 : 0) + (sxTradesFilters.dateTo ? 1 : 0)
+    return `<div class="sx-dash-trades-accordion${open ? ' sx-dash-trades-accordion--open' : ''}" data-sx-trades-accordion="${id}">
+      <button type="button" class="sx-dash-trades-accordion__head" data-sx-trades-accordion-toggle="${id}">
+        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        <span>Date range</span>
+        ${activeCount ? `<span class="sx-dash-trades-accordion__badge">${activeCount}</span>` : ''}
+      </button>
+      <div class="sx-dash-trades-accordion__body">
+        <div class="sx-dash-trades-date-range">
+          <label>From
+            <input type="date" data-sx-trades-filter-date="from" value="${escapeHtml(sxTradesFilters.dateFrom)}" />
+          </label>
+          <label>To
+            <input type="date" data-sx-trades-filter-date="to" value="${escapeHtml(sxTradesFilters.dateTo)}" />
+          </label>
+        </div>
+      </div>
+    </div>`
+  }
+
+  function sxOpenTradesFiltersPanel(open: boolean) {
+    const panel = root.querySelector<HTMLElement>('[data-sx-trades-filters-panel]')
+    const backdrop = root.querySelector<HTMLElement>('[data-sx-trades-filters-backdrop]')
+    const toggle = root.querySelector<HTMLButtonElement>('[data-sx-trades-filters-toggle]')
+    if (!panel || !toggle) return
+    panel.classList.toggle('hidden', !open)
+    backdrop?.classList.toggle('hidden', !open)
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+    if (open) {
+      sxRenderTradesFiltersBody()
+    }
   }
 
   function showMarkets() {
@@ -2426,6 +3325,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     viewChart?.replaceChildren()
     hideOverlayViews()
     if (viewDash) viewDash.hidden = true
+    hideTradesFixedBar()
     if (viewStocks) viewStocks.classList.remove('hidden')
     disposeStocks = mountStockApp(viewStocks, {
       onBack: () => {
@@ -2633,14 +3533,20 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       ? `${pulse.sessionsTouched} session${pulse.sessionsTouched === 1 ? '' : 's'} · Active ${formatPulseDuration(pulse.activePracticeMs)}`
       : 'Across sessions'
     const practiceInfoText = 'Total real-world time you spent actively practicing across your sessions in this range.'
+    // Floor the practice time to the same 1-minute granularity the "Time Invested" KPI
+    // displays (formatPulseDuration never shows less than 1m). Dividing by the raw,
+    // sub-minute practice duration produced wildly inflated multipliers (e.g. 378210×)
+    // that didn't line up with the "1m" the user actually sees on screen.
+    const histMultiplierPracticeFloorMs = 60_000
     const histMultiplier =
       pulse.practiceMs > 0 && pulse.historicalMs > 0
-        ? Math.max(1, Math.round(pulse.historicalMs / Math.max(pulse.practiceMs, 1)))
+        ? Math.max(1, Math.round(pulse.historicalMs / Math.max(pulse.practiceMs, histMultiplierPracticeFloorMs)))
         : null
-    const histHintText = histMultiplier != null ? `${histMultiplier}× tape vs practice` : 'Historical coverage'
+    const histMultiplierText = histMultiplier != null ? histMultiplier.toLocaleString(undefined) : null
+    const histHintText = histMultiplierText != null ? `${histMultiplierText}× tape vs practice` : 'Historical coverage'
     const histInfoText =
-      histMultiplier != null
-        ? `The market history you loaded is ${histMultiplier}× longer than the actual time you spent practicing on it.`
+      histMultiplierText != null
+        ? `The market history you loaded is ${histMultiplierText}× longer than the actual time you spent practicing on it.`
         : 'Compares the historical market time you loaded against the actual time you spent practicing on it.'
     const pnlText = pnlTotals.hasData ? formatDashboardPerfMoney(pnlTotals.netPnl) : '—'
     const pnlHintText = pnlTotals.hasData
@@ -2976,6 +3882,168 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       return
     }
 
+    const tradesSortBtn = t.closest<HTMLButtonElement>('[data-sx-trades-sort]')
+    if (tradesSortBtn && root.contains(tradesSortBtn)) {
+      const key = tradesSortBtn.getAttribute('data-sx-trades-sort') as SxTradeSortKey | null
+      if (key) {
+        if (sxTradesSortKey === key) {
+          sxTradesSortDir = sxTradesSortDir === 'asc' ? 'desc' : 'asc'
+        } else {
+          sxTradesSortKey = key
+          sxTradesSortDir = 'desc'
+        }
+        syncTradesUi()
+      }
+      return
+    }
+
+    const tradeOpenBtn = t.closest<HTMLButtonElement>('[data-sx-trade-open-session]')
+    if (tradeOpenBtn && root.contains(tradeOpenBtn)) {
+      const id = tradeOpenBtn.getAttribute('data-sx-trade-open-session')
+      const s = id ? getSession(id) : null
+      if (s) openChartWithStoredSession(s)
+      return
+    }
+
+    const tradesRefreshBtn = t.closest<HTMLButtonElement>('[data-sx-trades-refresh]')
+    if (tradesRefreshBtn && root.contains(tradesRefreshBtn)) {
+      syncTradesUi()
+      return
+    }
+
+    const tradesPageBtn = t.closest<HTMLButtonElement>('[data-sx-trades-page]')
+    if (tradesPageBtn && root.contains(tradesPageBtn) && !tradesPageBtn.disabled) {
+      const p = Number(tradesPageBtn.getAttribute('data-sx-trades-page'))
+      if (Number.isFinite(p) && p > 0) {
+        sxTradesPage = p
+        syncTradesUi()
+      }
+      return
+    }
+
+    const tradesPageNavBtn = t.closest<HTMLButtonElement>('[data-sx-trades-page-nav]')
+    if (tradesPageNavBtn && root.contains(tradesPageNavBtn) && !tradesPageNavBtn.disabled) {
+      const dir = tradesPageNavBtn.getAttribute('data-sx-trades-page-nav')
+      const pageCount = Math.max(1, Math.ceil(sxCurrentTradeRows().length / sxTradesPageSize))
+      if (dir === 'first') sxTradesPage = 1
+      else if (dir === 'prev') sxTradesPage = Math.max(1, sxTradesPage - 1)
+      else if (dir === 'next') sxTradesPage = Math.min(pageCount, sxTradesPage + 1)
+      else if (dir === 'last') sxTradesPage = pageCount
+      syncTradesUi()
+      return
+    }
+
+    const tradesExportBtn = t.closest<HTMLButtonElement>('[data-sx-trades-export]')
+    if (tradesExportBtn && root.contains(tradesExportBtn)) {
+      sxExportTrades(sxCurrentTradeRows())
+      return
+    }
+
+    const tradesExportSelectedBtn = t.closest<HTMLButtonElement>('[data-sx-trades-export-selected]')
+    if (tradesExportSelectedBtn && root.contains(tradesExportSelectedBtn)) {
+      sxExportTrades(sxCurrentTradeRows().filter((r) => sxTradesSelected.has(r.key)))
+      return
+    }
+
+    const tradesDeleteSelectedBtn = t.closest<HTMLButtonElement>('[data-sx-trades-delete-selected]')
+    if (tradesDeleteSelectedBtn && root.contains(tradesDeleteSelectedBtn)) {
+      const count = sxTradesSelected.size
+      if (count === 0) return
+      void confirmDialog({
+        title: 'Delete trades',
+        message: `Delete ${count} selected trade${count === 1 ? '' : 's'}? This cannot be undone.`,
+        confirmLabel: 'Delete',
+        cancelLabel: 'Cancel',
+        danger: true,
+      }).then((ok) => {
+        if (!ok) return
+        sxDeleteSelectedTrades()
+      })
+      return
+    }
+
+    const tradesFiltersToggle = t.closest<HTMLButtonElement>('[data-sx-trades-filters-toggle]')
+    if (tradesFiltersToggle && root.contains(tradesFiltersToggle)) {
+      const panel = root.querySelector<HTMLElement>('[data-sx-trades-filters-panel]')
+      sxOpenTradesFiltersPanel(!!panel?.classList.contains('hidden'))
+      return
+    }
+
+    const tradesFiltersClose = t.closest<HTMLButtonElement>('[data-sx-trades-filters-close]')
+    if (tradesFiltersClose && root.contains(tradesFiltersClose)) {
+      sxOpenTradesFiltersPanel(false)
+      return
+    }
+
+    const tradesFiltersBackdrop = t.closest<HTMLElement>('[data-sx-trades-filters-backdrop]')
+    if (tradesFiltersBackdrop && root.contains(tradesFiltersBackdrop)) {
+      sxOpenTradesFiltersPanel(false)
+      return
+    }
+
+    const tradesFilterTabBtn = t.closest<HTMLButtonElement>('[data-sx-trades-filter-tab]')
+    if (tradesFilterTabBtn && root.contains(tradesFilterTabBtn)) {
+      const tabId = tradesFilterTabBtn.getAttribute('data-sx-trades-filter-tab') as 'basic' | 'tags' | null
+      if (tabId && tabId !== sxTradesFilterTab) {
+        sxTradesFilterTab = tabId
+        root.querySelectorAll<HTMLButtonElement>('[data-sx-trades-filter-tab]').forEach((btn) => {
+          const on = btn === tradesFilterTabBtn
+          btn.classList.toggle('sx-dash-trades-filter-tab--active', on)
+          btn.setAttribute('aria-selected', on ? 'true' : 'false')
+        })
+        sxRenderTradesFiltersBody()
+      }
+      return
+    }
+
+    const tradesAccordionToggle = t.closest<HTMLButtonElement>('[data-sx-trades-accordion-toggle]')
+    if (tradesAccordionToggle && root.contains(tradesAccordionToggle)) {
+      const id = tradesAccordionToggle.getAttribute('data-sx-trades-accordion-toggle')
+      if (id) {
+        if (sxTradesAccordionOpen.has(id)) sxTradesAccordionOpen.delete(id)
+        else sxTradesAccordionOpen.add(id)
+        sxRenderTradesFiltersBody()
+      }
+      return
+    }
+
+    const tradesFiltersClear = t.closest<HTMLButtonElement>('[data-sx-trades-filters-clear]')
+    const tradesClearAll = t.closest<HTMLButtonElement>('[data-sx-trades-clear-all]')
+    if ((tradesFiltersClear && root.contains(tradesFiltersClear)) || (tradesClearAll && root.contains(tradesClearAll))) {
+      sxTradesFilters.sessionId = ''
+      sxTradesFilters.sides.clear()
+      sxTradesFilters.outcomes.clear()
+      sxTradesFilters.types.clear()
+      sxTradesFilters.assets.clear()
+      sxTradesFilters.tags.clear()
+      sxTradesFilters.notes.clear()
+      sxTradesFilters.years.clear()
+      sxTradesFilters.months.clear()
+      sxTradesFilters.hours.clear()
+      sxTradesFilters.dateFrom = ''
+      sxTradesFilters.dateTo = ''
+      const sessionSelect = root.querySelector<HTMLSelectElement>('[data-sx-trades-session-filter]')
+      if (sessionSelect) sessionSelect.value = ''
+      sxRenderTradesFiltersBody()
+      syncTradesUi()
+      return
+    }
+
+    const tradesFiltersApply = t.closest<HTMLButtonElement>('[data-sx-trades-filters-apply]')
+    if (tradesFiltersApply && root.contains(tradesFiltersApply)) {
+      sxOpenTradesFiltersPanel(false)
+      syncTradesUi()
+      return
+    }
+
+    if (
+      !t.closest('[data-sx-trades-filters-panel]') &&
+      !t.closest('[data-sx-trades-filters-toggle]')
+    ) {
+      const panel = root.querySelector<HTMLElement>('[data-sx-trades-filters-panel]')
+      if (panel && !panel.classList.contains('hidden')) sxOpenTradesFiltersPanel(false)
+    }
+
     const newSessionBtn = t.closest<HTMLButtonElement>('[data-action="backtest"]')
     if (newSessionBtn && root.contains(newSessionBtn) && !newSessionBtn.disabled) {
       sessionModal.open({ sessionType: 'backtest' })
@@ -3130,6 +4198,107 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (t.closest('[data-sx-perf-dd]') || t.closest('[data-sx-session-dd]')) return
     closeAllLocaleDropdowns()
     closeAllPerfDropdowns()
+  })
+
+  root.addEventListener('change', (e) => {
+    const t = e.target as HTMLElement | null
+    if (!t) return
+
+    const sessionSelect = t.closest<HTMLSelectElement>('[data-sx-trades-session-filter]')
+    if (sessionSelect && root.contains(sessionSelect)) {
+      sxTradesFilters.sessionId = sessionSelect.value
+      syncTradesUi()
+      return
+    }
+
+    const filterCheck = t.closest<HTMLInputElement>('[data-sx-trades-filter-check]')
+    if (filterCheck && root.contains(filterCheck)) {
+      const group = filterCheck.getAttribute('data-sx-trades-filter-check')
+      const value = filterCheck.value
+      if (group === 'notes') {
+        if (filterCheck.checked) sxTradesFilters.notes.add(value as 'with' | 'without')
+        else sxTradesFilters.notes.delete(value as 'with' | 'without')
+      } else if (group === 'assets') {
+        if (filterCheck.checked) sxTradesFilters.assets.add(value)
+        else sxTradesFilters.assets.delete(value)
+      } else if (group === 'side') {
+        if (filterCheck.checked) sxTradesFilters.sides.add(value)
+        else sxTradesFilters.sides.delete(value)
+      } else if (group === 'outcome') {
+        if (filterCheck.checked) sxTradesFilters.outcomes.add(value as 'win' | 'loss' | 'breakeven')
+        else sxTradesFilters.outcomes.delete(value as 'win' | 'loss' | 'breakeven')
+      } else if (group === 'type') {
+        if (filterCheck.checked) sxTradesFilters.types.add(value)
+        else sxTradesFilters.types.delete(value)
+      } else if (group === 'tags') {
+        if (filterCheck.checked) sxTradesFilters.tags.add(value)
+        else sxTradesFilters.tags.delete(value)
+      } else if (group === 'year') {
+        const yr = Number(value)
+        if (filterCheck.checked) sxTradesFilters.years.add(yr)
+        else sxTradesFilters.years.delete(yr)
+      } else if (group === 'month') {
+        const mo = Number(value)
+        if (filterCheck.checked) sxTradesFilters.months.add(mo)
+        else sxTradesFilters.months.delete(mo)
+      } else if (group === 'hour') {
+        const hr = Number(value)
+        if (filterCheck.checked) sxTradesFilters.hours.add(hr)
+        else sxTradesFilters.hours.delete(hr)
+      }
+      sxSyncTradesFiltersToggleBadge()
+      sxRenderTradesFiltersBody()
+      return
+    }
+
+    const dateInput = t.closest<HTMLInputElement>('[data-sx-trades-filter-date]')
+    if (dateInput && root.contains(dateInput)) {
+      const which = dateInput.getAttribute('data-sx-trades-filter-date')
+      if (which === 'from') sxTradesFilters.dateFrom = dateInput.value
+      else if (which === 'to') sxTradesFilters.dateTo = dateInput.value
+      sxSyncTradesFiltersToggleBadge()
+      return
+    }
+
+    const selectAllBox = t.closest<HTMLInputElement>('[data-sx-trades-select-all]')
+    if (selectAllBox && root.contains(selectAllBox)) {
+      const rows = sxCurrentTradeRows()
+      if (selectAllBox.checked) {
+        for (const r of rows) sxTradesSelected.add(r.key)
+      } else {
+        for (const r of rows) sxTradesSelected.delete(r.key)
+      }
+      syncTradesUi()
+      return
+    }
+
+    const rowSelect = t.closest<HTMLInputElement>('[data-sx-trades-row-select]')
+    if (rowSelect && root.contains(rowSelect)) {
+      const key = rowSelect.getAttribute('data-sx-trades-row-select')
+      if (key) {
+        if (rowSelect.checked) sxTradesSelected.add(key)
+        else sxTradesSelected.delete(key)
+      }
+      syncTradesUi()
+    }
+  })
+
+  root.addEventListener('input', (e) => {
+    const t = e.target as HTMLElement | null
+    if (!t) return
+    const searchInput = t.closest<HTMLInputElement>('[data-sx-trades-filters-search]')
+    if (searchInput && root.contains(searchInput)) {
+      sxTradesFilterSearch = searchInput.value
+      sxRenderTradesFiltersBody()
+      return
+    }
+
+    const tradesSearch = t.closest<HTMLInputElement>('[data-sx-trades-search]')
+    if (tradesSearch && root.contains(tradesSearch)) {
+      sxTradesSearch = tradesSearch.value
+      sxTradesPage = 1
+      syncTradesUi()
+    }
   })
 
   document.addEventListener('keydown', (e) => {

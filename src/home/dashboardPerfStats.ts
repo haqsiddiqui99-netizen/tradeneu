@@ -312,7 +312,7 @@ function bucketDailyForChart(
   const hasActivity = result.vals.some((v) => Math.abs(v) > 1e-9)
   if (!hasActivity && events.length > 0) {
     let latest = events[0]!
-    for (const e of events) {
+  for (const e of events) {
       if (e.ts > latest.ts) latest = e
     }
     result = build(new Date(latest.ts))

@@ -19,6 +19,10 @@ export type OpenPosition = {
   realizedPnL?: number
   entryPrice: number
   entryTime: number
+  /** Wall-clock ms timestamp (Date.now()) captured when the position was opened. */
+  entryRealTime?: number
+  /** How the position was entered: straight market fill, or a filled limit/stop order. */
+  entryKind?: 'market' | 'limit' | 'stop'
   takeProfit: number | null
   stopLoss: number | null
   takeProfitTargets?: TakeProfitTarget[]
@@ -164,6 +168,10 @@ export type ClosedReplayTrade = {
   entryPrice: number
   exitPrice: number
   entryTime: number
+  /** Wall-clock ms timestamp (Date.now()) captured when the position was opened. */
+  entryRealTime?: number
+  /** How the position was entered: straight market fill, or a filled limit/stop order. */
+  entryKind?: 'market' | 'limit' | 'stop'
   exitTime: number
   pnl: number
   exitReason: ReplayExitReason
@@ -196,12 +204,15 @@ export type ReplayAccountPersisted = {
   nextPendingId?: number
 }
 
+export type ReplayEntryKind = 'market' | 'limit' | 'stop'
+
 export type OpenPositionSetup = {
   stopLoss?: number | null
   takeProfit?: number | null
   takeProfitTargets?: TakeProfitTarget[]
   instrument?: { contractSize: number; pipSize: number; marginRate: number }
   autoBreakEven?: boolean
+  entryKind?: ReplayEntryKind
 }
 
 function defaultTpSl(entry: number, direction: PositionDirection): { tp: number; sl: number } {
@@ -419,6 +430,8 @@ export function createReplayAccount(
       realizedPnL: 0,
       entryPrice: ask,
       entryTime: time,
+      entryRealTime: Date.now(),
+      entryKind: setup.entryKind ?? 'market',
       takeProfit: setup.takeProfit ?? null,
       stopLoss: setup.stopLoss ?? null,
       takeProfitTargets: (setup.takeProfitTargets ?? []).map((target) => ({ ...target })),
@@ -459,6 +472,8 @@ export function createReplayAccount(
       realizedPnL: 0,
       entryPrice: bid,
       entryTime: time,
+      entryRealTime: Date.now(),
+      entryKind: setup.entryKind ?? 'market',
       takeProfit: setup.takeProfit ?? null,
       stopLoss: setup.stopLoss ?? null,
       takeProfitTargets: (setup.takeProfitTargets ?? []).map((target) => ({ ...target })),
@@ -533,6 +548,8 @@ export function createReplayAccount(
       entryPrice: pos.entryPrice,
       exitPrice,
       entryTime: pos.entryTime,
+      entryRealTime: pos.entryRealTime,
+      entryKind: pos.entryKind ?? 'market',
       exitTime: meta?.exitTime ?? Math.floor(Date.now() / 1000),
       pnl,
       exitReason: meta?.exitReason ?? 'manual',
@@ -700,6 +717,7 @@ export function createReplayAccount(
         takeProfit: order.takeProfit ?? null,
         takeProfitTargets: order.takeProfitTargets ?? [],
         autoBreakEven: order.autoBreakEven === true,
+        entryKind: order.kind,
         instrument:
           instrument != null || order.contractSize != null
             ? {
