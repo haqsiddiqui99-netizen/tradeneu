@@ -1514,75 +1514,19 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="analytics" role="tabpanel" hidden>
-            ${buildSessionPulseKpiHtml({ titleId: 'sx-dash-pulse-title-analytics', extraClass: 'sx-dash-pulse--analytics-kpi' })}
-            <section class="sx-dash-pulse sx-dash-pulse--pro sx-dash-pulse--workspace-only" aria-label="Session analytics">
-          <div class="sx-dash-pulse__workspace">
-            <article class="sx-dash-pulse__panel sx-dash-pulse__panel--desk">
-              <header class="sx-dash-pulse__panel-head">
-          <div>
-                  <h4 class="sx-dash-pulse__panel-title">Desk load</h4>
-                  <p class="sx-dash-pulse__panel-sub" data-sx-pulse="active-session">No active session</p>
-                  </div>
-              </header>
-              <div class="sx-dash-pulse__practice-split" data-sx-pulse="practice-split" aria-hidden="true"></div>
-              <div class="sx-dash-pulse-sessions" data-sx-pulse="practice-sessions"></div>
-              <div class="sx-dash-pulse__panel-rule" role="separator"></div>
-              <div class="sx-dash-pulse__panel-head sx-dash-pulse__panel-head--compact">
-                <h4 class="sx-dash-pulse__panel-title">Symbol focus</h4>
-                <button type="button" class="sx-dash-pulse__info" title="Trade count share by session symbol." aria-label="About symbol focus">i</button>
-                  </div>
-              <div class="sx-dash-pulse-symbols" data-sx-pulse="symbols"></div>
-            </article>
-
-            <article class="sx-dash-pulse__panel sx-dash-pulse__panel--edge">
-              <header class="sx-dash-pulse__panel-head">
+            <section class="sx-dash-performance sx-dash-performance--analytics" aria-labelledby="sx-dash-performance-title-analytics">
+              <header class="sx-dash-performance__head">
                 <div>
-                  <h4 class="sx-dash-pulse__panel-title">Edge meter</h4>
-                  <p class="sx-dash-pulse__panel-sub">Win quality and directional bias</p>
+                  <h2 id="sx-dash-performance-title-analytics">Performance</h2>
+                  <p>Your practice, market coverage, and trading results.</p>
                 </div>
-                <button type="button" class="sx-dash-pulse__info" title="Win rate from closed journal trades and backtest snapshots." aria-label="About edge meter">i</button>
+                ${buildPulseRangeHtml()}
               </header>
-              <div class="sx-dash-pulse__edge">
-                <div class="sx-dash-pulse__ring" data-sx-pulse="ring"></div>
-                <div class="sx-dash-pulse__edge-copy">
-                  <p class="sx-dash-pulse__edge-title" data-sx-pulse="trades">0 trades</p>
-                  <div class="sx-dash-pulse__split" aria-hidden="true">
-                    <span class="sx-dash-pulse__split-buy" data-sx-pulse="long-bar" style="width:50%"></span>
-                    <span class="sx-dash-pulse__split-sell" data-sx-pulse="short-bar" style="width:50%"></span>
-              </div>
-                  <p class="sx-dash-pulse__hint" data-sx-pulse="split-label">Buys / sells appear after journal closes</p>
-                    </div>
-                  </div>
-            </article>
 
-            <article class="sx-dash-pulse__panel sx-dash-pulse__panel--intense">
-              <header class="sx-dash-pulse__panel-head">
-                <div>
-                  <h4 class="sx-dash-pulse__panel-title">Intense Practice</h4>
-                  <p class="sx-dash-pulse__panel-sub">Hours invested by month</p>
-                    </div>
-                <button type="button" class="sx-dash-pulse__info" title="Hours invested practicing across the last 6 months." aria-label="About intense practice">i</button>
-              </header>
-              <div class="sx-dash-pulse-chart sx-dash-pulse-chart--intense" data-sx-pulse="activity" role="img" aria-label="Intense practice hours by day"></div>
-            </article>
+              ${buildSessionPulseKpiHtml({ bare: true, titleId: 'sx-dash-pulse-title-analytics', extraClass: 'sx-dash-pulse--analytics-kpi' })}
 
-            <article class="sx-dash-pulse__panel sx-dash-pulse__panel--pnl">
-              <header class="sx-dash-pulse__panel-head">
-                <div>
-                  <h4 class="sx-dash-pulse__panel-title">Net P&amp;L path</h4>
-                  <p class="sx-dash-pulse__panel-sub">Trading-day waterfall — green up on profit, red down on loss</p>
-                  </div>
-                <span class="sx-dash-pulse__period" data-sx-pnl-chart-period aria-live="polite"></span>
-              </header>
-              <div class="sx-dash-pulse-pnl-chart sx-dash-time-chart" role="img" data-sx-time-chart aria-label="Pulse Net P&amp;L chart">
-                <div class="sx-dash-time-chart__frame">
-                  <div class="sx-dash-time-chart__pan" data-sx-time-chart-pan></div>
-                  </div>
-                    </div>
-            </article>
-                  </div>
-
-        </section>
+              ${buildDashGraphCardsHtml()}
+            </section>
                 </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="trades" role="tabpanel" hidden>
@@ -2508,7 +2452,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     }
     const partnersSection = root.querySelector<HTMLElement>('[data-sx-partners-section]')
     if (partnersSection) {
-      const hidePartners = tab === 'trades'
+      const hidePartners = tab === 'trades' || tab === 'sessions' || tab === 'analytics'
       partnersSection.hidden = hidePartners
       partnersSection.classList.toggle('hidden', hidePartners)
     }
@@ -3873,7 +3817,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       if (range && range !== activityChartRange) {
         activityChartRange = range
         root.querySelectorAll<HTMLButtonElement>('[data-sx-activity-range]').forEach((btn) => {
-          const on = btn === activityRangeBtn
+          const on = btn.getAttribute('data-sx-activity-range') === range
           btn.classList.toggle('sx-dash-graph__tab--active', on)
           btn.setAttribute('aria-selected', on ? 'true' : 'false')
         })
