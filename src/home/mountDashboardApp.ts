@@ -508,6 +508,44 @@ const LS_THEME = 'suplexity-dash-theme'
 const LS_ACCOUNT_TIER = 'suplexity-account-tier'
 const LS_PULSE_RANGE = 'suplexity-dash-pulse-range'
 const LS_TESTING_TAB = 'suplexity-dash-testing-tab'
+const LS_TRADES_HIDDEN_COLUMNS = 'suplexity-dash-trades-hidden-columns'
+
+type SxTradeColumnDef = { id: string; label: string; locked?: boolean }
+
+// Total physical <th>/<td> columns rendered in the table, including the always-on
+// row-select checkbox column which is intentionally not offered in the column picker.
+const SX_TRADES_TOTAL_TABLE_COLUMNS = 21
+
+const SX_TRADES_COLUMNS: SxTradeColumnDef[] = [
+  { id: 'asset', label: 'Asset', locked: true },
+  { id: 'side', label: 'Side' },
+  { id: 'session', label: 'Session' },
+  { id: 'type', label: 'Type' },
+  { id: 'source', label: 'Source' },
+  { id: 'entryType', label: 'Entry type' },
+  { id: 'entryRealtime', label: 'Entry date (realtime)' },
+  { id: 'entryChart', label: 'Entry date (chart)' },
+  { id: 'entryPrice', label: 'Entry price' },
+  { id: 'size', label: 'Size' },
+  { id: 'stopLoss', label: 'Stop loss' },
+  { id: 'takeProfit', label: 'Take profit' },
+  { id: 'exitDate', label: 'Exit date' },
+  { id: 'exitPrice', label: 'Exit price' },
+  { id: 'returnUsd', label: 'Return ($)' },
+  { id: 'returnPct', label: 'Return (%)' },
+  { id: 'returnR', label: 'Return (R)' },
+  { id: 'rating', label: 'Rating' },
+  { id: 'grossPnl', label: 'Gross PnL' },
+  { id: 'fees', label: 'Fees' },
+]
+
+const SX_TRADE_RATING_LABELS: Record<string, string> = {
+  '1': 'Poor',
+  '2': 'Below average',
+  '3': 'Average',
+  '4': 'Good',
+  '5': 'Excellent',
+}
 
 const TESTING_TABS = ['dashboard', 'sessions', 'trades', 'analytics'] as const
 type TestingTab = (typeof TESTING_TABS)[number]
@@ -1506,10 +1544,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
               ${buildDashGraphCardsHtml()}
             </section>
+
+            <div class="sx-dash-recent-sessions-host" data-sx-recent-sessions-anchor="dashboard"></div>
           </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="sessions" role="tabpanel" hidden>
-            <div class="sx-dash-recent-sessions-host" data-sx-recent-sessions-host>
+            <div class="sx-dash-recent-sessions-host" data-sx-recent-sessions-anchor="sessions">
         ${buildRecentSessionsSectionHtml()}
             </div>
           </div>
@@ -1589,19 +1629,33 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                   Clear All
                   <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
                 </button>
-                <button type="button" data-sx-trades-refresh class="sxt-icon-btn" title="Refresh" aria-label="Refresh">
+                <button type="button" data-sx-trades-refresh class="sxt-icon-btn" title="Reset table columns" aria-label="Reset table columns">
                   <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
                 </button>
-                <button type="button" data-sx-trades-edit class="sxt-icon-btn" title="Edit columns" aria-label="Edit columns">
-                  <i class="fa-solid fa-pen" aria-hidden="true"></i>
-                </button>
-                <div class="relative">
-                  <button type="button" data-sx-trades-filters-toggle class="sxt-filter-btn" aria-haspopup="true" aria-expanded="false">
-                    <i class="fa-solid fa-filter" aria-hidden="true"></i>
-                    Filters
-                    <span class="hidden sxt-filter-count" data-sx-trades-filters-count></span>
+                <div class="sxt-colpicker relative" data-sxt-colpicker>
+                  <button type="button" data-sx-trades-edit class="sxt-icon-btn" title="Modify columns" aria-label="Modify columns" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa-solid fa-pen" aria-hidden="true"></i>
                   </button>
-
+                  <span class="sr-only" data-sxt-colpicker-count>0 columns selected</span>
+                  <div class="sxt-colpicker__panel hidden" data-sxt-colpicker-panel role="dialog" aria-label="Table columns">
+                    <div class="sxt-colpicker__search-row">
+                      <input type="checkbox" data-sxt-colpicker-toggle-all />
+                      <div class="sxt-colpicker__search">
+                        <input type="search" data-sxt-colpicker-search placeholder="" autocomplete="off" />
+                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                      </div>
+                    </div>
+                    <div class="sxt-colpicker__list" data-sxt-colpicker-list></div>
+                  </div>
+                </div>
+                <div class="sxt-filterby">
+                  <span class="sxt-filterby__divider" aria-hidden="true"></span>
+                  <span class="sxt-filterby__label">Filter by</span>
+                  <button type="button" class="sxt-filterby__pill sx-dash-trades-filter-tab" data-sx-trades-filter-tab="basic" role="tab" aria-selected="false">Column</button>
+                  <button type="button" class="sxt-filterby__pill sx-dash-trades-filter-tab" data-sx-trades-filter-tab="tags" role="tab" aria-selected="false">Tags</button>
+                  <span class="hidden sxt-filter-count" data-sx-trades-filters-count></span>
+                </div>
+                <div class="relative">
                   <div class="sx-dash-trades-filters-backdrop hidden" data-sx-trades-filters-backdrop></div>
                   <div class="sx-dash-trades-filters-panel hidden" data-sx-trades-filters-panel role="dialog" aria-modal="true" aria-label="Filters">
                     <div class="sx-dash-trades-filters-panel__head">
@@ -1612,8 +1666,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                     </div>
 
                     <div class="sx-dash-trades-filters-panel__tabs" role="tablist" aria-label="Filter category">
-                      <button type="button" class="sx-dash-trades-filter-tab sx-dash-trades-filter-tab--active" data-sx-trades-filter-tab="basic" role="tab" aria-selected="true">
-                        <i class="fa-solid fa-sliders" aria-hidden="true"></i> Basic
+                      <button type="button" class="sx-dash-trades-filter-tab" data-sx-trades-filter-tab="basic" role="tab" aria-selected="false">
+                        <i class="fa-solid fa-sliders" aria-hidden="true"></i> Column
                       </button>
                       <button type="button" class="sx-dash-trades-filter-tab" data-sx-trades-filter-tab="tags" role="tab" aria-selected="false">
                         <i class="fa-solid fa-tag" aria-hidden="true"></i> Tags
@@ -1649,27 +1703,27 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                         <th class="sxt-group-divide" colspan="6">Result</th>
                       </tr>
                       <tr class="sxt-col-row">
-                        <th class="sxt-sticky-col sxt-col-check"><input type="checkbox" data-sx-trades-select-all class="sxt-row-check" aria-label="Select all trades" /></th>
-                        <th class="sxt-sticky-col sxt-col-asset">Asset</th>
-                        <th>Side</th>
-                        <th class="sxt-group-divide">Session</th>
-                        <th>Type</th>
-                        <th>Source</th>
-                        <th>Entry type</th>
-                        <th>Entry date (realtime)</th>
-                        <th>Entry date (chart)</th>
-                        <th class="sxt-num sxt-group-divide">Entry price</th>
-                        <th class="sxt-num">Size</th>
-                        <th class="sxt-num sxt-group-divide">Stop loss</th>
-                        <th class="sxt-num">Take profit</th>
-                        <th class="sxt-group-divide">Exit date</th>
-                        <th class="sxt-num">Exit price</th>
-                        <th class="sxt-num sxt-group-divide">Return ($)</th>
-                        <th class="sxt-num">Return (%)</th>
-                        <th class="sxt-num">Return (R)</th>
-                        <th>Rating</th>
-                        <th class="sxt-num">Gross PnL</th>
-                        <th class="sxt-num">Fees</th>
+                        <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"><input type="checkbox" data-sx-trades-select-all class="sxt-row-check" aria-label="Select all trades" /></th>
+                        <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
+                        <th data-sxt-col="side">Side</th>
+                        <th class="sxt-group-divide" data-sxt-col="session">Session</th>
+                        <th data-sxt-col="type">Type</th>
+                        <th data-sxt-col="source">Source</th>
+                        <th data-sxt-col="entryType">Entry type</th>
+                        <th data-sxt-col="entryRealtime">Entry date (realtime)</th>
+                        <th data-sxt-col="entryChart">Entry date (chart)</th>
+                        <th class="sxt-num sxt-group-divide" data-sxt-col="entryPrice">Entry price</th>
+                        <th class="sxt-num" data-sxt-col="size">Size</th>
+                        <th class="sxt-num sxt-group-divide" data-sxt-col="stopLoss">Stop loss</th>
+                        <th class="sxt-num" data-sxt-col="takeProfit">Take profit</th>
+                        <th class="sxt-group-divide" data-sxt-col="exitDate">Exit date</th>
+                        <th class="sxt-num" data-sxt-col="exitPrice">Exit price</th>
+                        <th class="sxt-num sxt-group-divide" data-sxt-col="returnUsd">Return ($)</th>
+                        <th class="sxt-num" data-sxt-col="returnPct">Return (%)</th>
+                        <th class="sxt-num" data-sxt-col="returnR">Return (R)</th>
+                        <th data-sxt-col="rating">Rating</th>
+                        <th class="sxt-num" data-sxt-col="grossPnl">Gross PnL</th>
+                        <th class="sxt-num" data-sxt-col="fees">Fees</th>
                       </tr>
                     </thead>
                     <tbody data-sx-trades-body>
@@ -2447,11 +2501,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       panel.classList.toggle('hidden', !on)
       panel.hidden = !on
     })
-    const sessionsHost = root.querySelector<HTMLElement>('[data-sx-recent-sessions-host]')
-    if (sessionsHost) {
-      const showSessions = tab === 'sessions'
-      sessionsHost.hidden = !showSessions
-      sessionsHost.classList.toggle('hidden', !showSessions)
+    if (tab === 'dashboard' || tab === 'sessions') {
+      const sessionsSection = root.querySelector<HTMLElement>('.sx-dash-recent-sessions')
+      const targetAnchor = root.querySelector<HTMLElement>(`[data-sx-recent-sessions-anchor="${tab}"]`)
+      if (sessionsSection && targetAnchor && sessionsSection.parentElement !== targetAnchor) {
+        targetAnchor.appendChild(sessionsSection)
+      }
     }
     const partnersSection = root.querySelector<HTMLElement>('[data-sx-partners-section]')
     if (partnersSection) {
@@ -2534,6 +2589,80 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   let sxTradesPage = 1
   const sxTradesPageSize = 10
   const sxTradesSelected = new Set<string>()
+
+  function sxDefaultHiddenTradesColumns(): Set<string> {
+    // No column is selected by default — the user opts in to the columns they want to see.
+    return new Set(SX_TRADES_COLUMNS.filter((c) => !c.locked).map((c) => c.id))
+  }
+
+  function sxReadTradesHiddenColumns(): Set<string> {
+    try {
+      const raw = localStorage.getItem(LS_TRADES_HIDDEN_COLUMNS)
+      if (!raw) return sxDefaultHiddenTradesColumns()
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr)) {
+        const lockedIds = new Set(SX_TRADES_COLUMNS.filter((c) => c.locked).map((c) => c.id))
+        return new Set(arr.filter((id): id is string => typeof id === 'string' && !lockedIds.has(id)))
+      }
+    } catch {
+      /* ignore */
+    }
+    return sxDefaultHiddenTradesColumns()
+  }
+
+  function sxWriteTradesHiddenColumns(hidden: Set<string>) {
+    try {
+      localStorage.setItem(LS_TRADES_HIDDEN_COLUMNS, JSON.stringify(Array.from(hidden)))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const sxTradesHiddenColumns = sxReadTradesHiddenColumns()
+  let sxTradesColPickerSearch = ''
+
+  function sxApplyTradesColumnVisibility() {
+    root.querySelectorAll<HTMLElement>('thead [data-sxt-col]').forEach((th) => {
+      const id = th.getAttribute('data-sxt-col')
+      th.classList.toggle('sxt-col-hidden', !!id && sxTradesHiddenColumns.has(id))
+    })
+    const emptyRow = root.querySelector<HTMLTableCellElement>('[data-sx-trades-body] .sxt-empty')
+    if (emptyRow) emptyRow.setAttribute('colspan', String(SX_TRADES_TOTAL_TABLE_COLUMNS))
+    const countEl = root.querySelector<HTMLElement>('[data-sxt-colpicker-count]')
+    if (countEl) {
+      const visible = SX_TRADES_COLUMNS.length - sxTradesHiddenColumns.size
+      countEl.textContent = `${visible} column${visible === 1 ? '' : 's'} selected`
+    }
+    const toggleAll = root.querySelector<HTMLInputElement>('[data-sxt-colpicker-toggle-all]')
+    if (toggleAll) {
+      const toggleable = SX_TRADES_COLUMNS.filter((c) => !c.locked)
+      const hiddenToggleable = toggleable.filter((c) => sxTradesHiddenColumns.has(c.id)).length
+      toggleAll.checked = hiddenToggleable === 0
+      toggleAll.indeterminate = hiddenToggleable > 0 && hiddenToggleable < toggleable.length
+    }
+  }
+
+  function sxRenderColumnPickerList() {
+    const listEl = root.querySelector<HTMLElement>('[data-sxt-colpicker-list]')
+    if (!listEl) return
+    const q = sxTradesColPickerSearch.trim().toLowerCase()
+    // Locked columns (e.g. Asset) are always shown in the table and can't be toggled,
+    // so they're excluded from the picker entirely — nothing should appear pre-selected.
+    const toggleableCols = SX_TRADES_COLUMNS.filter((c) => !c.locked)
+    const cols = q ? toggleableCols.filter((c) => c.label.toLowerCase().includes(q)) : toggleableCols
+    listEl.innerHTML = cols.length
+      ? cols
+          .map((c) => {
+            const isHidden = sxTradesHiddenColumns.has(c.id)
+            return `<label class="sxt-colpicker__row${isHidden ? '' : ' sxt-colpicker__row--checked'}">
+                <input type="checkbox" data-sxt-colpicker-col="${c.id}" ${isHidden ? '' : 'checked'} />
+                <span>${escapeHtml(c.label)}</span>
+              </label>`
+          })
+          .join('')
+      : `<p class="sxt-colpicker__empty">No columns match your search.</p>`
+    sxApplyTradesColumnVisibility()
+  }
 
   function sxFormatTradeDate(seconds: number): string {
     if (!Number.isFinite(seconds) || seconds <= 0) return '-'
@@ -2739,13 +2868,19 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     chart.update()
   }
 
+  type SxTradesFilterSetMode = 'and' | 'or'
+
   type SxTradesFilters = {
     sessionId: string
     sides: Set<string>
     outcomes: Set<'win' | 'loss' | 'breakeven'>
     types: Set<string>
     assets: Set<string>
-    tags: Set<string>
+    // Composite values, e.g. "rating:5" or "tag:Breakout".
+    tagsInclude: Set<string>
+    tagsIncludeMode: SxTradesFilterSetMode
+    tagsExclude: Set<string>
+    tagsExcludeMode: SxTradesFilterSetMode
     notes: Set<'with' | 'without'>
     years: Set<number>
     months: Set<number>
@@ -2760,13 +2895,28 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     outcomes: new Set(),
     types: new Set(),
     assets: new Set(),
-    tags: new Set(),
+    tagsInclude: new Set(),
+    tagsIncludeMode: 'and',
+    tagsExclude: new Set(),
+    tagsExcludeMode: 'and',
     notes: new Set(),
     years: new Set(),
     months: new Set(),
     hours: new Set(),
     dateFrom: '',
     dateTo: '',
+  }
+
+  function sxTradeFilterValueMatches(r: SxTradeRow, value: string): boolean {
+    if (value.startsWith('rating:')) return (r.rating ?? '') === value.slice(7)
+    if (value.startsWith('tag:')) return r.tags.includes(value.slice(4))
+    return false
+  }
+
+  function sxTradeMatchesValueSet(r: SxTradeRow, set: Set<string>, mode: SxTradesFilterSetMode): boolean {
+    const values = Array.from(set)
+    if (!values.length) return true
+    return mode === 'and' ? values.every((v) => sxTradeFilterValueMatches(r, v)) : values.some((v) => sxTradeFilterValueMatches(r, v))
   }
 
   function sxTradeOutcome(pnl: number): 'win' | 'loss' | 'breakeven' {
@@ -2780,7 +2930,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       sxTradesFilters.outcomes.size +
       sxTradesFilters.types.size +
       sxTradesFilters.assets.size +
-      sxTradesFilters.tags.size +
+      sxTradesFilters.tagsInclude.size +
+      sxTradesFilters.tagsExclude.size +
       sxTradesFilters.notes.size +
       sxTradesFilters.years.size +
       sxTradesFilters.months.size +
@@ -2799,7 +2950,16 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       if (sxTradesFilters.outcomes.size && !sxTradesFilters.outcomes.has(sxTradeOutcome(r.pnl))) return false
       if (sxTradesFilters.types.size && !sxTradesFilters.types.has(r.entryKind ?? 'market')) return false
       if (sxTradesFilters.assets.size && !sxTradesFilters.assets.has(r.asset)) return false
-      if (sxTradesFilters.tags.size && !r.tags.some((tag) => sxTradesFilters.tags.has(tag))) return false
+      if (
+        sxTradesFilters.tagsInclude.size &&
+        !sxTradeMatchesValueSet(r, sxTradesFilters.tagsInclude, sxTradesFilters.tagsIncludeMode)
+      )
+        return false
+      if (
+        sxTradesFilters.tagsExclude.size &&
+        sxTradeMatchesValueSet(r, sxTradesFilters.tagsExclude, sxTradesFilters.tagsExcludeMode)
+      )
+        return false
       if (sxTradesFilters.notes.size) {
         const wantWith = sxTradesFilters.notes.has('with')
         const wantWithout = sxTradesFilters.notes.has('without')
@@ -2841,6 +3001,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     sxSyncTradesSessionOptions(allRows)
     sxSyncTradesFiltersToggleBadge()
     sxSyncTradesKpis(rows)
+    sxApplyTradesColumnVisibility()
 
     const pageCount = Math.max(1, Math.ceil(rows.length / sxTradesPageSize))
     if (sxTradesPage > pageCount) sxTradesPage = pageCount
@@ -2864,28 +3025,29 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           const returnPct = t.entryPrice * t.qty !== 0 ? (t.pnl / (t.entryPrice * t.qty)) * 100 : 0
           const takeProfit = t.exitReason === 'take_profit' ? t.exitPrice : null
           const checked = sxTradesSelected.has(t.key)
+          const hc = (id: string) => (sxTradesHiddenColumns.has(id) ? ' sxt-col-hidden' : '')
           return `<tr class="${checked ? 'sxt-row-selected' : ''}">
-          <td class="sxt-sticky-col sxt-col-check"><input type="checkbox" class="sxt-row-check sxt-row-select" data-sx-trades-row-select="${escapeHtml(t.key)}" ${checked ? 'checked' : ''} aria-label="Select trade" /></td>
-          <td class="sxt-sticky-col sxt-col-asset sxt-asset-cell"><span class="sxt-ticker">${escapeHtml(t.asset)}</span></td>
-          <td><span class="${sideCls}">${side}</span></td>
-          <td class="sxt-group-divide">${escapeHtml(t.sessionName)}</td>
-          <td><span class="sxt-status-pill">Closed</span></td>
-          <td class="sxt-muted">Replay</td>
-          <td><span class="sxt-entry-type-pill">${escapeHtml(t.entryKind ?? 'market')}</span></td>
-          <td class="sxt-mono">${sxFormatTradeDateMs(t.entryRealTime)}</td>
-          <td class="sxt-mono sxt-muted">${sxFormatTradeDate(t.entryTime)}</td>
-          <td class="sxt-num sxt-mono sxt-group-divide">${escapeHtml(String(t.entryPrice))}</td>
-          <td class="sxt-num sxt-mono">${escapeHtml(String(t.qty))}</td>
-          <td class="sxt-num sxt-mono sxt-group-divide" style="color:var(--sxt-loss)">${t.initialStopLoss != null ? escapeHtml(String(t.initialStopLoss)) : '\u2014'}</td>
-          <td class="sxt-num sxt-mono" style="color:${takeProfit != null ? 'var(--sxt-gain)' : 'var(--sxt-ink-300)'}">${takeProfit != null ? escapeHtml(String(takeProfit)) : '\u2014'}</td>
-          <td class="sxt-mono sxt-group-divide">${sxFormatTradeDate(t.exitTime)}</td>
-          <td class="sxt-num sxt-mono">${escapeHtml(String(t.exitPrice))}</td>
-          <td class="sxt-num sxt-mono sxt-return-value ${isGain ? 'sxt-gain' : 'sxt-loss'} sxt-group-divide">${sxFormatSignedMoney(t.pnl)}</td>
-          <td class="sxt-num sxt-mono sxt-return-value ${isGain ? 'sxt-gain' : 'sxt-loss'}">${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(2)}%</td>
-          <td class="sxt-num sxt-mono sxt-r-value ${rMultiple != null && rMultiple >= 0 ? 'sxt-gain' : rMultiple != null ? 'sxt-loss' : ''}">${rMultiple != null ? `${rMultiple >= 0 ? '+' : ''}${rMultiple.toFixed(2)}R` : '\u2014'}</td>
-          <td class="sxt-muted">${t.rating ?? '\u2014'}</td>
-          <td class="sxt-num sxt-mono sxt-pnl-value ${isGain ? 'sxt-gain' : 'sxt-loss'}">${sxFormatSignedMoney(t.pnl)}</td>
-          <td class="sxt-num sxt-mono sxt-muted">0</td>
+          <td class="sxt-sticky-col sxt-col-check${hc('check')}" data-sxt-col="check"><input type="checkbox" class="sxt-row-check sxt-row-select" data-sx-trades-row-select="${escapeHtml(t.key)}" ${checked ? 'checked' : ''} aria-label="Select trade" /></td>
+          <td class="sxt-sticky-col sxt-col-asset sxt-asset-cell${hc('asset')}" data-sxt-col="asset"><span class="sxt-ticker">${escapeHtml(t.asset)}</span></td>
+          <td class="${hc('side')}" data-sxt-col="side"><span class="${sideCls}">${side}</span></td>
+          <td class="sxt-group-divide${hc('session')}" data-sxt-col="session">${escapeHtml(t.sessionName)}</td>
+          <td class="${hc('type')}" data-sxt-col="type"><span class="sxt-status-pill">Closed</span></td>
+          <td class="sxt-muted${hc('source')}" data-sxt-col="source">Replay</td>
+          <td class="${hc('entryType')}" data-sxt-col="entryType"><span class="sxt-entry-type-pill">${escapeHtml(t.entryKind ?? 'market')}</span></td>
+          <td class="sxt-mono${hc('entryRealtime')}" data-sxt-col="entryRealtime">${sxFormatTradeDateMs(t.entryRealTime)}</td>
+          <td class="sxt-mono sxt-muted${hc('entryChart')}" data-sxt-col="entryChart">${sxFormatTradeDate(t.entryTime)}</td>
+          <td class="sxt-num sxt-mono sxt-group-divide${hc('entryPrice')}" data-sxt-col="entryPrice">${escapeHtml(String(t.entryPrice))}</td>
+          <td class="sxt-num sxt-mono${hc('size')}" data-sxt-col="size">${escapeHtml(String(t.qty))}</td>
+          <td class="sxt-num sxt-mono sxt-group-divide${hc('stopLoss')}" data-sxt-col="stopLoss" style="color:var(--sxt-loss)">${t.initialStopLoss != null ? escapeHtml(String(t.initialStopLoss)) : '\u2014'}</td>
+          <td class="sxt-num sxt-mono${hc('takeProfit')}" data-sxt-col="takeProfit" style="color:${takeProfit != null ? 'var(--sxt-gain)' : 'var(--sxt-ink-300)'}">${takeProfit != null ? escapeHtml(String(takeProfit)) : '\u2014'}</td>
+          <td class="sxt-mono sxt-group-divide${hc('exitDate')}" data-sxt-col="exitDate">${sxFormatTradeDate(t.exitTime)}</td>
+          <td class="sxt-num sxt-mono${hc('exitPrice')}" data-sxt-col="exitPrice">${escapeHtml(String(t.exitPrice))}</td>
+          <td class="sxt-num sxt-mono sxt-return-value ${isGain ? 'sxt-gain' : 'sxt-loss'} sxt-group-divide${hc('returnUsd')}" data-sxt-col="returnUsd">${sxFormatSignedMoney(t.pnl)}</td>
+          <td class="sxt-num sxt-mono sxt-return-value ${isGain ? 'sxt-gain' : 'sxt-loss'}${hc('returnPct')}" data-sxt-col="returnPct">${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(2)}%</td>
+          <td class="sxt-num sxt-mono sxt-r-value ${rMultiple != null && rMultiple >= 0 ? 'sxt-gain' : rMultiple != null ? 'sxt-loss' : ''}${hc('returnR')}" data-sxt-col="returnR">${rMultiple != null ? `${rMultiple >= 0 ? '+' : ''}${rMultiple.toFixed(2)}R` : '\u2014'}</td>
+          <td class="sxt-muted${hc('rating')}" data-sxt-col="rating">${t.rating ?? '\u2014'}</td>
+          <td class="sxt-num sxt-mono sxt-pnl-value ${isGain ? 'sxt-gain' : 'sxt-loss'}${hc('grossPnl')}" data-sxt-col="grossPnl">${sxFormatSignedMoney(t.pnl)}</td>
+          <td class="sxt-num sxt-mono sxt-muted${hc('fees')}" data-sxt-col="fees">0</td>
         </tr>`
         })
         .join('')
@@ -3137,7 +3299,96 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
   let sxTradesFilterTab: 'basic' | 'tags' = 'basic'
   let sxTradesFilterSearch = ''
-  const sxTradesAccordionOpen = new Set<string>(['assets'])
+  const sxTradesAccordionOpen = new Set<string>(['assets', 'rating'])
+
+  // "Tags" tab (Include/Exclude) UI state.
+  let sxTradesTagsOpenDropdown: 'include' | 'exclude' | null = null
+  const sxTradesTagsSearch: Record<'include' | 'exclude', string> = { include: '', exclude: '' }
+
+  function sxTradesTagsOptionGroups(): { label: string; value: string; itemLabel: string }[] {
+    const allRows = sxCollectTradeRows()
+    const ratingIds = Array.from(new Set(allRows.map((r) => r.rating).filter((v): v is string => !!v))).sort(
+      (a, b) => Number(b) - Number(a),
+    )
+    const tagSet = new Set<string>()
+    for (const r of allRows) for (const tag of r.tags) tagSet.add(tag)
+    return [
+      ...ratingIds.map((id) => ({ label: 'Trade Rating', value: `rating:${id}`, itemLabel: SX_TRADE_RATING_LABELS[id] ?? `${id} / 5` })),
+      ...Array.from(tagSet).map((tag) => ({ label: 'Tags', value: `tag:${tag}`, itemLabel: tag })),
+    ]
+  }
+
+  function sxRenderTradesTagsDropdown(kind: 'include' | 'exclude'): string {
+    const selected = kind === 'include' ? sxTradesFilters.tagsInclude : sxTradesFilters.tagsExclude
+    const mode = kind === 'include' ? sxTradesFilters.tagsIncludeMode : sxTradesFilters.tagsExcludeMode
+    const isOpen = sxTradesTagsOpenDropdown === kind
+    const q = sxTradesTagsSearch[kind].trim().toLowerCase()
+    const allOptions = sxTradesTagsOptionGroups()
+    const options = q ? allOptions.filter((o) => o.itemLabel.toLowerCase().includes(q)) : allOptions
+    const groups: { label: string; items: { value: string; itemLabel: string }[] }[] = []
+    for (const opt of options) {
+      let group = groups.find((g) => g.label === opt.label)
+      if (!group) {
+        group = { label: opt.label, items: [] }
+        groups.push(group)
+      }
+      group.items.push(opt)
+    }
+    const allValues = allOptions.map((o) => o.value)
+    const checkedCount = allValues.filter((v) => selected.has(v)).length
+    const summary = selected.size
+      ? `${selected.size} selected`
+      : 'Select tags'
+
+    return `<div class="sxt-tagsfilter__row">
+        <span class="sxt-tagsfilter__label">${kind === 'include' ? 'Include' : 'Exclude'}</span>
+        <div class="sxt-tagsfilter__modes">
+          <button type="button" class="sxt-tagsfilter__mode${mode === 'and' ? ' sxt-tagsfilter__mode--active' : ''}" data-sx-trades-tags-mode-btn="${kind}:and">AND</button>
+          <button type="button" class="sxt-tagsfilter__mode${mode === 'or' ? ' sxt-tagsfilter__mode--active' : ''}" data-sx-trades-tags-mode-btn="${kind}:or">OR</button>
+        </div>
+      </div>
+      <div class="sxt-tagsfilter__dropdown${isOpen ? ' sxt-tagsfilter__dropdown--open' : ''}" data-sx-trades-tags-dropdown="${kind}">
+        <button type="button" class="sxt-tagsfilter__trigger" data-sx-trades-tags-trigger="${kind}">
+          <span class="${selected.size ? '' : 'sxt-tagsfilter__trigger-placeholder'}">${escapeHtml(summary)}</span>
+          <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+        </button>
+        ${
+          isOpen
+            ? `<div class="sxt-tagsfilter__panel" data-sx-trades-tags-panel="${kind}">
+              <div class="sxt-tagsfilter__panel-search">
+                <input type="checkbox" data-sx-trades-tags-toggle-all="${kind}" ${
+                  allValues.length && checkedCount === allValues.length ? 'checked' : ''
+                } />
+                <div class="sxt-tagsfilter__panel-searchbox">
+                  <input type="text" placeholder="Search" value="${escapeHtml(sxTradesTagsSearch[kind])}" data-sx-trades-tags-search="${kind}" />
+                  <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                </div>
+              </div>
+              <div class="sxt-tagsfilter__panel-list">
+                ${
+                  groups.length
+                    ? groups
+                        .map(
+                          (g) => `<div class="sxt-tagsfilter__group-label">${escapeHtml(g.label)}</div>${g.items
+                            .map(
+                              (item) => `<label class="sx-dash-trades-checkbox sxt-tagsfilter__item">
+                            <input type="checkbox" data-sx-trades-tags-check="${kind}" value="${escapeHtml(item.value)}"${
+                                selected.has(item.value) ? ' checked' : ''
+                              } />
+                            <span>${escapeHtml(item.itemLabel)}</span>
+                          </label>`,
+                            )
+                            .join('')}`,
+                        )
+                        .join('')
+                    : `<p class="sxt-tagsfilter__empty">No options available.</p>`
+                }
+              </div>
+            </div>`
+            : ''
+        }
+      </div>`
+  }
 
   function sxRenderTradesFilterSection(opts: {
     id: string
@@ -3177,20 +3428,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const allRows = sxCollectTradeRows()
 
     if (sxTradesFilterTab === 'tags') {
-      const tagSet = new Set<string>()
-      for (const r of allRows) for (const tag of r.tags) tagSet.add(tag)
-      const q = sxTradesFilterSearch.trim().toLowerCase()
-      const tags = Array.from(tagSet).filter((t) => !q || t.toLowerCase().includes(q))
-      bodyEl.innerHTML = tags.length
-        ? `<div class="sx-dash-trades-tag-list">${tags
-            .map(
-              (tag) => `<label class="sx-dash-trades-checkbox">
-              <input type="checkbox" data-sx-trades-filter-check="tags" value="${escapeHtml(tag)}"${sxTradesFilters.tags.has(tag) ? ' checked' : ''} />
-              <span>${escapeHtml(tag)}</span>
-            </label>`,
-            )
-            .join('')}</div>`
-        : `<p class="sx-dash-trades-accordion__empty">No tags added to any trade journal yet.</p>`
+      bodyEl.innerHTML = `<div class="sxt-tagsfilter">
+        ${sxRenderTradesTagsDropdown('include')}
+        <div class="sxt-tagsfilter__divider"><span>AND</span></div>
+        ${sxRenderTradesTagsDropdown('exclude')}
+      </div>`
       return
     }
 
@@ -3287,11 +3529,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   function sxOpenTradesFiltersPanel(open: boolean) {
     const panel = root.querySelector<HTMLElement>('[data-sx-trades-filters-panel]')
     const backdrop = root.querySelector<HTMLElement>('[data-sx-trades-filters-backdrop]')
-    const toggle = root.querySelector<HTMLButtonElement>('[data-sx-trades-filters-toggle]')
-    if (!panel || !toggle) return
+    if (!panel) return
     panel.classList.toggle('hidden', !open)
     backdrop?.classList.toggle('hidden', !open)
-    toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+    root.querySelectorAll<HTMLButtonElement>('[data-sx-trades-filter-tab]').forEach((btn) => {
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false')
+    })
     if (open) {
       sxRenderTradesFiltersBody()
     }
@@ -3477,6 +3720,16 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       panel?.classList.add('hidden')
       trigger?.setAttribute('aria-expanded', 'false')
     })
+    closeColumnPicker()
+  }
+
+  function closeColumnPicker() {
+    const wrap = root.querySelector<HTMLElement>('[data-sxt-colpicker]')
+    if (!wrap) return
+    const panel = wrap.querySelector<HTMLElement>('[data-sxt-colpicker-panel]')
+    const trigger = wrap.querySelector<HTMLButtonElement>('[data-sx-trades-edit]')
+    panel?.classList.add('hidden')
+    trigger?.setAttribute('aria-expanded', 'false')
   }
 
   function syncSessionListUi() {
@@ -3891,9 +4144,30 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
     const tradesRefreshBtn = t.closest<HTMLButtonElement>('[data-sx-trades-refresh]')
     if (tradesRefreshBtn && root.contains(tradesRefreshBtn)) {
+      // Reset = restore every removed column back onto the table (show all).
+      sxTradesHiddenColumns.clear()
+      sxWriteTradesHiddenColumns(sxTradesHiddenColumns)
+      sxRenderColumnPickerList()
       syncTradesUi()
       return
     }
+
+    const colPickerTrigger = t.closest<HTMLButtonElement>('[data-sx-trades-edit]')
+    if (colPickerTrigger && root.contains(colPickerTrigger)) {
+      const wrap = colPickerTrigger.closest<HTMLElement>('[data-sxt-colpicker]')
+      const panel = wrap?.querySelector<HTMLElement>('[data-sxt-colpicker-panel]')
+      const willOpen = !!panel?.classList.contains('hidden')
+      closeAllPerfDropdowns()
+      closeAllLocaleDropdowns()
+      closeColumnPicker()
+      if (willOpen && panel) {
+        sxRenderColumnPickerList()
+        panel.classList.remove('hidden')
+        colPickerTrigger.setAttribute('aria-expanded', 'true')
+      }
+      return
+    }
+
 
     const tradesPageBtn = t.closest<HTMLButtonElement>('[data-sx-trades-page]')
     if (tradesPageBtn && root.contains(tradesPageBtn) && !tradesPageBtn.disabled) {
@@ -3946,13 +4220,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       return
     }
 
-    const tradesFiltersToggle = t.closest<HTMLButtonElement>('[data-sx-trades-filters-toggle]')
-    if (tradesFiltersToggle && root.contains(tradesFiltersToggle)) {
-      const panel = root.querySelector<HTMLElement>('[data-sx-trades-filters-panel]')
-      sxOpenTradesFiltersPanel(!!panel?.classList.contains('hidden'))
-      return
-    }
-
     const tradesFiltersClose = t.closest<HTMLButtonElement>('[data-sx-trades-filters-close]')
     if (tradesFiltersClose && root.contains(tradesFiltersClose)) {
       sxOpenTradesFiltersPanel(false)
@@ -3968,15 +4235,38 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const tradesFilterTabBtn = t.closest<HTMLButtonElement>('[data-sx-trades-filter-tab]')
     if (tradesFilterTabBtn && root.contains(tradesFilterTabBtn)) {
       const tabId = tradesFilterTabBtn.getAttribute('data-sx-trades-filter-tab') as 'basic' | 'tags' | null
-      if (tabId && tabId !== sxTradesFilterTab) {
+      if (tabId) {
+        const changed = tabId !== sxTradesFilterTab
         sxTradesFilterTab = tabId
         root.querySelectorAll<HTMLButtonElement>('[data-sx-trades-filter-tab]').forEach((btn) => {
-          const on = btn === tradesFilterTabBtn
+          const on = btn.getAttribute('data-sx-trades-filter-tab') === tabId
           btn.classList.toggle('sx-dash-trades-filter-tab--active', on)
           btn.setAttribute('aria-selected', on ? 'true' : 'false')
         })
+        if (changed) sxRenderTradesFiltersBody()
+        const panel = root.querySelector<HTMLElement>('[data-sx-trades-filters-panel]')
+        if (panel?.classList.contains('hidden')) sxOpenTradesFiltersPanel(true)
+      }
+      return
+    }
+
+    const tradesTagsTrigger = t.closest<HTMLButtonElement>('[data-sx-trades-tags-trigger]')
+    if (tradesTagsTrigger && root.contains(tradesTagsTrigger)) {
+      const kind = tradesTagsTrigger.getAttribute('data-sx-trades-tags-trigger') as 'include' | 'exclude' | null
+      if (kind) {
+        sxTradesTagsOpenDropdown = sxTradesTagsOpenDropdown === kind ? null : kind
         sxRenderTradesFiltersBody()
       }
+      return
+    }
+
+    const tradesTagsModeBtn = t.closest<HTMLButtonElement>('[data-sx-trades-tags-mode-btn]')
+    if (tradesTagsModeBtn && root.contains(tradesTagsModeBtn)) {
+      const raw = tradesTagsModeBtn.getAttribute('data-sx-trades-tags-mode-btn')
+      const [kind, mode] = (raw ?? '').split(':') as ['include' | 'exclude', SxTradesFilterSetMode]
+      if (kind === 'include') sxTradesFilters.tagsIncludeMode = mode
+      else if (kind === 'exclude') sxTradesFilters.tagsExcludeMode = mode
+      sxRenderTradesFiltersBody()
       return
     }
 
@@ -3999,7 +4289,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       sxTradesFilters.outcomes.clear()
       sxTradesFilters.types.clear()
       sxTradesFilters.assets.clear()
-      sxTradesFilters.tags.clear()
+      sxTradesFilters.tagsInclude.clear()
+      sxTradesFilters.tagsIncludeMode = 'and'
+      sxTradesFilters.tagsExclude.clear()
+      sxTradesFilters.tagsExcludeMode = 'and'
       sxTradesFilters.notes.clear()
       sxTradesFilters.years.clear()
       sxTradesFilters.months.clear()
@@ -4022,10 +4315,15 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
     if (
       !t.closest('[data-sx-trades-filters-panel]') &&
-      !t.closest('[data-sx-trades-filters-toggle]')
+      !t.closest('[data-sx-trades-filter-tab]')
     ) {
       const panel = root.querySelector<HTMLElement>('[data-sx-trades-filters-panel]')
       if (panel && !panel.classList.contains('hidden')) sxOpenTradesFiltersPanel(false)
+    }
+
+    if (sxTradesTagsOpenDropdown && !t.closest('[data-sx-trades-tags-dropdown]')) {
+      sxTradesTagsOpenDropdown = null
+      sxRenderTradesFiltersBody()
     }
 
     const newSessionBtn = t.closest<HTMLButtonElement>('[data-action="backtest"]')
@@ -4180,6 +4478,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     }
     if (t.closest('[data-sx-locale-dropdown]')) return
     if (t.closest('[data-sx-perf-dd]') || t.closest('[data-sx-session-dd]')) return
+    if (t.closest('[data-sxt-colpicker]')) return
     closeAllLocaleDropdowns()
     closeAllPerfDropdowns()
   })
@@ -4214,9 +4513,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       } else if (group === 'type') {
         if (filterCheck.checked) sxTradesFilters.types.add(value)
         else sxTradesFilters.types.delete(value)
-      } else if (group === 'tags') {
-        if (filterCheck.checked) sxTradesFilters.tags.add(value)
-        else sxTradesFilters.tags.delete(value)
       } else if (group === 'year') {
         const yr = Number(value)
         if (filterCheck.checked) sxTradesFilters.years.add(yr)
@@ -4232,6 +4528,33 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       }
       sxSyncTradesFiltersToggleBadge()
       sxRenderTradesFiltersBody()
+      return
+    }
+
+    const tagsCheck = t.closest<HTMLInputElement>('[data-sx-trades-tags-check]')
+    if (tagsCheck && root.contains(tagsCheck)) {
+      const kind = tagsCheck.getAttribute('data-sx-trades-tags-check') as 'include' | 'exclude' | null
+      if (kind) {
+        const set = kind === 'include' ? sxTradesFilters.tagsInclude : sxTradesFilters.tagsExclude
+        if (tagsCheck.checked) set.add(tagsCheck.value)
+        else set.delete(tagsCheck.value)
+        sxSyncTradesFiltersToggleBadge()
+        sxRenderTradesFiltersBody()
+      }
+      return
+    }
+
+    const tagsToggleAll = t.closest<HTMLInputElement>('[data-sx-trades-tags-toggle-all]')
+    if (tagsToggleAll && root.contains(tagsToggleAll)) {
+      const kind = tagsToggleAll.getAttribute('data-sx-trades-tags-toggle-all') as 'include' | 'exclude' | null
+      if (kind) {
+        const set = kind === 'include' ? sxTradesFilters.tagsInclude : sxTradesFilters.tagsExclude
+        const allValues = sxTradesTagsOptionGroups().map((o) => o.value)
+        if (tagsToggleAll.checked) for (const v of allValues) set.add(v)
+        else for (const v of allValues) set.delete(v)
+        sxSyncTradesFiltersToggleBadge()
+        sxRenderTradesFiltersBody()
+      }
       return
     }
 
@@ -4282,15 +4605,67 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       sxTradesSearch = tradesSearch.value
       sxTradesPage = 1
       syncTradesUi()
+      return
+    }
+
+    const colPickerSearch = t.closest<HTMLInputElement>('[data-sxt-colpicker-search]')
+    if (colPickerSearch && root.contains(colPickerSearch)) {
+      sxTradesColPickerSearch = colPickerSearch.value
+      sxRenderColumnPickerList()
+    }
+
+    const tagsSearch = t.closest<HTMLInputElement>('[data-sx-trades-tags-search]')
+    if (tagsSearch && root.contains(tagsSearch)) {
+      const kind = tagsSearch.getAttribute('data-sx-trades-tags-search') as 'include' | 'exclude' | null
+      if (kind) {
+        sxTradesTagsSearch[kind] = tagsSearch.value
+        sxRenderTradesFiltersBody()
+        const panel = root.querySelector<HTMLInputElement>(`[data-sx-trades-tags-search="${kind}"]`)
+        panel?.focus()
+      }
+    }
+  })
+
+  root.addEventListener('change', (e) => {
+    const t = e.target as HTMLElement | null
+    if (!t) return
+
+    const colToggleAll = t.closest<HTMLInputElement>('[data-sxt-colpicker-toggle-all]')
+    if (colToggleAll && root.contains(colToggleAll)) {
+      const toggleable = SX_TRADES_COLUMNS.filter((c) => !c.locked)
+      if (colToggleAll.checked) {
+        for (const c of toggleable) sxTradesHiddenColumns.delete(c.id)
+      } else {
+        for (const c of toggleable) sxTradesHiddenColumns.add(c.id)
+      }
+      sxWriteTradesHiddenColumns(sxTradesHiddenColumns)
+      sxRenderColumnPickerList()
+      syncTradesUi()
+      return
+    }
+
+    const colCheck = t.closest<HTMLInputElement>('[data-sxt-colpicker-col]')
+    if (colCheck && root.contains(colCheck)) {
+      const id = colCheck.getAttribute('data-sxt-colpicker-col')
+      if (id) {
+        if (colCheck.checked) sxTradesHiddenColumns.delete(id)
+        else sxTradesHiddenColumns.add(id)
+        sxWriteTradesHiddenColumns(sxTradesHiddenColumns)
+        sxRenderColumnPickerList()
+        syncTradesUi()
+      }
     }
   })
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return
+    const colPickerPanelEl = root.querySelector<HTMLElement>('[data-sxt-colpicker-panel]')
+    const colPickerOpen = !!colPickerPanelEl && !colPickerPanelEl.classList.contains('hidden')
     if (
       !root.querySelector('.sx-dash-locale-dd--open') &&
       !root.querySelector('[data-sx-perf-dd].sx-dash-perf-dd--open') &&
-      !root.querySelector('[data-sx-session-dd].sx-dash-perf-dd--open')
+      !root.querySelector('[data-sx-session-dd].sx-dash-perf-dd--open') &&
+      !colPickerOpen
     ) {
       return
     }
