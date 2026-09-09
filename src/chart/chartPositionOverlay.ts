@@ -738,9 +738,9 @@ export function mountChartPositionOverlay(opts: {
     if (bundle && opts.getSeries) {
       const series = opts.getSeries()
       try {
-        series.removePriceLine(bundle.entry)
-        if (bundle.tp) series.removePriceLine(bundle.tp)
-        if (bundle.sl) series.removePriceLine(bundle.sl)
+      series.removePriceLine(bundle.entry)
+      if (bundle.tp) series.removePriceLine(bundle.tp)
+      if (bundle.sl) series.removePriceLine(bundle.sl)
       } catch {
         /* ignore */
       }
@@ -989,9 +989,9 @@ export function mountChartPositionOverlay(opts: {
           </button>
         </div>
         <span class="rw-pos-row__badge">
-          <span class="rw-pos-pnl" data-pos-pnl></span>
-          <span class="rw-pos-qty" data-pos-qty></span>
-          <button type="button" class="rw-pos-close" data-pos-close title="Close position" aria-label="Close position">×</button>
+        <span class="rw-pos-pnl" data-pos-pnl></span>
+        <span class="rw-pos-qty" data-pos-qty></span>
+        <button type="button" class="rw-pos-close" data-pos-close title="Close position" aria-label="Close position">×</button>
         </span>
       `
       const closeBtn = row.querySelector('[data-pos-close]') as HTMLElement | null
@@ -1081,9 +1081,9 @@ export function mountChartPositionOverlay(opts: {
     if (opts.chart) {
       try {
         return Math.max(48, Math.min(120, opts.chart.priceScale('right').width()))
-      } catch {
-        /* ignore */
-      }
+    } catch {
+      /* ignore */
+    }
     }
     const insets = opts.getPlotHorizontalInsets?.()
     let r = insets?.right ?? Math.round(hostWidth * 0.08)
@@ -1207,8 +1207,8 @@ export function mountChartPositionOverlay(opts: {
   const onRange = () => layoutRows()
   let unsubChartRange: (() => void) | null = null
   if (opts.chart) {
-    opts.chart.timeScale().subscribeVisibleLogicalRangeChange(onRange)
-    opts.chart.timeScale().subscribeVisibleTimeRangeChange(onRange)
+  opts.chart.timeScale().subscribeVisibleLogicalRangeChange(onRange)
+  opts.chart.timeScale().subscribeVisibleTimeRangeChange(onRange)
     unsubChartRange = () => {
       opts.chart?.timeScale().unsubscribeVisibleLogicalRangeChange(onRange)
       opts.chart?.timeScale().unsubscribeVisibleTimeRangeChange(onRange)

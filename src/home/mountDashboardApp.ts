@@ -477,6 +477,7 @@ import { mountStrategyPage } from '../views/mountStrategyPage'
 import { mountSettingsPage } from '../views/mountSettingsPage'
 import { mountSubscriptionPage } from '../views/mountSubscriptionPage'
 import { mountBillingPage } from '../views/mountBillingPage'
+import { buildAnalyticsPageHtml, initAnalyticsPage, type SxaTrade } from './dashboardAnalyticsPage'
 import { mountProfilePage, type ProfileSessionStats } from '../views/mountProfilePage'
 import { postTelemetryEvent } from '../telemetry/telemetryApi'
 import { DASH_LOCALES, dashLocaleMenuLabel, isDashLocaleCode } from './dashboardLocales'
@@ -1527,6 +1528,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
               ${buildDashGraphCardsHtml()}
             </section>
+
+            <div class="sx-dash-analytics-deepdive" data-sxa-host>${buildAnalyticsPageHtml()}</div>
                 </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="trades" role="tabpanel" hidden>
@@ -2468,6 +2471,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       syncSessionPulse()
       syncDashboardPerf()
     }
+    if (tab === 'analytics') sxAnalyticsPage?.renderAll()
     if (tab === 'trades') syncTradesUi()
   }
 
@@ -2596,6 +2600,42 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       }
     }
     return rows
+  }
+
+  function sxAnalyticsStartingBalance(): number {
+    const rows = sxCollectTradeRows()
+    const sessionIds = new Set(rows.map((r) => r.sessionId))
+    let total = 0
+    let counted = 0
+    for (const session of listSessions()) {
+      if (!sessionIds.has(session.id)) continue
+      const bal = parseSessionBalanceNumber(session.balance)
+      if (bal != null) {
+        total += bal
+        counted += 1
+      }
+    }
+    return counted > 0 ? total : 100000
+  }
+
+  function sxCollectAnalyticsTrades(): SxaTrade[] {
+    return sxCollectTradeRows().map((r) => {
+      const risk = r.initialStopLoss != null ? Math.abs(r.entryPrice - r.initialStopLoss) : 0
+      const reward = r.direction === 'long' ? r.exitPrice - r.entryPrice : r.entryPrice - r.exitPrice
+      const returnR = risk > 0 ? reward / risk : null
+      const durationMin = Math.max(0, (r.exitTime - r.entryTime) / 60)
+      return {
+        id: r.key,
+        entryTimeMs: r.entryTime * 1000,
+        exitTimeMs: r.exitTime * 1000,
+        side: r.direction === 'long' ? 'Buy' : 'Sell',
+        asset: r.asset,
+        tag: r.tags[0] ?? null,
+        pnl: r.pnl,
+        returnR,
+        durationMin,
+      }
+    })
   }
 
   function sxTradesSearchFilter(rows: SxTradeRow[]): SxTradeRow[] {
@@ -4262,6 +4302,14 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   const initialLocale = fromUrl ?? readDashLocale()
   writeDashLocale(initialLocale)
   syncDashLocaleUi(initialLocale)
+
+  const sxaHost = root.querySelector<HTMLElement>('[data-sxa-host]')
+  const sxAnalyticsPage = sxaHost
+    ? initAnalyticsPage(sxaHost, {
+        getTrades: () => sxCollectAnalyticsTrades(),
+        getStartingBalance: () => sxAnalyticsStartingBalance(),
+      })
+    : null
 
   syncRecentSessionsUi()
   setTestingTab(readTestingTab())
