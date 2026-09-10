@@ -6405,7 +6405,7 @@ a.sx-dash-account__item {
 
 .sxt-table thead tr.sxt-col-row th {
   position: sticky;
-  top: 2.85rem;
+  top: var(--sxt-col-row-top, 2.85rem);
   z-index: 24;
   background: var(--sxt-surface);
   text-align: left;

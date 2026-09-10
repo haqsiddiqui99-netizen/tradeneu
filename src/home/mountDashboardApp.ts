@@ -2527,6 +2527,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   }
 
   let sxTradesFixedBarBound = false
+  let sxTradesStickyRafPending = false
+
+  function sxSyncTradesStickyTop() {
+    const section = root.querySelector<HTMLElement>('.sxt-trades')
+    const toolbar = root.querySelector<HTMLElement>('.sxt-toolbar')
+    if (!section || !toolbar) return
+    const scrollEl = root.querySelector<HTMLElement>('.sx-dash-shell__scroll')
+    const toolbarRect = toolbar.getBoundingClientRect()
+    const containerTop = scrollEl ? scrollEl.getBoundingClientRect().top : 0
+    const offset = Math.max(0, Math.round(toolbarRect.bottom - containerTop))
+    section.style.setProperty('--sxt-col-row-top', `${offset}px`)
+  }
 
   function syncTradesFixedScrollbar() {
     const bar = root.querySelector<HTMLElement>('[data-sx-trades-fixedbar]')
@@ -2571,6 +2583,26 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       })
       window.addEventListener('resize', () => syncTradesFixedScrollbar())
     }
+  }
+
+  let sxTradesStickyBound = false
+  function sxBindTradesStickyTopSync() {
+    if (sxTradesStickyBound) return
+    sxTradesStickyBound = true
+    window.addEventListener('resize', () => sxSyncTradesStickyTop())
+    const shellScrollEl = root.querySelector<HTMLElement>('.sx-dash-shell__scroll')
+    shellScrollEl?.addEventListener(
+      'scroll',
+      () => {
+        if (sxTradesStickyRafPending) return
+        sxTradesStickyRafPending = true
+        requestAnimationFrame(() => {
+          sxSyncTradesStickyTop()
+          sxTradesStickyRafPending = false
+        })
+      },
+      { passive: true }
+    )
   }
 
   type SxTradeSortKey = 'entryTime' | 'entryRealTime' | 'exitTime' | 'pnl'
@@ -3047,7 +3079,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     sxSyncTradesSelectionUi(rows, pageRows.length)
     sxRenderTradesPagination(pageCount)
 
-    requestAnimationFrame(() => syncTradesFixedScrollbar())
+    sxBindTradesStickyTopSync()
+    requestAnimationFrame(() => {
+      syncTradesFixedScrollbar()
+      sxSyncTradesStickyTop()
+    })
   }
 
   function sxSyncTradesKpis(rows: SxTradeRow[]) {
