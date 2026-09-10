@@ -5946,6 +5946,15 @@ a.sx-dash-account__item {
   gap: 0.625rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: #f0f0f0;
+  padding-bottom: 0.6rem;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-toolbar {
+  background: #0a0612;
 }
 
 .sxt-select-pill {
@@ -6355,6 +6364,8 @@ a.sx-dash-account__item {
 }
 
 .sxt-table-card {
+  position: relative;
+  isolation: isolate;
   background: var(--sxt-surface);
   border: 1px solid var(--sxt-line);
   border-radius: var(--sxt-radius);
@@ -6363,6 +6374,11 @@ a.sx-dash-account__item {
 
 .sxt-table-scroll {
   overflow-x: auto;
+  /* Explicitly non-auto so this box never gets treated as an independent
+     vertical scroll container (browsers otherwise compute overflow-y as
+     "auto" once overflow-x is set), which was letting the table head render
+     above the sticky toolbar during fast scroll/swipe on some browsers. */
+  overflow-y: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
