@@ -92,6 +92,23 @@ function sxEquityTooltipHandler(context: { chart: Chart; tooltip: TooltipModel<'
   tipEl.style.top = `${posY + tooltip.caretY}px`
 }
 
+const SX_EQUITY_GAIN = '#4caf50'
+const SX_EQUITY_LOSS = '#e5484d'
+const SX_EQUITY_ZERO = '#9aa1ac'
+
+function sxEquityPointColor(values: (number | null)[], idx: number): string {
+  const v = values[idx]
+  if (typeof v !== 'number') return SX_EQUITY_GAIN
+  if (v === 0) return SX_EQUITY_ZERO
+  return v < 0 ? SX_EQUITY_LOSS : SX_EQUITY_GAIN
+}
+
+function sxEquitySegmentColor(values: (number | null)[], ctx: { p0DataIndex: number; p1DataIndex: number }): string {
+  const y0 = values[ctx.p0DataIndex]
+  const y1 = values[ctx.p1DataIndex]
+  return (typeof y0 === 'number' && y0 < 0) || (typeof y1 === 'number' && y1 < 0) ? SX_EQUITY_LOSS : SX_EQUITY_GAIN
+}
+
 function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<typeof computeEquityCurveSeries>) {
   const rawCumulative = equity.hasData ? equity.cumulative : new Array(12).fill(0)
   // Don't plot (or flat-line) months that are still in the future relative to
@@ -105,11 +122,20 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
       : rawCumulative
   const plottedValues = cumulative.filter((v): v is number => v != null)
   const maxVal = Math.max(0, ...plottedValues, 1)
-  const minVal = Math.min(0, ...plottedValues)
-  const suggestedMax = sxNiceCeilStep(maxVal * 1.15)
-  const suggestedMin = minVal < 0 ? -sxNiceCeilStep(-minVal * 1.15) : 0
+  const minVal = Math.min(0, ...plottedValues, 0)
+  // Mirror the axis around zero: whatever the larger absolute magnitude is
+  // (positive or negative side) becomes the rounded bound used on *both*
+  // sides, so +20,000 on top means -20,000 on the bottom too.
+  const maxAbs = Math.max(maxVal, -minVal, 1)
+  const bound = sxNiceCeilStep(maxAbs * 1.15)
+  const suggestedMax = bound
+  const suggestedMin = -bound
   const pointRadius = cumulative.map(() => 4)
-  const pointColors = cumulative.map(() => '#4caf50')
+  const pointColors = cumulative.map((_, i) => sxEquityPointColor(cumulative, i))
+  const tickCallback = (v: number | string) => {
+    const n = typeof v === 'number' ? v : Number(v)
+    return Math.round(n).toLocaleString()
+  }
 
   let chart = sxEquityChartRegistry.get(canvas)
   if (!chart) {
@@ -122,15 +148,18 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
         datasets: [
           {
             data: cumulative,
-            borderColor: '#4caf50',
-            backgroundColor: '#4caf50',
+            borderColor: SX_EQUITY_GAIN,
+            backgroundColor: SX_EQUITY_GAIN,
             pointBackgroundColor: pointColors,
-            pointBorderColor: '#4caf50',
+            pointBorderColor: pointColors,
             pointRadius,
             pointHoverRadius: 6,
             borderWidth: 2,
             tension: 0,
             fill: false,
+            segment: {
+              borderColor: (ctx) => sxEquitySegmentColor(cumulative, ctx),
+            },
           },
         ],
       },
@@ -146,7 +175,7 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
           y: {
             min: suggestedMin,
             suggestedMax,
-            ticks: { stepSize: (suggestedMax - suggestedMin) / 4, color: '#475467' },
+            ticks: { stepSize: (suggestedMax - suggestedMin) / 4, color: '#475467', callback: tickCallback },
             grid: { color: '#eeeeee' },
             border: { display: false },
           },
@@ -164,11 +193,23 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
     chart.data.labels = equity.labels
     const dataset = chart.data.datasets[0]!
     dataset.data = cumulative
-    const yScale = chart.options.scales?.y as { min?: number; suggestedMax?: number; ticks?: { stepSize?: number } }
+    dataset.pointBackgroundColor = pointColors
+    dataset.pointBorderColor = pointColors
+    ;(dataset as any).segment = {
+      borderColor: (ctx: any) => sxEquitySegmentColor(cumulative, ctx),
+    }
+    const yScale = chart.options.scales?.y as {
+      min?: number
+      suggestedMax?: number
+      ticks?: { stepSize?: number; callback?: (v: number | string) => string }
+    }
     if (yScale) {
       yScale.min = suggestedMin
       yScale.suggestedMax = suggestedMax
-      if (yScale.ticks) yScale.ticks.stepSize = (suggestedMax - suggestedMin) / 4
+      if (yScale.ticks) {
+        yScale.ticks.stepSize = (suggestedMax - suggestedMin) / 4
+        yScale.ticks.callback = tickCallback
+      }
     }
   }
   ;(chart as Chart & { $sxFullLabels?: string[] }).$sxFullLabels = equity.monthLabels
@@ -463,6 +504,7 @@ import {
   type StoredSession,
 } from '../data/sessionStore'
 import { propStatusLabel } from '../prop/propChallengeUi'
+import { normalizeJournalScreenshots } from '../replay/replayPositions'
 import { clearAllAuthSessions, getAuthUser, GUEST_AUTH_EMAIL } from '../auth/authSession'
 import { mountAiChatPanel } from '../ai/aiChatPanel'
 import { primarySessionSymbol } from '../sessionTypes'
@@ -514,9 +556,13 @@ type SxTradeColumnDef = { id: string; label: string; locked?: boolean }
 
 // Total physical <th>/<td> columns rendered in the table, including the always-on
 // row-select checkbox column which is intentionally not offered in the column picker.
-const SX_TRADES_TOTAL_TABLE_COLUMNS = 21
+const SX_TRADES_TOTAL_TABLE_COLUMNS = 22
+
+const SXT_JOURNAL_ICON_SVG =
+  '<svg width="15" height="15" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2.5" y="1.75" width="13" height="14.5" rx="1.75" stroke="currentColor" stroke-width="1.35"/><path d="M5.75 5.75h6.5M5.75 8.75h6.5M5.75 11.75h4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>'
 
 const SX_TRADES_COLUMNS: SxTradeColumnDef[] = [
+  { id: 'action', label: 'Actions', locked: true },
   { id: 'asset', label: 'Asset', locked: true },
   { id: 'side', label: 'Side' },
   { id: 'session', label: 'Session' },
@@ -1607,8 +1653,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                   <div class="sxt-kpi-sub" data-sxt-kpi="avgr-sub">&nbsp;</div>
                 </div>
                 <div class="sxt-spark-cell">
-                  <div class="sxt-kpi-label">Equity, this range</div>
-                  <div class="sxt-spark-end" data-sxt-kpi="spark-end">$0.00</div>
+                  <div class="sxt-spark-cell__head">
+                    <div class="sxt-kpi-label">Equity, this range</div>
+                    <div class="sxt-spark-end" data-sxt-kpi="spark-end">$0.00</div>
+                  </div>
                   <canvas data-sxt-spark-canvas></canvas>
                 </div>
               </div>
@@ -1695,6 +1743,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                     <thead>
                       <tr class="sxt-col-row">
                         <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"><input type="checkbox" data-sx-trades-select-all class="sxt-row-check" aria-label="Select all trades" /></th>
+                        <th class="sxt-sticky-col sxt-col-action" data-sxt-col="action">Action</th>
                         <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
                         <th data-sxt-col="side">Side</th>
                         <th class="sxt-group-divide" data-sxt-col="session">Session</th>
@@ -1727,6 +1776,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                     <thead>
                       <tr class="sxt-col-row">
                         <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"></th>
+                        <th class="sxt-sticky-col sxt-col-action" data-sxt-col="action">Action</th>
                         <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
                         <th data-sxt-col="side">Side</th>
                         <th class="sxt-group-divide" data-sxt-col="session">Session</th>
@@ -1751,7 +1801,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                     </thead>
                     <tbody data-sx-trades-body>
                       <tr>
-                        <td colspan="21" class="sxt-empty">No closed trades yet. Resume a session and close positions to see them here.</td>
+                        <td colspan="22" class="sxt-empty">No closed trades yet. Resume a session and close positions to see them here.</td>
                       </tr>
                     </tbody>
                   </table>
@@ -2915,12 +2965,241 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     return `${sign}$${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
+  function sxJournalFieldHtml(label: string, valueHtml: string): string {
+    return `<div class="sx-trade-journal-dialog__field"><div class="sx-trade-journal-dialog__field-label">${escapeHtml(label)}</div><div class="sx-trade-journal-dialog__field-value">${valueHtml}</div></div>`
+  }
+
+  function sxCloseTradeJournalDialog() {
+    root.querySelector('[data-sx-trade-journal-dialog]')?.remove()
+  }
+
+  function sxOpenTradeJournalDialog(key: string) {
+    const sep = key.lastIndexOf(':')
+    if (sep < 0) return
+    const sessionId = key.slice(0, sep)
+    const tradeNum = Number(key.slice(sep + 1))
+    const session = getSession(sessionId)
+    const trade = session?.replayState?.account.closedTrades.find((tr) => tr.tradeNum === tradeNum)
+    if (!session || !trade) return
+
+    sxCloseTradeJournalDialog()
+
+    const asset = primarySessionSymbol(session.assets) || session.assets || '-'
+    const side = trade.direction === 'long' ? 'BUY' : 'SELL'
+    const sideCls = trade.direction === 'long' ? 'sxt-side-buy' : 'sxt-side-sell'
+    const netPnlText = sxFormatSignedMoney(trade.pnl)
+    const entryTimeMs = trade.entryRealTime ?? trade.entryTime * 1000
+    const durationMin = Math.max(0, Math.round((trade.exitTime - trade.entryTime) / 60))
+    const durationText =
+      durationMin >= 60 ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m` : `${durationMin}m`
+    const entryTimeText = new Date(entryTimeMs).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit' })
+    const takeProfitPrice = trade.exitReason === 'take_profit' ? trade.exitPrice : null
+
+    const journal = trade.journal
+    const notes = journal?.notes ?? ''
+    const screenshot = normalizeJournalScreenshots(journal?.screenshots)[0]
+
+    const allRows = sxCurrentTradeRows()
+    const rowIdx = allRows.findIndex((r) => r.key === key)
+    const prevKey = rowIdx > 0 ? allRows[rowIdx - 1]!.key : null
+    const nextKey = rowIdx >= 0 && rowIdx < allRows.length - 1 ? allRows[rowIdx + 1]!.key : null
+
+    const overlay = document.createElement('div')
+    overlay.className = 'sx-trade-journal-overlay'
+    overlay.setAttribute('data-sx-trade-journal-dialog', '')
+    overlay.innerHTML = `
+      <div class="sx-trade-journal-dialog" role="dialog" aria-modal="true" aria-label="Trade journal">
+        <div class="sx-trade-journal-dialog__toolbar">
+          <div class="sx-trade-journal-dialog__toolbar-left">
+            <button type="button" class="sx-trade-journal-dialog__icon-btn" data-sx-trade-journal-close aria-label="Close">&times;</button>
+          </div>
+          <div class="sx-trade-journal-dialog__toolbar-right">
+            <button type="button" class="sx-trade-journal-dialog__icon-btn" data-sx-trade-journal-nav="prev" ${prevKey ? '' : 'disabled'} aria-label="Previous trade">&lsaquo;</button>
+            <button type="button" class="sx-trade-journal-dialog__icon-btn" data-sx-trade-journal-nav="next" ${nextKey ? '' : 'disabled'} aria-label="Next trade">&rsaquo;</button>
+            <div class="sx-trade-journal-dialog__menu-wrap" data-sx-trade-journal-menu-wrap>
+              <button type="button" class="sx-trade-journal-dialog__icon-btn" data-sx-trade-journal-menu-toggle aria-label="More options" aria-haspopup="true" aria-expanded="false">&#8942;</button>
+              <div class="sx-trade-journal-dialog__menu hidden" data-sx-trade-journal-menu>
+                <button type="button" class="sx-trade-journal-dialog__menu-item" data-sx-trade-journal-clear-notes>Clear notes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sx-trade-journal-dialog__head">
+          <div class="sx-trade-journal-dialog__title">
+            <span>${escapeHtml(asset)}, <span class="${sideCls}">${side}</span></span>
+            <span class="sx-trade-journal-dialog__pnl ${trade.pnl >= 0 ? 'sxt-gain' : 'sxt-loss'}">${netPnlText} (Net P&amp;L)</span>
+          </div>
+        </div>
+        <div class="sx-trade-journal-dialog__sub">${escapeHtml(entryTimeText)} \u00b7 ${escapeHtml(durationText)}</div>
+        <div class="sx-trade-journal-dialog__body">
+          <div class="sx-trade-journal-dialog__fields">
+            ${sxJournalFieldHtml('Asset', escapeHtml(asset))}
+            ${sxJournalFieldHtml('Side', trade.direction === 'long' ? 'Long' : 'Short')}
+            ${sxJournalFieldHtml('Entry type', escapeHtml(trade.entryKind ?? 'market'))}
+            ${sxJournalFieldHtml('Entry date', escapeHtml(sxFormatTradeDateMs(entryTimeMs)))}
+            ${sxJournalFieldHtml('Entry price', escapeHtml(String(trade.entryPrice)))}
+            ${sxJournalFieldHtml('Total size', escapeHtml(String(trade.qty)))}
+            ${sxJournalFieldHtml('Stop loss', trade.initialStopLoss != null ? escapeHtml(String(trade.initialStopLoss)) : '-')}
+            ${sxJournalFieldHtml('Take profit', takeProfitPrice != null ? escapeHtml(String(takeProfitPrice)) : '-')}
+            ${sxJournalFieldHtml('Exit date', escapeHtml(sxFormatTradeDate(trade.exitTime)))}
+            ${sxJournalFieldHtml('Exit price', escapeHtml(String(trade.exitPrice)))}
+          </div>
+          <div class="sx-trade-journal-dialog__notes-col">
+            ${
+              screenshot
+                ? `<div class="sx-trade-journal-dialog__shot"><img src="${escapeHtml(screenshot.src)}" alt="" />${
+                    screenshot.showCaption && screenshot.caption
+                      ? `<div class="sx-trade-journal-dialog__shot-caption">${escapeHtml(screenshot.caption)}</div>`
+                      : ''
+                  }</div>`
+                : ''
+            }
+            <div class="sx-trade-journal-dialog__editor">
+              <span class="sx-trade-journal-dialog__editor-add" data-sx-trade-journal-insert-template title="Insert template" aria-label="Insert template" role="button">+</span>
+              <span class="sx-trade-journal-dialog__editor-grip" aria-hidden="true">&#8942;&#8942;</span>
+              <textarea class="sx-trade-journal-dialog__textarea" data-sx-trade-journal-notes placeholder="Enter text or type '/' for commands">${escapeHtml(notes)}</textarea>
+            </div>
+            <div class="sx-trade-journal-dialog__shortcuts${notes ? ' hidden' : ''}" data-sx-trade-journal-shortcuts>
+              <div class="sx-trade-journal-dialog__shortcuts-label">Start with shortcuts</div>
+              <button type="button" class="sx-trade-journal-dialog__template-chip" data-sx-trade-journal-insert-template>
+                <span aria-hidden="true">\u{1F3A8}</span> /templates
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="sx-trade-journal-dialog__foot">
+          <button type="button" class="sx-trade-journal-dialog__cancel" data-sx-trade-journal-close>Close</button>
+          <button type="button" class="sx-trade-journal-dialog__save" data-sx-trade-journal-save>Save</button>
+        </div>
+      </div>
+    `
+    root.appendChild(overlay)
+
+    const escHandler = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        sxCloseTradeJournalDialog()
+        document.removeEventListener('keydown', escHandler)
+      }
+    }
+    document.addEventListener('keydown', escHandler)
+
+    overlay.addEventListener('click', (ev) => {
+      if (ev.target === overlay) {
+        sxCloseTradeJournalDialog()
+        return
+      }
+      const menuEl = overlay.querySelector<HTMLElement>('[data-sx-trade-journal-menu]')
+      const menuToggleEl = overlay.querySelector<HTMLButtonElement>('[data-sx-trade-journal-menu-toggle]')
+      if (menuEl && !menuEl.classList.contains('hidden') && !(ev.target as HTMLElement).closest('[data-sx-trade-journal-menu-wrap]')) {
+        menuEl.classList.add('hidden')
+        menuToggleEl?.setAttribute('aria-expanded', 'false')
+      }
+    })
+    overlay.querySelectorAll<HTMLButtonElement>('[data-sx-trade-journal-close]').forEach((btn) => {
+      btn.addEventListener('click', () => sxCloseTradeJournalDialog())
+    })
+    overlay.querySelectorAll<HTMLButtonElement>('[data-sx-trade-journal-nav]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const dir = btn.getAttribute('data-sx-trade-journal-nav')
+        const target = dir === 'prev' ? prevKey : dir === 'next' ? nextKey : null
+        if (target) sxOpenTradeJournalDialog(target)
+      })
+    })
+
+    const menuToggle = overlay.querySelector<HTMLButtonElement>('[data-sx-trade-journal-menu-toggle]')
+    const menu = overlay.querySelector<HTMLElement>('[data-sx-trade-journal-menu]')
+    menuToggle?.addEventListener('click', (ev) => {
+      ev.stopPropagation()
+      const open = menu?.classList.toggle('hidden') === false
+      menuToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+    })
+    overlay.querySelector<HTMLButtonElement>('[data-sx-trade-journal-clear-notes]')?.addEventListener('click', () => {
+      const textarea = overlay.querySelector<HTMLTextAreaElement>('[data-sx-trade-journal-notes]')
+      if (textarea) {
+        textarea.value = ''
+        textarea.focus()
+      }
+      const shortcuts = overlay.querySelector<HTMLElement>('[data-sx-trade-journal-shortcuts]')
+      shortcuts?.classList.remove('hidden')
+      menu?.classList.add('hidden')
+    })
+
+    const SXT_JOURNAL_TEMPLATE =
+      'Setup:\n\n\nWhy I took this trade:\n\n\nWhat went well:\n\n\nWhat to improve:\n'
+    overlay.querySelectorAll<HTMLElement>('[data-sx-trade-journal-insert-template]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const textarea = overlay.querySelector<HTMLTextAreaElement>('[data-sx-trade-journal-notes]')
+        if (textarea) {
+          textarea.value = textarea.value ? `${textarea.value}\n\n${SXT_JOURNAL_TEMPLATE}` : SXT_JOURNAL_TEMPLATE
+          textarea.focus()
+          const shortcuts = overlay.querySelector<HTMLElement>('[data-sx-trade-journal-shortcuts]')
+          shortcuts?.classList.add('hidden')
+        }
+      })
+    })
+    overlay.querySelector<HTMLButtonElement>('[data-sx-trade-journal-save]')?.addEventListener('click', () => {
+      const textarea = overlay.querySelector<HTMLTextAreaElement>('[data-sx-trade-journal-notes]')
+      const newNotes = textarea?.value ?? ''
+      const liveSession = getSession(sessionId)
+      if (liveSession?.replayState) {
+        const closedTrades = liveSession.replayState.account.closedTrades.map((tr) =>
+          tr.tradeNum === tradeNum
+            ? {
+                ...tr,
+                journal: {
+                  notes: newNotes,
+                  rating: tr.journal?.rating ?? '',
+                  tags: tr.journal?.tags ?? [],
+                  background: tr.journal?.background,
+                  screenshots: tr.journal?.screenshots ?? [],
+                  blocks: tr.journal?.blocks ?? [],
+                  updatedAt: Date.now(),
+                },
+              }
+            : tr,
+        )
+        updateSessionReplay(sessionId, {
+          ...liveSession.replayState,
+          account: { ...liveSession.replayState.account, closedTrades },
+          savedAt: Date.now(),
+        })
+        syncTradesUi()
+      }
+      sxCloseTradeJournalDialog()
+    })
+  }
+
   const sxTradesSparkChartRegistry = new WeakMap<HTMLCanvasElement, Chart<'line'>>()
+
+  const SXT_SPARK_GAIN = '#1a9d5c'
+  const SXT_SPARK_LOSS = '#e5484d'
+  const SXT_SPARK_ZERO = '#9aa1ac'
+
+  function sxSparkPointColor(points: number[], idx: number): string {
+    const v = points[idx]
+    if (typeof v !== 'number') return SXT_SPARK_GAIN
+    if (v === 0) return SXT_SPARK_ZERO
+    return v < 0 ? SXT_SPARK_LOSS : SXT_SPARK_GAIN
+  }
+
+  function sxSparkSegmentColor(points: number[], ctx: { p0DataIndex: number; p1DataIndex: number }): string {
+    const y0 = points[ctx.p0DataIndex]
+    const y1 = points[ctx.p1DataIndex]
+    return (typeof y0 === 'number' && y0 < 0) || (typeof y1 === 'number' && y1 < 0) ? SXT_SPARK_LOSS : SXT_SPARK_GAIN
+  }
+
+  function sxSparkAxisBound(points: number[]): number {
+    const maxVal = Math.max(0, ...points, 1)
+    const minVal = Math.min(0, ...points, 0)
+    const maxAbs = Math.max(maxVal, -minVal, 1)
+    return sxNiceCeilStep(maxAbs * 1.15)
+  }
 
   function sxSyncTradesSparkChart(points: number[]) {
     const canvas = root.querySelector<HTMLCanvasElement>('[data-sxt-spark-canvas]')
     if (!canvas) return
     const labels = points.map((_, i) => `T${i + 1}`)
+    const bound = sxSparkAxisBound(points)
     let chart = sxTradesSparkChartRegistry.get(canvas)
     if (!chart) {
       const config: ChartConfiguration<'line'> = {
@@ -2930,14 +3209,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           datasets: [
             {
               data: points,
-              borderColor: '#1a9d5c',
+              borderColor: SXT_SPARK_GAIN,
               backgroundColor: 'rgba(26,157,92,0.08)',
               fill: true,
               tension: 0.3,
               borderWidth: 1.75,
               pointRadius: 2.5,
-              pointBackgroundColor: '#1a9d5c',
+              pointBackgroundColor: (ctx) => sxSparkPointColor(points, ctx.dataIndex),
+              pointBorderColor: (ctx) => sxSparkPointColor(points, ctx.dataIndex),
               pointHoverRadius: 4,
+              segment: {
+                borderColor: (ctx) => sxSparkSegmentColor(points, ctx),
+              },
             },
           ],
         },
@@ -2955,13 +3238,16 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           },
           scales: {
             y: {
+              min: -bound,
+              suggestedMax: bound,
               ticks: {
                 font: { family: 'IBM Plex Mono', size: 9.5 },
                 color: '#a6acb8',
                 maxTicksLimit: 3,
+                stepSize: bound,
                 callback: (v) => {
                   const n = typeof v === 'number' ? v : Number(v)
-                  return `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`
+                  return `$${Math.round(n / 1000)}k`
                 },
               },
               grid: { color: '#f0f1f4' },
@@ -2980,8 +3266,21 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       return
     }
     const dataset = chart.data.datasets[0]
-    if (dataset) dataset.data = points
+    if (dataset) {
+      dataset.data = points
+      dataset.pointBackgroundColor = (ctx: any) => sxSparkPointColor(points, ctx.dataIndex)
+      dataset.pointBorderColor = (ctx: any) => sxSparkPointColor(points, ctx.dataIndex)
+      ;(dataset as any).segment = {
+        borderColor: (ctx: any) => sxSparkSegmentColor(points, ctx),
+      }
+    }
     chart.data.labels = labels
+    const yScale = chart.options.scales?.y as { min?: number; suggestedMax?: number; ticks?: { stepSize?: number } }
+    if (yScale) {
+      yScale.min = -bound
+      yScale.suggestedMax = bound
+      if (yScale.ticks) yScale.ticks.stepSize = bound
+    }
     chart.update()
   }
 
@@ -3128,7 +3427,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
     if (rows.length === 0) {
       body.innerHTML = `<tr>
-        <td colspan="21" class="sxt-empty">No closed trades yet. Resume a session and close positions to see them here.</td>
+        <td colspan="22" class="sxt-empty">No closed trades yet. Resume a session and close positions to see them here.</td>
       </tr>`
     } else {
       body.innerHTML = pageRows
@@ -3145,6 +3444,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           const hc = (id: string) => (sxTradesHiddenColumns.has(id) ? ' sxt-col-hidden' : '')
           return `<tr class="${checked ? 'sxt-row-selected' : ''}">
           <td class="sxt-sticky-col sxt-col-check${hc('check')}" data-sxt-col="check"><input type="checkbox" class="sxt-row-check sxt-row-select" data-sx-trades-row-select="${escapeHtml(t.key)}" ${checked ? 'checked' : ''} aria-label="Select trade" /></td>
+          <td class="sxt-sticky-col sxt-col-action${hc('action')}" data-sxt-col="action"><button type="button" class="sxt-action-btn" data-sx-trades-open-journal="${escapeHtml(t.key)}" title="Open journal" aria-label="Open journal">${SXT_JOURNAL_ICON_SVG}</button></td>
           <td class="sxt-sticky-col sxt-col-asset sxt-asset-cell${hc('asset')}" data-sxt-col="asset"><span class="sxt-ticker">${escapeHtml(t.asset)}</span></td>
           <td class="${hc('side')}" data-sxt-col="side"><span class="${sideCls}">${side}</span></td>
           <td class="sxt-group-divide${hc('session')}" data-sxt-col="session">${escapeHtml(t.sessionName)}</td>
@@ -3170,7 +3470,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         .join('')
     }
 
-    sxSyncTradesSelectionUi(rows, pageRows.length)
+    sxSyncTradesSelectionUi(rows, pageRows.length, pageStart)
     sxRenderTradesPagination(pageCount)
 
     requestAnimationFrame(() => {
@@ -3236,11 +3536,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       const end = points.length ? points[points.length - 1]! : 0
       sparkEndEl.textContent = sxFormatSignedMoney(end)
       sparkEndEl.classList.toggle('sxt-loss', end < 0)
+      sparkEndEl.classList.toggle('sxt-zero', end === 0)
     }
     sxSyncTradesSparkChart(points)
   }
 
-  function sxSyncTradesSelectionUi(rows: SxTradeRow[], pageRowCount: number) {
+  function sxSyncTradesSelectionUi(rows: SxTradeRow[], pageRowCount: number, pageStart = 0) {
     const selectAllBox = root.querySelector<HTMLInputElement>('[data-sx-trades-select-all]')
     const rowBoxes = Array.from(root.querySelectorAll<HTMLInputElement>('.sxt-row-select'))
     const checkedCount = sxTradesSelected.size
@@ -3263,10 +3564,13 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       footerDefault?.classList.remove('hidden')
       footerSelected?.classList.add('hidden')
       if (footerDefault) {
-        footerDefault.textContent =
-          rows.length === 0
-            ? '0 rows'
-            : `Displaying ${pageRowCount} of ${rows.length} row${rows.length === 1 ? '' : 's'}`
+        if (rows.length === 0 || pageRowCount === 0) {
+          footerDefault.textContent = '0 rows'
+        } else {
+          const rangeStart = pageStart + 1
+          const rangeEnd = pageStart + pageRowCount
+          footerDefault.textContent = `Displaying ${rangeStart}-${rangeEnd} rows of ${rows.length} row${rows.length === 1 ? '' : 's'}`
+        }
       }
     }
   }
@@ -3646,17 +3950,86 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     </div>`
   }
 
+  function sxPositionTradesFiltersOverlay() {
+    const panel = root.querySelector<HTMLElement>('[data-sx-trades-filters-panel]')
+    const backdrop = root.querySelector<HTMLElement>('[data-sx-trades-filters-backdrop]')
+    const contentEl = root.querySelector<HTMLElement>('.sx-dash-shell__scroll')
+    if (!panel || !contentEl) return
+    const rect = contentEl.getBoundingClientRect()
+    const top = Math.max(0, Math.round(rect.top))
+    const right = Math.max(0, Math.round(window.innerWidth - rect.right))
+    const left = Math.max(0, Math.round(rect.left))
+
+    // Keep the panel/backdrop clear of the fixed horizontal scrollbar strip
+    // at the bottom of the trades table, so it never overlaps it.
+    const fixedBar = root.querySelector<HTMLElement>('[data-sx-trades-fixedbar]')
+    let bottom = Math.max(0, Math.round(window.innerHeight - rect.bottom))
+    if (fixedBar && !fixedBar.hidden) {
+      const barRect = fixedBar.getBoundingClientRect()
+      if (barRect.height > 0) {
+        const gap = 12
+        bottom = Math.max(bottom, Math.round(window.innerHeight - barRect.top + gap))
+      }
+    }
+
+    panel.style.top = `${top}px`
+    panel.style.bottom = `${bottom}px`
+    panel.style.right = `${right}px`
+    panel.style.height = 'auto'
+
+    if (backdrop) {
+      backdrop.style.top = `${top}px`
+      backdrop.style.bottom = `${bottom}px`
+      backdrop.style.right = `${right}px`
+      backdrop.style.left = `${left}px`
+    }
+  }
+
+  let sxTradesFiltersOverlayBound = false
+  let sxTradesFiltersCloseTimer: ReturnType<typeof setTimeout> | null = null
+
   function sxOpenTradesFiltersPanel(open: boolean) {
     const panel = root.querySelector<HTMLElement>('[data-sx-trades-filters-panel]')
     const backdrop = root.querySelector<HTMLElement>('[data-sx-trades-filters-backdrop]')
     if (!panel) return
-    panel.classList.toggle('hidden', !open)
-    backdrop?.classList.toggle('hidden', !open)
+    if (sxTradesFiltersCloseTimer) {
+      clearTimeout(sxTradesFiltersCloseTimer)
+      sxTradesFiltersCloseTimer = null
+    }
     root.querySelectorAll<HTMLButtonElement>('[data-sx-trades-filter-tab]').forEach((btn) => {
       btn.setAttribute('aria-expanded', open ? 'true' : 'false')
     })
     if (open) {
+      panel.classList.remove('hidden')
+      backdrop?.classList.remove('hidden')
       sxRenderTradesFiltersBody()
+      sxPositionTradesFiltersOverlay()
+      // Force layout with the panel off-screen first, then flip to the
+      // "open" class on the next frame so the transform/opacity actually
+      // transitions (slide-in from the right) instead of snapping.
+      panel.classList.remove('sx-dash-trades-filters-panel--open')
+      backdrop?.classList.remove('sx-dash-trades-filters-backdrop--open')
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          panel.classList.add('sx-dash-trades-filters-panel--open')
+          backdrop?.classList.add('sx-dash-trades-filters-backdrop--open')
+        })
+      })
+      if (!sxTradesFiltersOverlayBound) {
+        sxTradesFiltersOverlayBound = true
+        window.addEventListener('resize', () => {
+          const panelEl = root.querySelector<HTMLElement>('[data-sx-trades-filters-panel]')
+          if (panelEl && !panelEl.classList.contains('hidden')) sxPositionTradesFiltersOverlay()
+        })
+      }
+    } else {
+      panel.classList.remove('sx-dash-trades-filters-panel--open')
+      backdrop?.classList.remove('sx-dash-trades-filters-backdrop--open')
+      sxTradesFiltersCloseTimer = setTimeout(() => {
+        panel.classList.add('hidden')
+        backdrop?.classList.add('hidden')
+        sxTradesFiltersCloseTimer = null
+      }, 280)
     }
   }
 
@@ -4259,6 +4632,13 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       const id = tradeOpenBtn.getAttribute('data-sx-trade-open-session')
       const s = id ? getSession(id) : null
       if (s) openChartWithStoredSession(s)
+      return
+    }
+
+    const journalOpenBtn = t.closest<HTMLButtonElement>('[data-sx-trades-open-journal]')
+    if (journalOpenBtn && root.contains(journalOpenBtn)) {
+      const key = journalOpenBtn.getAttribute('data-sx-trades-open-journal')
+      if (key) sxOpenTradeJournalDialog(key)
       return
     }
 

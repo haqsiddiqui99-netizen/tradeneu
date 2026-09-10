@@ -5192,11 +5192,24 @@ a.sx-dash-account__item {
 }
 
 .sx-dash-trades-filters-backdrop {
+  /* top/right/bottom/left are set dynamically (via JS) to match the
+     content area below the topbar and above the fixed horizontal
+     scrollbar, so the dimmed backdrop never covers the topbar icons or
+     footer bar. These are just pre-JS fallbacks. */
   position: fixed;
-  inset: 0;
+  top: 4rem;
+  right: 0;
+  bottom: 2.5rem;
+  left: 16rem;
   z-index: 119;
   background: rgba(15, 23, 42, 0.42);
   backdrop-filter: blur(1px);
+  opacity: 0;
+  transition: opacity 0.24s ease;
+}
+
+.sx-dash-trades-filters-backdrop.sx-dash-trades-filters-backdrop--open {
+  opacity: 1;
 }
 
 .sx-dash-trades-filters-backdrop[hidden],
@@ -5205,15 +5218,18 @@ a.sx-dash-account__item {
 }
 
 .sx-dash-trades-filters-panel {
+  /* top/right/bottom are set dynamically (via JS) to match the content
+     area below the topbar and above the fixed horizontal scrollbar, so
+     the panel opens inside that region instead of covering the whole
+     viewport. These are just pre-JS fallbacks. */
   position: fixed;
   z-index: 120;
-  top: 0;
+  top: 4rem;
   right: 0;
-  bottom: 0;
+  bottom: 2.5rem;
   left: auto;
-  width: min(26rem, 92vw);
-  height: 100vh;
-  max-height: 100vh;
+  width: min(20rem, 92vw);
+  max-height: none;
   display: flex;
   flex-direction: column;
   border-radius: 0;
@@ -5222,6 +5238,12 @@ a.sx-dash-account__item {
   background: #ffffff;
   box-shadow: -24px 0 64px rgba(15, 23, 42, 0.28);
   overflow: hidden;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sx-dash-trades-filters-panel.sx-dash-trades-filters-panel--open {
+  transform: translateX(0);
 }
 
 .sx-dash-trades-filters-panel[hidden],
@@ -5286,7 +5308,7 @@ a.sx-dash-account__item {
 }
 
 .sx-dash-trades-filters-panel__tabs .sx-dash-trades-filter-tab--active {
-  background: #ffffff;
+  background: #f3ead9;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1);
 }
 
@@ -5705,16 +5727,16 @@ a.sx-dash-account__item {
 
 .sx-dash-trades-filters-apply {
   flex: 0 0 auto;
-  min-width: 12rem;
+  min-width: 8.4rem;
   border: 0;
   border-radius: 999px;
-  padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #2f6bff, #5b8bff);
+  padding: 0.75rem 1.05rem;
+  background: linear-gradient(135deg, #1a1a1a, #2c2c2c);
   color: #ffffff;
   font-weight: 700;
   font-size: 0.9rem;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(47, 107, 255, 0.28);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
 }
 
 .sx-dash-trades-filters-apply:hover {
@@ -5734,7 +5756,7 @@ a.sx-dash-account__item {
 .sx-dash-trades-fixedbar {
   position: fixed;
   bottom: 0.75rem;
-  z-index: 40;
+  z-index: 130;
   pointer-events: none;
 }
 
@@ -5858,8 +5880,8 @@ a.sx-dash-account__item {
   border: 1px solid var(--sxt-line);
   border-radius: var(--sxt-radius);
   display: grid;
-  grid-template-columns: repeat(4, 1fr) 280px;
-  margin-bottom: 1.25rem;
+  grid-template-columns: repeat(4, 0.8fr) 1.85fr;
+  margin-bottom: 0.6rem;
   overflow: hidden;
 }
 
@@ -5919,19 +5941,31 @@ a.sx-dash-account__item {
   min-width: 0;
 }
 
+.sxt-spark-cell__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.375rem;
+}
+
 .sxt-spark-cell .sxt-kpi-label {
-  margin-bottom: 0.125rem;
+  margin-bottom: 0;
 }
 
 .sxt-spark-end {
   font-size: 0.9375rem;
   font-weight: 700;
   color: var(--sxt-gain);
-  margin-bottom: 0.25rem;
+  white-space: nowrap;
 }
 
 .sxt-spark-end.sxt-loss {
   color: var(--sxt-loss);
+}
+
+.sxt-spark-end.sxt-zero {
+  color: #9aa1ac;
 }
 
 .sxt-spark-cell canvas {
@@ -5944,7 +5978,7 @@ a.sx-dash-account__item {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.4rem;
   flex-wrap: wrap;
   position: sticky;
   top: -0.35rem;
@@ -5952,7 +5986,7 @@ a.sx-dash-account__item {
   background: #f0f0f0;
   margin-top: -0.35rem;
   padding-top: 0.35rem;
-  padding-bottom: 0.6rem;
+  padding-bottom: 0.3rem;
 }
 
 @media (min-width: 640px) {
@@ -6494,6 +6528,7 @@ a.sx-dash-account__item {
   position: sticky;
   background: var(--sxt-surface);
   z-index: 2;
+  overflow: hidden;
 }
 
 .sxt-table thead th.sxt-sticky-col {
@@ -6502,12 +6537,458 @@ a.sx-dash-account__item {
 
 .sxt-sticky-col.sxt-col-check {
   left: 0;
-  width: 1.25rem;
+  width: 2.25rem;
+  min-width: 2.25rem !important;
+  max-width: 2.25rem;
+  padding-left: 0.6rem !important;
+  padding-right: 0.4rem !important;
+}
+
+.sxt-sticky-col.sxt-col-action {
+  left: 2.25rem;
+  width: 3.75rem;
+  min-width: 3.75rem !important;
+  max-width: 3.75rem;
+  text-align: center;
+  padding-left: 0.4rem !important;
+  padding-right: 0.4rem !important;
+}
+
+.sxt-table thead th.sxt-col-action {
+  text-align: center;
 }
 
 .sxt-sticky-col.sxt-col-asset {
-  left: 3.125rem;
+  left: 6rem;
   box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.06);
+}
+
+.sx-trade-journal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  background: rgba(15, 23, 42, 0.4);
+  animation: sxTradeJournalFadeIn 0.18s ease;
+}
+
+@keyframes sxTradeJournalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sx-trade-journal-dialog {
+  /* NOTE: this dialog is appended directly under the app root, outside the
+     `.sxt-trades` element that defines the --sxt-* custom properties, so it
+     cannot rely on those variables (they'd resolve to nothing there, which
+     silently breaks colors/borders and can also trigger the browser's
+     native dark-mode form-control rendering on the textarea). Every color
+     below is a literal value for that reason. */
+  color-scheme: light;
+  width: min(64rem, 88vw);
+  height: 100%;
+  max-height: 100vh;
+  background: #ffffff;
+  color: #0b0d10;
+  box-shadow: -24px 0 64px rgba(15, 23, 42, 0.28);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: inherit;
+}
+
+.sx-trade-journal-dialog__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem 0.25rem;
+  flex-shrink: 0;
+}
+
+.sx-trade-journal-dialog__toolbar-left,
+.sx-trade-journal-dialog__toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sx-trade-journal-dialog__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e7e9ee;
+  background: #ffffff;
+  color: #6b7280;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sx-trade-journal-dialog__icon-btn:hover:not(:disabled) {
+  background: #eef0fe;
+  color: #0b0d10;
+  border-color: #0b0d10;
+}
+
+.sx-trade-journal-dialog__icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sx-trade-journal-dialog__menu-wrap {
+  position: relative;
+}
+
+.sx-trade-journal-dialog__menu {
+  position: absolute;
+  top: 2.3rem;
+  right: 0;
+  min-width: 9.5rem;
+  background: #ffffff;
+  border: 1px solid #e7e9ee;
+  border-radius: 0.6rem;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  padding: 0.35rem;
+  z-index: 5;
+}
+
+.sx-trade-journal-dialog__menu.hidden {
+  display: none;
+}
+
+.sx-trade-journal-dialog__menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.4rem;
+  border: 0;
+  background: transparent;
+  color: #0b0d10;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.sx-trade-journal-dialog__menu-item:hover {
+  background: #f4f5f7;
+}
+
+.sx-trade-journal-dialog__head {
+  padding: 0.25rem 1.25rem 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.sx-trade-journal-dialog__title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #0b0d10;
+}
+
+.sx-trade-journal-dialog__title .sxt-side-buy,
+.sx-trade-journal-dialog__title .sxt-side-sell {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.sx-trade-journal-dialog__pnl {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.sx-trade-journal-dialog__pnl.sxt-gain {
+  color: #1a9d5c;
+}
+
+.sx-trade-journal-dialog__pnl.sxt-loss {
+  color: #d6455a;
+}
+
+.sx-trade-journal-dialog__sub {
+  padding: 0.15rem 1.25rem 0.9rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+  border-bottom: 1px solid #e7e9ee;
+  flex-shrink: 0;
+}
+
+.sx-trade-journal-dialog__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.sx-trade-journal-dialog__fields {
+  width: min(20rem, 40%);
+  flex-shrink: 0;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  border-right: 1px solid #f0f1f4;
+  overflow-y: auto;
+  background: #ffffff;
+}
+
+.sx-trade-journal-dialog__field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sx-trade-journal-dialog__field-label {
+  font-size: 0.85rem;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.sx-trade-journal-dialog__field-value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0b0d10;
+  background: #f4f5f7;
+  border-radius: 0.5rem;
+  padding: 0.32rem 0.65rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+.sx-trade-journal-dialog__notes-col {
+  flex: 1;
+  min-width: 0;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  overflow-y: auto;
+  background: #ffffff;
+}
+
+.sx-trade-journal-dialog__shot {
+  border: 1px solid #e7e9ee;
+  border-radius: 0.65rem;
+  overflow: hidden;
+  background: #fafbfc;
+}
+
+.sx-trade-journal-dialog__shot img {
+  display: block;
+  width: 100%;
+  max-height: 16rem;
+  object-fit: contain;
+  background: #0b0d10;
+}
+
+.sx-trade-journal-dialog__shot-caption {
+  padding: 0.5rem 0.7rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  border-top: 1px solid #f0f1f4;
+  background: #ffffff;
+}
+
+.sx-trade-journal-dialog__editor {
+  flex: 1;
+  min-height: 9rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border: 1px solid #e7e9ee;
+  border-radius: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  background: #ffffff;
+  color-scheme: light;
+  transition: border-color 0.15s ease;
+}
+
+.sx-trade-journal-dialog__editor:focus-within {
+  border-color: #0b0d10;
+}
+
+.sx-trade-journal-dialog__editor-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  margin-top: 0.1rem;
+  border-radius: 0.35rem;
+  border: 1px solid #e7e9ee;
+  color: #9aa1ac;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.sx-trade-journal-dialog__editor-add:hover {
+  background: #f4f5f7;
+  color: #0b0d10;
+  border-color: #0b0d10;
+}
+
+.sx-trade-journal-dialog__editor-grip {
+  color: #c7ccd4;
+  font-size: 0.7rem;
+  line-height: 1;
+  letter-spacing: -1px;
+  margin-top: 0.25rem;
+  cursor: grab;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.sx-trade-journal-dialog__textarea {
+  flex: 1;
+  min-height: 8.5rem;
+  border: 0;
+  padding: 0;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: #ffffff;
+  color: #0b0d10;
+  color-scheme: light;
+  resize: vertical;
+  outline: none;
+}
+
+.sx-trade-journal-dialog__textarea::placeholder {
+  color: #a6acb8;
+}
+
+.sx-trade-journal-dialog__shortcuts {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.35rem;
+}
+
+.sx-trade-journal-dialog__shortcuts.hidden {
+  display: none;
+}
+
+.sx-trade-journal-dialog__shortcuts-label {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.sx-trade-journal-dialog__template-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #e7e9ee;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0b0d10;
+  cursor: pointer;
+}
+
+.sx-trade-journal-dialog__template-chip:hover {
+  background: #f4f5f7;
+  border-color: #0b0d10;
+}
+
+.sx-trade-journal-dialog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid #e7e9ee;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.sx-trade-journal-dialog__cancel {
+  border: 1px solid #e7e9ee;
+  background: #ffffff;
+  color: #6b7280;
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sx-trade-journal-dialog__cancel:hover {
+  background: #f4f5f7;
+}
+
+.sx-trade-journal-dialog__save {
+  border: 0;
+  background: linear-gradient(135deg, #1a1a1a, #2c2c2c);
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 0.55rem 1.3rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24);
+}
+
+.sx-trade-journal-dialog__save:hover {
+  filter: brightness(1.05);
+}
+
+@media (max-width: 860px) {
+  .sx-trade-journal-dialog {
+    width: 100vw;
+  }
+  .sx-trade-journal-dialog__body {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .sx-trade-journal-dialog__fields {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #f0f1f4;
+  }
+}
+
+.sxt-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--sxt-line);
+  background: #ffffff;
+  color: var(--sxt-ink-500);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sxt-action-btn:hover {
+  background: var(--sxt-brand-soft);
+  color: var(--sxt-ink-950);
+  border-color: var(--sxt-ink-950);
 }
 
 .sxt-table tbody tr.sxt-row-selected .sxt-sticky-col {
