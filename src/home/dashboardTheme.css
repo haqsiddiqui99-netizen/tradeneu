@@ -5947,10 +5947,20 @@ a.sx-dash-account__item {
   margin-bottom: 1rem;
   flex-wrap: wrap;
   position: sticky;
-  top: 0;
+  top: -0.35rem;
   z-index: 30;
   background: #f0f0f0;
+  margin-top: -0.35rem;
+  padding-top: 0.35rem;
   padding-bottom: 0.6rem;
+}
+
+@media (min-width: 640px) {
+  .sxt-toolbar {
+    top: -0.5rem;
+    margin-top: -0.5rem;
+    padding-top: 0.5rem;
+  }
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sxt-toolbar {
