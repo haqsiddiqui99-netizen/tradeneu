@@ -1693,15 +1693,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                 <div class="sxt-table-scroll" data-sx-trades-scroll>
                   <table class="sxt-table" data-sx-trades-table>
                     <thead>
-                      <tr class="sxt-group-row">
-                        <th class="sxt-sticky-col sxt-col-check"></th>
-                        <th class="sxt-sticky-col sxt-col-asset"></th>
-                        <th></th>
-                        <th class="sxt-group-divide" colspan="6">Entry</th>
-                        <th class="sxt-group-divide" colspan="2">Risk</th>
-                        <th class="sxt-group-divide" colspan="2">Exit</th>
-                        <th class="sxt-group-divide" colspan="6">Result</th>
-                      </tr>
                       <tr class="sxt-col-row">
                         <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"><input type="checkbox" data-sx-trades-select-all class="sxt-row-check" aria-label="Select all trades" /></th>
                         <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
@@ -2989,10 +2980,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   function sxSyncTradesStickyHeaderOffsets() {
     const section = root.querySelector<HTMLElement>('.sxt-trades')
     const toolbar = root.querySelector<HTMLElement>('.sxt-toolbar')
-    const groupRow = root.querySelector<HTMLElement>('.sxt-table thead tr.sxt-group-row')
     if (!section) return
     if (toolbar) section.style.setProperty('--sxt-toolbar-h', `${toolbar.offsetHeight}px`)
-    if (groupRow) section.style.setProperty('--sxt-grouprow-h', `${groupRow.offsetHeight}px`)
   }
 
   function syncTradesUi() {

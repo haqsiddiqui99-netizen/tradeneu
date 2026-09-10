@@ -6403,24 +6403,9 @@ a.sx-dash-account__item {
   border-collapse: collapse;
 }
 
-.sxt-table thead tr.sxt-group-row th {
-  position: sticky;
-  top: var(--sxt-toolbar-h, 3.25rem);
-  z-index: 24;
-  background: var(--sxt-surface);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  color: var(--sxt-ink-300);
-  letter-spacing: 0.02em;
-  padding: 0.625rem 1rem 0.25rem;
-  text-align: left;
-  white-space: nowrap;
-  border-bottom: none;
-}
-
 .sxt-table thead tr.sxt-col-row th {
   position: sticky;
-  top: calc(var(--sxt-toolbar-h, 3.25rem) + var(--sxt-grouprow-h, 1.6875rem));
+  top: var(--sxt-toolbar-h, 3.25rem);
   z-index: 24;
   background: var(--sxt-surface);
   text-align: left;
