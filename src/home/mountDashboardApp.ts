@@ -2570,7 +2570,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         syncingFromTable = false
       })
       window.addEventListener('resize', () => syncTradesFixedScrollbar())
-      window.addEventListener('resize', () => sxSyncTradesStickyHeaderOffsets())
     }
   }
 
@@ -2977,13 +2976,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     return searched
   }
 
-  function sxSyncTradesStickyHeaderOffsets() {
-    const section = root.querySelector<HTMLElement>('.sxt-trades')
-    const toolbar = root.querySelector<HTMLElement>('.sxt-toolbar')
-    if (!section) return
-    if (toolbar) section.style.setProperty('--sxt-toolbar-h', `${toolbar.offsetHeight}px`)
-  }
-
   function syncTradesUi() {
     const body = root.querySelector('[data-sx-trades-body]')
     if (!body) return
@@ -3055,10 +3047,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     sxSyncTradesSelectionUi(rows, pageRows.length)
     sxRenderTradesPagination(pageCount)
 
-    requestAnimationFrame(() => {
-      syncTradesFixedScrollbar()
-      sxSyncTradesStickyHeaderOffsets()
-    })
+    requestAnimationFrame(() => syncTradesFixedScrollbar())
   }
 
   function sxSyncTradesKpis(rows: SxTradeRow[]) {
