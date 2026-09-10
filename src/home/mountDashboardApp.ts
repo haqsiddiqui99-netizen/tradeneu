@@ -2617,10 +2617,17 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const clone = root.querySelector<HTMLElement>('[data-sx-trades-headerclone]')
     const toolbar = root.querySelector<HTMLElement>('.sxt-toolbar')
     if (!clone || !toolbar) return
-    const scrollEl = root.querySelector<HTMLElement>('.sx-dash-shell__scroll')
-    const toolbarRect = toolbar.getBoundingClientRect()
-    const containerTop = scrollEl ? scrollEl.getBoundingClientRect().top : 0
-    const offset = Math.max(0, Math.round(toolbarRect.bottom - containerTop))
+    // Deliberately NOT using getBoundingClientRect() here: the toolbar is
+    // itself `position: sticky`, so its bounding rect depends on the
+    // *current* scroll position (correct only if it happens to already be
+    // in its "stuck" state when this runs). offsetHeight is scroll-position
+    // independent, and combined with the toolbar's own known sticky `top`
+    // value (a fixed, breakpoint-dependent negative offset), this always
+    // gives the toolbar's true stuck bottom edge regardless of when/where
+    // the page happens to be scrolled when this function runs.
+    const isNarrow = window.matchMedia('(max-width: 639px)').matches
+    const toolbarStickyTopPx = isNarrow ? -0.35 * 16 : -0.5 * 16
+    const offset = Math.max(0, Math.round(toolbar.offsetHeight + toolbarStickyTopPx))
     clone.style.top = `${offset}px`
   }
 
