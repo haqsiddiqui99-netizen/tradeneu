@@ -1689,12 +1689,44 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                 </div>
               </div>
 
+              <div class="sxt-headerclone" data-sx-trades-headerclone>
+                <div class="sxt-headerclone__scroll" data-sx-trades-headerclone-scroll>
+                  <table class="sxt-table sxt-headerclone__table" data-sx-trades-headerclone-table>
+                    <thead>
+                      <tr class="sxt-col-row">
+                        <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"><input type="checkbox" data-sx-trades-select-all class="sxt-row-check" aria-label="Select all trades" /></th>
+                        <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
+                        <th data-sxt-col="side">Side</th>
+                        <th class="sxt-group-divide" data-sxt-col="session">Session</th>
+                        <th data-sxt-col="type">Type</th>
+                        <th data-sxt-col="source">Source</th>
+                        <th data-sxt-col="entryType">Entry type</th>
+                        <th data-sxt-col="entryRealtime">Entry date (realtime)</th>
+                        <th data-sxt-col="entryChart">Entry date (chart)</th>
+                        <th class="sxt-num sxt-group-divide" data-sxt-col="entryPrice">Entry price</th>
+                        <th class="sxt-num" data-sxt-col="size">Size</th>
+                        <th class="sxt-num sxt-group-divide" data-sxt-col="stopLoss">Stop loss</th>
+                        <th class="sxt-num" data-sxt-col="takeProfit">Take profit</th>
+                        <th class="sxt-group-divide" data-sxt-col="exitDate">Exit date</th>
+                        <th class="sxt-num" data-sxt-col="exitPrice">Exit price</th>
+                        <th class="sxt-num sxt-group-divide" data-sxt-col="returnUsd">Return ($)</th>
+                        <th class="sxt-num" data-sxt-col="returnPct">Return (%)</th>
+                        <th class="sxt-num" data-sxt-col="returnR">Return (R)</th>
+                        <th data-sxt-col="rating">Rating</th>
+                        <th class="sxt-num" data-sxt-col="grossPnl">Gross PnL</th>
+                        <th class="sxt-num" data-sxt-col="fees">Fees</th>
+                      </tr>
+                    </thead>
+                  </table>
+                </div>
+              </div>
+
               <div class="sxt-table-card">
                 <div class="sxt-table-scroll" data-sx-trades-scroll>
                   <table class="sxt-table" data-sx-trades-table>
                     <thead>
                       <tr class="sxt-col-row">
-                        <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"><input type="checkbox" data-sx-trades-select-all class="sxt-row-check" aria-label="Select all trades" /></th>
+                        <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"></th>
                         <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
                         <th data-sxt-col="side">Side</th>
                         <th class="sxt-group-divide" data-sxt-col="session">Session</th>
@@ -2573,6 +2605,93 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     }
   }
 
+  // ── Standalone sticky header clone (Filter/Column header row) ──────────
+  // The header clone lives outside the horizontally-scrolling table, so it
+  // can genuinely stick to the page below the toolbar. We keep it in sync
+  // with: (1) the toolbar's real rendered height (sticky `top` offset),
+  // (2) each column's rendered width (so it lines up with the data table),
+  // and (3) horizontal scroll position (3-way, with the existing fixed
+  // bottom scrollbar too).
+
+  function sxSyncTradesHeaderCloneTop() {
+    const clone = root.querySelector<HTMLElement>('[data-sx-trades-headerclone]')
+    const toolbar = root.querySelector<HTMLElement>('.sxt-toolbar')
+    if (!clone || !toolbar) return
+    const scrollEl = root.querySelector<HTMLElement>('.sx-dash-shell__scroll')
+    const toolbarRect = toolbar.getBoundingClientRect()
+    const containerTop = scrollEl ? scrollEl.getBoundingClientRect().top : 0
+    const offset = Math.max(0, Math.round(toolbarRect.bottom - containerTop))
+    clone.style.top = `${offset}px`
+  }
+
+  let sxTradesColWidthStyleEl: HTMLStyleElement | null = null
+
+  function sxSyncTradesHeaderCloneWidths() {
+    const cloneTable = root.querySelector<HTMLElement>('[data-sx-trades-headerclone-table]')
+    const mainTable = root.querySelector<HTMLElement>('[data-sx-trades-table]')
+    if (!cloneTable || !mainTable) return
+
+    if (!sxTradesColWidthStyleEl) {
+      sxTradesColWidthStyleEl = document.createElement('style')
+      sxTradesColWidthStyleEl.setAttribute('data-sx-trades-colwidths', '')
+      document.head.appendChild(sxTradesColWidthStyleEl)
+    }
+    // Clear previous forced widths first so this measurement reflects each
+    // cell's natural (unconstrained) size rather than a stale prior value.
+    sxTradesColWidthStyleEl.textContent = ''
+
+    const firstRow = mainTable.querySelector<HTMLElement>('tbody tr')
+    const hasData = !!firstRow && !firstRow.querySelector('.sxt-empty')
+
+    const cloneThs = Array.from(cloneTable.querySelectorAll<HTMLElement>('thead th[data-sxt-col]'))
+    const rules: string[] = []
+    for (const th of cloneThs) {
+      const colId = th.getAttribute('data-sxt-col')
+      if (!colId || th.classList.contains('sxt-col-hidden')) continue
+      const labelWidth = th.getBoundingClientRect().width
+      let dataWidth = 0
+      if (hasData) {
+        const td = firstRow!.querySelector<HTMLElement>(`[data-sxt-col="${colId}"]`)
+        if (td) dataWidth = td.getBoundingClientRect().width
+      }
+      const width = Math.ceil(Math.max(labelWidth, dataWidth))
+      if (width > 0) rules.push(`.sxt-table [data-sxt-col="${colId}"]{min-width:${width}px}`)
+    }
+    sxTradesColWidthStyleEl.textContent = rules.join('\n')
+  }
+
+  let sxTradesHeaderCloneScrollSyncing = false
+  let sxTradesHeaderCloneBound = false
+
+  function sxBindTradesHeaderCloneScrollSync() {
+    if (sxTradesHeaderCloneBound) return
+    const mainScroll = root.querySelector<HTMLElement>('[data-sx-trades-scroll]')
+    const cloneScroll = root.querySelector<HTMLElement>('[data-sx-trades-headerclone-scroll]')
+    if (!mainScroll || !cloneScroll) return
+    sxTradesHeaderCloneBound = true
+
+    const applyFrom = (source: HTMLElement) => {
+      if (sxTradesHeaderCloneScrollSyncing) return
+      sxTradesHeaderCloneScrollSyncing = true
+      const value = source.scrollLeft
+      const track = root.querySelector<HTMLElement>('[data-sx-trades-fixedbar-track]')
+      for (const el of [mainScroll, cloneScroll, track]) {
+        if (el && el !== source && Math.abs(el.scrollLeft - value) > 1) el.scrollLeft = value
+      }
+      sxTradesHeaderCloneScrollSyncing = false
+    }
+
+    mainScroll.addEventListener('scroll', () => applyFrom(mainScroll))
+    cloneScroll.addEventListener('scroll', () => applyFrom(cloneScroll))
+    window.addEventListener('resize', () => sxSyncTradesHeaderCloneTop())
+  }
+
+  function sxSyncTradesHeaderClone() {
+    sxBindTradesHeaderCloneScrollSync()
+    sxSyncTradesHeaderCloneTop()
+    sxSyncTradesHeaderCloneWidths()
+  }
+
   type SxTradeSortKey = 'entryTime' | 'entryRealTime' | 'exitTime' | 'pnl'
   let sxTradesSortKey: SxTradeSortKey = 'exitTime'
   let sxTradesSortDir: 'asc' | 'desc' = 'desc'
@@ -3047,7 +3166,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     sxSyncTradesSelectionUi(rows, pageRows.length)
     sxRenderTradesPagination(pageCount)
 
-    requestAnimationFrame(() => syncTradesFixedScrollbar())
+    requestAnimationFrame(() => {
+      syncTradesFixedScrollbar()
+      sxSyncTradesHeaderClone()
+    })
   }
 
   function sxSyncTradesKpis(rows: SxTradeRow[]) {

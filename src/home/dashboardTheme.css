@@ -4103,39 +4103,6 @@ a.sx-dash-account__item {
   min-height: 0;
 }
 
-/* When the Trades tab is the active panel, stretch the wrapper chain down
-   to it so its own inner table viewport can size itself against a real,
-   bounded height and scroll internally (letting the toolbar / column
-   headers stay put while only the rows scroll). Scoped with :has() so the
-   Dashboard/Sessions/Analytics tabs keep their normal page-scroll layout
-   untouched. */
-.sx-dash-home-panel:has(> .sx-dash-testing > .sx-dash-testing__panels > [data-testing-panel='trades']:not(.hidden):not([hidden])) {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.sx-dash-home-panel:has(> .sx-dash-testing > .sx-dash-testing__panels > [data-testing-panel='trades']:not(.hidden):not([hidden])) > .sx-dash-testing {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.sx-dash-home-panel:has(> .sx-dash-testing > .sx-dash-testing__panels > [data-testing-panel='trades']:not(.hidden):not([hidden])) > .sx-dash-testing > .sx-dash-testing__panels {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.sx-dash-testing-panel[data-testing-panel='trades']:not(.hidden):not([hidden]) {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 
 .sx-dash-side {
@@ -5838,10 +5805,6 @@ a.sx-dash-account__item {
   font-family: 'IBM Plex Sans', -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
   color: var(--sxt-ink-800);
   -webkit-font-smoothing: antialiased;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
 }
 
 .sxt-mono {
@@ -5854,7 +5817,6 @@ a.sx-dash-account__item {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.35rem;
-  flex-shrink: 0;
 }
 
 .sxt-h1 {
@@ -5898,7 +5860,6 @@ a.sx-dash-account__item {
   display: grid;
   grid-template-columns: repeat(4, 1fr) 280px;
   margin-bottom: 1.25rem;
-  flex-shrink: 0;
   overflow: hidden;
 }
 
@@ -5985,15 +5946,19 @@ a.sx-dash-account__item {
   gap: 0.625rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
-  flex-shrink: 0;
+  position: sticky;
+  top: -0.35rem;
   z-index: 30;
   background: #f0f0f0;
+  margin-top: -0.35rem;
   padding-top: 0.35rem;
   padding-bottom: 0.6rem;
 }
 
 @media (min-width: 640px) {
   .sxt-toolbar {
+    top: -0.5rem;
+    margin-top: -0.5rem;
     padding-top: 0.5rem;
   }
 }
@@ -6408,28 +6373,55 @@ a.sx-dash-account__item {
   text-align: center;
 }
 
+/* Standalone header clone: not nested inside the horizontally-scrolling
+   table, so it sticks to the page (below the toolbar) exactly like the
+   toolbar itself does, with zero ambiguity about its containing block. */
+.sxt-headerclone {
+  position: sticky;
+  top: 2.85rem;
+  z-index: 24;
+  background: var(--sxt-surface);
+}
+
+.sxt-headerclone__scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  border-top-left-radius: var(--sxt-radius);
+  border-top-right-radius: var(--sxt-radius);
+  border: 1px solid var(--sxt-line);
+  border-bottom: none;
+}
+
+.sxt-headerclone__scroll::-webkit-scrollbar {
+  display: none;
+  height: 0;
+}
+
+.sxt-headerclone__table {
+  margin: 0;
+}
+
+.sxt-headerclone__table thead tr.sxt-col-row th {
+  border-bottom: none;
+}
+
 .sxt-table-card {
   position: relative;
   isolation: isolate;
   background: var(--sxt-surface);
   border: 1px solid var(--sxt-line);
+  border-top: none;
   border-radius: var(--sxt-radius);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
 }
 
 .sxt-table-scroll {
-  /* This is now the table's own scroll viewport: it scrolls both axes
-     internally (bounded by the flex layout above), so the sticky column
-     header below can stick to `top: 0` against a real scroll container
-     instead of relying on a computed offset against the page scroller. */
   overflow-x: auto;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
+  overflow-y: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -6445,9 +6437,6 @@ a.sx-dash-account__item {
 }
 
 .sxt-table thead tr.sxt-col-row th {
-  position: sticky;
-  top: 0;
-  z-index: 24;
   background: var(--sxt-surface);
   text-align: left;
   font-size: 0.8125rem;
@@ -6456,6 +6445,15 @@ a.sx-dash-account__item {
   padding: 0.375rem 1rem 0.75rem;
   border-bottom: 1px solid var(--sxt-line);
   white-space: nowrap;
+}
+
+/* The real in-table header row is not shown: its cells still exist so the
+   table's automatic column-width algorithm accounts for the header labels,
+   but visually the standalone header clone below (which isn't nested inside
+   the horizontally-scrolling table, so it can genuinely stick to the page)
+   is what the user sees. */
+[data-sx-trades-table] thead tr.sxt-col-row {
+  visibility: collapse;
 }
 
 
