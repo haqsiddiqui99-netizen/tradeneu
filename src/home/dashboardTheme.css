@@ -4838,8 +4838,8 @@ a.sx-dash-account__item {
   margin: 0;
   color: #475467;
   font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 0.848rem;
-  font-weight: 400;
+  font-size: 1.05rem;
+  font-weight: 500;
   letter-spacing: 0;
   line-height: 1.45;
 }
@@ -6404,6 +6404,10 @@ a.sx-dash-account__item {
 }
 
 .sxt-table thead tr.sxt-col-row th {
+  position: sticky;
+  top: 2.85rem;
+  z-index: 24;
+  background: var(--sxt-surface);
   text-align: left;
   font-size: 0.78125rem;
   font-weight: 600;
@@ -6454,7 +6458,7 @@ a.sx-dash-account__item {
 }
 
 .sxt-table thead th.sxt-sticky-col {
-  z-index: 3;
+  z-index: 26;
 }
 
 .sxt-sticky-col.sxt-col-check {
