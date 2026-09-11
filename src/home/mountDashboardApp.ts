@@ -16,6 +16,7 @@ import {
   type ChartType,
   type TooltipModel,
   type TooltipPositionerFunction,
+  type Plugin,
 } from 'chart.js'
 
 declare module 'chart.js' {
@@ -1601,62 +1602,44 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="analytics" role="tabpanel" hidden>
-            <section class="sx-dash-performance sx-dash-performance--analytics" aria-labelledby="sx-dash-performance-title-analytics">
-              <header class="sx-dash-performance__head">
-                <div>
-                  <h2 id="sx-dash-performance-title-analytics">Performance</h2>
-                  <p>Your practice, market coverage, and trading results.</p>
-                </div>
-                ${buildPulseRangeHtml()}
-              </header>
-
-              ${buildSessionPulseKpiHtml({ bare: true, titleId: 'sx-dash-pulse-title-analytics', extraClass: 'sx-dash-pulse--analytics-kpi' })}
-
-              ${buildDashGraphCardsHtml()}
-            </section>
-
             <div class="sx-dash-analytics-deepdive" data-sxa-host>${buildAnalyticsPageHtml()}</div>
                 </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="trades" role="tabpanel" hidden>
             <section class="sxt-trades" aria-labelledby="sx-dash-trades-title">
-              <div class="sxt-page-head">
-                <div>
+              <div class="sxt-page-head sr-only">
+                <div class="sxt-page-head__title-row">
                   <h3 id="sx-dash-trades-title" class="sxt-h1">Trades</h3>
                   <p class="sxt-sub">Closed trades from your replay journals across sessions.</p>
                 </div>
-                <button type="button" data-sx-trades-export class="sxt-export-btn">
-                  <i class="fa-solid fa-download" aria-hidden="true"></i>
-                  Export
-                </button>
               </div>
 
               <div class="sxt-kpi-strip">
-                <div class="sxt-kpi">
-                  <div class="sxt-kpi-label">Trades</div>
-                  <div class="sxt-kpi-value" data-sxt-kpi="count">0</div>
-                  <div class="sxt-kpi-sub" data-sxt-kpi="count-sub">&nbsp;</div>
+                <div class="sxt-kpi-stack">
+                  <div class="sxt-kpi sxt-kpi--stacked">
+                    <div class="sxt-kpi-label">Trades</div>
+                    <div class="sxt-kpi-value" data-sxt-kpi="count">0</div>
+                    <div class="sxt-kpi-sub" data-sxt-kpi="count-sub">&nbsp;</div>
+                  </div>
+                  <div class="sxt-kpi sxt-kpi--stacked">
+                    <div class="sxt-kpi-label">Net P&amp;L</div>
+                    <div class="sxt-kpi-value" data-sxt-kpi="netpnl">$0.00</div>
+                    <div class="sxt-kpi-sub" data-sxt-kpi="netpnl-sub">&nbsp;</div>
+                  </div>
                 </div>
-                <div class="sxt-kpi">
-                  <div class="sxt-kpi-label">Net P&amp;L</div>
-                  <div class="sxt-kpi-value" data-sxt-kpi="netpnl">$0.00</div>
-                  <div class="sxt-kpi-sub" data-sxt-kpi="netpnl-sub">&nbsp;</div>
-                </div>
-                <div class="sxt-kpi">
-                  <div class="sxt-kpi-label">Win rate</div>
-                  <div class="sxt-kpi-value" data-sxt-kpi="winrate">0%</div>
-                  <div class="sxt-kpi-sub" data-sxt-kpi="winrate-sub">&nbsp;</div>
-                </div>
-                <div class="sxt-kpi">
-                  <div class="sxt-kpi-label">Avg return (R)</div>
-                  <div class="sxt-kpi-value" data-sxt-kpi="avgr">0.00R</div>
-                  <div class="sxt-kpi-sub" data-sxt-kpi="avgr-sub">&nbsp;</div>
+                <div class="sxt-kpi-stack">
+                  <div class="sxt-kpi sxt-kpi--stacked">
+                    <div class="sxt-kpi-label">Win rate</div>
+                    <div class="sxt-kpi-value" data-sxt-kpi="winrate">0%</div>
+                    <div class="sxt-kpi-sub" data-sxt-kpi="winrate-sub">&nbsp;</div>
+                  </div>
+                  <div class="sxt-kpi sxt-kpi--stacked">
+                    <div class="sxt-kpi-label">Avg return (R)</div>
+                    <div class="sxt-kpi-value" data-sxt-kpi="avgr">0.00R</div>
+                    <div class="sxt-kpi-sub" data-sxt-kpi="avgr-sub">&nbsp;</div>
+                  </div>
                 </div>
                 <div class="sxt-spark-cell">
-                  <div class="sxt-spark-cell__head">
-                    <div class="sxt-kpi-label">Equity, this range</div>
-                    <div class="sxt-spark-end" data-sxt-kpi="spark-end">$0.00</div>
-                  </div>
                   <canvas data-sxt-spark-canvas></canvas>
                 </div>
               </div>
@@ -1745,25 +1728,25 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                         <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"><input type="checkbox" data-sx-trades-select-all class="sxt-row-check" aria-label="Select all trades" /></th>
                         <th class="sxt-sticky-col sxt-col-action" data-sxt-col="action">Action</th>
                         <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
-                        <th data-sxt-col="side">Side</th>
-                        <th class="sxt-group-divide" data-sxt-col="session">Session</th>
-                        <th data-sxt-col="type">Type</th>
-                        <th data-sxt-col="source">Source</th>
-                        <th data-sxt-col="entryType">Entry type</th>
-                        <th data-sxt-col="entryRealtime">Entry date (realtime)</th>
-                        <th data-sxt-col="entryChart">Entry date (chart)</th>
-                        <th class="sxt-num sxt-group-divide" data-sxt-col="entryPrice">Entry price</th>
-                        <th class="sxt-num" data-sxt-col="size">Size</th>
-                        <th class="sxt-num sxt-group-divide" data-sxt-col="stopLoss">Stop loss</th>
-                        <th class="sxt-num" data-sxt-col="takeProfit">Take profit</th>
-                        <th class="sxt-group-divide" data-sxt-col="exitDate">Exit date</th>
-                        <th class="sxt-num" data-sxt-col="exitPrice">Exit price</th>
-                        <th class="sxt-num sxt-group-divide" data-sxt-col="returnUsd">Return ($)</th>
-                        <th class="sxt-num" data-sxt-col="returnPct">Return (%)</th>
-                        <th class="sxt-num" data-sxt-col="returnR">Return (R)</th>
-                        <th data-sxt-col="rating">Rating</th>
-                        <th class="sxt-num" data-sxt-col="grossPnl">Gross PnL</th>
-                        <th class="sxt-num" data-sxt-col="fees">Fees</th>
+                        <th draggable="true" data-sxt-col="side">Side</th>
+                        <th draggable="true" class="sxt-group-divide" data-sxt-col="session">Session</th>
+                        <th draggable="true" data-sxt-col="type">Type</th>
+                        <th draggable="true" data-sxt-col="source">Source</th>
+                        <th draggable="true" data-sxt-col="entryType">Entry type</th>
+                        <th draggable="true" data-sxt-col="entryRealtime">${sxSortHeaderHtml('entryRealTime', 'Entry date (realtime)')}</th>
+                        <th draggable="true" data-sxt-col="entryChart">${sxSortHeaderHtml('entryTime', 'Entry date (chart)')}</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="entryPrice">${sxSortHeaderHtml('entryPrice', 'Entry price')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="size">Size</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="stopLoss">Stop loss</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="takeProfit">Take profit</th>
+                        <th draggable="true" class="sxt-group-divide" data-sxt-col="exitDate">${sxSortHeaderHtml('exitTime', 'Exit date')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="exitPrice">${sxSortHeaderHtml('exitPrice', 'Exit price')}</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="returnUsd">${sxSortHeaderHtml('pnl', 'Return ($)')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="returnPct">Return (%)</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="returnR">Return (R)</th>
+                        <th draggable="true" data-sxt-col="rating">Rating</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="grossPnl">${sxSortHeaderHtml('pnl', 'Gross PnL')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="fees">Fees</th>
                       </tr>
                     </thead>
                   </table>
@@ -1778,25 +1761,25 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                         <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"></th>
                         <th class="sxt-sticky-col sxt-col-action" data-sxt-col="action">Action</th>
                         <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
-                        <th data-sxt-col="side">Side</th>
-                        <th class="sxt-group-divide" data-sxt-col="session">Session</th>
-                        <th data-sxt-col="type">Type</th>
-                        <th data-sxt-col="source">Source</th>
-                        <th data-sxt-col="entryType">Entry type</th>
-                        <th data-sxt-col="entryRealtime">Entry date (realtime)</th>
-                        <th data-sxt-col="entryChart">Entry date (chart)</th>
-                        <th class="sxt-num sxt-group-divide" data-sxt-col="entryPrice">Entry price</th>
-                        <th class="sxt-num" data-sxt-col="size">Size</th>
-                        <th class="sxt-num sxt-group-divide" data-sxt-col="stopLoss">Stop loss</th>
-                        <th class="sxt-num" data-sxt-col="takeProfit">Take profit</th>
-                        <th class="sxt-group-divide" data-sxt-col="exitDate">Exit date</th>
-                        <th class="sxt-num" data-sxt-col="exitPrice">Exit price</th>
-                        <th class="sxt-num sxt-group-divide" data-sxt-col="returnUsd">Return ($)</th>
-                        <th class="sxt-num" data-sxt-col="returnPct">Return (%)</th>
-                        <th class="sxt-num" data-sxt-col="returnR">Return (R)</th>
-                        <th data-sxt-col="rating">Rating</th>
-                        <th class="sxt-num" data-sxt-col="grossPnl">Gross PnL</th>
-                        <th class="sxt-num" data-sxt-col="fees">Fees</th>
+                        <th draggable="true" data-sxt-col="side">Side</th>
+                        <th draggable="true" class="sxt-group-divide" data-sxt-col="session">Session</th>
+                        <th draggable="true" data-sxt-col="type">Type</th>
+                        <th draggable="true" data-sxt-col="source">Source</th>
+                        <th draggable="true" data-sxt-col="entryType">Entry type</th>
+                        <th draggable="true" data-sxt-col="entryRealtime">${sxSortHeaderHtml('entryRealTime', 'Entry date (realtime)')}</th>
+                        <th draggable="true" data-sxt-col="entryChart">${sxSortHeaderHtml('entryTime', 'Entry date (chart)')}</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="entryPrice">${sxSortHeaderHtml('entryPrice', 'Entry price')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="size">Size</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="stopLoss">Stop loss</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="takeProfit">Take profit</th>
+                        <th draggable="true" class="sxt-group-divide" data-sxt-col="exitDate">${sxSortHeaderHtml('exitTime', 'Exit date')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="exitPrice">${sxSortHeaderHtml('exitPrice', 'Exit price')}</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="returnUsd">${sxSortHeaderHtml('pnl', 'Return ($)')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="returnPct">Return (%)</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="returnR">Return (R)</th>
+                        <th draggable="true" data-sxt-col="rating">Rating</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="grossPnl">${sxSortHeaderHtml('pnl', 'Gross PnL')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="fees">Fees</th>
                       </tr>
                     </thead>
                     <tbody data-sx-trades-body>
@@ -1818,7 +1801,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                     </span>
                   </div>
                   <div class="sxt-page-btns" data-sx-trades-pagination></div>
-                  <div class="sxt-footer-spacer" aria-hidden="true"></div>
+                  <div class="sxt-footer-spacer">
+                    <button type="button" data-sx-trades-export class="sxt-export-btn sxt-export-btn--footer">
+                      <i class="fa-solid fa-download" aria-hidden="true"></i>
+                      Export
+                    </button>
+                  </div>
                 </div>
               </div>
             </section>
@@ -2693,6 +2681,15 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       sxTradesColWidthStyleEl.setAttribute('data-sx-trades-colwidths', '')
       document.head.appendChild(sxTradesColWidthStyleEl)
     }
+
+    // Momentarily clearing the forced widths below can narrow the table and
+    // clamp scrollLeft on the scroll containers; remember the current scroll
+    // position so it can be restored afterwards instead of visibly jumping.
+    const mainScroll = root.querySelector<HTMLElement>('[data-sx-trades-scroll]')
+    const cloneScroll = root.querySelector<HTMLElement>('[data-sx-trades-headerclone-scroll]')
+    const fixedTrack = root.querySelector<HTMLElement>('[data-sx-trades-fixedbar-track]')
+    const preservedScrollLeft = mainScroll?.scrollLeft ?? cloneScroll?.scrollLeft ?? 0
+
     // Clear previous forced widths first so this measurement reflects each
     // cell's natural (unconstrained) size rather than a stale prior value.
     sxTradesColWidthStyleEl.textContent = ''
@@ -2715,6 +2712,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       if (width > 0) rules.push(`.sxt-table [data-sxt-col="${colId}"]{min-width:${width}px}`)
     }
     sxTradesColWidthStyleEl.textContent = rules.join('\n')
+
+    if (preservedScrollLeft > 0) {
+      for (const el of [mainScroll, cloneScroll, fixedTrack]) {
+        if (el) el.scrollLeft = preservedScrollLeft
+      }
+    }
   }
 
   let sxTradesHeaderCloneScrollSyncing = false
@@ -2749,9 +2752,55 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     sxSyncTradesHeaderCloneWidths()
   }
 
-  type SxTradeSortKey = 'entryTime' | 'entryRealTime' | 'exitTime' | 'pnl'
+  type SxTradeSortKey = 'entryTime' | 'entryRealTime' | 'exitTime' | 'pnl' | 'entryPrice' | 'exitPrice'
   let sxTradesSortKey: SxTradeSortKey = 'exitTime'
   let sxTradesSortDir: 'asc' | 'desc' = 'desc'
+  let sxTradesHighlightKey: string | null = null
+
+  function sxDefaultTradesColumnOrder(): string[] {
+    return SX_TRADES_COLUMNS.filter((c) => !c.locked).map((c) => c.id)
+  }
+  let sxTradesColumnOrder: string[] = sxDefaultTradesColumnOrder()
+  let sxTradesDragColId: string | null = null
+
+  function sxApplyTradesColumnOrder() {
+    const fullOrder = ['check', 'action', 'asset', ...sxTradesColumnOrder]
+    const reorderRow = (row: HTMLElement) => {
+      for (const colId of fullOrder) {
+        const cell = row.querySelector<HTMLElement>(`:scope > [data-sxt-col="${colId}"]`)
+        if (cell) row.appendChild(cell)
+      }
+    }
+    const cloneRow = root.querySelector<HTMLElement>('[data-sx-trades-headerclone-table] thead tr.sxt-col-row')
+    const realHeadRow = root.querySelector<HTMLElement>('[data-sx-trades-table] thead tr.sxt-col-row')
+    if (cloneRow) reorderRow(cloneRow)
+    if (realHeadRow) reorderRow(realHeadRow)
+    root.querySelectorAll<HTMLElement>('[data-sx-trades-body] tr').forEach((tr) => {
+      if (tr.querySelector('[data-sxt-col]')) reorderRow(tr)
+    })
+  }
+
+  function sxSortHeaderHtml(key: SxTradeSortKey, label: string): string {
+    return `<button type="button" class="sxt-sort-btn" data-sx-trades-sort="${key}">
+      <span>${escapeHtml(label)}</span>
+      <span class="sxt-sort-icon" aria-hidden="true">
+        <i class="fa-solid fa-arrow-up" data-sxt-sort-arrow="up"></i>
+        <i class="fa-solid fa-arrow-down" data-sxt-sort-arrow="down"></i>
+      </span>
+    </button>`
+  }
+
+  function sxSyncTradesSortIndicators() {
+    root.querySelectorAll<HTMLButtonElement>('[data-sx-trades-sort]').forEach((btn) => {
+      const key = btn.getAttribute('data-sx-trades-sort')
+      const active = key === sxTradesSortKey
+      btn.classList.toggle('sxt-sort-btn--active', active)
+      const upIcon = btn.querySelector<HTMLElement>('[data-sxt-sort-arrow="up"]')
+      const downIcon = btn.querySelector<HTMLElement>('[data-sxt-sort-arrow="down"]')
+      upIcon?.classList.toggle('sxt-sort-arrow--active', active && sxTradesSortDir === 'asc')
+      downIcon?.classList.toggle('sxt-sort-arrow--active', active && sxTradesSortDir === 'desc')
+    })
+  }
   let sxTradesSearch = ''
   let sxTradesPage = 1
   const sxTradesPageSize = 10
@@ -2837,9 +2886,9 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (Number.isNaN(d.getTime())) return '-'
     return d.toLocaleString(undefined, {
       month: 'short',
-      day: 'numeric',
+      day: '2-digit',
       year: '2-digit',
-      hour: 'numeric',
+      hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
     })
@@ -2952,9 +3001,9 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (Number.isNaN(d.getTime())) return '-'
     return d.toLocaleString(undefined, {
       month: 'short',
-      day: 'numeric',
+      day: '2-digit',
       year: '2-digit',
-      hour: 'numeric',
+      hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
     })
@@ -3188,6 +3237,40 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     return (typeof y0 === 'number' && y0 < 0) || (typeof y1 === 'number' && y1 < 0) ? SXT_SPARK_LOSS : SXT_SPARK_GAIN
   }
 
+  function sxSparkFillColor(points: number[], ctx: { p0DataIndex: number; p1DataIndex: number }): string {
+    const y0 = points[ctx.p0DataIndex]
+    const y1 = points[ctx.p1DataIndex]
+    const isLoss = (typeof y0 === 'number' && y0 < 0) || (typeof y1 === 'number' && y1 < 0)
+    return isLoss ? 'rgba(229,72,77,0.14)' : 'rgba(26,157,92,0.14)'
+  }
+
+  const sxSparkSelectionPlugin: Plugin<'line'> = {
+    id: 'sxSparkSelection',
+    afterDatasetsDraw(chartInstance) {
+      const idx = (chartInstance as unknown as { _sxSelectedIndex?: number | null })._sxSelectedIndex
+      if (idx == null) return
+      const meta = chartInstance.getDatasetMeta(0)
+      const point = meta.data[idx] as unknown as { x: number; y: number } | undefined
+      if (!point) return
+      const { ctx, chartArea } = chartInstance
+      ctx.save()
+      ctx.beginPath()
+      ctx.setLineDash([4, 3])
+      ctx.lineWidth = 1
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)'
+      ctx.moveTo(point.x, chartArea.top)
+      ctx.lineTo(point.x, chartArea.bottom)
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.beginPath()
+      ctx.arc(point.x, point.y, 6, 0, Math.PI * 2)
+      ctx.lineWidth = 2
+      ctx.strokeStyle = '#0b0d10'
+      ctx.stroke()
+      ctx.restore()
+    },
+  }
+
   function sxSparkAxisBound(points: number[]): number {
     const maxVal = Math.max(0, ...points, 1)
     const minVal = Math.min(0, ...points, 0)
@@ -3195,7 +3278,49 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     return sxNiceCeilStep(maxAbs * 1.15)
   }
 
-  function sxSyncTradesSparkChart(points: number[]) {
+  let sxTradesHighlightClearTimer: ReturnType<typeof setTimeout> | null = null
+
+  function sxHighlightTradeRowByKey(key: string | null) {
+    if (sxTradesHighlightClearTimer) {
+      clearTimeout(sxTradesHighlightClearTimer)
+      sxTradesHighlightClearTimer = null
+    }
+    sxTradesHighlightKey = key
+    if (!key) {
+      syncTradesUi()
+      return
+    }
+    const rows = sxCurrentTradeRows()
+    const idx = rows.findIndex((r) => r.key === key)
+    if (idx === -1) return
+    const page = Math.floor(idx / sxTradesPageSize) + 1
+    sxTradesPage = page
+    syncTradesUi()
+    requestAnimationFrame(() => {
+      const rowEl = root.querySelector<HTMLInputElement>(`[data-sx-trades-row-select="${CSS.escape(key)}"]`)?.closest<HTMLElement>('tr')
+      if (!rowEl) return
+      // Scroll only the dashboard's own content viewport, not native
+      // scrollIntoView — which walks every scrollable ancestor (including the
+      // window/body) and was knocking the sticky topbar/sidebar out of place.
+      const scrollHost = root.querySelector<HTMLElement>('.sx-dash-shell__scroll')
+      if (!scrollHost) return
+      const hostRect = scrollHost.getBoundingClientRect()
+      const rowRect = rowEl.getBoundingClientRect()
+      const isVisible = rowRect.top >= hostRect.top && rowRect.bottom <= hostRect.bottom
+      if (isVisible) return
+      const delta = rowRect.top - hostRect.top - hostRect.height / 2 + rowRect.height / 2
+      scrollHost.scrollBy({ top: delta, behavior: 'smooth' })
+    })
+    // The highlight is a one-shot flash animation (see .sxt-row-chart-highlight
+    // in CSS); clear the tracked key once it finishes so a later, unrelated
+    // re-render of the table doesn't replay the flash on this row.
+    sxTradesHighlightClearTimer = setTimeout(() => {
+      if (sxTradesHighlightKey === key) sxTradesHighlightKey = null
+      sxTradesHighlightClearTimer = null
+    }, 2300)
+  }
+
+  function sxSyncTradesSparkChart(points: number[], keys: string[] = []) {
     const canvas = root.querySelector<HTMLCanvasElement>('[data-sxt-spark-canvas]')
     if (!canvas) return
     const labels = points.map((_, i) => `T${i + 1}`)
@@ -3210,8 +3335,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
             {
               data: points,
               borderColor: SXT_SPARK_GAIN,
-              backgroundColor: 'rgba(26,157,92,0.08)',
-              fill: true,
+              backgroundColor: 'rgba(26,157,92,0.14)',
+              fill: { target: 'origin' },
               tension: 0.3,
               borderWidth: 1.75,
               pointRadius: 2.5,
@@ -3220,13 +3345,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
               pointHoverRadius: 4,
               segment: {
                 borderColor: (ctx) => sxSparkSegmentColor(points, ctx),
+                backgroundColor: (ctx) => sxSparkFillColor(points, ctx),
               },
             },
           ],
         },
+        plugins: [sxSparkSelectionPlugin],
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          layout: {
+            padding: { left: 4 },
+          },
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -3242,27 +3372,47 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
               suggestedMax: bound,
               ticks: {
                 font: { family: 'IBM Plex Mono', size: 9.5 },
-                color: '#a6acb8',
+                color: '#1f2937',
                 maxTicksLimit: 3,
                 stepSize: bound,
+                padding: 2,
                 callback: (v) => {
                   const n = typeof v === 'number' ? v : Number(v)
                   return `$${Math.round(n / 1000)}k`
                 },
               },
               grid: { color: '#f0f1f4' },
-              border: { display: false },
+              border: { display: true, color: '#9ca3af' },
             },
             x: {
-              ticks: { font: { size: 9.5 }, color: '#a6acb8', maxRotation: 0 },
+              ticks: { font: { size: 9.5 }, color: '#1f2937', maxRotation: 0 },
               grid: { display: false },
-              border: { display: false },
+              border: { display: true, color: '#9ca3af' },
             },
           },
         },
       }
       chart = new Chart(canvas, config)
+      ;(chart as unknown as { _sxKeys?: string[] })._sxKeys = keys
       sxTradesSparkChartRegistry.set(canvas, chart)
+      canvas.style.cursor = 'pointer'
+      canvas.addEventListener('click', (evt) => {
+        const activeChart = sxTradesSparkChartRegistry.get(canvas)
+        if (!activeChart) return
+        const hits = activeChart.getElementsAtEventForMode(evt, 'nearest', { intersect: false }, true)
+        const hit = hits[0]
+        const chartWithSel = activeChart as unknown as { _sxSelectedIndex?: number | null; _sxKeys?: string[] }
+        if (!hit) {
+          chartWithSel._sxSelectedIndex = null
+          sxHighlightTradeRowByKey(null)
+        } else {
+          const alreadySelected = chartWithSel._sxSelectedIndex === hit.index
+          chartWithSel._sxSelectedIndex = alreadySelected ? null : hit.index
+          const key = alreadySelected ? null : (chartWithSel._sxKeys?.[hit.index] ?? null)
+          sxHighlightTradeRowByKey(key)
+        }
+        activeChart.update()
+      })
       return
     }
     const dataset = chart.data.datasets[0]
@@ -3272,8 +3422,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       dataset.pointBorderColor = (ctx: any) => sxSparkPointColor(points, ctx.dataIndex)
       ;(dataset as any).segment = {
         borderColor: (ctx: any) => sxSparkSegmentColor(points, ctx),
+        backgroundColor: (ctx: any) => sxSparkFillColor(points, ctx),
       }
     }
+    ;(chart as unknown as { _sxKeys?: string[] })._sxKeys = keys
     chart.data.labels = labels
     const yScale = chart.options.scales?.y as { min?: number; suggestedMax?: number; ticks?: { stepSize?: number } }
     if (yScale) {
@@ -3441,18 +3593,20 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           const returnPct = t.entryPrice * t.qty !== 0 ? (t.pnl / (t.entryPrice * t.qty)) * 100 : 0
           const takeProfit = t.exitReason === 'take_profit' ? t.exitPrice : null
           const checked = sxTradesSelected.has(t.key)
+          const highlighted = sxTradesHighlightKey === t.key
+          const highlightCls = highlighted ? ` sxt-row-chart-highlight ${t.pnl < 0 ? 'sxt-row-chart-highlight--loss' : 'sxt-row-chart-highlight--gain'}` : ''
           const hc = (id: string) => (sxTradesHiddenColumns.has(id) ? ' sxt-col-hidden' : '')
-          return `<tr class="${checked ? 'sxt-row-selected' : ''}">
+          return `<tr class="${checked ? 'sxt-row-selected' : ''}${highlightCls}" data-sx-trades-row-key="${escapeHtml(t.key)}">
           <td class="sxt-sticky-col sxt-col-check${hc('check')}" data-sxt-col="check"><input type="checkbox" class="sxt-row-check sxt-row-select" data-sx-trades-row-select="${escapeHtml(t.key)}" ${checked ? 'checked' : ''} aria-label="Select trade" /></td>
           <td class="sxt-sticky-col sxt-col-action${hc('action')}" data-sxt-col="action"><button type="button" class="sxt-action-btn" data-sx-trades-open-journal="${escapeHtml(t.key)}" title="Open journal" aria-label="Open journal">${SXT_JOURNAL_ICON_SVG}</button></td>
           <td class="sxt-sticky-col sxt-col-asset sxt-asset-cell${hc('asset')}" data-sxt-col="asset"><span class="sxt-ticker">${escapeHtml(t.asset)}</span></td>
           <td class="${hc('side')}" data-sxt-col="side"><span class="${sideCls}">${side}</span></td>
           <td class="sxt-group-divide${hc('session')}" data-sxt-col="session">${escapeHtml(t.sessionName)}</td>
           <td class="${hc('type')}" data-sxt-col="type"><span class="sxt-status-pill">Closed</span></td>
-          <td class="sxt-muted${hc('source')}" data-sxt-col="source">Replay</td>
+          <td class="${hc('source')}" data-sxt-col="source">Replay</td>
           <td class="${hc('entryType')}" data-sxt-col="entryType"><span class="sxt-entry-type-pill">${escapeHtml(t.entryKind ?? 'market')}</span></td>
           <td class="sxt-mono${hc('entryRealtime')}" data-sxt-col="entryRealtime">${sxFormatTradeDateMs(t.entryRealTime)}</td>
-          <td class="sxt-mono sxt-muted${hc('entryChart')}" data-sxt-col="entryChart">${sxFormatTradeDate(t.entryTime)}</td>
+          <td class="sxt-mono${hc('entryChart')}" data-sxt-col="entryChart">${sxFormatTradeDate(t.entryTime)}</td>
           <td class="sxt-num sxt-mono sxt-group-divide${hc('entryPrice')}" data-sxt-col="entryPrice">${escapeHtml(String(t.entryPrice))}</td>
           <td class="sxt-num sxt-mono${hc('size')}" data-sxt-col="size">${escapeHtml(String(t.qty))}</td>
           <td class="sxt-num sxt-mono sxt-group-divide${hc('stopLoss')}" data-sxt-col="stopLoss" style="color:var(--sxt-loss)">${t.initialStopLoss != null ? escapeHtml(String(t.initialStopLoss)) : '\u2014'}</td>
@@ -3472,6 +3626,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
     sxSyncTradesSelectionUi(rows, pageRows.length, pageStart)
     sxRenderTradesPagination(pageCount)
+    sxSyncTradesSortIndicators()
+    sxApplyTradesColumnOrder()
 
     requestAnimationFrame(() => {
       syncTradesFixedScrollbar()
@@ -3538,7 +3694,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       sparkEndEl.classList.toggle('sxt-loss', end < 0)
       sparkEndEl.classList.toggle('sxt-zero', end === 0)
     }
-    sxSyncTradesSparkChart(points)
+    sxSyncTradesSparkChart(
+      points,
+      ordered.map((r) => r.key),
+    )
   }
 
   function sxSyncTradesSelectionUi(rows: SxTradeRow[], pageRowCount: number, pageStart = 0) {
@@ -4644,9 +4803,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
     const tradesRefreshBtn = t.closest<HTMLButtonElement>('[data-sx-trades-refresh]')
     if (tradesRefreshBtn && root.contains(tradesRefreshBtn)) {
-      // Reset = restore every removed column back onto the table (show all).
+      // Reset = restore every removed column back onto the table (show all)
+      // and put any drag-reordered columns back into their original order.
       sxTradesHiddenColumns.clear()
       sxWriteTradesHiddenColumns(sxTradesHiddenColumns)
+      sxTradesColumnOrder = sxDefaultTradesColumnOrder()
       sxRenderColumnPickerList()
       syncTradesUi()
       return
@@ -5087,7 +5248,62 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         else sxTradesSelected.delete(key)
       }
       syncTradesUi()
+      return
     }
+
+    const tradeRowEl = t.closest<HTMLElement>('[data-sx-trades-row-key]')
+    if (tradeRowEl && root.contains(tradeRowEl)) {
+      const key = tradeRowEl.getAttribute('data-sx-trades-row-key')
+      if (key) sxOpenTradeJournalDialog(key)
+    }
+  })
+
+  // Drag-to-reorder trades table columns: draggable header cells (any
+  // non-locked column, i.e. everything but the checkbox/action/asset
+  // columns) can be dragged left/right onto another header to swap places.
+  root.addEventListener('dragstart', (e) => {
+    const th = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-sx-trades-headerclone-table] th[draggable="true"]')
+    if (!th) return
+    sxTradesDragColId = th.getAttribute('data-sxt-col')
+    th.classList.add('sxt-th-dragging')
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData('text/plain', sxTradesDragColId ?? '')
+    }
+  })
+
+  root.addEventListener('dragover', (e) => {
+    if (!sxTradesDragColId) return
+    const th = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-sx-trades-headerclone-table] th[draggable="true"]')
+    if (!th) return
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+    root.querySelectorAll('.sxt-th-drop-target').forEach((el) => el.classList.remove('sxt-th-drop-target'))
+    const targetColId = th.getAttribute('data-sxt-col')
+    if (targetColId && targetColId !== sxTradesDragColId) th.classList.add('sxt-th-drop-target')
+  })
+
+  root.addEventListener('drop', (e) => {
+    const th = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-sx-trades-headerclone-table] th[draggable="true"]')
+    root.querySelectorAll('.sxt-th-drop-target').forEach((el) => el.classList.remove('sxt-th-drop-target'))
+    if (!th || !sxTradesDragColId) return
+    e.preventDefault()
+    const targetColId = th.getAttribute('data-sxt-col')
+    if (targetColId && targetColId !== sxTradesDragColId) {
+      const fromIdx = sxTradesColumnOrder.indexOf(sxTradesDragColId)
+      const toIdx = sxTradesColumnOrder.indexOf(targetColId)
+      if (fromIdx !== -1 && toIdx !== -1) {
+        sxTradesColumnOrder.splice(fromIdx, 1)
+        sxTradesColumnOrder.splice(toIdx, 0, sxTradesDragColId)
+        sxApplyTradesColumnOrder()
+        sxSyncTradesHeaderCloneWidths()
+      }
+    }
+  })
+
+  root.addEventListener('dragend', () => {
+    root.querySelectorAll('.sxt-th-dragging, .sxt-th-drop-target').forEach((el) => el.classList.remove('sxt-th-dragging', 'sxt-th-drop-target'))
+    sxTradesDragColId = null
   })
 
   root.addEventListener('input', (e) => {
