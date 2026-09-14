@@ -505,7 +505,7 @@ import {
   type StoredSession,
 } from '../data/sessionStore'
 import { propStatusLabel } from '../prop/propChallengeUi'
-import { normalizeJournalScreenshots } from '../replay/replayPositions'
+import { openTradeJournalDialog, type TradeJournalDialogEntry } from '../replay/tradeJournalDialog'
 import { clearAllAuthSessions, getAuthUser, GUEST_AUTH_EMAIL } from '../auth/authSession'
 import { mountAiChatPanel } from '../ai/aiChatPanel'
 import { primarySessionSymbol } from '../sessionTypes'
@@ -2979,6 +2979,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         pnl: r.pnl,
         returnR,
         durationMin,
+        sessionId: r.sessionId,
+        sessionName: r.sessionName,
       }
     })
   }
@@ -3014,198 +3016,27 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     return `${sign}$${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
-  function sxJournalFieldHtml(label: string, valueHtml: string): string {
-    return `<div class="sx-trade-journal-dialog__field"><div class="sx-trade-journal-dialog__field-label">${escapeHtml(label)}</div><div class="sx-trade-journal-dialog__field-value">${valueHtml}</div></div>`
-  }
-
-  function sxCloseTradeJournalDialog() {
-    root.querySelector('[data-sx-trade-journal-dialog]')?.remove()
-  }
-
-  function sxOpenTradeJournalDialog(key: string) {
+  function sxBuildJournalEntry(key: string): TradeJournalDialogEntry | null {
     const sep = key.lastIndexOf(':')
-    if (sep < 0) return
+    if (sep < 0) return null
     const sessionId = key.slice(0, sep)
     const tradeNum = Number(key.slice(sep + 1))
     const session = getSession(sessionId)
     const trade = session?.replayState?.account.closedTrades.find((tr) => tr.tradeNum === tradeNum)
-    if (!session || !trade) return
-
-    sxCloseTradeJournalDialog()
-
+    if (!session || !trade) return null
     const asset = primarySessionSymbol(session.assets) || session.assets || '-'
-    const side = trade.direction === 'long' ? 'BUY' : 'SELL'
-    const sideCls = trade.direction === 'long' ? 'sxt-side-buy' : 'sxt-side-sell'
-    const netPnlText = sxFormatSignedMoney(trade.pnl)
-    const entryTimeMs = trade.entryRealTime ?? trade.entryTime * 1000
-    const durationMin = Math.max(0, Math.round((trade.exitTime - trade.entryTime) / 60))
-    const durationText =
-      durationMin >= 60 ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m` : `${durationMin}m`
-    const entryTimeText = new Date(entryTimeMs).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit' })
-    const takeProfitPrice = trade.exitReason === 'take_profit' ? trade.exitPrice : null
-
-    const journal = trade.journal
-    const notes = journal?.notes ?? ''
-    const screenshot = normalizeJournalScreenshots(journal?.screenshots)[0]
-
-    const allRows = sxCurrentTradeRows()
-    const rowIdx = allRows.findIndex((r) => r.key === key)
-    const prevKey = rowIdx > 0 ? allRows[rowIdx - 1]!.key : null
-    const nextKey = rowIdx >= 0 && rowIdx < allRows.length - 1 ? allRows[rowIdx + 1]!.key : null
-
-    const overlay = document.createElement('div')
-    overlay.className = 'sx-trade-journal-overlay'
-    overlay.setAttribute('data-sx-trade-journal-dialog', '')
-    overlay.innerHTML = `
-      <div class="sx-trade-journal-dialog" role="dialog" aria-modal="true" aria-label="Trade journal">
-        <div class="sx-trade-journal-dialog__toolbar">
-          <div class="sx-trade-journal-dialog__toolbar-left">
-            <button type="button" class="sx-trade-journal-dialog__icon-btn" data-sx-trade-journal-close aria-label="Close">&times;</button>
-          </div>
-          <div class="sx-trade-journal-dialog__toolbar-right">
-            <button type="button" class="sx-trade-journal-dialog__icon-btn" data-sx-trade-journal-nav="prev" ${prevKey ? '' : 'disabled'} aria-label="Previous trade">&lsaquo;</button>
-            <button type="button" class="sx-trade-journal-dialog__icon-btn" data-sx-trade-journal-nav="next" ${nextKey ? '' : 'disabled'} aria-label="Next trade">&rsaquo;</button>
-            <div class="sx-trade-journal-dialog__menu-wrap" data-sx-trade-journal-menu-wrap>
-              <button type="button" class="sx-trade-journal-dialog__icon-btn" data-sx-trade-journal-menu-toggle aria-label="More options" aria-haspopup="true" aria-expanded="false">&#8942;</button>
-              <div class="sx-trade-journal-dialog__menu hidden" data-sx-trade-journal-menu>
-                <button type="button" class="sx-trade-journal-dialog__menu-item" data-sx-trade-journal-clear-notes>Clear notes</button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="sx-trade-journal-dialog__head">
-          <div class="sx-trade-journal-dialog__title">
-            <span>${escapeHtml(asset)}, <span class="${sideCls}">${side}</span></span>
-            <span class="sx-trade-journal-dialog__pnl ${trade.pnl >= 0 ? 'sxt-gain' : 'sxt-loss'}">${netPnlText} (Net P&amp;L)</span>
-          </div>
-        </div>
-        <div class="sx-trade-journal-dialog__sub">${escapeHtml(entryTimeText)} \u00b7 ${escapeHtml(durationText)}</div>
-        <div class="sx-trade-journal-dialog__body">
-          <div class="sx-trade-journal-dialog__fields">
-            ${sxJournalFieldHtml('Asset', escapeHtml(asset))}
-            ${sxJournalFieldHtml('Side', trade.direction === 'long' ? 'Long' : 'Short')}
-            ${sxJournalFieldHtml('Entry type', escapeHtml(trade.entryKind ?? 'market'))}
-            ${sxJournalFieldHtml('Entry date', escapeHtml(sxFormatTradeDateMs(entryTimeMs)))}
-            ${sxJournalFieldHtml('Entry price', escapeHtml(String(trade.entryPrice)))}
-            ${sxJournalFieldHtml('Total size', escapeHtml(String(trade.qty)))}
-            ${sxJournalFieldHtml('Stop loss', trade.initialStopLoss != null ? escapeHtml(String(trade.initialStopLoss)) : '-')}
-            ${sxJournalFieldHtml('Take profit', takeProfitPrice != null ? escapeHtml(String(takeProfitPrice)) : '-')}
-            ${sxJournalFieldHtml('Exit date', escapeHtml(sxFormatTradeDate(trade.exitTime)))}
-            ${sxJournalFieldHtml('Exit price', escapeHtml(String(trade.exitPrice)))}
-          </div>
-          <div class="sx-trade-journal-dialog__notes-col">
-            ${
-              screenshot
-                ? `<div class="sx-trade-journal-dialog__shot"><img src="${escapeHtml(screenshot.src)}" alt="" />${
-                    screenshot.showCaption && screenshot.caption
-                      ? `<div class="sx-trade-journal-dialog__shot-caption">${escapeHtml(screenshot.caption)}</div>`
-                      : ''
-                  }</div>`
-                : ''
-            }
-            <div class="sx-trade-journal-dialog__editor">
-              <span class="sx-trade-journal-dialog__editor-add" data-sx-trade-journal-insert-template title="Insert template" aria-label="Insert template" role="button">+</span>
-              <span class="sx-trade-journal-dialog__editor-grip" aria-hidden="true">&#8942;&#8942;</span>
-              <textarea class="sx-trade-journal-dialog__textarea" data-sx-trade-journal-notes placeholder="Enter text or type '/' for commands">${escapeHtml(notes)}</textarea>
-            </div>
-            <div class="sx-trade-journal-dialog__shortcuts${notes ? ' hidden' : ''}" data-sx-trade-journal-shortcuts>
-              <div class="sx-trade-journal-dialog__shortcuts-label">Start with shortcuts</div>
-              <button type="button" class="sx-trade-journal-dialog__template-chip" data-sx-trade-journal-insert-template>
-                <span aria-hidden="true">\u{1F3A8}</span> /templates
-              </button>
-            </div>
-          </div>
-        </div>
-        <div class="sx-trade-journal-dialog__foot">
-          <button type="button" class="sx-trade-journal-dialog__cancel" data-sx-trade-journal-close>Close</button>
-          <button type="button" class="sx-trade-journal-dialog__save" data-sx-trade-journal-save>Save</button>
-        </div>
-      </div>
-    `
-    root.appendChild(overlay)
-
-    const escHandler = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') {
-        sxCloseTradeJournalDialog()
-        document.removeEventListener('keydown', escHandler)
-      }
-    }
-    document.addEventListener('keydown', escHandler)
-
-    overlay.addEventListener('click', (ev) => {
-      if (ev.target === overlay) {
-        sxCloseTradeJournalDialog()
-        return
-      }
-      const menuEl = overlay.querySelector<HTMLElement>('[data-sx-trade-journal-menu]')
-      const menuToggleEl = overlay.querySelector<HTMLButtonElement>('[data-sx-trade-journal-menu-toggle]')
-      if (menuEl && !menuEl.classList.contains('hidden') && !(ev.target as HTMLElement).closest('[data-sx-trade-journal-menu-wrap]')) {
-        menuEl.classList.add('hidden')
-        menuToggleEl?.setAttribute('aria-expanded', 'false')
-      }
-    })
-    overlay.querySelectorAll<HTMLButtonElement>('[data-sx-trade-journal-close]').forEach((btn) => {
-      btn.addEventListener('click', () => sxCloseTradeJournalDialog())
-    })
-    overlay.querySelectorAll<HTMLButtonElement>('[data-sx-trade-journal-nav]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const dir = btn.getAttribute('data-sx-trade-journal-nav')
-        const target = dir === 'prev' ? prevKey : dir === 'next' ? nextKey : null
-        if (target) sxOpenTradeJournalDialog(target)
-      })
-    })
-
-    const menuToggle = overlay.querySelector<HTMLButtonElement>('[data-sx-trade-journal-menu-toggle]')
-    const menu = overlay.querySelector<HTMLElement>('[data-sx-trade-journal-menu]')
-    menuToggle?.addEventListener('click', (ev) => {
-      ev.stopPropagation()
-      const open = menu?.classList.toggle('hidden') === false
-      menuToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
-    })
-    overlay.querySelector<HTMLButtonElement>('[data-sx-trade-journal-clear-notes]')?.addEventListener('click', () => {
-      const textarea = overlay.querySelector<HTMLTextAreaElement>('[data-sx-trade-journal-notes]')
-      if (textarea) {
-        textarea.value = ''
-        textarea.focus()
-      }
-      const shortcuts = overlay.querySelector<HTMLElement>('[data-sx-trade-journal-shortcuts]')
-      shortcuts?.classList.remove('hidden')
-      menu?.classList.add('hidden')
-    })
-
-    const SXT_JOURNAL_TEMPLATE =
-      'Setup:\n\n\nWhy I took this trade:\n\n\nWhat went well:\n\n\nWhat to improve:\n'
-    overlay.querySelectorAll<HTMLElement>('[data-sx-trade-journal-insert-template]').forEach((el) => {
-      el.addEventListener('click', () => {
-        const textarea = overlay.querySelector<HTMLTextAreaElement>('[data-sx-trade-journal-notes]')
-        if (textarea) {
-          textarea.value = textarea.value ? `${textarea.value}\n\n${SXT_JOURNAL_TEMPLATE}` : SXT_JOURNAL_TEMPLATE
-          textarea.focus()
-          const shortcuts = overlay.querySelector<HTMLElement>('[data-sx-trade-journal-shortcuts]')
-          shortcuts?.classList.add('hidden')
-        }
-      })
-    })
-    overlay.querySelector<HTMLButtonElement>('[data-sx-trade-journal-save]')?.addEventListener('click', () => {
-      const textarea = overlay.querySelector<HTMLTextAreaElement>('[data-sx-trade-journal-notes]')
-      const newNotes = textarea?.value ?? ''
-      const liveSession = getSession(sessionId)
-      if (liveSession?.replayState) {
+    const rows = sxCurrentTradeRows()
+    const rowIdx = rows.findIndex((r) => r.key === key)
+    const prevKey = rowIdx > 0 ? rows[rowIdx - 1]!.key : null
+    const nextKey = rowIdx >= 0 && rowIdx < rows.length - 1 ? rows[rowIdx + 1]!.key : null
+    return {
+      trade,
+      asset,
+      onSave: (num, journal) => {
+        const liveSession = getSession(sessionId)
+        if (!liveSession?.replayState) return
         const closedTrades = liveSession.replayState.account.closedTrades.map((tr) =>
-          tr.tradeNum === tradeNum
-            ? {
-                ...tr,
-                journal: {
-                  notes: newNotes,
-                  rating: tr.journal?.rating ?? '',
-                  tags: tr.journal?.tags ?? [],
-                  background: tr.journal?.background,
-                  screenshots: tr.journal?.screenshots ?? [],
-                  blocks: tr.journal?.blocks ?? [],
-                  updatedAt: Date.now(),
-                },
-              }
-            : tr,
+          tr.tradeNum === num ? { ...tr, journal } : tr,
         )
         updateSessionReplay(sessionId, {
           ...liveSession.replayState,
@@ -3213,9 +3044,15 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           savedAt: Date.now(),
         })
         syncTradesUi()
-      }
-      sxCloseTradeJournalDialog()
-    })
+      },
+      getPrev: prevKey ? () => sxBuildJournalEntry(prevKey) : undefined,
+      getNext: nextKey ? () => sxBuildJournalEntry(nextKey) : undefined,
+    }
+  }
+
+  function sxOpenTradeJournalDialog(key: string) {
+    const entry = sxBuildJournalEntry(key)
+    if (entry) openTradeJournalDialog(entry)
   }
 
   const sxTradesSparkChartRegistry = new WeakMap<HTMLCanvasElement, Chart<'line'>>()

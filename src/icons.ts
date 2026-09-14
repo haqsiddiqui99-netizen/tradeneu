@@ -47,6 +47,11 @@ export const icons = {
     '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"/>',
   ),
   chevronDown: svg('<path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>', 12, 12),
+  wallet: svg(
+    '<path d="M3 7.5A2.5 2.5 0 015.5 5h11A2.5 2.5 0 0119 7.5V8H5.5A2.5 2.5 0 013 5.5v2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><rect x="3" y="8" width="18" height="11" rx="2.25" stroke="currentColor" stroke-width="1.5"/><circle cx="16" cy="13.5" r="1.35" fill="currentColor"/>',
+    18,
+    18,
+  ),
   /** Replay Select-bar menu — wider / less pointed than default chevronDown. */
   replaySelectChevron: svg(
     '<path d="M3.5 9.25l8.5 6.5 8.5-6.5" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"/>',

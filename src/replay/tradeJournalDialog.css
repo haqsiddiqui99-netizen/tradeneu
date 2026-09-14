@@ -1,0 +1,808 @@
+.sx-trade-journal-overlay {
+  /* NOTE: this dialog is appended directly to <body>, so it cannot rely on
+     any page-scoped custom properties (e.g. --sxt-* or --rw-*) - they'd
+     resolve to nothing there, which silently breaks colors/borders and can
+     also trigger the browser's native dark-mode form-control rendering on
+     inputs/textareas. Every color below is a literal value for that reason. */
+  color-scheme: light;
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 28px 16px;
+  background: rgba(11, 13, 16, 0.42);
+  animation: sxTradeJournalFadeIn 0.18s ease;
+}
+
+@keyframes sxTradeJournalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sx-trade-journal-dialog {
+  color-scheme: light;
+  width: min(760px, 96vw);
+  max-height: calc(100vh - 56px);
+  overflow-y: auto;
+  background: #ffffff;
+  color: #1c2128;
+  border: 1px solid #e7e9ee;
+  border-radius: 20px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+  padding: 22px 30px 34px;
+  font-family: inherit;
+}
+
+.sx-trade-journal-dialog::-webkit-scrollbar {
+  width: 9px;
+}
+
+.sx-trade-journal-dialog::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sx-trade-journal-dialog::-webkit-scrollbar-thumb {
+  background: #d7dae1;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+}
+
+.sx-trade-journal-dialog::-webkit-scrollbar-thumb:hover {
+  background: #c3c7d1;
+}
+
+.sx-trade-journal-dialog__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.sx-trade-journal-dialog__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e7e9ee;
+  background: #ffffff;
+  color: #6b7280;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sx-trade-journal-dialog__icon-btn:hover:not(:disabled) {
+  background: #eef0fe;
+  color: #0b0d10;
+  border-color: #0b0d10;
+}
+
+.sx-trade-journal-dialog__icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sx-trade-journal-dialog__all-trades-pill {
+  border: 1px solid #e7e9ee;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1c2128;
+  background: #ffffff;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.sx-trade-journal-dialog__all-trades-pill:hover {
+  background: #f0f1f4;
+}
+
+.sx-trade-journal-dialog__save-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a6acb8;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.sx-trade-journal-dialog__save-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1a9d5c;
+  flex-shrink: 0;
+}
+
+.sx-trade-journal-dialog__menu-wrap {
+  position: relative;
+}
+
+.sx-trade-journal-dialog__menu {
+  position: absolute;
+  top: 2.3rem;
+  right: 0;
+  min-width: 9.5rem;
+  background: #ffffff;
+  border: 1px solid #e7e9ee;
+  border-radius: 0.6rem;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  padding: 0.35rem;
+  z-index: 5;
+}
+
+.sx-trade-journal-dialog__menu.hidden {
+  display: none;
+}
+
+.sx-trade-journal-dialog__menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.4rem;
+  border: 0;
+  background: transparent;
+  color: #0b0d10;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.sx-trade-journal-dialog__menu-item:hover {
+  background: #f4f5f7;
+}
+
+.sx-trade-journal-dialog__progress-ring {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.sx-trade-journal-dialog__progress-ring svg circle:last-child {
+  transition: stroke-dashoffset 0.25s ease;
+}
+
+.sx-trade-journal-dialog__progress-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #1c2128;
+}
+
+.sx-trade-journal-dialog__head {
+  margin-bottom: 14px;
+}
+
+.sx-trade-journal-dialog__title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0b0d10;
+}
+
+.sx-trade-journal-dialog__side--buy {
+  color: #1a9d5c;
+}
+
+.sx-trade-journal-dialog__side--sell {
+  color: #d6455a;
+}
+
+.sx-trade-journal-dialog__datetime {
+  font-weight: 500;
+  color: #6b7280;
+  font-size: 14px;
+  margin-left: 6px;
+}
+
+.sx-trade-journal-dialog__snapshot-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.sx-trade-journal-dialog__snap-chip {
+  background: #f0f1f4;
+  border-radius: 9px;
+  padding: 7px 12px;
+}
+
+.sx-trade-journal-dialog__snap-label {
+  font-size: 10px;
+  color: #a6acb8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sx-trade-journal-dialog__snap-value {
+  font-size: 12.5px;
+  font-weight: 700;
+  margin-top: 1px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  color: #1c2128;
+}
+
+.sx-trade-journal-dialog__snap-value--gain {
+  color: #1a9d5c;
+}
+
+.sx-trade-journal-dialog__snap-value--loss {
+  color: #d6455a;
+}
+
+.sx-trade-journal-dialog__section {
+  margin-top: 24px;
+}
+
+.sx-trade-journal-dialog__section-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1c2128;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sx-trade-journal-dialog__section-hint {
+  font-size: 11.5px;
+  color: #a6acb8;
+  font-weight: 500;
+}
+
+.sx-trade-journal-dialog__media-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sx-trade-journal-dialog__media-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e7e9ee;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1c2128;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.sx-trade-journal-dialog__media-action-btn:hover:not(:disabled) {
+  background: #f0f1f4;
+}
+
+.sx-trade-journal-dialog__media-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sx-trade-journal-dialog__media-action-btn--recording {
+  background: #fdedef;
+  border-color: #f4c3cb;
+  color: #d6455a;
+}
+
+.sx-trade-journal-dialog__voice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sx-trade-journal-dialog__voice-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f7f8fa;
+  border: 1px solid #e7e9ee;
+  border-radius: 10px;
+  padding: 6px 8px 6px 12px;
+}
+
+.sx-trade-journal-dialog__voice-item audio {
+  flex: 1;
+  height: 32px;
+}
+
+.sx-trade-journal-dialog__voice-rm {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(11, 13, 16, 0.08);
+  color: #6b7280;
+  border: none;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.sx-trade-journal-dialog__voice-rm:hover {
+  background: rgba(11, 13, 16, 0.16);
+  color: #1c2128;
+}
+
+.sx-trade-journal-dialog__summary-textarea {
+  width: 100%;
+  min-height: 90px;
+  border: 1px solid #e7e9ee;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+  color: #1c2128;
+  background: #ffffff;
+  color-scheme: light;
+}
+
+.sx-trade-journal-dialog__summary-textarea:focus {
+  border-color: #3652f6;
+}
+
+.sx-trade-journal-dialog__section-hint kbd {
+  background: #f0f1f4;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.sx-trade-journal-dialog__screenshot-grid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.sx-trade-journal-dialog__screenshot-thumb {
+  width: 110px;
+  border-radius: 10px;
+  border: 1px solid #e7e9ee;
+  position: relative;
+  overflow: hidden;
+}
+
+.sx-trade-journal-dialog__screenshot-thumb img {
+  width: 100%;
+  height: 78px;
+  object-fit: cover;
+  display: block;
+  cursor: zoom-in;
+}
+
+.sx-trade-journal-dialog__screenshot-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #7b828f;
+  background: #f7f8fa;
+  border-top: 1px solid #e7e9ee;
+  padding: 4px 0;
+}
+
+.sx-trade-journal-dialog__screenshot-rm {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(11, 13, 16, 0.7);
+  color: #fff;
+  border: none;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.sx-trade-journal-dialog__reflection-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.sx-trade-journal-dialog__reflection-col-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.sx-trade-journal-dialog__reflection-col-label--went-well {
+  color: #1a9d5c;
+}
+
+.sx-trade-journal-dialog__reflection-col-label--to-improve {
+  color: #d6455a;
+}
+
+.sx-trade-journal-dialog__reflection-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.sx-trade-journal-dialog__reflection-chip {
+  border: 1.5px solid #e7e9ee;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sx-trade-journal-dialog__reflection-chip--went-well.sx-trade-journal-dialog__reflection-chip--selected {
+  background: #e9f8f0;
+  border-color: #b9e8cd;
+  color: #1a9d5c;
+}
+
+.sx-trade-journal-dialog__reflection-chip--to-improve.sx-trade-journal-dialog__reflection-chip--selected {
+  background: #fdedef;
+  border-color: #f4c3cb;
+  color: #d6455a;
+}
+
+.sx-trade-journal-dialog__mini-add-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.sx-trade-journal-dialog__mini-add-row input {
+  flex: 1;
+  border: 1px solid #e7e9ee;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+  color: #1c2128;
+  background: #ffffff;
+}
+
+.sx-trade-journal-dialog__mini-add-row input:focus {
+  border-color: #3652f6;
+}
+
+.sx-trade-journal-dialog__mini-add-row button {
+  border: 1px solid #e7e9ee;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  color: #1c2128;
+}
+
+.sx-trade-journal-dialog__mini-add-row button:hover {
+  background: #f0f1f4;
+}
+
+.sx-trade-journal-dialog__emotion-group {
+  margin-bottom: 12px;
+}
+
+.sx-trade-journal-dialog__emotion-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a6acb8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 7px;
+}
+
+.sx-trade-journal-dialog__emotion-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.sx-trade-journal-dialog__emotion-chip {
+  border: 1.5px solid #e7e9ee;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sx-trade-journal-dialog__emotion-chip--constructive.sx-trade-journal-dialog__emotion-chip--selected {
+  background: #e9f8f0;
+  border-color: #b9e8cd;
+  color: #1a9d5c;
+}
+
+.sx-trade-journal-dialog__emotion-chip--destructive.sx-trade-journal-dialog__emotion-chip--selected {
+  background: #fdedef;
+  border-color: #f4c3cb;
+  color: #d6455a;
+}
+
+.sx-trade-journal-dialog__emotion-chip--neutral.sx-trade-journal-dialog__emotion-chip--selected {
+  background: #fff5e9;
+  border-color: #f6e2c2;
+  color: #b6690a;
+}
+
+.sx-trade-journal-dialog__star-rating {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sx-trade-journal-dialog__star {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  color: #e7e9ee;
+  transition: color 0.1s ease;
+}
+
+.sx-trade-journal-dialog__star--filled {
+  color: #b6690a;
+}
+
+.sx-trade-journal-dialog__rating-label {
+  font-size: 12.5px;
+  color: #6b7280;
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+.sx-trade-journal-dialog__note-toggle {
+  font-size: 13px;
+  color: #3652f6;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sx-trade-journal-dialog__note-toggle i {
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+
+.sx-trade-journal-dialog__note-toggle--open i {
+  transform: rotate(45deg);
+}
+
+.sx-trade-journal-dialog__note-area {
+  display: none;
+  margin-top: 10px;
+}
+
+.sx-trade-journal-dialog__note-area--open {
+  display: block;
+}
+
+.sx-trade-journal-dialog__note-area textarea {
+  width: 100%;
+  min-height: 90px;
+  border: 1px solid #e7e9ee;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+  color: #1c2128;
+  background: #ffffff;
+  color-scheme: light;
+}
+
+.sx-trade-journal-dialog__note-area textarea:focus {
+  border-color: #3652f6;
+}
+
+.sx-trade-journal-dialog__tag-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sx-trade-journal-dialog__tag-input-row input {
+  flex: 1;
+  border: 1px solid #e7e9ee;
+  border-radius: 9px;
+  padding: 9px 13px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  color: #1c2128;
+  background: #ffffff;
+}
+
+.sx-trade-journal-dialog__tag-input-row input:focus {
+  border-color: #3652f6;
+}
+
+.sx-trade-journal-dialog__tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.sx-trade-journal-dialog__tag-pill {
+  background: #eef0fe;
+  color: #3652f6;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sx-trade-journal-dialog__tag-rm {
+  cursor: pointer;
+  opacity: 0.7;
+  font-size: 10px;
+  display: inline-flex;
+}
+
+.sx-trade-journal-dialog__tag-rm:hover {
+  opacity: 1;
+}
+
+.sx-trade-journal-dialog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid #f0f1f4;
+}
+
+.sx-trade-journal-dialog__save {
+  border: 0;
+  background: #0b0d10;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 11px 26px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sx-trade-journal-dialog__save:hover {
+  filter: brightness(1.15);
+}
+
+@media (max-width: 720px) {
+  .sx-trade-journal-dialog {
+    padding: 18px 18px 26px;
+  }
+  .sx-trade-journal-dialog__reflection-cols {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+}
+
+.sx-trade-journal-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 13, 16, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 40px;
+}
+
+.sx-trade-journal-lightbox__panel {
+  position: relative;
+  max-width: min(920px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sx-trade-journal-lightbox__panel img {
+  max-width: 100%;
+  max-height: calc(100vh - 120px);
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  background: #0b0d10;
+}
+
+.sx-trade-journal-lightbox__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sx-trade-journal-lightbox__delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ff8a8a;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.sx-trade-journal-lightbox__delete:hover {
+  background: rgba(255, 90, 90, 0.16);
+}
+
+.sx-trade-journal-lightbox__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s ease;
+}
+
+.sx-trade-journal-lightbox__close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}

@@ -34,6 +34,11 @@ export type MountReplayOrderBookOpts = {
 
 const PAGE_SIZES = [10, 25, 50] as const
 
+// Same icon markup as the dashboard Trades table's "Action" column button, so the
+// journal entry point looks identical everywhere it appears.
+const RW_JOURNAL_ICON_SVG =
+  '<svg width="15" height="15" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2.5" y="1.75" width="13" height="14.5" rx="1.75" stroke="currentColor" stroke-width="1.35"/><path d="M5.75 5.75h6.5M5.75 8.75h6.5M5.75 11.75h4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>'
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -114,9 +119,9 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
 
   root.innerHTML = `
     <div class="rw-order-book__tabs" role="tablist" aria-label="Positions and orders">
+      <button type="button" class="rw-order-book__tab" role="tab" data-rw-ob-tab="closed" aria-selected="false">Closed Positions</button>
       <button type="button" class="rw-order-book__tab" role="tab" data-rw-ob-tab="open" aria-selected="true">Open Positions</button>
       <button type="button" class="rw-order-book__tab" role="tab" data-rw-ob-tab="pending" aria-selected="false">Pending Orders</button>
-      <button type="button" class="rw-order-book__tab" role="tab" data-rw-ob-tab="closed" aria-selected="false">Closed Positions</button>
     </div>
     <div class="rw-order-book__body" data-rw-ob-body></div>
     <div class="rw-order-book__foot" data-rw-ob-foot></div>
@@ -204,12 +209,12 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
           </td>
           <td class="rw-order-book__asset">${assetLabel()}</td>
           <td class="${side.cls}">${side.text}</td>
-          <td>${pos.qty} lots</td>
-          <td>${pos.takeProfitTargets?.filter((target) => !target.filled).length ? `${pos.takeProfitTargets.filter((target) => !target.filled).length} targets` : naPrice(pos.takeProfit, opts.formatPrice)}</td>
-          <td>${naPrice(pos.stopLoss, opts.formatPrice)}</td>
-          <td class="rw-order-book__pnl${pnlClass(uPnl)}" data-rw-ob-upnl="${escapeHtml(pos.id)}">${escapeHtml(opts.formatMoney(uPnl))}</td>
-          <td>${escapeHtml(opts.formatMoney(0))}</td>
-          <td>${escapeHtml(opts.formatMoney(0))}</td>
+          <td class="rw-order-book__mono">${pos.qty} lots</td>
+          <td class="rw-order-book__mono">${pos.takeProfitTargets?.filter((target) => !target.filled).length ? `${pos.takeProfitTargets.filter((target) => !target.filled).length} targets` : naPrice(pos.takeProfit, opts.formatPrice)}</td>
+          <td class="rw-order-book__mono">${naPrice(pos.stopLoss, opts.formatPrice)}</td>
+          <td class="rw-order-book__mono rw-order-book__pnl${pnlClass(uPnl)}" data-rw-ob-upnl="${escapeHtml(pos.id)}">${escapeHtml(opts.formatMoney(uPnl))}</td>
+          <td class="rw-order-book__mono">${escapeHtml(opts.formatMoney(0))}</td>
+          <td class="rw-order-book__mono">${escapeHtml(opts.formatMoney(0))}</td>
         </tr>`
       })
       .join('')
@@ -250,10 +255,10 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
           <td class="rw-order-book__asset">${assetLabel()}</td>
           <td class="${side.cls}">${side.text}</td>
           <td>${order.kind === 'limit' ? 'Limit' : 'Stop'}</td>
-          <td>${order.qty} lots</td>
-          <td>${escapeHtml(opts.formatPrice(order.triggerPrice))}</td>
-          <td>${order.takeProfitTargets?.length ? `${order.takeProfitTargets.length} targets` : naPrice(order.takeProfit, opts.formatPrice)}</td>
-          <td>${naPrice(order.stopLoss, opts.formatPrice)}</td>
+          <td class="rw-order-book__mono">${order.qty} lots</td>
+          <td class="rw-order-book__mono">${escapeHtml(opts.formatPrice(order.triggerPrice))}</td>
+          <td class="rw-order-book__mono">${order.takeProfitTargets?.length ? `${order.takeProfitTargets.length} targets` : naPrice(order.takeProfit, opts.formatPrice)}</td>
+          <td class="rw-order-book__mono">${naPrice(order.stopLoss, opts.formatPrice)}</td>
           <td>—</td>
         </tr>`
       })
@@ -283,6 +288,7 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
       <th class="rw-order-book__col-check" scope="col">
         <input type="checkbox" data-rw-ob-select-all ${allOnPage ? 'checked' : ''} aria-label="Select all on page" />
       </th>
+      <th class="rw-order-book__col-journal" scope="col">Journal</th>
       <th scope="col">Asset</th>
       <th scope="col">Side</th>
       <th scope="col">Date Start</th>
@@ -295,7 +301,6 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
       <th scope="col">Close Avg</th>
       <th scope="col">Realized</th>
       <th scope="col">Commission</th>
-      <th scope="col">Journal</th>
     </tr></thead>`
     if (!rows.length) {
       return `${vizToggle}<table class="rw-order-book__table">${head}<tbody>${emptyRow(14)}</tbody></table>${pagerHtml(pages)}`
@@ -308,19 +313,19 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
         const marked = highlightedTrade === t.tradeNum
         return `<tr data-rw-ob-trade="${id}"${marked ? ' class="rw-order-book__row--marked"' : ''}>
           <td class="rw-order-book__col-check"><input type="checkbox" data-rw-ob-select="${id}" ${checked} aria-label="Select trade ${id}" /></td>
+          <td class="rw-order-book__col-journal"><button type="button" class="rw-order-book__journal-btn" data-rw-ob-journal="${id}" title="Open journal" aria-label="Open journal">${RW_JOURNAL_ICON_SVG}</button></td>
           <td class="rw-order-book__asset">${assetLabel()}</td>
           <td class="${side.cls}">${side.text}</td>
-          <td><button type="button" class="rw-order-book__link" data-rw-ob-mark="${id}" title="Mark this trade on the chart" aria-pressed="${marked ? 'true' : 'false'}">${escapeHtml(formatObDateTime(t.entryTime))}</button></td>
-          <td>${escapeHtml(formatObDateTime(t.exitTime))}</td>
-          <td>${escapeHtml(opts.formatPrice(t.entryPrice))}</td>
-          <td>${naPrice(t.initialStopLoss, opts.formatPrice)}</td>
-          <td>${naPrice(t.maxTakeProfit, opts.formatPrice)}</td>
-          <td>${t.maxRiskReward == null || !Number.isFinite(t.maxRiskReward) ? 'N/A' : `${t.maxRiskReward.toFixed(2)}R`}</td>
-          <td>${t.qty} lots</td>
-          <td>${escapeHtml(opts.formatPrice(t.exitPrice))}</td>
-          <td class="rw-order-book__pnl${pnlClass(t.pnl)}">${escapeHtml(opts.formatMoney(t.pnl))}</td>
-          <td>${escapeHtml(opts.formatMoney(0))}</td>
-          <td><button type="button" class="rw-order-book__journal-btn" data-rw-ob-journal="${id}">↗ Journal</button></td>
+          <td class="rw-order-book__mono"><button type="button" class="rw-order-book__link" data-rw-ob-mark="${id}" title="Mark this trade on the chart" aria-pressed="${marked ? 'true' : 'false'}">${escapeHtml(formatObDateTime(t.entryTime))}</button></td>
+          <td class="rw-order-book__mono">${escapeHtml(formatObDateTime(t.exitTime))}</td>
+          <td class="rw-order-book__mono">${escapeHtml(opts.formatPrice(t.entryPrice))}</td>
+          <td class="rw-order-book__mono">${naPrice(t.initialStopLoss, opts.formatPrice)}</td>
+          <td class="rw-order-book__mono">${naPrice(t.maxTakeProfit, opts.formatPrice)}</td>
+          <td class="rw-order-book__mono">${t.maxRiskReward == null || !Number.isFinite(t.maxRiskReward) ? 'N/A' : `${t.maxRiskReward.toFixed(2)}R`}</td>
+          <td class="rw-order-book__mono">${t.qty} lots</td>
+          <td class="rw-order-book__mono">${escapeHtml(opts.formatPrice(t.exitPrice))}</td>
+          <td class="rw-order-book__mono rw-order-book__pnl${pnlClass(t.pnl)}">${escapeHtml(opts.formatMoney(t.pnl))}</td>
+          <td class="rw-order-book__mono">${escapeHtml(opts.formatMoney(0))}</td>
         </tr>`
       })
       .join('')

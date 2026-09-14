@@ -105,6 +105,7 @@ import {
 } from './replayPlaceOrderDialog'
 import {
   captureChartSnapshotCanvas,
+  captureChartSnapshotWithChrome,
   chartSnapshotFilename,
   chartSnapshotPreviewDataUrl,
   copyChartShareLink,
@@ -138,7 +139,7 @@ import {
   renderReplayJournalStats,
 } from '../replay/replayJournalUi'
 import { mountReplayOrderBook } from '../replay/replayOrderBookUi'
-import { mountReplayTradeJournalPanel } from '../replay/replayTradeJournalPanel'
+import { openTradeJournalDialog, type TradeJournalDialogEntry } from '../replay/tradeJournalDialog'
 import { mountPartialCloseDialog } from '../replay/partialCloseDialog'
 import {
   applyScalperProtection,
@@ -946,24 +947,37 @@ export function mountChartWorkspace(
                   aria-haspopup="dialog"
                 ><span class="rw-scalper-mode-btn__ico" aria-hidden="true"></span></button>
               </div>
+              <div class="rw-view-toggle" data-rw-view-toggle role="group" aria-label="Chart / Trade view">
+                <button type="button" class="rw-view-toggle__btn rw-view-toggle__btn--current" data-rw-view-toggle-btn="chart" aria-pressed="true" disabled>Chart</button>
+                <button type="button" class="rw-view-toggle__btn rw-view-toggle__btn--active" data-rw-view-toggle-btn="trade" aria-pressed="false">Trade</button>
+              </div>
               <span class="rw-trade-bar__spacer" aria-hidden="true"></span>
               <div class="rw-trade-stats" data-rw-trade-stats>
-                <div class="rw-trade-stats__item">
-                  <span class="rw-trade-stats__lbl">Account Balance</span>
-                  <span class="rw-trade-stats__val rw-bal">—</span>
-                </div>
-                <div class="rw-trade-stats__item">
-                  <span class="rw-trade-stats__lbl">Realized PnL</span>
-                  <span class="rw-trade-stats__val rw-rp">$0.00</span>
-                </div>
-                <div class="rw-trade-stats__item">
-                  <span class="rw-trade-stats__lbl">Unrealized PnL</span>
-                  <span class="rw-trade-stats__val rw-up">$0.00</span>
+                <button
+                  type="button"
+                  class="rw-trade-stats__trigger"
+                  data-rw-trade-stats-trigger
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  title="Account balance and P&amp;L"
+                ><span class="rw-trade-stats__trigger-ico" aria-hidden="true">${icons.wallet}</span><span class="rw-trade-stats__val rw-bal">—</span><span class="rw-trade-stats__trigger-chevron" aria-hidden="true">${icons.chevronDown}</span></button>
+                <div class="rw-trade-stats__popover" data-rw-trade-stats-popover hidden>
+                  <div class="rw-trade-stats__popover-row">
+                    <span class="rw-trade-stats__lbl">Account Balance</span>
+                    <span class="rw-trade-stats__val rw-bal">—</span>
+                  </div>
+                  <div class="rw-trade-stats__popover-row">
+                    <span class="rw-trade-stats__lbl">Realized PnL</span>
+                    <span class="rw-trade-stats__val rw-rp">$0.00</span>
+                  </div>
+                  <div class="rw-trade-stats__popover-row">
+                    <span class="rw-trade-stats__lbl">Unrealized PnL</span>
+                    <span class="rw-trade-stats__val rw-up">$0.00</span>
+                  </div>
                 </div>
               </div>
               <div class="rw-trade-bar__actions">
                 <button type="button" class="rw-trade-stats__toggle" data-rw-stats-toggle aria-label="Hide account values" aria-pressed="false">${icons.eye}</button>
-                <button type="button" class="rw-trade-dock__collapse" data-rw-trade-dock-collapse aria-label="Show positions panel" title="Show positions" aria-expanded="false">${icons.chevronUp}</button>
                 <button type="button" class="rw-trade-dock__fullscreen" data-rw-trade-fullscreen title="Fullscreen mode" aria-label="Fullscreen mode">${icons.expand}</button>
               </div>
             </div>
@@ -971,7 +985,6 @@ export function mountChartWorkspace(
           <section class="rw-order-book" data-rw-order-book aria-label="Positions and orders"></section>
         </div>
       </div>
-      <aside class="rw-trade-journal" data-rw-trade-journal hidden aria-label="Trade journal"></aside>
       <dialog class="rw-partial-close-dialog" data-rw-partial-close-dialog aria-label="Take partials"></dialog>
       <section class="rw-pine-dock" data-rw-pine-dock hidden aria-label="Pine Editor"></section>
       <footer class="rw-foot">
@@ -1350,6 +1363,8 @@ export function mountChartWorkspace(
   const ticketSell = host.querySelector('.rw-ticket-sell') as HTMLButtonElement
   const tradeStatsEl = host.querySelector('[data-rw-trade-stats]') as HTMLElement | null
   const btnStatsToggle = host.querySelector('[data-rw-stats-toggle]') as HTMLButtonElement | null
+  const btnTradeStatsTrigger = host.querySelector('[data-rw-trade-stats-trigger]') as HTMLButtonElement | null
+  const tradeStatsPopoverEl = host.querySelector('[data-rw-trade-stats-popover]') as HTMLElement | null
   const btnScalperMode = host.querySelector('[data-rw-scalper-mode]') as HTMLButtonElement | null
   const sessionPositionEl: HTMLElement | null = null
   const clockEl = host.querySelector('.rw-foot__clock') as HTMLElement | null
@@ -2176,6 +2191,54 @@ export function mountChartWorkspace(
   btnStatsToggle?.addEventListener('click', onStatsToggle)
   cleanupFns.push(() => btnStatsToggle?.removeEventListener('click', onStatsToggle))
 
+  let tradeStatsHoverCloseTimer: number | null = null
+  const clearTradeStatsHoverCloseTimer = () => {
+    if (tradeStatsHoverCloseTimer !== null) {
+      window.clearTimeout(tradeStatsHoverCloseTimer)
+      tradeStatsHoverCloseTimer = null
+    }
+  }
+  const openTradeStatsPopover = () => {
+    if (!tradeStatsPopoverEl || !btnTradeStatsTrigger) return
+    clearTradeStatsHoverCloseTimer()
+    tradeStatsPopoverEl.hidden = false
+    requestAnimationFrame(() => tradeStatsPopoverEl.classList.add('rw-trade-stats__popover--open'))
+    btnTradeStatsTrigger.setAttribute('aria-expanded', 'true')
+  }
+  const closeTradeStatsPopover = () => {
+    if (!tradeStatsPopoverEl || !btnTradeStatsTrigger) return
+    tradeStatsPopoverEl.hidden = true
+    tradeStatsPopoverEl.classList.remove('rw-trade-stats__popover--open')
+    btnTradeStatsTrigger.setAttribute('aria-expanded', 'false')
+  }
+  const scheduleTradeStatsClose = () => {
+    clearTradeStatsHoverCloseTimer()
+    tradeStatsHoverCloseTimer = window.setTimeout(() => {
+      tradeStatsHoverCloseTimer = null
+      closeTradeStatsPopover()
+    }, 120)
+  }
+  const onKeydownCloseTradeStats = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') closeTradeStatsPopover()
+  }
+  btnTradeStatsTrigger?.addEventListener('pointerenter', openTradeStatsPopover)
+  btnTradeStatsTrigger?.addEventListener('pointerleave', scheduleTradeStatsClose)
+  btnTradeStatsTrigger?.addEventListener('focus', openTradeStatsPopover)
+  btnTradeStatsTrigger?.addEventListener('blur', scheduleTradeStatsClose)
+  tradeStatsPopoverEl?.addEventListener('pointerenter', clearTradeStatsHoverCloseTimer)
+  tradeStatsPopoverEl?.addEventListener('pointerleave', scheduleTradeStatsClose)
+  document.addEventListener('keydown', onKeydownCloseTradeStats)
+  cleanupFns.push(() => {
+    clearTradeStatsHoverCloseTimer()
+    btnTradeStatsTrigger?.removeEventListener('pointerenter', openTradeStatsPopover)
+    btnTradeStatsTrigger?.removeEventListener('pointerleave', scheduleTradeStatsClose)
+    btnTradeStatsTrigger?.removeEventListener('focus', openTradeStatsPopover)
+    btnTradeStatsTrigger?.removeEventListener('blur', scheduleTradeStatsClose)
+    tradeStatsPopoverEl?.removeEventListener('pointerenter', clearTradeStatsHoverCloseTimer)
+    tradeStatsPopoverEl?.removeEventListener('pointerleave', scheduleTradeStatsClose)
+    document.removeEventListener('keydown', onKeydownCloseTradeStats)
+  })
+
   document.addEventListener('pointerdown', onDocPointerCloseStartMenu, true)
   cleanupFns.push(() => document.removeEventListener('pointerdown', onDocPointerCloseStartMenu, true))
 
@@ -2519,21 +2582,80 @@ export function mountChartWorkspace(
   cleanupFns.push(() => btnSessionSettingsEdit?.removeEventListener('click', onSessionSettingsEdit))
 
   const tradeDockRow = host.querySelector('[data-rw-trade-dock-row]') as HTMLElement | null
-  const btnTradeDockCollapse = host.querySelector('[data-rw-trade-dock-collapse]') as HTMLButtonElement | null
   const onTradeDockCollapse = () => {
-    if (!tradeDockRow || !btnTradeDockCollapse) return
-    const collapsed = tradeDockRow.classList.toggle('rw-foot__trade-dock-row--collapsed')
-    btnTradeDockCollapse.setAttribute('aria-label', collapsed ? 'Show positions panel' : 'Hide positions panel')
-    btnTradeDockCollapse.title = collapsed ? 'Show positions' : 'Hide positions'
-    btnTradeDockCollapse.setAttribute('aria-expanded', collapsed ? 'false' : 'true')
+    if (!tradeDockRow) return
+    tradeDockRow.classList.toggle('rw-foot__trade-dock-row--collapsed')
   }
-  btnTradeDockCollapse?.addEventListener('click', onTradeDockCollapse)
-  cleanupFns.push(() => btnTradeDockCollapse?.removeEventListener('click', onTradeDockCollapse))
 
   const btnTradeFullscreen = host.querySelector('[data-rw-trade-fullscreen]') as HTMLButtonElement | null
   const onTradeFullscreen = () => toggleChartFullscreen()
   btnTradeFullscreen?.addEventListener('click', onTradeFullscreen)
   cleanupFns.push(() => btnTradeFullscreen?.removeEventListener('click', onTradeFullscreen))
+
+  // Chart / Trade view toggle: "Trade" maximizes the trade dock + positions panel over
+  // the whole workspace (chart tucked away); "Chart" restores the normal chart-first layout.
+  const viewToggleEl = host.querySelector('[data-rw-view-toggle]') as HTMLElement | null
+  const viewToggleBtns = Array.from(host.querySelectorAll('[data-rw-view-toggle-btn]')) as HTMLButtonElement[]
+  const resizeActiveChart = () => {
+    requestAnimationFrame(() => {
+      if (state.trading && !state.disposed) {
+        state.trading.chart.resize(chartHost.clientWidth, chartHost.clientHeight)
+        state.trading.repaintTimeShades()
+        state.redrawDrawings?.()
+      } else if (state.tvChart && !state.disposed) {
+        state.tvChart.resize()
+      }
+    })
+  }
+  let workspaceViewCurrent: 'chart' | 'trade' = 'chart'
+  let tradeFocusAnimTimer: number | null = null
+  const setWorkspaceView = (view: 'chart' | 'trade') => {
+    if (view === workspaceViewCurrent) return
+    workspaceViewCurrent = view
+    const wantTrade = view === 'trade'
+    // The button for the view you're already on looks (and behaves) disabled; the other
+    // button is the actionable one that switches you over.
+    viewToggleBtns.forEach((btn) => {
+      const isCurrent = btn.dataset.rwViewToggleBtn === view
+      btn.classList.toggle('rw-view-toggle__btn--current', isCurrent)
+      btn.classList.toggle('rw-view-toggle__btn--active', !isCurrent)
+      btn.setAttribute('aria-pressed', isCurrent ? 'true' : 'false')
+      btn.disabled = isCurrent
+    })
+    const isCollapsed = tradeDockRow?.classList.contains('rw-foot__trade-dock-row--collapsed') ?? false
+    if (wantTrade && isCollapsed) onTradeDockCollapse()
+    if (!wantTrade && !isCollapsed) onTradeDockCollapse()
+    // The dock stays in normal grid flow the whole time (chart row shrinks / dock row grows),
+    // so the `.rw-foot` toolbar below it is never repositioned or covered. The "-anim" class
+    // gives it a starting transform+opacity offset that eases away on the next frame, so it
+    // visibly eases up into place alongside the row-size change instead of just snapping.
+    if (tradeFocusAnimTimer !== null) {
+      window.clearTimeout(tradeFocusAnimTimer)
+      tradeFocusAnimTimer = null
+    }
+    rwRoot.classList.add('rw-root--trade-focus-anim')
+    rwRoot.classList.toggle('rw-root--trade-focus', wantTrade)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        rwRoot.classList.remove('rw-root--trade-focus-anim')
+      })
+    })
+    resizeActiveChart()
+    tradeFocusAnimTimer = window.setTimeout(() => {
+      tradeFocusAnimTimer = null
+      resizeActiveChart()
+    }, 720)
+  }
+  const onViewToggleClick = (event: MouseEvent) => {
+    const btn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-rw-view-toggle-btn]')
+    const view = btn?.dataset.rwViewToggleBtn
+    if (view === 'chart' || view === 'trade') setWorkspaceView(view)
+  }
+  viewToggleEl?.addEventListener('click', onViewToggleClick)
+  cleanupFns.push(() => {
+    viewToggleEl?.removeEventListener('click', onViewToggleClick)
+    if (tradeFocusAnimTimer !== null) window.clearTimeout(tradeFocusAnimTimer)
+  })
 
   // Custom order-type dropdown; the hidden native select stays the source of truth.
   const orderTypeUi = host.querySelector('[data-rw-order-type-ui]') as HTMLElement | null
@@ -3891,31 +4013,49 @@ export function mountChartWorkspace(
       void seekReplayToIndex(idx + 1, false, { preserveView: true })
     }
 
-    const tradeJournalEl = host.querySelector('[data-rw-trade-journal]') as HTMLElement | null
-    const tradeJournal = tradeJournalEl
-      ? mountReplayTradeJournalPanel(tradeJournalEl, {
-          formatPrice: formatSessionPrice,
-          formatMoney,
-          getTrades: () => replayAccount.getClosedTrades(),
-          onChange: (tradeNum, journal) => {
-            if (!replayAccount.updateTradeJournal(tradeNum, journal)) return
-            schedulePersistReplay()
-          },
-          onJumpToEntry: jumpReplayToTime,
-          onCaptureScreenshot: async () => {
-            const canvas = captureSnapshotOrNotice()
-            if (!canvas) return null
-            const screenshot = chartSnapshotPreviewDataUrl(canvas)
-            if (!screenshot) {
-              showReplayError('Could not capture the chart screenshot.')
-              return null
-            }
-            showReplayNotice('Chart screenshot added to journal.')
-            return screenshot
-          },
-        })
-      : null
-    if (tradeJournal) cleanupFns.push(() => tradeJournal.destroy())
+    const journalAssetLabel = () => `${brokerTag(feedLabel)}:${formatDisplaySymbol(currentChartSymbol)}`
+
+    function buildJournalEntry(tradeNum: number): TradeJournalDialogEntry | null {
+      // Matches the display order of the Closed Positions table (most recent first).
+      const ordered = [...replayAccount.getClosedTrades()].reverse()
+      const idx = ordered.findIndex((item) => item.tradeNum === tradeNum)
+      if (idx < 0) return null
+      const trade = ordered[idx]!
+      const prevTrade = idx > 0 ? ordered[idx - 1] : null
+      const nextTrade = idx < ordered.length - 1 ? ordered[idx + 1] : null
+      return {
+        trade,
+        asset: journalAssetLabel(),
+        onSave: (num, journal) => {
+          if (!replayAccount.updateTradeJournal(num, journal)) return
+          schedulePersistReplay()
+        },
+        getPrev: prevTrade ? () => buildJournalEntry(prevTrade.tradeNum) : undefined,
+        getNext: nextTrade ? () => buildJournalEntry(nextTrade.tradeNum) : undefined,
+        onCaptureChartScreenshot: async () => {
+          // In TradingView chart mode, use TV's own client-side snapshot API - it
+          // mirrors exactly what its built-in camera/screenshot tool produces
+          // (header legend, price/time scale, drawings), and being TV's own render
+          // it never picks up our custom overlays drawn on top of the widget (e.g.
+          // the floating replay "select bar" toolbar).
+          if (tvChartMode && state.tvChart) {
+            const tvCanvas = await state.tvChart.captureScreenshot()
+            if (tvCanvas) return chartSnapshotPreviewDataUrl(tvCanvas)
+            showReplayError('Chart is not ready for a snapshot yet.')
+            return null
+          }
+          // Native (Lightweight Charts) mode: compose the symbol/OHLC header bar +
+          // the chart itself + the time-range footer bar to match what's on screen.
+          const footStripEl = host.querySelector('.rw-foot__strip--tv') as HTMLElement | null
+          const canvas = await captureChartSnapshotWithChrome([subbarHeadEl, chartCanvas, footStripEl])
+          if (!canvas) {
+            showReplayError('Chart is not ready for a snapshot yet.')
+            return null
+          }
+          return chartSnapshotPreviewDataUrl(canvas)
+        },
+      }
+    }
 
     let highlightedTradeNum: number | null = null
     let tradeHighlightGen = 0
@@ -4024,13 +4164,8 @@ export function mountChartWorkspace(
               })
           },
           onOpenJournal: (tradeNum) => {
-            const trade = replayAccount.getClosedTrades().find((item) => item.tradeNum === tradeNum)
-            if (trade) {
-              tradeJournal?.open(
-                trade,
-                `${brokerTag(feedLabel)}:${formatDisplaySymbol(currentChartSymbol)}`,
-              )
-            }
+            const entry = buildJournalEntry(tradeNum)
+            if (entry) openTradeJournalDialog(entry)
           },
         })
       : null
@@ -8770,11 +8905,8 @@ export function mountChartWorkspace(
         showReplayToast(
           `${draft.direction === 'long' ? 'Buy' : 'Sell'} ${draft.kind === 'limit' ? 'Limit' : 'Stop'} added @ ${formatSessionPrice(draft.triggerPrice)}`,
         )
-        if (draft.openPendingTab && orderBook && tradeDockRow && btnTradeDockCollapse) {
+        if (draft.openPendingTab && orderBook && tradeDockRow) {
           tradeDockRow.classList.remove('rw-foot__trade-dock-row--collapsed')
-          btnTradeDockCollapse.setAttribute('aria-label', 'Hide positions panel')
-          btnTradeDockCollapse.title = 'Hide positions'
-          btnTradeDockCollapse.setAttribute('aria-expanded', 'true')
           orderBook.selectTab('pending')
           resizeChartAfterLayout()
         }

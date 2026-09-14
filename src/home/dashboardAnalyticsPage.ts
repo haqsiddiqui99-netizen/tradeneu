@@ -47,6 +47,11 @@ export type SxaTrade = {
   /** Realized R-multiple (reward / risk), null when no stop was set. */
   returnR: number | null
   durationMin: number
+  /** The backtesting session (created on the Sessions page, e.g. "aa", "ll") this trade
+   *  belongs to \u2014 used by the "Session" filter, distinct from the intraday market
+   *  session (London/New York/Asia) computed by `sessionForHour`. */
+  sessionId: string
+  sessionName: string
 }
 
 // Filter bar option lists. Side/Outcome/Session/Day/Timezone are derived from real
@@ -55,7 +60,6 @@ export type SxaTrade = {
 // SxaTrade yet, so those two selects are UI-only placeholders for now.
 type SxaSideVal = 'long' | 'short'
 type SxaOutcomeVal = 'wins' | 'losses' | 'breakeven'
-type SxaSessionVal = 'Asia' | 'London' | 'New York' | 'Out Of Session'
 
 const SXA_SIDE_OPTS: { value: SxaSideVal; label: string }[] = [
   { value: 'long', label: 'Long' },
@@ -66,12 +70,6 @@ const SXA_OUTCOME_OPTS: { value: SxaOutcomeVal; label: string }[] = [
   { value: 'losses', label: 'Losses' },
   { value: 'breakeven', label: 'Breakeven' },
 ]
-const SXA_SESSION_OPTS: { value: SxaSessionVal; label: string }[] = [
-  { value: 'London', label: 'London' },
-  { value: 'New York', label: 'New York' },
-  { value: 'Asia', label: 'Asia' },
-  { value: 'Out Of Session', label: 'Out of session' },
-]
 const SXA_DAY_OPTS: { value: number; label: string }[] = [
   { value: 1, label: 'Mon' },
   { value: 2, label: 'Tue' },
@@ -81,9 +79,89 @@ const SXA_DAY_OPTS: { value: number; label: string }[] = [
   { value: 6, label: 'Sat' },
   { value: 0, label: 'Sun' },
 ]
-const SXA_TIMEZONE_OPTS: string[] = ['Etc/UTC', 'America/New_York', 'Europe/London', 'Asia/Tokyo']
-const SXA_TYPE_OPTS: string[] = ['All types', 'Backtesting', 'Battles', 'Prop Firm']
-const SXA_STRATEGY_OPTS: string[] = ['All strategies', 'Breakout', 'Reversal', 'Trend follow']
+// A broad set of IANA zones with friendly city labels, ordered west→east by UTC offset —
+// matches the reference timezone picker. "UTC" itself has no offset prefix; every other
+// entry is labelled "(UTC±H) City", with the offset computed live (so it stays DST-correct).
+const SXA_TIMEZONE_ZONES: { value: string; city: string }[] = [
+  { value: 'Etc/UTC', city: 'UTC' },
+  { value: 'Pacific/Honolulu', city: 'Honolulu' },
+  { value: 'America/Anchorage', city: 'Anchorage' },
+  { value: 'America/Juneau', city: 'Juneau' },
+  { value: 'America/Los_Angeles', city: 'Los Angeles' },
+  { value: 'America/Tijuana', city: 'Tijuana' },
+  { value: 'America/Vancouver', city: 'Vancouver' },
+  { value: 'America/Phoenix', city: 'Phoenix' },
+  { value: 'America/Denver', city: 'Denver' },
+  { value: 'America/Edmonton', city: 'Edmonton' },
+  { value: 'America/Chihuahua', city: 'Chihuahua' },
+  { value: 'America/Mexico_City', city: 'Mexico City' },
+  { value: 'America/Regina', city: 'Regina' },
+  { value: 'America/Chicago', city: 'Chicago' },
+  { value: 'America/Winnipeg', city: 'Winnipeg' },
+  { value: 'America/Bogota', city: 'Bogota' },
+  { value: 'America/Lima', city: 'Lima' },
+  { value: 'America/New_York', city: 'New York' },
+  { value: 'America/Toronto', city: 'Toronto' },
+  { value: 'America/Indiana/Indianapolis', city: 'Indianapolis' },
+  { value: 'America/Caracas', city: 'Caracas' },
+  { value: 'America/Halifax', city: 'Halifax' },
+  { value: 'America/Santiago', city: 'Santiago' },
+  { value: 'America/Argentina/Buenos_Aires', city: 'Buenos Aires' },
+  { value: 'America/Sao_Paulo', city: 'Sao Paulo' },
+  { value: 'Atlantic/South_Georgia', city: 'South Georgia' },
+  { value: 'Atlantic/Azores', city: 'Azores' },
+  { value: 'Atlantic/Cape_Verde', city: 'Cape Verde' },
+  { value: 'Europe/London', city: 'London' },
+  { value: 'Europe/Lisbon', city: 'Lisbon' },
+  { value: 'Africa/Casablanca', city: 'Casablanca' },
+  { value: 'Europe/Paris', city: 'Paris' },
+  { value: 'Europe/Berlin', city: 'Berlin' },
+  { value: 'Europe/Madrid', city: 'Madrid' },
+  { value: 'Africa/Lagos', city: 'Lagos' },
+  { value: 'Europe/Athens', city: 'Athens' },
+  { value: 'Europe/Helsinki', city: 'Helsinki' },
+  { value: 'Africa/Cairo', city: 'Cairo' },
+  { value: 'Africa/Johannesburg', city: 'Johannesburg' },
+  { value: 'Europe/Moscow', city: 'Moscow' },
+  { value: 'Europe/Istanbul', city: 'Istanbul' },
+  { value: 'Asia/Dubai', city: 'Dubai' },
+  { value: 'Asia/Tehran', city: 'Tehran' },
+  { value: 'Asia/Karachi', city: 'Karachi' },
+  { value: 'Asia/Kolkata', city: 'Mumbai, Kolkata' },
+  { value: 'Asia/Kathmandu', city: 'Kathmandu' },
+  { value: 'Asia/Dhaka', city: 'Dhaka' },
+  { value: 'Asia/Bangkok', city: 'Bangkok' },
+  { value: 'Asia/Jakarta', city: 'Jakarta' },
+  { value: 'Asia/Shanghai', city: 'Shanghai' },
+  { value: 'Asia/Singapore', city: 'Singapore' },
+  { value: 'Asia/Hong_Kong', city: 'Hong Kong' },
+  { value: 'Asia/Tokyo', city: 'Tokyo' },
+  { value: 'Asia/Seoul', city: 'Seoul' },
+  { value: 'Australia/Perth', city: 'Perth' },
+  { value: 'Australia/Adelaide', city: 'Adelaide' },
+  { value: 'Australia/Sydney', city: 'Sydney' },
+  { value: 'Australia/Brisbane', city: 'Brisbane' },
+  { value: 'Pacific/Guam', city: 'Guam' },
+  { value: 'Pacific/Noumea', city: 'Noumea' },
+  { value: 'Pacific/Auckland', city: 'Auckland' },
+  { value: 'Pacific/Fiji', city: 'Fiji' },
+  { value: 'Pacific/Tongatapu', city: "Nuku'alofa" },
+]
+
+// Computes a live, DST-correct "(UTC±H)" prefix for a given IANA zone (returns '' for UTC
+// itself, since it never gets an offset prefix in the reference design).
+function sxaTimezoneOffsetLabel(tz: string): string {
+  if (tz === 'Etc/UTC') return ''
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(new Date())
+    const raw = parts.find((p) => p.type === 'timeZoneName')?.value ?? 'GMT+0'
+    return `(${raw.replace('GMT', 'UTC')}) `
+  } catch {
+    return ''
+  }
+}
+const SXA_TYPE_OPTS: string[] = ['All', 'Backtesting', 'Battles', 'Prop Firm']
+const SXA_STRATEGY_OPTS: string[] = ['All', 'Breakout', 'Reversal', 'Trend follow']
 
 const GAIN = '#1a9d5c'
 const LOSS = '#d6455a'
@@ -119,111 +197,101 @@ function pctMove(t: SxaTrade): number {
 }
 
 function buildFilterBarHtml(): string {
-  const fpOptions = (group: string, opts: { value: string; label: string }[]) =>
-    `<div class="sxa-fp-options" data-sxa-fp-group="${group}">${opts
-      .map((o) => `<div class="sxa-fp-opt" data-sxa-fp-val="${o.value}">${o.label}</div>`)
-      .join('')}</div>`
+  // Each filter is its own small pill + its own anchored combobox-style popover (title, a
+  // chip/placeholder readout, a search box, and a checkbox list with an "All" row) — matching
+  // the reference look. Combo popovers are rendered dynamically (see renderMiniPopover) so they
+  // always reflect current selection; only the plain containers are baked in here.
+  // Small up/down spinner picker for a Start/End time field — opened by clicking the field
+  // itself (it's read-only; the spinner is the only way to adjust it).
+  const timeSpinCol = (which: 'start' | 'end', unit: 'hh' | 'mm', value: string) => `
+          <div class="sxa-time-spin__col">
+            <button type="button" class="sxa-time-spin__btn" data-sxa-time-spin-step="${which}:${unit}:1" aria-label="Increase ${unit === 'hh' ? 'hour' : 'minute'}">
+              <i class="fa-solid fa-chevron-up" aria-hidden="true"></i>
+            </button>
+            <div class="sxa-time-spin__val" data-sxa-time-spin-val="${which}:${unit}">${value}</div>
+            <button type="button" class="sxa-time-spin__btn" data-sxa-time-spin-step="${which}:${unit}:-1" aria-label="Decrease ${unit === 'hh' ? 'hour' : 'minute'}">
+              <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+            </button>
+          </div>`
+  const timeSpinHtml = (which: 'start' | 'end') => `
+          <div class="sxa-time-spin" data-sxa-time-spin="${which}">
+            ${timeSpinCol(which, 'hh', which === 'start' ? '00' : '23')}
+            <div class="sxa-time-spin__sep">:</div>
+            ${timeSpinCol(which, 'mm', which === 'start' ? '00' : '59')}
+          </div>`
 
-  const selectOptions = (opts: string[]) => opts.map((o) => `<option>${o}</option>`).join('')
+  const comboChip = (key: string, label: string, withBadge = false) => `
+          <div class="sxa-chip" data-sxa-mini-chip="${key}">
+            <span>${label}</span>
+            ${withBadge ? `<span class="sxa-count-badge" data-sxa-chip-badge="${key}" hidden>0</span>` : ''}
+            <i class="fa-solid fa-chevron-down sxa-chip__chevron" aria-hidden="true"></i>
+            <div class="sxa-mini-popover sxa-mini-popover--combo" data-sxa-mini-popover="${key}"></div>
+          </div>`
 
   return `
       <div class="sxa-filter-bar">
-        <div class="sxa-filter-row">
-          <div class="sxa-chip" data-sxa-date-chip>
-            <i class="fa-regular fa-calendar sxa-chip__icon" aria-hidden="true"></i>
-            <span data-sxa-range-label>All time</span>
-          </div>
+        <div class="sxa-filter-top">
+          <div class="sxa-filter-row sxa-filter-row--pills">
+            ${comboChip('type', 'Type')}
+            ${comboChip('assets', 'Assets', true)}
+            ${comboChip('side', 'Side', true)}
+            ${comboChip('outcome', 'Outcome', true)}
+            ${comboChip('tags', 'Tags')}
+            ${comboChip('session', 'Session', true)}
+            ${comboChip('strategy', 'Strategy')}
 
-          <div class="sxa-chip" data-sxa-mini-chip="assets">
-            <span data-sxa-symbol-label>All assets</span>
-            <i class="fa-solid fa-chevron-down sxa-chip__chevron" aria-hidden="true"></i>
-            <div class="sxa-mini-popover" data-sxa-mini-popover="assets"></div>
-          </div>
+            <div class="sxa-filter-row-break" aria-hidden="true"></div>
 
-          <div class="sxa-chip" data-sxa-mini-chip="tags">
-            <span data-sxa-tags-chip-label>Tags: All</span>
-            <i class="fa-solid fa-chevron-down sxa-chip__chevron" aria-hidden="true"></i>
-            <div class="sxa-mini-popover" data-sxa-mini-popover="tags"></div>
-          </div>
-
-          <div class="sxa-filters-btn" data-sxa-mini-chip="filters">
-            <i class="fa-solid fa-filter" aria-hidden="true"></i>
-            Filters
-            <span class="sxa-count-badge" data-sxa-filter-count-badge hidden>0</span>
-          </div>
-
-          <div class="sxa-fp-backdrop" data-sxa-fp-backdrop></div>
-          <div class="sxa-filters-popover" data-sxa-filters-popover>
-              <div class="sxa-fp-grid">
-                <div class="sxa-fp-col">
-                  <div class="sxa-fp-field">
-                    <label>Type</label>
-                    <select class="sxa-fp-select" data-sxa-fp-select="type">${selectOptions(SXA_TYPE_OPTS)}</select>
-                  </div>
-                  <div class="sxa-fp-field">
-                    <label>Side</label>
-                    ${fpOptions('side', SXA_SIDE_OPTS)}
-                  </div>
-                  <div class="sxa-fp-field">
-                    <label>Time of day</label>
-                    <div class="sxa-fp-time-row">
-                      <input class="sxa-fp-select" type="time" data-sxa-fp-time-start value="00:00">
-                      <span>to</span>
-                      <input class="sxa-fp-select" type="time" data-sxa-fp-time-end value="23:59">
+            ${comboChip('day', 'Day', true)}
+            <div class="sxa-chip" data-sxa-mini-chip="time">
+              <span>Time</span>
+              <i class="fa-solid fa-chevron-down sxa-chip__chevron" aria-hidden="true"></i>
+              <div class="sxa-mini-popover sxa-mini-popover--time" data-sxa-mini-popover="time">
+                <div class="sxa-time-row">
+                  <div class="sxa-time-field">
+                    <label class="sxa-time-field__label">Start</label>
+                    <div class="sxa-time-field__wrap" data-sxa-time-spin-toggle="start">
+                      <input class="sxa-time-field__input" type="text" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="00:00" data-sxa-fp-time-start value="00:00" readonly>
                     </div>
+                    ${timeSpinHtml('start')}
                   </div>
-                </div>
-                <div class="sxa-fp-col">
-                  <div class="sxa-fp-field">
-                    <label>Outcome</label>
-                    ${fpOptions('outcome', SXA_OUTCOME_OPTS)}
-                  </div>
-                  <div class="sxa-fp-field">
-                    <label>Session</label>
-                    ${fpOptions('session', SXA_SESSION_OPTS)}
-                  </div>
-                  <div class="sxa-fp-field">
-                    <label>Timezone</label>
-                    <select class="sxa-fp-select" data-sxa-fp-select="timezone">${selectOptions(SXA_TIMEZONE_OPTS)}</select>
-                  </div>
-                </div>
-                <div class="sxa-fp-col">
-                  <div class="sxa-fp-field">
-                    <label>Strategy</label>
-                    <select class="sxa-fp-select" data-sxa-fp-select="strategy">${selectOptions(SXA_STRATEGY_OPTS)}</select>
-                  </div>
-                  <div class="sxa-fp-field">
-                    <label>Day</label>
-                    ${fpOptions(
-                      'day',
-                      SXA_DAY_OPTS.map((o) => ({ value: String(o.value), label: o.label })),
-                    )}
+                  <div class="sxa-time-row__sep">&ndash;</div>
+                  <div class="sxa-time-field">
+                    <label class="sxa-time-field__label">End</label>
+                    <div class="sxa-time-field__wrap" data-sxa-time-spin-toggle="end">
+                      <input class="sxa-time-field__input" type="text" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="23:59" data-sxa-fp-time-end value="23:59" readonly>
+                    </div>
+                    ${timeSpinHtml('end')}
                   </div>
                 </div>
               </div>
-              <div class="sxa-fp-footer">
-                <button type="button" class="sxa-fp-cancel" data-sxa-fp-cancel>Cancel</button>
-                <button type="button" class="sxa-fp-done" data-sxa-fp-done>Done</button>
-              </div>
+            </div>
+
+            ${comboChip('timezone', 'Timezone')}
+
+            <div class="sxa-chip" data-sxa-mini-chip="dateRange">
+              <span>Backtesting Date</span>
+              <i class="fa-solid fa-chevron-down sxa-chip__chevron" aria-hidden="true"></i>
+              <div class="sxa-mini-popover sxa-mini-popover--date" data-sxa-mini-popover="dateRange"></div>
+            </div>
           </div>
 
-          <div class="sxa-spacer"></div>
-
-          <div class="sxa-clear-link" data-sxa-filter-clear>
-            <i class="fa-regular fa-trash-can" aria-hidden="true"></i>
-            Clear filters
+          <div class="sxa-filter-actions">
+            <button type="button" class="sxa-apply-btn" data-sxa-filter-apply>Apply</button>
+            <button type="button" class="sxa-export-btn sxa-export-btn--icon" data-sxa-export-csv title="Export CSV" aria-label="Export CSV">
+              <i class="fa-solid fa-download" aria-hidden="true"></i>
+            </button>
           </div>
-
-          <button type="button" class="sxa-apply-btn" data-sxa-filter-apply>Apply</button>
-
-          <button type="button" class="sxa-export-btn sxa-export-btn--icon" data-sxa-export-csv title="Export CSV" aria-label="Export CSV">
-            <i class="fa-solid fa-download" aria-hidden="true"></i>
-          </button>
         </div>
 
         <div class="sxa-active-filters" data-sxa-active-filters hidden>
           <span class="sxa-active-filters__label">Active:</span>
           <div class="sxa-active-filters__pills" data-sxa-active-pills></div>
+          <div class="sxa-spacer"></div>
+          <div class="sxa-clear-link" data-sxa-filter-clear>
+            <i class="fa-regular fa-trash-can" aria-hidden="true"></i>
+            Clear filters
+          </div>
         </div>
       </div>`
 }
@@ -465,14 +533,25 @@ export function initAnalyticsPage(
   const filters = {
     side: new Set<SxaSideVal>(['long', 'short']),
     outcome: new Set<SxaOutcomeVal>(['wins', 'losses']),
-    session: new Set<SxaSessionVal>(),
+    // Backtesting session ids (from the Sessions page, e.g. "aa", "ll") \u2014 not the
+    // intraday market session (London/NY/Asia).
+    session: new Set<string>(),
     day: new Set<number>(),
     timezone: 'Etc/UTC',
     timeStart: '00:00',
     timeEnd: '23:59',
     type: SXA_TYPE_OPTS[0]!,
     strategy: SXA_STRATEGY_OPTS[0]!,
-    assets: new Set<string>(),
+    // `null` = "all assets, no restriction". Unlike side/outcome/session/day, assets needs a
+    // way to represent "the user explicitly unchecked everything" too (which should show zero
+    // trades) — a plain empty Set can't distinguish that from "nothing restricted yet", so an
+    // explicit Set (even an empty one) always means "restrict to exactly these values".
+    assets: null as Set<string> | null,
+    // Backtesting Date range — start-of-day/end-of-day ms (local time) bounds, or `null` for
+    // "no restriction" ("All time"). `dateFrom` set with `dateTo` still `null` means the user
+    // has picked a start day but not finished the range yet.
+    dateFrom: null as number | null,
+    dateTo: null as number | null,
   }
 
   function resetFilters() {
@@ -485,7 +564,9 @@ export function initAnalyticsPage(
     filters.timeEnd = '23:59'
     filters.type = SXA_TYPE_OPTS[0]!
     filters.strategy = SXA_STRATEGY_OPTS[0]!
-    filters.assets = new Set()
+    filters.assets = null
+    filters.dateFrom = null
+    filters.dateTo = null
     activeTag = '__all__'
   }
 
@@ -528,6 +609,20 @@ export function initAnalyticsPage(
     ).sort()
   }
 
+  // The user-named backtesting sessions (created on the Sessions page, e.g. "aa", "ll")
+  // that actually have trades in them \u2014 keyed by sessionId, labelled by sessionName.
+  function distinctSessions(): { value: string; label: string }[] {
+    const byId = new Map<string, string>()
+    for (const t of getAllTrades()) {
+      if (t.sessionId && !byId.has(t.sessionId)) byId.set(t.sessionId, t.sessionName || t.sessionId)
+    }
+    return Array.from(byId, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label))
+  }
+
+  // Which month the Backtesting Date popover's mini calendar is currently showing (navigated
+  // independently of any selection — starts on the selected/current month when opened).
+  let datePickerMonth = new Date()
+
   let currentGranularity: 'all' | 'day' | 'hour' | '15min' = 'all'
   let timeMetric: 'pnl' | 'rr' | 'pct' = 'pnl'
   let monthBalanceBasis: 'initial' | 'current' = 'initial'
@@ -555,7 +650,7 @@ export function initAnalyticsPage(
   function getFilteredTrades(): SxaTrade[] {
     const all = getAllTrades()
     return all.filter((t) => {
-      if (activeTag !== '__all__' && t.tag !== activeTag) return false
+      if (activeTag !== '__all__' && activeTag !== '' && t.tag !== activeTag) return false
 
       const sideVal: SxaSideVal = t.side === 'Buy' ? 'long' : 'short'
       if (filters.side.size > 0 && !filters.side.has(sideVal)) return false
@@ -563,12 +658,15 @@ export function initAnalyticsPage(
       const outcomeVal: SxaOutcomeVal = Math.abs(t.pnl) < 1 ? 'breakeven' : t.pnl > 0 ? 'wins' : 'losses'
       if (filters.outcome.size > 0 && !filters.outcome.has(outcomeVal)) return false
 
-      if (filters.assets.size > 0 && !filters.assets.has(t.asset)) return false
+      if (filters.assets !== null && !filters.assets.has(t.asset)) return false
+
+      if (filters.dateFrom !== null && t.entryTimeMs < filters.dateFrom) return false
+      if (filters.dateTo !== null && t.entryTimeMs > filters.dateTo) return false
 
       const { hour, minute, day } = sxaTzParts(t.entryTimeMs, filters.timezone)
       if (filters.day.size > 0 && !filters.day.has(day)) return false
       if (!passesTimeRange(hour, minute)) return false
-      if (filters.session.size > 0 && !filters.session.has(sessionForHour(hour))) return false
+      if (filters.session.size > 0 && !filters.session.has(t.sessionId)) return false
 
       // Type / Strategy have no matching field on SxaTrade yet, so they don't
       // narrow results below \u2014 see the note above the option lists.
@@ -580,142 +678,464 @@ export function initAnalyticsPage(
     return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   }
 
-  function syncToolbarLabels() {
-    const all = getAllTrades()
-    const rangeEl = root.querySelector<HTMLElement>('[data-sxa-range-label]')
-    if (rangeEl) {
-      if (all.length) {
-        const min = new Date(all[0]!.entryTimeMs)
-        const max = new Date(all[all.length - 1]!.entryTimeMs)
-        const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-        rangeEl.textContent = all.length > 1 ? `${fmt(min)} \u2013 ${fmt(max)}` : fmt(min)
-      } else {
-        rangeEl.textContent = 'No trades yet'
-      }
+  function sxaFmtShortDate(ms: number): string {
+    return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+
+  function startOfDayMs(y: number, m: number, d: number): number {
+    return new Date(y, m, d, 0, 0, 0, 0).getTime()
+  }
+
+  function endOfDayMs(y: number, m: number, d: number): number {
+    return new Date(y, m, d, 23, 59, 59, 999).getTime()
+  }
+
+  // Renders the Backtesting Date popover: a readout (placeholder/selected-range chip) plus a
+  // single-month calendar grid. Click a day to start a range, click a second day to complete
+  // it (order doesn't matter — it's normalized to earliest/latest); clicking again after a
+  // complete range starts a brand new selection.
+  function renderDateRangePopover() {
+    const panel = root.querySelector<HTMLElement>('[data-sxa-mini-popover="dateRange"]')
+    if (!panel) return
+    const { dateFrom, dateTo } = filters
+    const hasRange = dateFrom !== null
+
+    const chipHtml = hasRange
+      ? `<span class="sxa-mp-chip" data-sxa-date-clear>${escapeAttr(dateTo !== null ? `${sxaFmtShortDate(dateFrom!)} \u2013 ${sxaFmtShortDate(dateTo)}` : sxaFmtShortDate(dateFrom!))}<i class="fa-solid fa-xmark" aria-hidden="true"></i></span>`
+      : `<span class="sxa-mp-placeholder">Select date range</span>`
+
+    const year = datePickerMonth.getFullYear()
+    const month = datePickerMonth.getMonth()
+    const monthLabel = datePickerMonth.toLocaleDateString(undefined, { month: 'long' })
+    const firstWeekday = new Date(year, month, 1).getDay()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const daysInPrevMonth = new Date(year, month, 0).getDate()
+    const today = new Date()
+    const todayKey = startOfDayMs(today.getFullYear(), today.getMonth(), today.getDate())
+
+    const cells: { label: number; ms: number; outside: boolean }[] = []
+    for (let i = firstWeekday - 1; i >= 0; i--) cells.push({ label: daysInPrevMonth - i, ms: startOfDayMs(year, month - 1, daysInPrevMonth - i), outside: true })
+    for (let d = 1; d <= daysInMonth; d++) cells.push({ label: d, ms: startOfDayMs(year, month, d), outside: false })
+    for (let d = 1; cells.length % 7 !== 0; d++) cells.push({ label: d, ms: startOfDayMs(year, month + 1, d), outside: true })
+
+    // `dateTo` is stored as an end-of-day timestamp (23:59:59.999) for filtering purposes, but
+    // every calendar cell's `ms` is start-of-day — normalize dateTo back to start-of-day here
+    // purely for same-day comparisons against cells.
+    const dateToDayKey =
+      dateTo !== null ? (() => {
+        const d = new Date(dateTo)
+        return startOfDayMs(d.getFullYear(), d.getMonth(), d.getDate())
+      })() : null
+
+    const dayCellHtml = (cell: (typeof cells)[number]) => {
+      const isToday = cell.ms === todayKey
+      const isStart = dateFrom !== null && cell.ms === dateFrom
+      const isEnd = dateToDayKey !== null && cell.ms === dateToDayKey
+      const inRange = dateFrom !== null && dateToDayKey !== null && cell.ms > dateFrom && cell.ms < dateToDayKey
+      const classes = ['sxa-cal-day']
+      if (cell.outside) classes.push('sxa-cal-day--outside')
+      if (isToday) classes.push('sxa-cal-day--today')
+      if (isStart || isEnd) classes.push('sxa-cal-day--selected')
+      if (inRange) classes.push('sxa-cal-day--in-range')
+      return `<button type="button" class="${classes.join(' ')}" data-sxa-cal-day="${cell.ms}">${cell.label}</button>`
+    }
+
+    panel.innerHTML = `
+      <div class="sxa-mp-title">Backtesting date filter</div>
+      <div class="sxa-mp-select sxa-mp-select--static">
+        <div class="sxa-mp-select-chips">${chipHtml}</div>
+        <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+      </div>
+      <div class="sxa-cal">
+        <div class="sxa-cal__nav">
+          <button type="button" class="sxa-cal__nav-btn" data-sxa-cal-prev aria-label="Previous month"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+          <div class="sxa-cal__nav-label">${escapeAttr(monthLabel)} ${year}</div>
+          <button type="button" class="sxa-cal__nav-btn" data-sxa-cal-next aria-label="Next month"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+        </div>
+        <div class="sxa-cal__weekdays">
+          ${['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((w) => `<span>${w}</span>`).join('')}
+        </div>
+        <div class="sxa-cal__grid">
+          ${cells.map(dayCellHtml).join('')}
+        </div>
+      </div>`
+  }
+
+  // ---------- Filter bar: combobox-style popovers (title + readout box + search + checkbox
+  // list with an "All" row) shared by every filter chip except Time (a plain time-range input). ----------
+  type SxaComboKey = 'assets' | 'tags' | 'type' | 'strategy' | 'timezone' | 'side' | 'outcome' | 'session' | 'day'
+
+  // Tags/Type/Strategy/Timezone are single-value fields: picking one option replaces the whole
+  // selection instead of toggling membership. The rest (Assets/Side/Outcome/Session/Day) are
+  // real multi-selects with their own dedicated "All" row to reset the group in one click.
+  const SXA_COMBO_ALL_ROW = new Set<SxaComboKey>(['assets', 'side', 'outcome', 'session', 'day'])
+  // Timezone is a plain single-choice list (no checkboxes, no removable chip) — picking a row
+  // immediately applies it and collapses the popover, like a native <select>.
+  const SXA_COMBO_SELECT_STYLE = new Set<SxaComboKey>(['timezone'])
+  // Two-level popover: opening a filter chip first shows just the title + readout box
+  // (collapsed); clicking that readout box expands it to reveal the search box + option list.
+  const comboExpanded = new Set<SxaComboKey>()
+  const SXA_COMBO_TITLE: Record<SxaComboKey, string> = {
+    assets: 'Assets',
+    tags: 'Tags',
+    type: 'Type',
+    strategy: 'Strategy',
+    timezone: 'Timezone',
+    side: 'Side',
+    outcome: 'Outcome',
+    session: 'Session',
+    day: 'Day',
+  }
+
+  // Parses/clamps whatever the user typed in a Start/End time field into a valid "HH:MM"
+  // (24h), falling back to the given default when the text doesn't resemble a time at all.
+  function normalizeTimeFieldValue(raw: string, fallback: string): string {
+    const m = raw.trim().match(/^(\d{1,2}):?(\d{0,2})$/)
+    if (!m) return fallback
+    let hh = parseInt(m[1] || '0', 10)
+    let mm = m[2] ? parseInt(m[2], 10) : 0
+    if (Number.isNaN(hh) || hh > 23) hh = Math.min(hh || 0, 23)
+    if (Number.isNaN(mm) || mm > 59) mm = Math.min(mm || 0, 59)
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+  }
+
+  function comboOptionsFor(key: SxaComboKey): { value: string; label: string }[] {
+    switch (key) {
+      case 'assets':
+        return distinctAssets().map((a) => ({ value: a, label: a }))
+      case 'tags':
+        return ['__all__', ...distinctTags()].map((t) => ({ value: t, label: t === '__all__' ? 'All' : t }))
+      case 'type':
+        return SXA_TYPE_OPTS.map((o) => ({ value: o, label: o }))
+      case 'strategy':
+        return SXA_STRATEGY_OPTS.map((o) => ({ value: o, label: o }))
+      case 'timezone':
+        return SXA_TIMEZONE_ZONES.map((z) => ({ value: z.value, label: `${sxaTimezoneOffsetLabel(z.value)}${z.city}` }))
+      case 'side':
+        return SXA_SIDE_OPTS
+      case 'outcome':
+        return SXA_OUTCOME_OPTS
+      case 'session':
+        return distinctSessions()
+      case 'day':
+        return SXA_DAY_OPTS.map((o) => ({ value: String(o.value), label: o.label }))
     }
   }
 
-  // ---------- Filter bar: mini popovers (Assets, Tags) ----------
-  function renderMiniPopover(key: 'assets' | 'tags') {
+  function comboSelectedFor(key: SxaComboKey): Set<string> {
+    switch (key) {
+      case 'assets':
+        return filters.assets === null ? new Set(distinctAssets()) : filters.assets
+      case 'tags':
+        return activeTag ? new Set([activeTag]) : new Set()
+      case 'type':
+        return filters.type ? new Set([filters.type]) : new Set()
+      case 'strategy':
+        return filters.strategy ? new Set([filters.strategy]) : new Set()
+      case 'timezone':
+        return new Set([filters.timezone])
+      case 'side':
+        return filters.side
+      case 'outcome':
+        return filters.outcome
+      case 'session':
+        return filters.session
+      case 'day':
+        return new Set(Array.from(filters.day).map(String))
+    }
+  }
+
+  function renderMiniPopover(key: SxaComboKey) {
     const panel = root.querySelector<HTMLElement>(`[data-sxa-mini-popover="${key}"]`)
     if (!panel) return
-    if (key === 'assets') {
-      const opts = distinctAssets()
-      panel.innerHTML = opts.length
-        ? opts
-            .map(
-              (a) =>
-                `<label class="sxa-mini-opt"><input type="checkbox" data-sxa-asset-opt value="${escapeAttr(a)}" ${
-                  filters.assets.size === 0 || filters.assets.has(a) ? 'checked' : ''
-                }> ${escapeAttr(a)}</label>`,
-            )
+    const options = comboOptionsFor(key)
+    const title = SXA_COMBO_TITLE[key]
+    if (!options.length) {
+      panel.innerHTML = `<div class="sxa-mp-title">${escapeAttr(title)} filter</div><div class="sxa-filter-empty">No ${escapeAttr(title.toLowerCase())} yet</div>`
+      return
+    }
+    const selected = comboSelectedFor(key)
+    const showAllRow = SXA_COMBO_ALL_ROW.has(key)
+    const selectStyle = SXA_COMBO_SELECT_STYLE.has(key)
+    const expanded = comboExpanded.has(key)
+    // Whatever is currently selected shows as a chip in the readout box — including the
+    // sentinel/default value (e.g. "All" itself), matching the reference UI.
+    const chipValues = Array.from(selected)
+    const allChecked = showAllRow && selected.size === options.length
+
+    // Timezone's readout is a removable chip too — clicking its 'x' resets back to the UTC
+    // default (there's always exactly one timezone in effect, so "removed" really means "back
+    // to the default" rather than "nothing selected"). Multi-select groups collapse down to a
+    // single "All" chip once every option is checked, instead of listing each one out.
+    const chipsHtml = allChecked
+      ? `<span class="sxa-mp-chip" data-sxa-mp-chip-rm="__all__" data-sxa-mp-chip-key="${key}">All<i class="fa-solid fa-xmark" aria-hidden="true"></i></span>`
+      : chipValues.length
+        ? chipValues
+            .map((v) => {
+              const label = options.find((o) => o.value === v)?.label ?? v
+              return `<span class="sxa-mp-chip" data-sxa-mp-chip-rm="${escapeAttr(v)}" data-sxa-mp-chip-key="${key}">${escapeAttr(label)}<i class="fa-solid fa-xmark" aria-hidden="true"></i></span>`
+            })
             .join('')
-        : `<div class="sxa-filter-empty">No assets yet</div>`
-    } else {
-      const tags = ['__all__', ...distinctTags()]
-      panel.innerHTML = tags
-        .map((tag) => {
-          const label = tag === '__all__' ? 'All' : tag
-          return `<label class="sxa-mini-opt"><input type="radio" name="sxa-tag-mode" data-sxa-tag-opt value="${escapeAttr(tag)}" ${
-            tag === activeTag ? 'checked' : ''
-          }> ${escapeAttr(label)}</label>`
-        })
-        .join('')
+        : `<span class="sxa-mp-placeholder">Select ${escapeAttr(title.toLowerCase())}</span>`
+
+    const rowHtml = (value: string, label: string, checked: boolean) =>
+      selectStyle
+        ? `<label class="sxa-mp-opt sxa-mp-opt--plain${checked ? ' sxa-mp-opt--selected' : ''}" data-sxa-mp-row data-sxa-mp-key="${key}" data-sxa-mp-val="${escapeAttr(value)}" data-sxa-mp-text="${escapeAttr(label.toLowerCase())}">
+        <span>${escapeAttr(label)}</span>
+        ${checked ? '<i class="fa-solid fa-check" aria-hidden="true"></i>' : ''}
+      </label>`
+        : `<label class="sxa-mp-opt${checked ? ' sxa-mp-opt--selected' : ''}" data-sxa-mp-row data-sxa-mp-key="${key}" data-sxa-mp-val="${escapeAttr(value)}" data-sxa-mp-text="${escapeAttr(label.toLowerCase())}">
+        <span class="sxa-mp-checkbox${checked ? ' sxa-mp-checkbox--checked' : ''}"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
+        <span>${escapeAttr(label)}</span>
+      </label>`
+
+    // Level 1: title + readout box only. Level 2 (search + option list) only renders once the
+    // readout box itself has been clicked — a second, nested level within the same popover.
+    panel.innerHTML = `
+      <div class="sxa-mp-title">${escapeAttr(title)} filter</div>
+      <div class="sxa-mp-select${expanded ? ' sxa-mp-select--open' : ''}" data-sxa-mp-select data-sxa-mp-key="${key}">
+        <div class="sxa-mp-select-chips">${chipsHtml}</div>
+        <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+      </div>
+      ${
+        expanded
+          ? `<div class="sxa-mp-search">
+        <input type="text" class="sxa-mp-search-input" placeholder="Search..." data-sxa-mp-search="${key}">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+      </div>
+      <div class="sxa-mp-list" data-sxa-mp-list="${key}">
+        ${
+          showAllRow
+            ? `<label class="sxa-mp-opt sxa-mp-opt--all${allChecked ? ' sxa-mp-opt--selected' : ''}" data-sxa-mp-all data-sxa-mp-key="${key}">
+                 <span class="sxa-mp-checkbox${allChecked ? ' sxa-mp-checkbox--checked' : ''}"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
+                 <span>All</span>
+               </label>`
+            : ''
+        }
+        ${options.map((o) => rowHtml(o.value, o.label, selected.has(o.value))).join('')}
+      </div>`
+          : ''
+      }`
+  }
+
+  function comboToggleValue(key: SxaComboKey, value: string, nowSelected: boolean) {
+    // Tags/Type/Strategy can be unchecked down to "nothing selected" (empty string / no active
+    // tag) — that's a distinct, removable state from explicitly picking "All", and functions
+    // exactly the same as "All" for filtering purposes (see the checks that use it below).
+    if (key === 'tags') {
+      activeTag = nowSelected ? value : ''
+      return
+    }
+    if (key === 'type') {
+      filters.type = nowSelected ? value : ''
+      return
+    }
+    if (key === 'strategy') {
+      filters.strategy = nowSelected ? value : ''
+      return
+    }
+    if (key === 'timezone') {
+      // Timezone always needs exactly one value in effect: picking a row sets it, and removing
+      // the chip (or unchecking the active row) resets it back to the UTC default rather than
+      // leaving nothing selected.
+      filters.timezone = nowSelected ? value : 'Etc/UTC'
+      return
+    }
+    if (key === 'assets') {
+      // Start from the explicit set (or a fully-populated one if we were at "all"), apply the
+      // toggle, then only collapse back to `null` ("all") if that leaves every asset checked —
+      // an explicit empty set (the user unchecked the last one) is a real, distinct state that
+      // should filter down to zero trades, not silently bounce back to "all".
+      const next = filters.assets === null ? new Set(distinctAssets()) : new Set(filters.assets)
+      nowSelected ? next.add(value) : next.delete(value)
+      filters.assets = next.size === distinctAssets().length ? null : next
+      return
+    }
+    if (key === 'side') {
+      nowSelected ? filters.side.add(value as SxaSideVal) : filters.side.delete(value as SxaSideVal)
+      return
+    }
+    if (key === 'outcome') {
+      nowSelected ? filters.outcome.add(value as SxaOutcomeVal) : filters.outcome.delete(value as SxaOutcomeVal)
+      return
+    }
+    if (key === 'session') {
+      nowSelected ? filters.session.add(value) : filters.session.delete(value)
+      return
+    }
+    if (key === 'day') {
+      const n = parseInt(value, 10)
+      nowSelected ? filters.day.add(n) : filters.day.delete(n)
     }
   }
 
-  function syncChipLabels() {
-    const symEl = root.querySelector<HTMLElement>('[data-sxa-symbol-label]')
-    if (symEl) {
-      const n = filters.assets.size
-      symEl.textContent = n === 0 ? 'All assets' : n === 1 ? Array.from(filters.assets)[0]! : `${n} assets`
-    }
-    const tagsEl = root.querySelector<HTMLElement>('[data-sxa-tags-chip-label]')
-    if (tagsEl) tagsEl.textContent = `Tags: ${activeTag === '__all__' ? 'All' : activeTag}`
+  // The "All" row is a real toggle, not a one-way reset: clicking it while everything is
+  // already selected unchecks the whole group; clicking it while anything is unchecked selects
+  // every option. (For Assets specifically, "unchecked" is a real, distinct state — see the
+  // filters.assets comment above — so toggling it off correctly shows zero trades.)
+  function comboResetAll(key: SxaComboKey) {
+    const options = comboOptionsFor(key)
+    const currentlyAll = comboSelectedFor(key).size === options.length
+    if (key === 'assets') filters.assets = currentlyAll ? new Set() : null
+    else if (key === 'side') filters.side = currentlyAll ? new Set() : new Set(SXA_SIDE_OPTS.map((o) => o.value))
+    else if (key === 'outcome') filters.outcome = currentlyAll ? new Set() : new Set(SXA_OUTCOME_OPTS.map((o) => o.value))
+    else if (key === 'session') filters.session = currentlyAll ? new Set() : new Set(distinctSessions().map((o) => o.value))
+    else if (key === 'day') filters.day = currentlyAll ? new Set() : new Set(SXA_DAY_OPTS.map((o) => o.value))
   }
 
-  // ---------- Filter bar: "Filters" popover (Type/Side/Outcome/Session/Strategy/Day/Time/Timezone) ----------
   function closeAllPopovers() {
-    root.querySelectorAll<HTMLElement>('.sxa-mini-popover, .sxa-filters-popover').forEach((p) => p.classList.remove('sxa-popover--open'))
-    root.querySelectorAll<HTMLElement>('[data-sxa-fp-backdrop]').forEach((b) => b.classList.remove('sxa-popover--open'))
+    root.querySelectorAll<HTMLElement>('.sxa-mini-popover').forEach((p) => p.classList.remove('sxa-popover--open'))
+    root.querySelectorAll<HTMLElement>('.sxa-time-spin').forEach((p) => p.classList.remove('sxa-time-spin--open'))
+  }
+
+  // Reflects filters.timeStart/timeEnd into the Start/End spin picker's hour/minute readouts.
+  function syncTimeSpinDisplay() {
+    const parts: [('start' | 'end'), string][] = [
+      ['start', filters.timeStart],
+      ['end', filters.timeEnd],
+    ]
+    for (const [which, val] of parts) {
+      const [hh, mm] = val.split(':')
+      const hhEl = root.querySelector<HTMLElement>(`[data-sxa-time-spin-val="${which}:hh"]`)
+      if (hhEl) hhEl.textContent = hh ?? '00'
+      const mmEl = root.querySelector<HTMLElement>(`[data-sxa-time-spin-val="${which}:mm"]`)
+      if (mmEl) mmEl.textContent = mm ?? '00'
+    }
   }
 
   function syncFilterPopoverSelects() {
-    const typeSel = root.querySelector<HTMLSelectElement>('[data-sxa-fp-select="type"]')
-    if (typeSel) typeSel.value = filters.type
-    const strategySel = root.querySelector<HTMLSelectElement>('[data-sxa-fp-select="strategy"]')
-    if (strategySel) strategySel.value = filters.strategy
-    const tzSel = root.querySelector<HTMLSelectElement>('[data-sxa-fp-select="timezone"]')
-    if (tzSel) tzSel.value = filters.timezone
     const timeStart = root.querySelector<HTMLInputElement>('[data-sxa-fp-time-start]')
     if (timeStart) timeStart.value = filters.timeStart
     const timeEnd = root.querySelector<HTMLInputElement>('[data-sxa-fp-time-end]')
     if (timeEnd) timeEnd.value = filters.timeEnd
-
-    const syncGroup = (group: string, selected: Set<string>) => {
-      root.querySelectorAll<HTMLElement>(`.sxa-fp-options[data-sxa-fp-group="${group}"] .sxa-fp-opt`).forEach((opt) => {
-        const val = opt.getAttribute('data-sxa-fp-val') ?? ''
-        opt.classList.toggle('sxa-fp-opt--selected', selected.has(val))
-      })
-    }
-    syncGroup('side', filters.side)
-    syncGroup('outcome', filters.outcome)
-    syncGroup('session', filters.session)
-    syncGroup('day', new Set(Array.from(filters.day).map(String)))
+    syncTimeSpinDisplay()
   }
 
+  // Nudges a Start/End time field's hour or minute up/down by one (wrapping 23→0 / 59→0 etc.)
+  // via the spin picker's chevron buttons, keeping the read-only text input and filters synced.
+  function stepTimeField(which: 'start' | 'end', unit: 'hh' | 'mm', delta: number) {
+    const current = which === 'start' ? filters.timeStart : filters.timeEnd
+    const [hStr, mStr] = current.split(':')
+    let hh = parseInt(hStr, 10) || 0
+    let mm = parseInt(mStr, 10) || 0
+    if (unit === 'hh') hh = (hh + delta + 24) % 24
+    else mm = (mm + delta + 60) % 60
+    const next = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+    if (which === 'start') filters.timeStart = next
+    else filters.timeEnd = next
+    const input = root.querySelector<HTMLInputElement>(`[data-sxa-fp-time-${which}]`)
+    if (input) input.value = next
+    syncTimeSpinDisplay()
+    renderAll()
+  }
+
+  // Multi-select groups (Side/Outcome/Session/Day) render one removable chip per selected
+  // value instead of one combined "Long, Short ×" chip \u2014 each chip still visually clusters
+  // with its own filter type since they're rendered together, back to back, in a tight group.
   function syncActiveFiltersUi() {
     const groups: { key: string; opts: { value: string; label: string }[]; selected: Set<string> }[] = [
+      // Assets always shows its full current selection in the Active row \u2014 every asset when
+      // `null` ("All"), or just the explicitly chosen subset otherwise.
+      { key: 'assets', opts: distinctAssets().map((a) => ({ value: a, label: a })), selected: filters.assets === null ? new Set(distinctAssets()) : filters.assets },
       { key: 'side', opts: SXA_SIDE_OPTS, selected: filters.side },
       { key: 'outcome', opts: SXA_OUTCOME_OPTS, selected: filters.outcome },
-      { key: 'session', opts: SXA_SESSION_OPTS, selected: filters.session },
+      { key: 'session', opts: distinctSessions(), selected: filters.session },
       {
         key: 'day',
         opts: SXA_DAY_OPTS.map((o) => ({ value: String(o.value), label: o.label })),
         selected: new Set(Array.from(filters.day).map(String)),
       },
     ]
-    const pills = groups
+    const groupHtml = groups
       .filter((g) => g.selected.size > 0)
-      .map((g) => ({
-        key: g.key,
-        text: g.opts
+      .map((g) => {
+        const items = g.opts
           .filter((o) => g.selected.has(o.value))
-          .map((o) => o.label)
-          .join(', '),
-      }))
+          .map(
+            (o) =>
+              `<span class="sxa-active-group__item" data-sxa-active-pill-group="${g.key}" data-sxa-active-pill-value="${escapeAttr(o.value)}">${escapeAttr(o.label)}<span class="sxa-active-pill__rm" data-sxa-active-pill-rm="${g.key}" data-sxa-active-pill-rm-value="${escapeAttr(o.value)}">\u2715</span></span>`,
+          )
+          .join('')
+        return `<span class="sxa-active-group">${items}</span>`
+      })
 
-    const countBadge = root.querySelector<HTMLElement>('[data-sxa-filter-count-badge]')
-    if (countBadge) {
-      countBadge.textContent = String(pills.length)
-      countBadge.hidden = pills.length === 0
+    // Type / Strategy / Timezone / Time / Backtesting Date each get their own badge chip in the
+    // toolbar now, but once a non-default value is chosen it also shows up here as a single
+    // active-filter summary pill (there's only ever one value in effect for these, so removing
+    // it always clears the whole thing).
+    const singlePills: { key: string; text: string }[] = []
+    if (filters.type && filters.type !== SXA_TYPE_OPTS[0]) singlePills.push({ key: 'type', text: filters.type })
+    if (filters.strategy && filters.strategy !== SXA_STRATEGY_OPTS[0]) singlePills.push({ key: 'strategy', text: filters.strategy })
+    if (filters.timezone !== 'Etc/UTC') {
+      const zone = SXA_TIMEZONE_ZONES.find((z) => z.value === filters.timezone)
+      singlePills.push({ key: 'timezone', text: zone ? `${sxaTimezoneOffsetLabel(zone.value)}${zone.city}` : filters.timezone })
     }
+    if (filters.timeStart !== '00:00' || filters.timeEnd !== '23:59') singlePills.push({ key: 'time', text: `${filters.timeStart} \u2013 ${filters.timeEnd}` })
+    if (filters.dateFrom !== null) {
+      singlePills.push({
+        key: 'dateRange',
+        text: filters.dateTo !== null ? `${sxaFmtShortDate(filters.dateFrom)} \u2013 ${sxaFmtShortDate(filters.dateTo)}` : sxaFmtShortDate(filters.dateFrom),
+      })
+    }
+    const singleHtml = singlePills.map(
+      (p) => `<span class="sxa-active-pill" data-sxa-active-pill-group="${p.key}">${escapeAttr(p.text)}<span class="sxa-active-pill__rm" data-sxa-active-pill-rm="${p.key}">\u2715</span></span>`,
+    )
+
+    // Assets/Side/Outcome/Session/Day each show their selection count as a small badge right
+    // on their own toolbar chip (e.g. "Side 2"), instead of one combined "Filters" badge.
+    const setBadge = (key: string, count: number) => {
+      const el = root.querySelector<HTMLElement>(`[data-sxa-chip-badge="${key}"]`)
+      if (!el) return
+      el.textContent = String(count)
+      el.hidden = count === 0
+    }
+    setBadge('assets', filters.assets === null ? 0 : filters.assets.size)
+    setBadge('side', filters.side.size)
+    setBadge('outcome', filters.outcome.size)
+    setBadge('session', filters.session.size)
+    setBadge('day', filters.day.size)
 
     const row = root.querySelector<HTMLElement>('[data-sxa-active-filters]')
     const container = root.querySelector<HTMLElement>('[data-sxa-active-pills]')
     if (!row || !container) return
-    if (!pills.length) {
+    const allHtml = [...groupHtml, ...singleHtml]
+    if (!allHtml.length) {
       row.hidden = true
       return
     }
     row.hidden = false
-    container.innerHTML = pills
-      .map(
-        (p) =>
-          `<span class="sxa-active-pill" data-sxa-active-pill-group="${p.key}">${escapeAttr(p.text)}<span class="sxa-active-pill__rm" data-sxa-active-pill-rm="${p.key}">\u2715</span></span>`,
-      )
-      .join('')
+    container.innerHTML = allHtml.join('')
+  }
+
+  // Removes a single value out of a multi-select filter group (Assets/Side/Outcome/Session/Day)
+  // without touching the rest of that group's selection.
+  function removeSingleFilterValue(group: string, value: string) {
+    if (group === 'assets') comboToggleValue('assets', value, false)
+    else if (group === 'side') filters.side.delete(value as SxaSideVal)
+    else if (group === 'outcome') filters.outcome.delete(value as SxaOutcomeVal)
+    else if (group === 'session') filters.session.delete(value)
+    else if (group === 'day') filters.day.delete(parseInt(value, 10))
   }
 
   function clearFilterGroup(group: string) {
-    if (group === 'side') filters.side.clear()
+    if (group === 'assets') filters.assets = null
+    else if (group === 'side') filters.side.clear()
     else if (group === 'outcome') filters.outcome.clear()
     else if (group === 'session') filters.session.clear()
     else if (group === 'day') filters.day.clear()
+    else if (group === 'type') filters.type = SXA_TYPE_OPTS[0]!
+    else if (group === 'strategy') filters.strategy = SXA_STRATEGY_OPTS[0]!
+    else if (group === 'timezone') filters.timezone = 'Etc/UTC'
+    else if (group === 'time') {
+      filters.timeStart = '00:00'
+      filters.timeEnd = '23:59'
+    } else if (group === 'dateRange') {
+      filters.dateFrom = null
+      filters.dateTo = null
+    }
   }
 
   function syncFilterBarUi() {
-    syncChipLabels()
     syncFilterPopoverSelects()
     syncActiveFiltersUi()
   }
@@ -1741,7 +2161,6 @@ export function initAnalyticsPage(
   }
 
   function renderAll() {
-    syncToolbarLabels()
     syncFilterBarUi()
     renderPerformanceTab()
     renderDrawdownTab()
@@ -1775,44 +2194,149 @@ export function initAnalyticsPage(
       exportCsv()
       return
     }
-    // Assets / Tags mini chips and the Filters chip toggle their own popover
-    // open; clicking one closes any other open popover first.
+    // Every filter chip (Type/Assets/Side/Outcome/Tags/Session/Strategy/Day/Time/Timezone)
+    // toggles its own anchored popover open; clicking one closes any other open popover first.
+    const isComboKey = (k: string): k is SxaComboKey =>
+      k === 'assets' || k === 'tags' || k === 'type' || k === 'strategy' || k === 'timezone' || k === 'side' || k === 'outcome' || k === 'session' || k === 'day'
     const miniChip = t.closest<HTMLElement>('[data-sxa-mini-chip]')
-    if (miniChip && root.contains(miniChip) && !t.closest('.sxa-mini-popover, .sxa-filters-popover')) {
+    if (miniChip && root.contains(miniChip) && !t.closest('.sxa-mini-popover')) {
       const key = miniChip.getAttribute('data-sxa-mini-chip') ?? ''
-      const popover =
-        key === 'filters'
-          ? root.querySelector<HTMLElement>('[data-sxa-filters-popover]')
-          : root.querySelector<HTMLElement>(`[data-sxa-mini-popover="${key}"]`)
+      const popover = root.querySelector<HTMLElement>(`[data-sxa-mini-popover="${key}"]`)
       const wasOpen = popover ? popover.classList.contains('sxa-popover--open') : false
       closeAllPopovers()
       if (popover && !wasOpen) {
-        if (key === 'assets' || key === 'tags') renderMiniPopover(key)
+        if (isComboKey(key)) {
+          // Every fresh open starts collapsed at level 1 (title + readout box only) — the
+          // search box + option list only appear once the readout box itself is clicked.
+          comboExpanded.delete(key)
+          renderMiniPopover(key)
+        } else if (key === 'dateRange') {
+          // Open showing the selected start month (or today's month if nothing's picked yet).
+          datePickerMonth = filters.dateFrom !== null ? new Date(filters.dateFrom) : new Date()
+          renderDateRangePopover()
+        }
         popover.classList.add('sxa-popover--open')
-        if (key === 'filters') root.querySelector<HTMLElement>('[data-sxa-fp-backdrop]')?.classList.add('sxa-popover--open')
       }
       return
     }
-    if (t.closest('[data-sxa-fp-backdrop]')) {
-      closeAllPopovers()
-      return
-    }
-    // Clicks inside an open popover (labels/checkboxes/selects/pills) shouldn't
-    // bubble up and close it via the outside-click fallback below.
-    if (t.closest('.sxa-mini-popover, .sxa-filters-popover')) {
-      const fpOpt = t.closest<HTMLElement>('.sxa-fp-opt')
-      if (fpOpt && root.contains(fpOpt)) {
-        const group = fpOpt.closest<HTMLElement>('[data-sxa-fp-group]')?.getAttribute('data-sxa-fp-group') ?? ''
-        const val = fpOpt.getAttribute('data-sxa-fp-val') ?? ''
-        const nowSelected = fpOpt.classList.toggle('sxa-fp-opt--selected')
-        if (group === 'side') nowSelected ? filters.side.add(val as SxaSideVal) : filters.side.delete(val as SxaSideVal)
-        else if (group === 'outcome') nowSelected ? filters.outcome.add(val as SxaOutcomeVal) : filters.outcome.delete(val as SxaOutcomeVal)
-        else if (group === 'session') nowSelected ? filters.session.add(val as SxaSessionVal) : filters.session.delete(val as SxaSessionVal)
-        else if (group === 'day') nowSelected ? filters.day.add(parseInt(val, 10)) : filters.day.delete(parseInt(val, 10))
+    // Clicks inside an open popover (chips/search/checkbox rows) shouldn't bubble up and
+    // close it via the outside-click fallback below.
+    if (t.closest('.sxa-mini-popover')) {
+      const calPrev = t.closest<HTMLElement>('[data-sxa-cal-prev]')
+      if (calPrev && root.contains(calPrev)) {
+        datePickerMonth = new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() - 1, 1)
+        renderDateRangePopover()
+        return
+      }
+      const calNext = t.closest<HTMLElement>('[data-sxa-cal-next]')
+      if (calNext && root.contains(calNext)) {
+        datePickerMonth = new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() + 1, 1)
+        renderDateRangePopover()
+        return
+      }
+      const calDay = t.closest<HTMLElement>('[data-sxa-cal-day]')
+      if (calDay && root.contains(calDay)) {
+        const ms = parseInt(calDay.getAttribute('data-sxa-cal-day') ?? '', 10)
+        if (!Number.isNaN(ms)) {
+          if (filters.dateFrom === null || filters.dateTo !== null) {
+            // Starting a brand new selection (nothing picked yet, or the previous range was
+            // already complete) — this click becomes the new, single-day-only start.
+            filters.dateFrom = ms
+            filters.dateTo = null
+          } else {
+            // Completing a range — normalize so the earlier day is always `dateFrom`.
+            const d = new Date(ms)
+            const endMs = endOfDayMs(d.getFullYear(), d.getMonth(), d.getDate())
+            if (ms < filters.dateFrom) {
+              filters.dateTo = endOfDayMs(new Date(filters.dateFrom).getFullYear(), new Date(filters.dateFrom).getMonth(), new Date(filters.dateFrom).getDate())
+              filters.dateFrom = ms
+            } else {
+              filters.dateTo = endMs
+            }
+          }
+          renderDateRangePopover()
+          renderAll()
+        }
+        return
+      }
+      const dateClear = t.closest<HTMLElement>('[data-sxa-date-clear]')
+      if (dateClear && root.contains(dateClear)) {
+        filters.dateFrom = null
+        filters.dateTo = null
+        renderDateRangePopover()
         renderAll()
+        return
       }
-      if (t.closest('[data-sxa-fp-cancel]') || t.closest('[data-sxa-fp-done]')) {
-        closeAllPopovers()
+      const spinToggle = t.closest<HTMLElement>('[data-sxa-time-spin-toggle]')
+      if (spinToggle && root.contains(spinToggle)) {
+        const which = spinToggle.getAttribute('data-sxa-time-spin-toggle') ?? ''
+        const otherWhich = which === 'start' ? 'end' : 'start'
+        const otherPanel = root.querySelector<HTMLElement>(`[data-sxa-time-spin="${otherWhich}"]`)
+        if (otherPanel) otherPanel.classList.remove('sxa-time-spin--open')
+        const panel = root.querySelector<HTMLElement>(`[data-sxa-time-spin="${which}"]`)
+        if (panel) panel.classList.toggle('sxa-time-spin--open')
+        return
+      }
+      const spinStep = t.closest<HTMLElement>('[data-sxa-time-spin-step]')
+      if (spinStep && root.contains(spinStep)) {
+        const [which, unit, deltaStr] = (spinStep.getAttribute('data-sxa-time-spin-step') ?? '').split(':')
+        if (which === 'start' || which === 'end') {
+          stepTimeField(which, unit === 'hh' ? 'hh' : 'mm', parseInt(deltaStr, 10) || 0)
+        }
+        return
+      }
+      const chipRm = t.closest<HTMLElement>('[data-sxa-mp-chip-rm]')
+      if (chipRm && root.contains(chipRm)) {
+        const key = chipRm.getAttribute('data-sxa-mp-chip-key') ?? ''
+        const val = chipRm.getAttribute('data-sxa-mp-chip-rm') ?? ''
+        if (isComboKey(key)) {
+          // The collapsed "All" chip removes the whole group at once (same as unchecking the
+          // "All" row) rather than a single value.
+          if (val === '__all__') comboResetAll(key)
+          else comboToggleValue(key, val, false)
+          renderMiniPopover(key)
+          renderAll()
+        }
+        return
+      }
+      // The readout box is the level-1 → level-2 toggle: click it to reveal (or re-hide) the
+      // search box + option list nested underneath it.
+      const selectBox = t.closest<HTMLElement>('[data-sxa-mp-select]')
+      if (selectBox && root.contains(selectBox)) {
+        const key = selectBox.getAttribute('data-sxa-mp-key') ?? ''
+        if (isComboKey(key)) {
+          comboExpanded.has(key) ? comboExpanded.delete(key) : comboExpanded.add(key)
+          renderMiniPopover(key)
+        }
+        return
+      }
+      const allRow = t.closest<HTMLElement>('[data-sxa-mp-all]')
+      if (allRow && root.contains(allRow)) {
+        const key = allRow.getAttribute('data-sxa-mp-key') ?? ''
+        if (isComboKey(key)) {
+          comboResetAll(key)
+          renderMiniPopover(key)
+          renderAll()
+        }
+        return
+      }
+      const optRow = t.closest<HTMLElement>('[data-sxa-mp-row]')
+      if (optRow && root.contains(optRow)) {
+        const key = optRow.getAttribute('data-sxa-mp-key') ?? ''
+        const val = optRow.getAttribute('data-sxa-mp-val') ?? ''
+        const nowSelected = !optRow.classList.contains('sxa-mp-opt--selected')
+        if (isComboKey(key)) {
+          comboToggleValue(key, val, nowSelected)
+          if (SXA_COMBO_SELECT_STYLE.has(key)) {
+            // Plain single-choice list (Timezone): picking a value applies it immediately and
+            // closes the popover, like a native <select> — there's nothing left to adjust.
+            comboExpanded.delete(key)
+            closeAllPopovers()
+          } else {
+            renderMiniPopover(key)
+          }
+          renderAll()
+        }
       }
       return
     }
@@ -1829,7 +2353,10 @@ export function initAnalyticsPage(
     }
     const pillRm = t.closest<HTMLElement>('[data-sxa-active-pill-rm]')
     if (pillRm && root.contains(pillRm)) {
-      clearFilterGroup(pillRm.getAttribute('data-sxa-active-pill-rm') ?? '')
+      const group = pillRm.getAttribute('data-sxa-active-pill-rm') ?? ''
+      const value = pillRm.getAttribute('data-sxa-active-pill-rm-value')
+      if (value !== null) removeSingleFilterValue(group, value)
+      else clearFilterGroup(group)
       renderAll()
       return
     }
@@ -1938,38 +2465,43 @@ export function initAnalyticsPage(
       calMetric = (t as HTMLSelectElement).value as typeof calMetric
       renderCalendar(getFilteredTrades())
     }
-    if (t.hasAttribute('data-sxa-asset-opt') && t instanceof HTMLInputElement) {
-      // Any explicit toggle switches assets out of the implicit "all" (empty
-      // set) state and into an explicit selection of just the checked assets.
-      if (filters.assets.size === 0) filters.assets = new Set(distinctAssets())
-      t.checked ? filters.assets.add(t.value) : filters.assets.delete(t.value)
-      if (filters.assets.size === distinctAssets().length) filters.assets.clear()
-      renderAll()
-      return
-    }
-    if (t.hasAttribute('data-sxa-tag-opt') && t instanceof HTMLInputElement) {
-      activeTag = t.value
-      renderAll()
-      return
-    }
-    const fpSelectKey = t.getAttribute('data-sxa-fp-select')
-    if (fpSelectKey && t instanceof HTMLSelectElement) {
-      if (fpSelectKey === 'type') filters.type = t.value
-      else if (fpSelectKey === 'strategy') filters.strategy = t.value
-      else if (fpSelectKey === 'timezone') filters.timezone = t.value
-      renderAll()
-      return
-    }
     if (t.hasAttribute('data-sxa-fp-time-start') && t instanceof HTMLInputElement) {
-      filters.timeStart = t.value || '00:00'
+      filters.timeStart = normalizeTimeFieldValue(t.value, '00:00')
+      t.value = filters.timeStart
       renderAll()
       return
     }
     if (t.hasAttribute('data-sxa-fp-time-end') && t instanceof HTMLInputElement) {
-      filters.timeEnd = t.value || '23:59'
+      filters.timeEnd = normalizeTimeFieldValue(t.value, '23:59')
+      t.value = filters.timeEnd
       renderAll()
       return
     }
+  })
+
+  // Live-masks the Start/End time fields into "HH:MM" as the user types (digits only, colon
+  // auto-inserted after the hour) — no native <input type="time"> picker involved.
+  root.addEventListener('input', (e) => {
+    const t = e.target as HTMLElement | null
+    if (!t || !(t instanceof HTMLInputElement)) return
+    if (t.hasAttribute('data-sxa-fp-time-start') || t.hasAttribute('data-sxa-fp-time-end')) {
+      const digits = t.value.replace(/\D/g, '').slice(0, 4)
+      t.value = digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits
+    }
+  })
+
+  // Live-filters the checkbox rows inside an open combo popover as the user types.
+  root.addEventListener('input', (e) => {
+    const t = e.target as HTMLElement | null
+    if (!t || !(t instanceof HTMLInputElement) || !t.matches('.sxa-mp-search-input')) return
+    const key = t.getAttribute('data-sxa-mp-search') ?? ''
+    const query = t.value.trim().toLowerCase()
+    const list = root.querySelector<HTMLElement>(`[data-sxa-mp-list="${key}"]`)
+    if (!list) return
+    list.querySelectorAll<HTMLElement>('[data-sxa-mp-row]').forEach((row) => {
+      const text = row.getAttribute('data-sxa-mp-text') ?? ''
+      row.classList.toggle('sxa-mp-opt--hidden', !!query && !text.includes(query))
+    })
   })
 
   return { renderAll }

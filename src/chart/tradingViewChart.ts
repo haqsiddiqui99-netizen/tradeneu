@@ -28,6 +28,11 @@ export type TvHeaderButtonDef = {
 
 export type TradingViewChartHandle = {
   dispose: () => void
+  /** Uses TradingView's own client-side snapshot API, so the result matches what its
+   *  built-in camera/screenshot tool produces (legend, price/time scale, drawings) -
+   *  and, since it's TV's own render, it never picks up our custom overlays drawn on
+   *  top of the widget (e.g. the replay "select bar" toolbar). */
+  captureScreenshot: () => Promise<HTMLCanvasElement | null>
   setSymbol: (symbol: string) => void
   setResolution: (resolution: string) => void
   /** Update TV interval label without reloading the widget (replay feed owns bars). */
@@ -270,6 +275,9 @@ type TvWidgetApi = {
   headerReady: () => Promise<void>
   createButton: (options?: TvCreateButtonOptions) => string | HTMLElement
   resetCache: () => void
+  /** Native TradingView client-side snapshot - mirrors what the widget's own
+   *  camera/screenshot tool produces (legend, price/time scale, drawings). */
+  takeClientScreenshot?: (options?: Record<string, unknown>) => Promise<HTMLCanvasElement>
 }
 
 type TvWidgetCtor = new (opts: Record<string, unknown>) => TvWidgetApi
@@ -2353,6 +2361,15 @@ export async function createTradingViewChart(
         /* noop */
       }
       container.replaceChildren()
+    },
+
+    async captureScreenshot() {
+      if (disposed || typeof widget.takeClientScreenshot !== 'function') return null
+      try {
+        return await widget.takeClientScreenshot()
+      } catch {
+        return null
+      }
     },
 
     getHeaderButton(id) {

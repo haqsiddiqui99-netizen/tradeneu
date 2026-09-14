@@ -4208,16 +4208,17 @@ a.sx-dash-account__item {
   border-radius: 0.375rem;
   background: transparent;
   color: #344054;
-  font-size: 0.8125rem;
-  font-weight: 400;
-  letter-spacing: -0.005em;
+  font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: normal;
   text-align: left;
   cursor: pointer;
   transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .sx-dash-side__link:hover {
-  background: rgba(15, 23, 42, 0.045);
+  background: rgba(15, 23, 42, 0.1);
   color: #0f172a;
 }
 
@@ -4231,7 +4232,7 @@ a.sx-dash-account__item {
   position: relative;
   overflow: hidden;
   border-radius: 0.5rem;
-  background: #1a1a1a;
+  background: #6b7280;
   color: #ffffff;
   box-shadow:
     0 6px 16px rgba(0, 0, 0, 0.3),
@@ -4249,9 +4250,9 @@ a.sx-dash-account__item {
 
 .sx-dash-side__link--active span {
   position: relative;
-  font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-weight: 700;
-  font-size: 0.875rem;
+  font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 500;
+  font-size: 13px;
 }
 
 .sx-dash-side__link--active .sx-dash-side__ico--grid {
@@ -4983,13 +4984,13 @@ a.sx-dash-account__item {
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-side__link:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.12);
   color: #fafafa;
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-side__link--active,
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-side__link--active:hover {
-  background: #000000;
+  background: #6b7280;
   color: #ffffff;
   box-shadow:
     0 6px 16px rgba(0, 0, 0, 0.5),
@@ -6620,414 +6621,6 @@ a.sx-dash-account__item {
   box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.06);
 }
 
-.sx-trade-journal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  display: flex;
-  justify-content: flex-end;
-  align-items: stretch;
-  background: rgba(15, 23, 42, 0.4);
-  animation: sxTradeJournalFadeIn 0.18s ease;
-}
-
-@keyframes sxTradeJournalFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.sx-trade-journal-dialog {
-  /* NOTE: this dialog is appended directly under the app root, outside the
-     `.sxt-trades` element that defines the --sxt-* custom properties, so it
-     cannot rely on those variables (they'd resolve to nothing there, which
-     silently breaks colors/borders and can also trigger the browser's
-     native dark-mode form-control rendering on the textarea). Every color
-     below is a literal value for that reason. */
-  color-scheme: light;
-  width: min(64rem, 88vw);
-  height: 100%;
-  max-height: 100vh;
-  background: #ffffff;
-  color: #0b0d10;
-  box-shadow: -24px 0 64px rgba(15, 23, 42, 0.28);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  font-family: inherit;
-}
-
-.sx-trade-journal-dialog__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1.25rem 0.25rem;
-  flex-shrink: 0;
-}
-
-.sx-trade-journal-dialog__toolbar-left,
-.sx-trade-journal-dialog__toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.sx-trade-journal-dialog__icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.5rem;
-  border: 1px solid #e7e9ee;
-  background: #ffffff;
-  color: #6b7280;
-  font-size: 1.15rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.sx-trade-journal-dialog__icon-btn:hover:not(:disabled) {
-  background: #eef0fe;
-  color: #0b0d10;
-  border-color: #0b0d10;
-}
-
-.sx-trade-journal-dialog__icon-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.sx-trade-journal-dialog__menu-wrap {
-  position: relative;
-}
-
-.sx-trade-journal-dialog__menu {
-  position: absolute;
-  top: 2.3rem;
-  right: 0;
-  min-width: 9.5rem;
-  background: #ffffff;
-  border: 1px solid #e7e9ee;
-  border-radius: 0.6rem;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
-  padding: 0.35rem;
-  z-index: 5;
-}
-
-.sx-trade-journal-dialog__menu.hidden {
-  display: none;
-}
-
-.sx-trade-journal-dialog__menu-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 0.5rem 0.65rem;
-  border-radius: 0.4rem;
-  border: 0;
-  background: transparent;
-  color: #0b0d10;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.sx-trade-journal-dialog__menu-item:hover {
-  background: #f4f5f7;
-}
-
-.sx-trade-journal-dialog__head {
-  padding: 0.25rem 1.25rem 0;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  flex-shrink: 0;
-}
-
-.sx-trade-journal-dialog__title {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: #0b0d10;
-}
-
-.sx-trade-journal-dialog__title .sxt-side-buy,
-.sx-trade-journal-dialog__title .sxt-side-sell {
-  font-size: 1.4rem;
-  font-weight: 700;
-}
-
-.sx-trade-journal-dialog__pnl {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #6b7280;
-}
-
-.sx-trade-journal-dialog__pnl.sxt-gain {
-  color: #1a9d5c;
-}
-
-.sx-trade-journal-dialog__pnl.sxt-loss {
-  color: #d6455a;
-}
-
-.sx-trade-journal-dialog__sub {
-  padding: 0.15rem 1.25rem 0.9rem;
-  font-size: 0.85rem;
-  color: #6b7280;
-  border-bottom: 1px solid #e7e9ee;
-  flex-shrink: 0;
-}
-
-.sx-trade-journal-dialog__body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  overflow: hidden;
-  background: #ffffff;
-}
-
-.sx-trade-journal-dialog__fields {
-  width: min(20rem, 40%);
-  flex-shrink: 0;
-  padding: 1.1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-  border-right: 1px solid #f0f1f4;
-  overflow-y: auto;
-  background: #ffffff;
-}
-
-.sx-trade-journal-dialog__field {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.sx-trade-journal-dialog__field-label {
-  font-size: 0.85rem;
-  color: #6b7280;
-  flex-shrink: 0;
-}
-
-.sx-trade-journal-dialog__field-value {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #0b0d10;
-  background: #f4f5f7;
-  border-radius: 0.5rem;
-  padding: 0.32rem 0.65rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 60%;
-}
-
-.sx-trade-journal-dialog__notes-col {
-  flex: 1;
-  min-width: 0;
-  padding: 1.1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  overflow-y: auto;
-  background: #ffffff;
-}
-
-.sx-trade-journal-dialog__shot {
-  border: 1px solid #e7e9ee;
-  border-radius: 0.65rem;
-  overflow: hidden;
-  background: #fafbfc;
-}
-
-.sx-trade-journal-dialog__shot img {
-  display: block;
-  width: 100%;
-  max-height: 16rem;
-  object-fit: contain;
-  background: #0b0d10;
-}
-
-.sx-trade-journal-dialog__shot-caption {
-  padding: 0.5rem 0.7rem;
-  font-size: 0.75rem;
-  color: #6b7280;
-  border-top: 1px solid #f0f1f4;
-  background: #ffffff;
-}
-
-.sx-trade-journal-dialog__editor {
-  flex: 1;
-  min-height: 9rem;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  border: 1px solid #e7e9ee;
-  border-radius: 0.65rem;
-  padding: 0.75rem 0.85rem;
-  background: #ffffff;
-  color-scheme: light;
-  transition: border-color 0.15s ease;
-}
-
-.sx-trade-journal-dialog__editor:focus-within {
-  border-color: #0b0d10;
-}
-
-.sx-trade-journal-dialog__editor-add {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.3rem;
-  height: 1.3rem;
-  margin-top: 0.1rem;
-  border-radius: 0.35rem;
-  border: 1px solid #e7e9ee;
-  color: #9aa1ac;
-  font-size: 0.9rem;
-  line-height: 1;
-  cursor: pointer;
-  flex-shrink: 0;
-  user-select: none;
-}
-
-.sx-trade-journal-dialog__editor-add:hover {
-  background: #f4f5f7;
-  color: #0b0d10;
-  border-color: #0b0d10;
-}
-
-.sx-trade-journal-dialog__editor-grip {
-  color: #c7ccd4;
-  font-size: 0.7rem;
-  line-height: 1;
-  letter-spacing: -1px;
-  margin-top: 0.25rem;
-  cursor: grab;
-  flex-shrink: 0;
-  user-select: none;
-}
-
-.sx-trade-journal-dialog__textarea {
-  flex: 1;
-  min-height: 8.5rem;
-  border: 0;
-  padding: 0;
-  font-size: 0.85rem;
-  font-family: inherit;
-  background: #ffffff;
-  color: #0b0d10;
-  color-scheme: light;
-  resize: vertical;
-  outline: none;
-}
-
-.sx-trade-journal-dialog__textarea::placeholder {
-  color: #a6acb8;
-}
-
-.sx-trade-journal-dialog__shortcuts {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-top: 0.35rem;
-}
-
-.sx-trade-journal-dialog__shortcuts.hidden {
-  display: none;
-}
-
-.sx-trade-journal-dialog__shortcuts-label {
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-.sx-trade-journal-dialog__template-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  border: 1px solid #e7e9ee;
-  background: #ffffff;
-  border-radius: 999px;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #0b0d10;
-  cursor: pointer;
-}
-
-.sx-trade-journal-dialog__template-chip:hover {
-  background: #f4f5f7;
-  border-color: #0b0d10;
-}
-
-.sx-trade-journal-dialog__foot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.6rem;
-  padding: 0.85rem 1.25rem;
-  border-top: 1px solid #e7e9ee;
-  background: #ffffff;
-  flex-shrink: 0;
-}
-
-.sx-trade-journal-dialog__cancel {
-  border: 1px solid #e7e9ee;
-  background: #ffffff;
-  color: #6b7280;
-  border-radius: 999px;
-  padding: 0.55rem 1.1rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.sx-trade-journal-dialog__cancel:hover {
-  background: #f4f5f7;
-}
-
-.sx-trade-journal-dialog__save {
-  border: 0;
-  background: linear-gradient(135deg, #1a1a1a, #2c2c2c);
-  color: #ffffff;
-  border-radius: 999px;
-  padding: 0.55rem 1.3rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24);
-}
-
-.sx-trade-journal-dialog__save:hover {
-  filter: brightness(1.05);
-}
-
-@media (max-width: 860px) {
-  .sx-trade-journal-dialog {
-    width: 100vw;
-  }
-  .sx-trade-journal-dialog__body {
-    flex-direction: column;
-    overflow-y: auto;
-  }
-  .sx-trade-journal-dialog__fields {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid #f0f1f4;
-  }
-}
-
 .sxt-action-btn {
   display: inline-flex;
   align-items: center;
@@ -7375,7 +6968,7 @@ a.sx-dash-account__item {
   --sxa-loss-soft: #fdedef;
   --sxa-amber: #b6690a;
   --sxa-radius: 14px;
-  font-family: 'IBM Plex Sans', 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Geist', 'Arimo', 'Helvetica Neue', Helvetica, Arial, -apple-system, 'Segoe UI', sans-serif;
   color: var(--sxa-ink-800);
 }
 
@@ -7425,6 +7018,15 @@ a.sx-dash-account__item {
   margin-bottom: 22px;
 }
 
+/* Top toolbar row: the filter-pill group (wraps onto a second row once it runs out of
+   width, same as the reference) sits to the left, with Apply/Export pinned to the right and
+   vertically centered against however many rows the pill group wraps to. */
+.sxa-filter-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .sxa-filter-row {
   display: flex;
   align-items: center;
@@ -7432,49 +7034,66 @@ a.sx-dash-account__item {
   flex-wrap: wrap;
 }
 
+.sxa-filter-row--pills {
+  flex: 1 1 auto;
+  min-width: 0;
+  row-gap: 8px;
+}
+
+/* Forces Day (and everything after it) onto its own row, regardless of how much horizontal
+   space the first row of chips would otherwise have left \u2014 a zero-height, full-width flex
+   item is the standard way to hard-break a wrapping flex row at a specific point. */
+.sxa-filter-row-break {
+  flex-basis: 100%;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.sxa-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .sxa-chip {
   display: flex;
   align-items: center;
   gap: 7px;
   background: var(--sxa-surface);
-  border: 1px solid var(--sxa-line);
+  border: 1px solid #c3c8d1;
   border-radius: 10px;
-  padding: 9px 14px;
+  padding: 7.5px 14px;
+  font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 500;
   font-size: 13px;
-  font-weight: 600;
+  letter-spacing: normal;
   color: var(--sxa-ink-800);
   cursor: pointer;
   position: relative;
   white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .sxa-chip:hover {
   background: var(--sxa-line-soft);
+  border-color: #a6acb8;
+}
+
+.sxa-chip--static {
+  cursor: default;
+}
+
+.sxa-chip--static:hover {
+  background: var(--sxa-surface);
 }
 
 .sxa-chip__icon,
 .sxa-chip__chevron {
   font-size: 11px;
   color: var(--sxa-ink-300);
-}
-
-.sxa-filters-btn {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  background: var(--sxa-surface);
-  border: 1px solid var(--sxa-line);
-  border-radius: 10px;
-  padding: 9px 14px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--sxa-ink-800);
-  cursor: pointer;
-  position: relative;
-}
-
-.sxa-filters-btn:hover {
-  background: var(--sxa-line-soft);
 }
 
 .sxa-count-badge {
@@ -7545,6 +7164,39 @@ a.sx-dash-account__item {
   flex-wrap: wrap;
 }
 
+/* Each multi-select filter's values (e.g. Side's "Long"/"Short") share one pill-shaped
+   background — grouped visually like a single filter summary — but every value still gets
+   its own independent "×" so it can be removed without touching the rest of the group. */
+.sxa-active-group {
+  display: flex;
+  align-items: center;
+  background: var(--sxa-brand-soft);
+  color: var(--sxa-brand);
+  border-radius: 999px;
+  padding: 5px 10px 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sxa-active-group__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.sxa-active-group__item + .sxa-active-group__item {
+  border-left: 1px solid rgba(54, 82, 246, 0.25);
+}
+
+.sxa-active-group__item:first-child {
+  padding-left: 0;
+}
+
+.sxa-active-group__item:last-child {
+  padding-right: 0;
+}
+
 .sxa-active-pill {
   display: flex;
   align-items: center;
@@ -7567,144 +7219,142 @@ a.sx-dash-account__item {
   opacity: 1;
 }
 
-/* Filters popover (Type / Side / Outcome / Session / Strategy / Day / Time / Timezone) */
-.sxa-fp-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.42);
-  z-index: 999;
-}
-
-.sxa-fp-backdrop.sxa-popover--open {
-  display: block;
-}
-
-.sxa-filters-popover {
-  display: none;
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: var(--sxa-surface);
-  border: 1px solid var(--sxa-line);
-  border-radius: 14px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
-  width: 780px;
-  max-width: calc(100vw - 48px);
-  max-height: 85vh;
-  overflow-y: auto;
-  padding: 18px 22px;
-  z-index: 1000;
-}
-
-.sxa-filters-popover.sxa-popover--open {
-  display: block;
-}
-
-.sxa-fp-grid {
+/* Time popover — a compact Start/End pair, side by side, each opening its own tiny spinner.
+   Plain text inputs (not <input type="time">) so there's no native OS time-picker overlay
+   fighting with our own popover; the field is read-only, adjusted only via the spinner. */
+.sxa-time-row {
   display: flex;
-  align-items: flex-start;
-  gap: 22px;
-}
-
-.sxa-fp-col {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.sxa-fp-field label {
-  display: block;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--sxa-ink-500);
-  margin-bottom: 6px;
-}
-
-.sxa-fp-options {
-  display: flex;
-  flex-wrap: wrap;
+  align-items: flex-end;
   gap: 6px;
 }
 
-.sxa-fp-opt {
-  border: 1px solid var(--sxa-line);
-  background: var(--sxa-surface);
-  border-radius: 8px;
-  padding: 6px 11px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--sxa-ink-500);
-  cursor: pointer;
+.sxa-time-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
-.sxa-fp-opt--selected {
-  background: var(--sxa-brand-soft);
-  border-color: var(--sxa-brand);
-  color: var(--sxa-brand);
-}
-
-.sxa-fp-select {
-  width: 100%;
-  border: 1px solid var(--sxa-line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--sxa-ink-800);
-  background: var(--sxa-surface);
-}
-
-.sxa-fp-time-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.sxa-fp-time-row span {
+.sxa-time-row__sep {
+  flex-shrink: 0;
+  padding-bottom: 8px;
   color: var(--sxa-ink-300);
   font-size: 12px;
 }
 
-.sxa-fp-time-row .sxa-fp-select {
-  flex: 1;
-}
-
-.sxa-fp-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--sxa-line-soft);
-}
-
-.sxa-fp-footer button {
-  font-family: inherit;
-  font-size: 13px;
+.sxa-time-field__label {
+  display: block;
+  font-size: 10.5px;
   font-weight: 700;
-  border-radius: 9px;
-  padding: 8px 16px;
+  color: var(--sxa-ink-300);
+  margin-bottom: 4px;
+}
+
+.sxa-time-field__wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border: 1px solid var(--sxa-line);
+  border-radius: 7px;
+  background: var(--sxa-surface);
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+
+.sxa-time-field__wrap:hover {
+  border-color: var(--sxa-ink-300);
+}
+
+.sxa-time-field__input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  outline: none;
+  padding: 0 8px;
+  text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--sxa-ink-800);
+  background: transparent;
   cursor: pointer;
 }
 
-.sxa-fp-cancel {
-  background: var(--sxa-surface);
+/* Up/down hour+minute spinner, opened by clicking a Start/End field. Positioned absolutely
+   (floating over whatever sits below it) so opening it never grows the popover or shifts the
+   other field, and animated via opacity/transform (rather than display) for a smooth pop-in
+   instead of an abrupt snap. */
+.sxa-time-spin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  padding: 6px 8px;
   border: 1px solid var(--sxa-line);
+  border-radius: 9px;
+  background: var(--sxa-surface);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  z-index: 5;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, -4px) scale(0.96);
+  transform-origin: top center;
+  transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s;
+}
+
+.sxa-time-spin.sxa-time-spin--open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.sxa-time-spin__col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.sxa-time-spin__val {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--sxa-ink-800);
+  min-width: 22px;
+  text-align: center;
 }
 
-.sxa-fp-done {
-  background: var(--sxa-ink-950);
+.sxa-time-spin__sep {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sxa-ink-300);
+}
+
+.sxa-time-spin__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 15px;
   border: none;
-  color: #fff;
+  background: transparent;
+  color: var(--sxa-brand);
+  font-size: 10.5px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background 0.12s ease;
 }
 
-/* Asset / Tags mini popovers */
+.sxa-time-spin__btn:hover {
+  background: var(--sxa-line-soft);
+}
+
+/* Per-chip popovers (Assets, Tags, Type, Side, Outcome, Session, Strategy, Day, Time, Timezone) */
 .sxa-mini-popover {
   display: none;
   position: absolute;
@@ -7725,32 +7375,354 @@ a.sx-dash-account__item {
   display: block;
 }
 
-.sxa-mini-opt {
-  padding: 8px 10px;
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--sxa-ink-800);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-
-.sxa-mini-opt:hover {
-  background: var(--sxa-line-soft);
-}
-
-.sxa-mini-opt input {
-  accent-color: var(--sxa-brand);
-}
-
 .sxa-filter-empty {
   padding: 8px 10px;
   font-size: 12.5px;
   color: var(--sxa-ink-300);
   white-space: nowrap;
+}
+
+/* Combobox-style filter popover: title, a readout box (selected chips or a placeholder),
+   a search box, then a scrollable checkbox list (with an optional "All" row up top). */
+.sxa-mini-popover--combo {
+  width: 260px;
+  max-height: none;
+  overflow: visible;
+  padding: 12px;
+}
+
+/* The Time popover's content (fields + spin picker) isn't a scrollable checkbox list like the
+   combo popovers, so it must never clip/scroll — the spin picker floats below/outside the
+   fields and needs to be fully visible, not cut off by a scrollbar. Declared after the base
+   .sxa-mini-popover rule (see above) so its overflow/max-height reset actually wins. */
+.sxa-mini-popover--time {
+  width: 196px;
+  max-height: none;
+  overflow: visible;
+  padding: 10px;
+}
+
+.sxa-mp-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--sxa-ink-500);
+  margin-bottom: 8px;
+}
+
+.sxa-mp-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #c3c8d1;
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin-bottom: 8px;
+  background: var(--sxa-surface);
+  cursor: pointer;
+  /* Fixed height so the popover never resizes as chips are added/removed (multi-select
+     groups like Assets/Side/Outcome can hold several chips at once — they scroll inside
+     this row instead of wrapping onto extra lines, which would otherwise grow the box). */
+  height: 34px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.sxa-mp-select:hover {
+  border-color: var(--sxa-ink-300);
+}
+
+.sxa-mp-select > .fa-chevron-down {
+  color: var(--sxa-ink-300);
+  font-size: 11px;
+  flex-shrink: 0;
+  transition: transform 0.12s ease;
+}
+
+.sxa-mp-select--open > .fa-chevron-down {
+  transform: rotate(180deg);
+}
+
+.sxa-mp-select-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sxa-mp-select-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.sxa-mp-placeholder {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 20px;
+  color: var(--sxa-ink-300);
+}
+
+.sxa-mp-chip {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+  background: #e7e7ea;
+  color: var(--sxa-ink-800);
+  border-radius: 6px;
+  padding: 2px 8px;
+  line-height: 20px;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sxa-mp-chip i {
+  font-size: 11px;
+  color: var(--sxa-ink-300);
+}
+
+.sxa-mp-chip:hover i {
+  color: var(--sxa-ink-500);
+}
+
+.sxa-mp-search {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.sxa-mp-search-input {
+  width: 100%;
+  border: 1px solid #c3c8d1;
+  border-radius: 8px;
+  padding: 8px 30px 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--sxa-ink-800);
+  background: var(--sxa-surface);
+}
+
+.sxa-mp-search-input:focus {
+  outline: none;
+  border-color: var(--sxa-brand);
+}
+
+.sxa-mp-search i {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--sxa-ink-300);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.sxa-mp-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0 -6px;
+}
+
+.sxa-mp-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--sxa-ink-800);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sxa-mp-opt:hover {
+  background: var(--sxa-line-soft);
+}
+
+.sxa-mp-opt--selected {
+  background: #c7d2fe;
+  color: var(--sxa-brand);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sxa-mp-opt--selected:hover {
+  background: #c7d2fe;
+}
+
+.sxa-mp-opt--all {
+  border-bottom: 1px solid var(--sxa-line-soft);
+  border-radius: 0;
+  margin-bottom: 4px;
+  padding-bottom: 10px;
+}
+
+.sxa-mp-opt--hidden {
+  display: none;
+}
+
+/* Timezone's plain single-choice rows — no checkbox, just the label and (when selected) a
+   checkmark aligned to the right, closer to a native <select>'s option list. */
+.sxa-mp-opt--plain {
+  justify-content: space-between;
+}
+
+.sxa-mp-opt--plain i {
+  color: var(--sxa-brand);
+  font-size: 12px;
+}
+
+.sxa-mp-checkbox {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #c3c8d1;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+  font-size: 9px;
+  background: var(--sxa-surface);
+}
+
+.sxa-mp-checkbox i {
+  display: none;
+}
+
+.sxa-mp-checkbox--checked {
+  background: var(--sxa-brand);
+  border-color: var(--sxa-brand);
+}
+
+.sxa-mp-checkbox--checked i {
+  display: block;
+}
+
+/* Backtesting Date popover — a readout (placeholder or the selected range as a removable chip)
+   above a single-month calendar grid for picking a start/end day. */
+.sxa-mini-popover--date {
+  width: 268px;
+  max-height: none;
+  overflow: visible;
+}
+
+/* The readout box here is just a display, not a click target that expands anything (the
+   calendar below is always visible), so it doesn't need the combo popovers' hover/pointer. */
+.sxa-mp-select--static {
+  cursor: default;
+}
+
+.sxa-mp-select--static > i {
+  color: var(--sxa-ink-300);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.sxa-cal__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.sxa-cal__nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--sxa-brand);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.sxa-cal__nav-btn:hover {
+  background: var(--sxa-line-soft);
+}
+
+.sxa-cal__nav-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sxa-ink-800);
+}
+
+.sxa-cal__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+
+.sxa-cal__weekdays span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sxa-ink-300);
+  padding: 4px 0;
+}
+
+.sxa-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.sxa-cal-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--sxa-ink-800);
+  cursor: pointer;
+}
+
+.sxa-cal-day:hover {
+  background: var(--sxa-line-soft);
+}
+
+.sxa-cal-day--outside {
+  color: var(--sxa-ink-300);
+  font-weight: 500;
+}
+
+.sxa-cal-day--today {
+  background: var(--sxa-line-soft);
+}
+
+.sxa-cal-day--in-range {
+  border-radius: 0;
+  background: var(--sxa-brand-soft);
+}
+
+.sxa-cal-day--selected {
+  background: var(--sxa-brand);
+  color: #fff;
+}
+
+.sxa-cal-day--selected:hover {
+  background: var(--sxa-brand);
 }
 
 .sxa-toolbar {

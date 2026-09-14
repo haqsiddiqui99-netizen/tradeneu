@@ -649,6 +649,7 @@
 
 /* FXReplay-style trade bar in chart footer */
 .rw-trade-bar {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -702,7 +703,83 @@
   background: #f77c7c;
 }
 
+/* Chart / Trade view toggle — swaps which half of the workspace is maximized.
+   Pinned to the true horizontal center of the trade bar (not just wherever it falls in flow),
+   so it stays centered regardless of how much content sits on either side of it. */
+.rw-view-toggle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: rgba(19, 23, 34, 0.05);
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.rw-view-toggle__btn {
+  height: 22px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #787b86;
+  font: 600 11.5px var(--rw-font, sans-serif);
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.rw-view-toggle__btn:hover:not(:disabled) {
+  color: #11141c;
+}
+
+/* The button for the view you're NOT on is the actionable one — highlighted, clickable.
+   The button for the view you're currently on looks disabled since clicking it is a no-op. */
+.rw-view-toggle__btn--active {
+  background: #ffffff;
+  color: #11141c;
+  box-shadow: 0 1px 2px rgba(19, 23, 34, 0.12);
+}
+
+.rw-view-toggle__btn--current,
+.rw-view-toggle__btn:disabled {
+  background: transparent;
+  color: #b3b7c1;
+  cursor: default;
+  box-shadow: none;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-view-toggle {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-view-toggle__btn {
+  color: #b4b9c6;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-view-toggle__btn:hover:not(:disabled) {
+  color: #e6e8ee;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-view-toggle__btn--active {
+  background: #2a2e39;
+  color: #e6e8ee;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-view-toggle__btn--current,
+.rw-root[data-chart-theme='dark'] .rw-view-toggle__btn:disabled {
+  background: transparent;
+  color: #5b616e;
+}
+
 .rw-trade-stats {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 20px;
@@ -721,6 +798,109 @@
   align-items: flex-start;
   gap: 2px;
   min-width: 0;
+}
+
+/* Compact trigger pill: replaces the 3 inline stat columns, expands to a popover on click. */
+.rw-trade-stats__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #8a90a0;
+  border-radius: 6px;
+  background: #fff;
+  color: #11141c;
+  box-shadow: 0 1px 2px rgba(19, 23, 34, 0.04);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.rw-trade-stats__trigger:hover {
+  background: #f7f8fa;
+  border-color: #6b7280;
+}
+
+.rw-trade-stats__trigger-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #787b86;
+}
+
+.rw-trade-stats__trigger-ico svg {
+  width: 12px;
+  height: 12px;
+}
+
+.rw-trade-stats__trigger .rw-trade-stats__val {
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.rw-trade-stats__trigger-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #787b86;
+  transition: transform 0.15s ease;
+}
+
+.rw-trade-stats__trigger-chevron svg {
+  width: 10px;
+  height: 10px;
+}
+
+.rw-trade-stats__popover--open ~ .rw-trade-stats__trigger .rw-trade-stats__trigger-chevron,
+.rw-trade-stats__trigger[aria-expanded='true'] .rw-trade-stats__trigger-chevron {
+  transform: rotate(180deg);
+}
+
+.rw-trade-stats__popover {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 150px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #ffffff;
+  border: 1px solid rgba(19, 23, 34, 0.08);
+  box-shadow: 0 10px 28px rgba(19, 23, 34, 0.16), 0 2px 8px rgba(19, 23, 34, 0.08);
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
+  transform-origin: bottom left;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+}
+
+.rw-trade-stats__popover--open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.rw-trade-stats__popover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.rw-trade-stats__popover .rw-trade-stats__lbl {
+  font-size: 11px;
+  font-weight: 400;
+  color: #787b86;
+  letter-spacing: 0;
+}
+
+.rw-trade-stats__popover .rw-trade-stats__val {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .rw-trade-stats__lbl {
@@ -861,6 +1041,37 @@
 .rw-root[data-chart-theme='dark'] .rw-trade-stats__toggle:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #d1d4dc;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__trigger {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: #1e222d;
+  color: #e6e8ee;
+  box-shadow: none;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__trigger:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__trigger-ico,
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__trigger-chevron {
+  color: #b4b9c6;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__popover {
+  background: #1e222d;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__popover .rw-trade-stats__lbl {
+  color: #b4b9c6;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__popover .rw-trade-stats__val {
+  color: #e6e8ee;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-pos-row {

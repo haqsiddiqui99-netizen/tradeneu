@@ -61,11 +61,15 @@ export type PendingOrder = {
 
 export type ReplayJournalScreenshotAlign = 'left' | 'center' | 'right'
 
+/** Where a journal screenshot came from: a live chart capture, or a manually uploaded/pasted image. */
+export type ReplayJournalScreenshotSource = 'chart' | 'upload'
+
 export type ReplayJournalScreenshot = {
   src: string
   caption: string
   align: ReplayJournalScreenshotAlign
   showCaption: boolean
+  source?: ReplayJournalScreenshotSource
 }
 
 export type ReplayJournalBackground =
@@ -116,6 +120,15 @@ export type ReplayTradeJournal = {
   background?: ReplayJournalBackground
   screenshots?: Array<string | ReplayJournalScreenshot>
   blocks?: ReplayJournalBlock[]
+  /** Quick-reflection tap-chips the trader selected for this trade (no free typing required). */
+  reflectionWentWell?: string[]
+  reflectionToImprove?: string[]
+  /** Emotion tap-chips selected for this trade (constructive/destructive/neutral, mixed together). */
+  emotions?: string[]
+  /** Recorded/uploaded voice-note clips, stored as playable audio data URLs. */
+  voiceNotes?: string[]
+  /** Short free-text summary of the trade, separate from the optional detailed note. */
+  summary?: string
   updatedAt: number
 }
 
@@ -124,7 +137,7 @@ export function normalizeJournalScreenshots(
 ): ReplayJournalScreenshot[] {
   return (list ?? []).flatMap((item) => {
     if (typeof item === 'string') {
-      return item ? [{ src: item, caption: '', align: 'left' as const, showCaption: true }] : []
+      return item ? [{ src: item, caption: '', align: 'left' as const, showCaption: true, source: 'upload' as const }] : []
     }
     if (!item?.src) return []
     return [
@@ -133,6 +146,7 @@ export function normalizeJournalScreenshots(
         caption: item.caption ?? '',
         align: item.align === 'center' || item.align === 'right' ? item.align : 'left',
         showCaption: item.showCaption !== false,
+        source: item.source === 'chart' ? 'chart' : ('upload' as const),
       },
     ]
   })
@@ -323,6 +337,10 @@ function cloneClosedTrades(list: ClosedReplayTrade[]): ClosedReplayTrade[] {
           tags: [...trade.journal.tags],
           screenshots: normalizeJournalScreenshots(trade.journal.screenshots),
           blocks: normalizeJournalBlocks(trade.journal.blocks),
+          reflectionWentWell: trade.journal.reflectionWentWell ? [...trade.journal.reflectionWentWell] : undefined,
+          reflectionToImprove: trade.journal.reflectionToImprove ? [...trade.journal.reflectionToImprove] : undefined,
+          emotions: trade.journal.emotions ? [...trade.journal.emotions] : undefined,
+          voiceNotes: trade.journal.voiceNotes ? [...trade.journal.voiceNotes] : undefined,
         }
       : undefined,
   }))
@@ -608,6 +626,11 @@ export function createReplayAccount(
       tags: [...journal.tags],
       screenshots: normalizeJournalScreenshots(journal.screenshots),
       blocks: normalizeJournalBlocks(journal.blocks),
+      reflectionWentWell: journal.reflectionWentWell ? [...journal.reflectionWentWell] : undefined,
+      reflectionToImprove: journal.reflectionToImprove ? [...journal.reflectionToImprove] : undefined,
+      emotions: journal.emotions ? [...journal.emotions] : undefined,
+      voiceNotes: journal.voiceNotes ? [...journal.voiceNotes] : undefined,
+      summary: journal.summary,
       updatedAt: journal.updatedAt,
     }
     return true
