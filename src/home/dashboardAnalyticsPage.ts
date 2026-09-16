@@ -18,6 +18,7 @@ import {
   Filler,
   type ChartConfiguration,
 } from 'chart.js'
+import { fetchMarketBarsSeries } from '../data/marketDataClient'
 
 Chart.register(
   ArcElement,
@@ -52,6 +53,11 @@ export type SxaTrade = {
    *  session (London/New York/Asia) computed by `sessionForHour`. */
   sessionId: string
   sessionName: string
+  /** Fill price at entry, null if not recorded. Needed to compute Ideal RR (the best
+   *  R-multiple the trade could have reached within a week of opening). */
+  entryPrice: number | null
+  /** Initial stop-loss price at entry, null if none was set. */
+  initialStopLoss: number | null
 }
 
 // Filter bar option lists. Side/Outcome/Session/Day/Timezone are derived from real
@@ -168,7 +174,32 @@ const LOSS = '#d6455a'
 const AMBER = '#b6690a'
 const BRAND = '#3652f6'
 const GRID = '#f0f1f4'
-const AXIS = '#a6acb8'
+const AXIS = '#6b7280'
+
+// Chart.js v4 doesn't support dashing the actual y-axis gridlines out of the box (only the
+// axis border / tick marks). This tiny plugin draws them manually so we can render dotted
+// horizontal gridlines while leaving Chart.js's own grid disabled (y.grid.display: false).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sxaDashedGridPlugin: any = {
+  id: 'sxaDashedGrid',
+  beforeDraw(chart: any) {
+    const yScale = chart.scales?.y
+    if (!yScale) return
+    const { ctx, chartArea } = chart
+    ctx.save()
+    ctx.strokeStyle = '#d7dae1'
+    ctx.lineWidth = 1
+    ctx.setLineDash([3, 3])
+    for (const tick of yScale.ticks) {
+      const y = yScale.getPixelForValue(tick.value)
+      ctx.beginPath()
+      ctx.moveTo(chartArea.left, y)
+      ctx.lineTo(chartArea.right, y)
+      ctx.stroke()
+    }
+    ctx.restore()
+  },
+}
 
 const fmtMoney = (v: number) => `${v >= 0 ? '+' : '\u2212'}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const fmtPlain = (v: number) => `${v >= 0 ? '' : '-'}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -194,6 +225,15 @@ function pctMove(t: SxaTrade): number {
   // Percent P&L relative to the trade's own notional isn't tracked per-trade, so
   // approximate using R (already risk-normalized) scaled to a readable %.
   return t.returnR != null ? t.returnR * 1.5 : 0
+}
+
+function sxaEscapeAttrTopLevel(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function infoDot(tip: string, label?: string): string {
+  const aria = label ? `About ${label}` : 'More information'
+  return `<button type="button" class="sx-dash-pulse__kpi-info" data-tip="${sxaEscapeAttrTopLevel(tip)}" aria-label="${sxaEscapeAttrTopLevel(aria)}"><img src="/icons/kpi-info.png" alt="" aria-hidden="true" /></button>`
 }
 
 function buildFilterBarHtml(): string {
@@ -318,32 +358,45 @@ export function buildAnalyticsPageHtml(): string {
 
         <div class="sxa-section-title">
           Profit &amp; loss over time
-          <span class="sxa-info-dot">i</span>
-          <div class="sxa-tab-row" data-sxa-granularity style="margin-left:auto;">
+          ${infoDot('Cumulative profit or loss across your trades, plotted over the selected time granularity.', 'profit and loss over time')}
+          <div class="sxa-breakeven-box" style="margin-left:auto;">
+            <div class="sxa-breakeven-box__label">
+              ${infoDot('Use this filter to select the RR amount for breakeven. An input of 0.1 means any result between -0.1R and 0.1R is breakeven.', 'breakeven threshold')}
+              Breakeven Threshold
+            </div>
+            <div class="sxa-breakeven-box__row">
+              <input type="text" inputmode="decimal" class="sxa-breakeven-box__input" data-sxa-breakeven-input value="0.1" aria-label="Breakeven threshold in R" />
+              <button type="button" class="sxa-breakeven-box__submit" data-sxa-breakeven-submit>Submit</button>
+            </div>
+          </div>
+          <div class="sxa-tab-row" data-sxa-granularity>
             <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-g="all">All</button>
             <button type="button" class="sxa-tab-row__btn" data-sxa-g="day">Day</button>
             <button type="button" class="sxa-tab-row__btn" data-sxa-g="hour">1 Hour</button>
             <button type="button" class="sxa-tab-row__btn" data-sxa-g="15min">15 Min</button>
           </div>
         </div>
-        <div class="sxa-card"><canvas data-sxa-pnl-canvas></canvas></div>
+        <div class="sxa-card" style="position:relative;">
+          <canvas data-sxa-pnl-canvas></canvas>
+          <div class="sxa-pnl-tooltip" data-sxa-pnl-tooltip></div>
+        </div>
 
         <div class="sxa-section-title">Risk-reward</div>
         <div class="sxa-grid-3">
           <div class="sxa-card sxa-rr-card">
             <svg class="sxa-rr-spark" data-sxa-spark-avgrr viewBox="0 0 200 60" preserveAspectRatio="none"></svg>
             <div class="sxa-rr-row">
-              <div class="sxa-rr-item"><div class="sxa-rr-label">Average RR <span class="sxa-info-dot">i</span></div><div class="sxa-rr-value" data-sxa-stat="avgrr">\u2013</div></div>
-              <div class="sxa-rr-item"><div class="sxa-rr-label">Max RR</div><div class="sxa-rr-value" data-sxa-stat="maxrr">\u2013</div></div>
+              <div class="sxa-rr-item"><div class="sxa-rr-label">Average RR ${infoDot('Average Risk to reward ratio (RR) per trade. An Average RR of 2 means that for every $1 you risk you will make $2 on an average winning trade.', 'average RR')}</div><div class="sxa-rr-value" data-sxa-stat="avgrr">\u2013</div></div>
+              <div class="sxa-rr-item"><div class="sxa-rr-label">Max RR ${infoDot('Maximum Risk to reward ratio realized from all your trades. You can use the small graph at the bottom of this card to see the RR of every one of your trades.', 'max RR')}</div><div class="sxa-rr-value" data-sxa-stat="maxrr">\u2013</div></div>
             </div>
           </div>
           <div class="sxa-card">
-            <div class="sxa-rr-label">Average risk <span class="sxa-info-dot">i</span></div>
+            <div class="sxa-rr-label">Average risk ${infoDot('Average distance between entry and initial stop loss, converted to R.', 'average risk')}</div>
             <div class="sxa-rr-value" data-sxa-stat="avgrisk" style="font-size:24px;margin-top:6px;">\u2013</div>
             <div class="sxa-hint">Average distance between entry and initial stop loss, converted to R.</div>
           </div>
           <div class="sxa-card">
-            <div class="sxa-rr-label">Win RR vs loss RR <span class="sxa-info-dot">i</span></div>
+            <div class="sxa-rr-label">Win RR vs loss RR ${infoDot('Average reward-to-risk ratio for winning trades compared to losing trades.', 'win RR vs loss RR')}</div>
             <div class="sxa-rr-row" style="margin-top:6px;">
               <div class="sxa-rr-item"><div class="sxa-rr-label">Wins</div><div class="sxa-rr-value" style="color:${GAIN};font-size:20px;" data-sxa-stat="winrr">\u2013</div></div>
               <div class="sxa-rr-item"><div class="sxa-rr-label">Losses</div><div class="sxa-rr-value" style="color:${LOSS};font-size:20px;" data-sxa-stat="lossrr">\u2013</div></div>
@@ -351,17 +404,41 @@ export function buildAnalyticsPageHtml(): string {
           </div>
         </div>
 
-        <div class="sxa-section-title">Expectancy &amp; profit factor</div>
+        <div class="sxa-section-title">
+          Ideal RR
+          ${infoDot('Looks ahead up to a week after each trade opened to find the best price it reached, so you can see how much more the trade could have made if held longer.', 'ideal RR')}
+        </div>
+        <div class="sxa-grid-3">
+          <div class="sxa-card sxa-rr-card">
+            <svg class="sxa-rr-spark" data-sxa-spark-idealrr viewBox="0 0 200 60" preserveAspectRatio="none"></svg>
+            <div class="sxa-rr-label">Ideal Average RR ${infoDot('The ideal RR is the max profit a trade could have given you if you held it up to a week after opening it. This statistic shows the average ideal RR for all of your trades. The more peaks you see in the small graph below, the more trades you may have taken profits too early.', 'ideal average RR')}</div>
+            <div class="sxa-kpi-value" data-sxa-stat="idealavgrr" style="font-size:24px;margin-top:6px;">\u2013</div>
+          </div>
+          <div class="sxa-card">
+            <div class="sxa-rr-label">Max Ideal RR ${infoDot('Maximum ideal RR you had between all your trades. We analyze your trades and the price to look up to a week ahead of your trade looking for the highest profit a trade could have given you. If you have a high max ideal RR, like 100, it means there was at least 1 trade where you may have taken profits too early and you could have profit a lot more.', 'max ideal RR')}</div>
+            <div class="sxa-kpi-value" data-sxa-stat="maxidealrr" style="font-size:24px;margin-top:6px;">\u2013</div>
+          </div>
+          <div class="sxa-card">
+            <div class="sxa-rr-label">Could have profit/BE ${infoDot('The number of trades that could have reached over 1.2R in profit but resulted in a loss. Typically 5-15% of total trades is reasonable; any higher suggests missed opportunities to lock in gains or reduce risk, and any lower suggests TP may be too conservative.', 'could have profit/BE')}</div>
+            <div class="sxa-kpi-value" data-sxa-stat="couldhaveprofit" style="font-size:24px;margin-top:6px;">\u2013</div>
+            <div class="sxa-hint" data-sxa-stat="couldhaveprofithint">&nbsp;</div>
+          </div>
+        </div>
+
+        <div class="sxa-section-title">
+          Expectancy &amp; profit factor
+          ${infoDot('Expectancy says how much you can expect to earn on each trade overall, while profit factor says how profitable your strategy is. Use these metrics to make sure your strategy is worth it.', 'expectancy and profit factor')}
+        </div>
         <div class="sxa-grid-2">
           <div class="sxa-card">
-            <div class="sxa-card-head"><h3>Expectancy per trade <span class="sxa-info-dot">i</span></h3></div>
+            <div class="sxa-card-head"><h3>Expectancy per trade ${infoDot('The average amount you can expect to win or lose per trade over time \u2014 based on your historical performance. It combines your win rate, average win size, loss rate, average loss size, and breakeven trades to give you a single number that reflects your edge.', 'expectancy per trade')}</h3></div>
             <div class="sxa-kpi-value" data-sxa-stat="expectancy" style="font-size:26px;">\u2013</div>
             <div class="sxa-exp-track"><div class="sxa-exp-seg-win" data-sxa-exp-win></div><div class="sxa-exp-seg-loss" data-sxa-exp-loss></div></div>
             <div class="sxa-exp-labels"><span class="sxa-win" data-sxa-exp-win-label>\u2013</span><span class="sxa-loss" data-sxa-exp-loss-label>\u2013</span></div>
           </div>
           <div class="sxa-card sxa-pf-card">
             <div>
-              <div class="sxa-card-head" style="margin-bottom:6px;"><h3>Profit factor <span class="sxa-info-dot">i</span></h3></div>
+              <div class="sxa-card-head" style="margin-bottom:6px;"><h3>Profit factor ${infoDot('How profitable your strategy is overall. Less than 1.5 is generally considered poor performance but a value over 4 might mean the system is overfitted and not realistic. Profit Factor = Total Gross Profits / Total Gross Losses', 'profit factor')}</h3></div>
               <div class="sxa-kpi-value" data-sxa-stat="pf" style="font-size:30px;">\u2013</div>
               <div class="sxa-hint">Gross profit &divide; gross loss.<br>Above 1.5 is generally considered healthy.</div>
             </div>
@@ -379,39 +456,78 @@ export function buildAnalyticsPageHtml(): string {
         <div class="sxa-section-title">Performance by side</div>
         <div class="sxa-grid-2">
           <div class="sxa-card">
-            <div class="sxa-card-head"><h3>Total trades <span class="sxa-info-dot">i</span></h3></div>
+            <div class="sxa-card-head"><h3>Total trades ${infoDot('Split of your total trades between buy and sell positions.', 'total trades by side')}</h3></div>
             <div class="sxa-donut-legend"><span><i class="sxa-dot" style="background:${GAIN}"></i>Buy</span><span><i class="sxa-dot" style="background:${BRAND}"></i>Sell</span></div>
             <canvas data-sxa-side-total-canvas></canvas>
           </div>
           <div class="sxa-card">
-            <div class="sxa-card-head"><h3>Win rate <span class="sxa-info-dot">i</span></h3></div>
+            <div class="sxa-card-head"><h3>Win rate ${infoDot('Win rate split between buy and sell positions.', 'win rate by side')}</h3></div>
             <div class="sxa-donut-legend"><span><i class="sxa-dot" style="background:${GAIN}"></i>Buy</span><span><i class="sxa-dot" style="background:${BRAND}"></i>Sell</span></div>
             <canvas data-sxa-side-win-canvas></canvas>
           </div>
         </div>
 
-        <div class="sxa-section-title">Performance by session</div>
+        <div class="sxa-section-title">
+          Performance by session
+          ${infoDot("Check your strategy's performance during the 3 key sessions: NY (8 a.m - 4 p.m), London (7 a.m - 2:59 p.m), Asia (9 a.m - 2:59 p.m). If performance is poor in a session, consider avoiding it", 'performance by session')}
+        </div>
         <div class="sxa-grid-4" data-sxa-session-radars></div>
 
         <div class="sxa-section-title">
           Performance by time
-          <span class="sxa-info-dot">i</span>
-          <div class="sxa-heat-select" style="margin-left:auto;">
-            <select data-sxa-time-metric>
-              <option value="pnl">Total Profit/Loss</option>
-              <option value="rr">Risk-Reward</option>
-              <option value="pct">% Profit</option>
-            </select>
+          ${infoDot('Breaks down performance by hour of day, using the metric selected on the right.', 'performance by time')}
+          <div class="sxa-chart-type-toggle" style="margin-left:auto;" data-sxa-time-chart-toggle role="group" aria-label="Chart style">
+            <button type="button" class="sxa-chart-type-toggle__btn sxa-chart-type-toggle__btn--active sx-dash-pulse__kpi-info" data-sxa-time-chart-type="bar" aria-label="Show as blocks" data-tip="Show as blocks" data-tip-variant="grey">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="8" width="3" height="6.5" rx="0.8" fill="currentColor"/><rect x="6.5" y="4" width="3" height="10.5" rx="0.8" fill="currentColor"/><rect x="11.5" y="1.5" width="3" height="13" rx="0.8" fill="currentColor"/></svg>
+            </button>
+            <button type="button" class="sxa-chart-type-toggle__btn sx-dash-pulse__kpi-info" data-sxa-time-chart-type="line" aria-label="Show as line chart" data-tip="Show as line chart" data-tip-variant="grey">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1.5 12.5L5.5 7.5L9 10L14.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.5" cy="7.5" r="1.2" fill="currentColor"/><circle cx="9" cy="10" r="1.2" fill="currentColor"/></svg>
+            </button>
+          </div>
+          <div class="sxa-metric-dd" data-sxa-metric-dd="time">
+            <button type="button" class="sxa-metric-dd__btn" data-sxa-metric-dd-btn>
+              <span data-sxa-metric-dd-label>Total Profit/Loss</span>
+              <svg width="10" height="7" viewBox="0 0 10 7" fill="none"><path d="M1 1.5L5 5.5L9 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="sxa-metric-dd__menu" data-sxa-metric-dd-menu>
+              <button type="button" class="sxa-metric-dd__item sxa-metric-dd__item--active" data-sxa-metric-dd-value="pnl">Total Profit/Loss</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="rr">Risk-Reward</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="pct">% Profit</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="winrate">Win Rate</button>
+            </div>
           </div>
         </div>
-        <div class="sxa-card"><canvas data-sxa-time-bar-canvas></canvas></div>
+        <div class="sxa-card" style="padding-left:8px;"><canvas data-sxa-time-bar-canvas></canvas></div>
 
-        <div class="sxa-section-title">Performance by day <span class="sxa-info-dot">i</span></div>
+        <div class="sxa-section-title">
+          Performance by day
+          ${infoDot('Breaks down performance by day of the week.', 'performance by day')}
+          <div class="sxa-chart-type-toggle" style="margin-left:auto;" data-sxa-day-chart-toggle role="group" aria-label="Chart style">
+            <button type="button" class="sxa-chart-type-toggle__btn sxa-chart-type-toggle__btn--active sx-dash-pulse__kpi-info" data-sxa-day-chart-type="bar" aria-label="Show as blocks" data-tip="Show as blocks" data-tip-variant="grey">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="8" width="3" height="6.5" rx="0.8" fill="currentColor"/><rect x="6.5" y="4" width="3" height="10.5" rx="0.8" fill="currentColor"/><rect x="11.5" y="1.5" width="3" height="13" rx="0.8" fill="currentColor"/></svg>
+            </button>
+            <button type="button" class="sxa-chart-type-toggle__btn sx-dash-pulse__kpi-info" data-sxa-day-chart-type="line" aria-label="Show as line chart" data-tip="Show as line chart" data-tip-variant="grey">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1.5 12.5L5.5 7.5L9 10L14.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.5" cy="7.5" r="1.2" fill="currentColor"/><circle cx="9" cy="10" r="1.2" fill="currentColor"/></svg>
+            </button>
+          </div>
+          <div class="sxa-metric-dd" data-sxa-metric-dd="day">
+            <button type="button" class="sxa-metric-dd__btn" data-sxa-metric-dd-btn>
+              <span data-sxa-metric-dd-label>Total Profit/Loss</span>
+              <svg width="10" height="7" viewBox="0 0 10 7" fill="none"><path d="M1 1.5L5 5.5L9 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="sxa-metric-dd__menu" data-sxa-metric-dd-menu>
+              <button type="button" class="sxa-metric-dd__item sxa-metric-dd__item--active" data-sxa-metric-dd-value="pnl">Total Profit/Loss</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="rr">Risk-Reward</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="pct">% Profit</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="winrate">Win Rate</button>
+            </div>
+          </div>
+        </div>
         <div class="sxa-card"><canvas data-sxa-day-bar-canvas></canvas></div>
 
         <div class="sxa-section-title">
           Performance by month
-          <span class="sxa-info-dot">i</span>
+          ${infoDot('Breaks down performance by calendar month, calculated on the balance basis selected on the right.', 'performance by month')}
           <div class="sxa-tab-row" data-sxa-month-basis style="margin-left:auto;">
             <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-mb="initial">Initial Balance</button>
             <button type="button" class="sxa-tab-row__btn" data-sxa-mb="current">Current Balance</button>
@@ -423,13 +539,20 @@ export function buildAnalyticsPageHtml(): string {
 
         <div class="sxa-section-title">
           Performance calendar
-          <span class="sxa-info-dot">i</span>
+          ${infoDot('Daily performance heatmap using the metric and balance basis selected on the right.', 'performance calendar')}
           <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
-            <select class="sxa-cal-select" data-sxa-cal-metric>
-              <option value="dollar">Dollar Profit</option>
-              <option value="pct">% Profit</option>
-              <option value="rr">Risk-Reward</option>
-            </select>
+            <div class="sxa-metric-dd" data-sxa-metric-dd="cal">
+              <button type="button" class="sxa-metric-dd__btn" data-sxa-metric-dd-btn>
+                <span data-sxa-metric-dd-label>Dollar Profit</span>
+                <svg width="10" height="7" viewBox="0 0 10 7" fill="none"><path d="M1 1.5L5 5.5L9 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="sxa-metric-dd__menu" data-sxa-metric-dd-menu>
+                <button type="button" class="sxa-metric-dd__item sxa-metric-dd__item--active" data-sxa-metric-dd-value="dollar">Dollar Profit</button>
+                <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="pct">% Profit</button>
+                <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="rr">Risk-Reward</button>
+                <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="winrate">Win Rate</button>
+              </div>
+            </div>
             <div class="sxa-tab-row" data-sxa-cal-basis>
               <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-cb="current">Current Balance</button>
               <button type="button" class="sxa-tab-row__btn" data-sxa-cb="initial">Initial Balance</button>
@@ -441,9 +564,9 @@ export function buildAnalyticsPageHtml(): string {
           </div>
         </div>
         <div class="sxa-card">
-          <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+          <div style="display:inline-flex; align-items:center; gap:12px; margin-bottom:16px;">
             <button type="button" class="sxa-export-btn" data-sxa-cal-prev style="padding:6px 10px;">\u2190</button>
-            <div class="sxa-cal-label" data-sxa-cal-label></div>
+            <div class="sxa-cal-label" data-sxa-cal-label style="min-width:120px; text-align:center;"></div>
             <button type="button" class="sxa-export-btn" data-sxa-cal-next style="padding:6px 10px;">\u2192</button>
           </div>
           <div data-sxa-cal-container></div>
@@ -453,7 +576,7 @@ export function buildAnalyticsPageHtml(): string {
       <div class="sxa-tab-panel" data-sxa-panel="drawdown">
         <div class="sxa-section-title">
           Drawdown on equity
-          <span class="sxa-info-dot">i</span>
+          ${infoDot('The largest peak-to-trough loss during the session/account period. Indicates worst-case scenario the trader faced.', 'drawdown on equity')}
           <div style="margin-left:auto; display:flex; align-items:center; gap:14px; position:relative;">
             <a href="#" class="sxa-how-link" data-sxa-dd-how>How this works?</a>
             <div class="sxa-how-popover" data-sxa-dd-how-popover hidden>Each bar is one drawdown episode: the depth your equity fell from its prior peak before making a new high. "Time to recovery" averages how long (in days) it took to climb back to that peak. "Drawdown frequency" is episodes per week over the current date range.</div>
@@ -466,15 +589,21 @@ export function buildAnalyticsPageHtml(): string {
         <div class="sxa-card"><canvas data-sxa-drawdown-canvas></canvas></div>
         <div class="sxa-grid-4" data-sxa-drawdown-stats style="margin-top:14px;"></div>
 
-        <div class="sxa-section-title">Maximum adverse excursion <span class="sxa-info-dot">i</span></div>
+        <div class="sxa-section-title">Maximum Adverse Excursion ${infoDot('The biggest drop in your account from the highest point to the lowest.', 'maximum adverse excursion (MAE)')}</div>
         <div class="sxa-card">
-          <div class="sxa-heat-sub">How far winning trades moved against you before turning around and closing in profit. This needs bar-by-bar price data per trade, which isn't recorded yet for closed trades.</div>
-          <div class="sxa-mae-empty" data-sxa-mae-empty>Once per-trade adverse-excursion data is tracked during replay, this histogram will populate automatically \u2014 no changes needed here.</div>
+          <canvas data-sxa-mae-canvas></canvas>
+        </div>
+
+        <div class="sxa-section-title">Drawdown on Winning Trades</div>
+        <div class="sxa-grid-4" data-sxa-mae-stats style="margin-top:0;">
+          <div class="sxa-accent-card"><div class="sxa-a-label">AVG Drawdown RR ${infoDot('The average drawdown risk-reward ratio for your winning trades.', 'avg drawdown RR')}</div><div class="sxa-a-value" data-sxa-mae-avg>0.00</div></div>
+          <div class="sxa-accent-card"><div class="sxa-a-label">Min Drawdown RR ${infoDot('The minimum drawdown risk-reward ratio for your winning trades.', 'min drawdown RR')}</div><div class="sxa-a-value" data-sxa-mae-min>\u221e</div></div>
+          <div class="sxa-accent-card"><div class="sxa-a-label">Max Drawdown RR ${infoDot('The maximum drawdown risk-reward ratio for your winning trades.', 'max drawdown RR')}</div><div class="sxa-a-value" data-sxa-mae-max>\u2212\u221e</div></div>
         </div>
       </div>
 
       <div class="sxa-tab-panel" data-sxa-panel="simulation">
-        <div class="sxa-section-title">Monte Carlo simulation <span class="sxa-info-dot">i</span></div>
+        <div class="sxa-section-title">Monte Carlo simulation ${infoDot('By performing Monte Carlo Simulations, you can estimate how effective your trading strategy is.', 'Monte Carlo simulation')}</div>
         <div class="sxa-card" style="margin-bottom:20px;">
           <div class="sxa-heat-sub">Generates independent equity paths from your win rate, average gain, and average loss \u2014 inputs default to your real stats but are fully editable to stress-test hypotheticals.</div>
           <div class="sxa-mc-input-grid" data-sxa-mc-input-grid></div>
@@ -488,7 +617,7 @@ export function buildAnalyticsPageHtml(): string {
 
         <div class="sxa-section-title">
           RR simulator
-          <span class="sxa-info-dot">i</span>
+          ${infoDot('Test different risk-reward setups to see how your trades would\u2019ve performed under new conditions \u2014 no need to re-backtest.', 'RR simulator')}
           <a href="#" class="sxa-how-link" data-sxa-rr-how style="margin-left:auto;">How this works?</a>
         </div>
         <div class="sxa-card">
@@ -502,6 +631,26 @@ export function buildAnalyticsPageHtml(): string {
           <div class="sxa-section-title" style="font-size:15px; margin:18px 0 10px;">Results</div>
           <div style="overflow-x:auto;">
             <table class="sxa-rr-results-table" data-sxa-rr-results-table></table>
+          </div>
+        </div>
+
+        <div class="sxa-section-title">
+          Stop Loss Simulator
+          ${infoDot('Tests how different stop loss reductions would have affected your completed trades.', 'Stop Loss Simulator')}
+          <a href="#" class="sxa-how-link" data-sxa-sl-how style="margin-left:auto;">How this works?</a>
+        </div>
+        <div class="sxa-card">
+          <div class="sxa-heat-sub">Replays your real trades with each stop loss pulled in by the % shown, using actual historical price data to see whether the tighter stop would have been hit before the trade's real exit.</div>
+          <div class="sxa-rr-chip-toolbar">
+            <div class="sxa-rr-chip-row" data-sxa-sl-chip-row></div>
+            <button type="button" class="sxa-run-btn" data-sxa-sl-add-new style="margin-left:auto;">+ Add new</button>
+          </div>
+          <canvas data-sxa-sl-multi-canvas></canvas>
+          <div class="sxa-rr-best-line" data-sxa-sl-best-line></div>
+          <div class="sxa-hint" data-sxa-sl-coverage-hint style="margin-top:6px;">&nbsp;</div>
+          <div class="sxa-section-title" style="font-size:15px; margin:18px 0 10px;">Results</div>
+          <div style="overflow-x:auto;">
+            <table class="sxa-rr-results-table" data-sxa-sl-results-table></table>
           </div>
         </div>
       </div>
@@ -624,14 +773,20 @@ export function initAnalyticsPage(
   let datePickerMonth = new Date()
 
   let currentGranularity: 'all' | 'day' | 'hour' | '15min' = 'all'
-  let timeMetric: 'pnl' | 'rr' | 'pct' = 'pnl'
+  let timeMetric: 'pnl' | 'rr' | 'pct' | 'winrate' = 'pnl'
+  let timeChartType: 'bar' | 'line' = 'bar'
+  let dayChartType: 'bar' | 'line' = 'bar'
+  let dayMetric: 'pnl' | 'rr' | 'pct' | 'winrate' = 'pnl'
   let monthBalanceBasis: 'initial' | 'current' = 'initial'
   let calView: 'month' | 'year' = 'month'
-  let calMetric: 'dollar' | 'pct' | 'rr' = 'dollar'
+  let calMetric: 'dollar' | 'pct' | 'rr' | 'winrate' = 'dollar'
   let calBasis: 'current' | 'initial' = 'current'
   let calDate = new Date()
   let ddUnit: 'pct' | 'dollar' = 'pct'
   let mcSeed = 1
+  // RR threshold that defines a "breakeven" trade: any trade whose Return (R) falls
+  // within [-breakevenThresholdR, +breakevenThresholdR] counts as breakeven.
+  let breakevenThresholdR = 0.1
 
   function mulberry32(seed: number) {
     return function () {
@@ -900,18 +1055,17 @@ export function initAnalyticsPage(
       ${
         expanded
           ? `<div class="sxa-mp-search">
+        ${
+          showAllRow
+            ? `<label class="sxa-mp-opt-all-inline${allChecked ? ' sxa-mp-opt-all-inline--selected' : ''}" data-sxa-mp-all data-sxa-mp-key="${key}">
+                 <span class="sxa-mp-checkbox${allChecked ? ' sxa-mp-checkbox--checked' : ''}"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
+               </label>`
+            : ''
+        }
         <input type="text" class="sxa-mp-search-input" placeholder="Search..." data-sxa-mp-search="${key}">
         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
       </div>
       <div class="sxa-mp-list" data-sxa-mp-list="${key}">
-        ${
-          showAllRow
-            ? `<label class="sxa-mp-opt sxa-mp-opt--all${allChecked ? ' sxa-mp-opt--selected' : ''}" data-sxa-mp-all data-sxa-mp-key="${key}">
-                 <span class="sxa-mp-checkbox${allChecked ? ' sxa-mp-checkbox--checked' : ''}"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
-                 <span>All</span>
-               </label>`
-            : ''
-        }
         ${options.map((o) => rowHtml(o.value, o.label, selected.has(o.value))).join('')}
       </div>`
           : ''
@@ -986,6 +1140,7 @@ export function initAnalyticsPage(
   function closeAllPopovers() {
     root.querySelectorAll<HTMLElement>('.sxa-mini-popover').forEach((p) => p.classList.remove('sxa-popover--open'))
     root.querySelectorAll<HTMLElement>('.sxa-time-spin').forEach((p) => p.classList.remove('sxa-time-spin--open'))
+    root.querySelectorAll<HTMLElement>('.sxa-metric-dd__menu').forEach((p) => p.classList.remove('sxa-popover--open'))
   }
 
   // Reflects filters.timeStart/timeEnd into the Start/End spin picker's hour/minute readouts.
@@ -1140,6 +1295,15 @@ export function initAnalyticsPage(
     syncActiveFiltersUi()
   }
 
+  function applyBreakevenThreshold() {
+    const input = root.querySelector<HTMLInputElement>('[data-sxa-breakeven-input]')
+    if (!input) return
+    const parsed = parseFloat(input.value)
+    breakevenThresholdR = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0.1
+    input.value = String(breakevenThresholdR)
+    renderKPIs(getFilteredTrades())
+  }
+
   function renderKPIs(trades: SxaTrade[]) {
     const totalPnl = trades.reduce((s, t) => s + t.pnl, 0)
     const startingBalance = opts.getStartingBalance()
@@ -1147,24 +1311,51 @@ export function initAnalyticsPage(
     const wins = trades.filter((t) => t.pnl >= 0)
     const winRate = trades.length ? (wins.length / trades.length) * 100 : 0
     const avgDurationMin = trades.length ? trades.reduce((s, t) => s + t.durationMin, 0) / trades.length : 0
-    const breakeven = trades.filter((t) => Math.abs(t.pnl) < 1).length
+    const breakeven = trades.filter((t) => (t.returnR != null ? Math.abs(t.returnR) <= breakevenThresholdR : Math.abs(t.pnl) < 1)).length
 
-    const items: [string, string, string, string | null][] = [
-      ['Total P&L', fmtMoney(totalPnl), totalPnl >= 0 ? 'sxa-gain' : 'sxa-loss', startingBalance > 0 ? `${((totalPnl / startingBalance) * 100).toFixed(2)}%` : null],
-      ['Account balance', `$${balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, '', null],
-      ['Win rate', `${winRate.toFixed(0)}%`, winRate >= 50 ? 'sxa-gain' : 'sxa-loss', null],
-      ['Total trades', String(trades.length), '', null],
-      ['Avg. duration', fmtDuration(avgDurationMin), '', null],
-      ['Breakeven trades', String(breakeven), '', null],
+    const items: [string, string, string, string | null, string][] = [
+      [
+        'Total P&L',
+        fmtMoney(totalPnl),
+        totalPnl >= 0 ? 'sxa-gain' : 'sxa-loss',
+        startingBalance > 0 ? `${((totalPnl / startingBalance) * 100).toFixed(2)}%` : null,
+        'Net profit or loss from your closed trades across the current filter selection.',
+      ],
+      [
+        'Account balance',
+        `$${balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        '',
+        null,
+        'Your starting balance plus the net P&L from the trades in the current filter selection.',
+      ],
+      [
+        'Win rate',
+        `${winRate.toFixed(0)}%`,
+        winRate >= 50 ? 'sxa-gain' : 'sxa-loss',
+        null,
+        'Share of your filtered trades that closed as wins.',
+      ],
+      ['Total trades', String(trades.length), '', null, 'Total number of trades in the current filter selection.'],
+      ['Avg. duration', fmtDuration(avgDurationMin), '', null, 'Average time a trade stayed open across the current filter selection.'],
+      [
+        'Breakeven trades',
+        String(breakeven),
+        '',
+        null,
+        `Trades whose Return (R) fell within \u00b1${breakevenThresholdR}R of zero, based on the Breakeven Threshold setting.`,
+      ],
     ]
 
     const host = root.querySelector<HTMLElement>('[data-sxa-kpi-strip]')
     if (host) {
       host.innerHTML = items
         .map(
-          ([label, value, cls, delta]) => `
+          ([label, value, cls, delta, tip]) => `
         <div class="sxa-kpi">
-          <div class="sxa-kpi-label">${label} <span class="sxa-info-dot">i</span></div>
+          <div class="sxa-kpi-label">
+            ${label}
+            <button type="button" class="sx-dash-pulse__kpi-info" data-tip="${escapeAttr(tip)}" aria-label="About ${escapeAttr(label)}"><img src="/icons/kpi-info.png" alt="" aria-hidden="true" /></button>
+          </div>
           <div class="sxa-kpi-value ${cls}">${value}</div>
           ${delta ? `<div class="sxa-kpi-delta">${delta}</div>` : ''}
         </div>`,
@@ -1176,10 +1367,12 @@ export function initAnalyticsPage(
   function renderPnlChart(trades: SxaTrade[]) {
     destroyChart('pnl')
     const canvas = root.querySelector<HTMLCanvasElement>('[data-sxa-pnl-canvas]')
+    const tooltipPanel = root.querySelector<HTMLElement>('[data-sxa-pnl-tooltip]')
     if (!canvas) return
     const startingBalance = opts.getStartingBalance()
     let labels: string[]
     let data: number[]
+    let pointTimesMs: number[]
 
     if (currentGranularity === 'all') {
       let running = startingBalance
@@ -1188,6 +1381,7 @@ export function initAnalyticsPage(
         return running
       })
       labels = trades.map((_, i) => `#${i + 1}`)
+      pointTimesMs = trades.map((t) => t.exitTimeMs)
     } else {
       const bucketMs = currentGranularity === 'day' ? 86_400_000 : currentGranularity === 'hour' ? 3_600_000 : 900_000
       const buckets = new Map<number, number>()
@@ -1205,6 +1399,53 @@ export function initAnalyticsPage(
           : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: currentGranularity === '15min' ? '2-digit' : undefined })
       })
       data = sortedKeys.map((k) => buckets.get(k)!)
+      pointTimesMs = sortedKeys
+    }
+
+    // Running PnL = cumulative net P&L up to (and including) this point.
+    // Closed PnL = just the P&L realized at this specific point (the delta since the
+    // previous point) — i.e. the trade(s) that closed exactly at this point in time.
+    const cumulativePnl = data.map((v) => v - startingBalance)
+    const closedPnl = cumulativePnl.map((v, i) => (i > 0 ? v - cumulativePnl[i - 1]! : v))
+
+    function fmtTooltipNum(v: number): string {
+      return `${v < 0 ? '-' : ''}${Math.abs(v).toFixed(2)}`
+    }
+
+    function fmtTooltipTime(ms: number): string {
+      const d = new Date(ms)
+      const pad = (n: number) => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function pnlExternalTooltip(context: any) {
+      if (!tooltipPanel) return
+      const { tooltip, chart } = context
+      if (tooltip.opacity === 0 || !tooltip.dataPoints || !tooltip.dataPoints.length) {
+        tooltipPanel.classList.remove('sxa-pnl-tooltip--visible')
+        return
+      }
+      const idx = tooltip.dataPoints[0].dataIndex as number
+      const timeLabel = pointTimesMs[idx] != null ? fmtTooltipTime(pointTimesMs[idx]!) : String(tooltip.dataPoints[0].label)
+      tooltipPanel.innerHTML = `
+        <div class="sxa-pnl-tooltip__time">${escapeAttr(timeLabel)}</div>
+        <div class="sxa-pnl-tooltip__row"><span class="sxa-dot" style="background:${BRAND}"></span>Running PnL: <b>${fmtTooltipNum(cumulativePnl[idx] ?? 0)}</b></div>
+        <div class="sxa-pnl-tooltip__row"><span class="sxa-dot" style="background:${BRAND}"></span>Closed PnL: <b>${fmtTooltipNum(closedPnl[idx] ?? 0)}</b></div>`
+
+      const chartRect = chart.canvas.getBoundingClientRect()
+      const tipRect = tooltipPanel.getBoundingClientRect()
+      const gap = 14
+      // Center horizontally on the point, clamped so it doesn't overflow the chart edges.
+      let left = tooltip.caretX - tipRect.width / 2
+      left = Math.max(4, Math.min(chartRect.width - tipRect.width - 4, left))
+      // Sit above the point by default (so the point itself stays visible), flipping
+      // below the point only if there isn't enough room above it.
+      let top = tooltip.caretY - tipRect.height - gap
+      if (top < 4) top = tooltip.caretY + gap
+      tooltipPanel.style.left = `${left}px`
+      tooltipPanel.style.top = `${top}px`
+      tooltipPanel.classList.add('sxa-pnl-tooltip--visible')
     }
 
     const config: ChartConfiguration<'line'> = {
@@ -1219,7 +1460,10 @@ export function initAnalyticsPage(
             fill: true,
             tension: 0.25,
             pointRadius: 0,
-            pointHoverRadius: 4,
+            pointHoverRadius: 7,
+            pointHoverBackgroundColor: BRAND,
+            pointHoverBorderColor: '#fff',
+            pointHoverBorderWidth: 2,
             borderWidth: 2,
           },
         ],
@@ -1227,14 +1471,19 @@ export function initAnalyticsPage(
       options: {
         responsive: true,
         maintainAspectRatio: true,
+        interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: (i) => 'Balance: ' + fmtPlain(typeof i.parsed.y === 'number' ? i.parsed.y : 0) } },
+          tooltip: { enabled: false, external: pnlExternalTooltip },
         },
         scales: {
           y: {
+            afterFit: (scale) => {
+              scale.width += 4
+            },
             ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS, callback: (v) => '$' + (Number(v) / 1000).toFixed(0) + 'k' },
-            grid: { color: GRID },
+            // The gridlines are drawn dotted by sxaDashedGridPlugin below instead.
+            grid: { display: false },
             border: { display: false },
           },
           x: {
@@ -1244,6 +1493,7 @@ export function initAnalyticsPage(
           },
         },
       },
+      plugins: [sxaDashedGridPlugin],
     }
     charts.pnl = new Chart(canvas, config)
   }
@@ -1280,6 +1530,274 @@ export function initAnalyticsPage(
 
     const spark = root.querySelector<SVGElement>('[data-sxa-spark-avgrr]')
     if (spark) spark.innerHTML = `<path d="${sparklinePath(rValues, 200, 60)}" fill="none" stroke="${BRAND}" stroke-width="2"/>`
+  }
+
+  // Ideal RR looks ahead up to a week after each trade's entry to find the best price it
+  // reached, so we know the R-multiple the trade could have hit if held longer. This needs
+  // historical bars fetched on demand (not something already sitting on the trade record),
+  // so results are cached per trade id and filled in asynchronously once bars come back.
+  const idealRCache = new Map<string, number | null>()
+  let idealRrGeneration = 0
+  // A stop-loss distance smaller than this fraction of the entry price is almost certainly
+  // tick/rounding noise rather than an intentionally tight stop, and dividing by it produces
+  // wildly inflated (and meaningless) R-multiples. Trades below this floor are excluded.
+  const IDEAL_RR_MIN_RISK_PCT = 0.0005
+  // Even for legitimate tight stops, cap the per-trade ideal R-multiple so a single volatile
+  // outlier can't dominate the plain average across all trades.
+  const IDEAL_RR_CAP = 15
+
+  function applyIdealRrStats(trades: SxaTrade[]) {
+    const idealValues = trades.map((t) => idealRCache.get(t.id)).filter((v): v is number => v != null)
+    const avgIdeal = idealValues.length ? idealValues.reduce((a, b) => a + b, 0) / idealValues.length : 0
+    const maxIdeal = idealValues.length ? Math.max(...idealValues) : 0
+    const eligible = trades.filter((t) => idealRCache.has(t.id))
+    const couldHaveProfit = eligible.filter((t) => t.pnl < 0 && (idealRCache.get(t.id) ?? -Infinity) > 1.2)
+    const couldHavePct = eligible.length ? (couldHaveProfit.length / eligible.length) * 100 : 0
+
+    setStat('idealavgrr', idealValues.length ? avgIdeal.toFixed(2) + 'R' : '\u2013')
+    setStat('maxidealrr', idealValues.length ? maxIdeal.toFixed(2) + 'R' : '\u2013')
+    setStat('couldhaveprofit', eligible.length ? couldHavePct.toFixed(0) + '%' : '\u2013')
+    setStat(
+      'couldhaveprofithint',
+      eligible.length ? `${couldHaveProfit.length} of ${eligible.length} trades with price data` : '\u00a0',
+    )
+
+    const spark = root.querySelector<SVGElement>('[data-sxa-spark-idealrr]')
+    if (spark) spark.innerHTML = `<path d="${sparklinePath(idealValues, 200, 60)}" fill="none" stroke="${BRAND}" stroke-width="2"/>`
+  }
+
+  async function computeIdealRrStats(trades: SxaTrade[]) {
+    const myGen = ++idealRrGeneration
+    // Show whatever's already cached immediately, then fetch the rest in the background.
+    applyIdealRrStats(trades)
+
+    const pending = trades.filter(
+      (t) => !idealRCache.has(t.id) && t.entryPrice != null && t.initialStopLoss != null && Math.abs(t.entryPrice - t.initialStopLoss) > 0,
+    )
+    if (!pending.length) return
+
+    const WEEK_SEC = 7 * 86_400
+    const byAsset = new Map<string, SxaTrade[]>()
+    for (const t of pending) {
+      const list = byAsset.get(t.asset)
+      if (list) list.push(t)
+      else byAsset.set(t.asset, [t])
+    }
+
+    await Promise.all(
+      Array.from(byAsset.entries()).map(async ([asset, assetTrades]) => {
+        const startSec = Math.floor(Math.min(...assetTrades.map((t) => t.entryTimeMs)) / 1000)
+        const endSec = Math.ceil(Math.max(...assetTrades.map((t) => t.entryTimeMs)) / 1000) + WEEK_SEC
+        let series: Awaited<ReturnType<typeof fetchMarketBarsSeries>> = null
+        try {
+          series = await fetchMarketBarsSeries(asset, undefined, { startSec, endSec, interval: '4h', minBars: 1 })
+        } catch {
+          series = null
+        }
+        for (const t of assetTrades) {
+          if (!series || !series.bars.length || t.entryPrice == null || t.initialStopLoss == null) {
+            idealRCache.set(t.id, null)
+            continue
+          }
+          const risk = Math.abs(t.entryPrice - t.initialStopLoss)
+          const minRisk = Math.abs(t.entryPrice) * IDEAL_RR_MIN_RISK_PCT
+          const windowStartSec = Math.floor(t.entryTimeMs / 1000)
+          const windowEndSec = windowStartSec + WEEK_SEC
+          const windowBars = series.bars
+            .filter((b) => b.time >= windowStartSec && b.time <= windowEndSec)
+            .sort((a, b) => a.time - b.time)
+          if (!windowBars.length || risk <= minRisk) {
+            // Stop distance is at/near zero (or too small to be a real intentional stop) -
+            // skip rather than divide by a near-zero risk and produce a runaway R-multiple.
+            idealRCache.set(t.id, null)
+            continue
+          }
+          // Walk bars in chronological order and stop tracking favorable movement the moment
+          // the trade's own original stop-loss would have been hit. Without this, a trade that
+          // actually lost on day 1 could still get credited with an unrelated rally on day 4 -
+          // a classic MFE look-ahead bias, since that trade would already be closed by then and
+          // could never have captured that later move.
+          const stopLevel = t.side === 'Buy' ? t.entryPrice - risk : t.entryPrice + risk
+          let bestFavorable = 0
+          let stopHitAt: number | null = null
+          for (const b of windowBars) {
+            const favorableHere = t.side === 'Buy' ? b.high - t.entryPrice : t.entryPrice - b.low
+            if (favorableHere > bestFavorable) bestFavorable = favorableHere
+            const stopHit = t.side === 'Buy' ? b.low <= stopLevel : b.high >= stopLevel
+            if (stopHit) {
+              stopHitAt = b.time
+              break
+            }
+          }
+          // eslint-disable-next-line no-console
+          console.debug('[idealRR debug]', {
+            id: t.id,
+            asset: t.asset,
+            side: t.side,
+            entryPrice: t.entryPrice,
+            initialStopLoss: t.initialStopLoss,
+            risk,
+            entryTime: new Date(t.entryTimeMs).toISOString(),
+            windowBarsCount: windowBars.length,
+            firstBarTime: windowBars[0] ? new Date(windowBars[0].time * 1000).toISOString() : null,
+            lastBarTime: windowBars[windowBars.length - 1] ? new Date(windowBars[windowBars.length - 1].time * 1000).toISOString() : null,
+            stopHitAt: stopHitAt != null ? new Date(stopHitAt * 1000).toISOString() : null,
+            bestFavorable,
+            rawIdealR: bestFavorable / risk,
+            realizedPnl: t.pnl,
+            realizedR: t.returnR,
+          })
+          idealRCache.set(t.id, Math.min(bestFavorable / risk, IDEAL_RR_CAP))
+        }
+      }),
+    )
+
+    // Ignore results if filters changed (and a newer computation started) while we waited.
+    if (myGen === idealRrGeneration) applyIdealRrStats(trades)
+  }
+
+  // Maximum Adverse Excursion (MAE) - how far a trade moved against its entry price, in
+  // R-multiples, at its worst point during the trade's own actual entry-to-exit window
+  // (unlike Ideal RR above, this never looks past the trade's real exit - it's asking
+  // "how much heat did this trade take before it worked out", not "what could have been").
+  const maeRCache = new Map<string, number | null>()
+  let maeRrGeneration = 0
+  const MAE_BUCKET_LABELS = ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '\u22651.0']
+
+  function applyMaeStats(trades: SxaTrade[]) {
+    const maeValues = trades.map((t) => maeRCache.get(t.id)).filter((v): v is number => v != null)
+
+    const counts = new Array(MAE_BUCKET_LABELS.length).fill(0) as number[]
+    for (const v of maeValues) {
+      const idx = v >= 1 ? counts.length - 1 : Math.min(Math.floor(v * 10), counts.length - 2)
+      counts[idx]++
+    }
+    const canvas = root.querySelector<HTMLCanvasElement>('[data-sxa-mae-canvas]')
+    if (canvas) {
+      destroyChart('mae')
+      const ctx = canvas.getContext('2d')
+      let fill: string | CanvasGradient = LOSS
+      if (ctx) {
+        const gradient = ctx.createLinearGradient(0, 0, 0, 220)
+        gradient.addColorStop(0, '#e2585f')
+        gradient.addColorStop(1, '#fce7e8')
+        fill = gradient
+      }
+      charts.mae = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: MAE_BUCKET_LABELS,
+          datasets: [{ data: counts, backgroundColor: fill, borderColor: LOSS, borderWidth: 1, borderRadius: 3, barPercentage: 0.6, categoryPercentage: 0.7 }],
+        },
+        options: {
+          responsive: true,
+          // Without this, Chart.js only shows a tooltip when hovering directly over a bar's
+          // rectangle - so a bucket with 0 trades (zero-height bar) is un-hoverable and looks
+          // like missing data. Index-mode hover makes the whole category column hoverable,
+          // so empty buckets still report "Frequency: 0" (matches the fxreplay reference).
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (i) => `Frequency: ${i.parsed.y}` } },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS, precision: 0 },
+              grid: { color: GRID },
+              border: { display: false },
+              afterFit: (scale) => {
+                scale.width += 4
+              },
+            },
+            x: {
+              title: { display: true, text: 'Adverse excursion (R)', color: AXIS, font: { size: 10.5 } },
+              ticks: { font: { size: 10.5 }, color: AXIS },
+              grid: { display: false },
+              border: { display: false },
+            },
+          },
+        },
+      })
+    }
+
+    // "Drawdown on Winning Trades" only looks at MAE for trades that ended up winners \u2014
+    // i.e. how much heat a trade took before it turned around and closed in profit.
+    const winnerMae = trades.filter((t) => t.pnl > 0).map((t) => maeRCache.get(t.id)).filter((v): v is number => v != null)
+    const avg = winnerMae.length ? winnerMae.reduce((a, b) => a + b, 0) / winnerMae.length : 0
+    const min = winnerMae.length ? Math.min(...winnerMae) : Infinity
+    const max = winnerMae.length ? Math.max(...winnerMae) : -Infinity
+
+    const avgEl = root.querySelector<HTMLElement>('[data-sxa-mae-avg]')
+    const minEl = root.querySelector<HTMLElement>('[data-sxa-mae-min]')
+    const maxEl = root.querySelector<HTMLElement>('[data-sxa-mae-max]')
+    if (avgEl) avgEl.textContent = avg.toFixed(2)
+    if (minEl) minEl.textContent = Number.isFinite(min) ? min.toFixed(2) : '\u221e'
+    if (maxEl) maxEl.textContent = Number.isFinite(max) ? max.toFixed(2) : '\u2212\u221e'
+
+    // Also refresh the Stop Loss Simulator (Simulation tab), which depends on this same
+    // maeRCache data, so newly-arrived price data updates it too, wherever it's visible.
+    renderSlSimulator(trades)
+  }
+
+  async function computeMaeStats(trades: SxaTrade[]) {
+    const myGen = ++maeRrGeneration
+    // Show whatever's already cached immediately, then fetch the rest in the background.
+    applyMaeStats(trades)
+
+    const pending = trades.filter(
+      (t) =>
+        !maeRCache.has(t.id) &&
+        t.entryPrice != null &&
+        t.initialStopLoss != null &&
+        Math.abs(t.entryPrice - t.initialStopLoss) > 0 &&
+        t.exitTimeMs > t.entryTimeMs,
+    )
+    if (!pending.length) return
+
+    const byAsset = new Map<string, SxaTrade[]>()
+    for (const t of pending) {
+      const list = byAsset.get(t.asset)
+      if (list) list.push(t)
+      else byAsset.set(t.asset, [t])
+    }
+
+    await Promise.all(
+      Array.from(byAsset.entries()).map(async ([asset, assetTrades]) => {
+        const startSec = Math.floor(Math.min(...assetTrades.map((t) => t.entryTimeMs)) / 1000)
+        const endSec = Math.ceil(Math.max(...assetTrades.map((t) => t.exitTimeMs)) / 1000)
+        let series: Awaited<ReturnType<typeof fetchMarketBarsSeries>> = null
+        try {
+          series = await fetchMarketBarsSeries(asset, undefined, { startSec, endSec, interval: '4h', minBars: 1 })
+        } catch {
+          series = null
+        }
+        for (const t of assetTrades) {
+          if (!series || !series.bars.length || t.entryPrice == null || t.initialStopLoss == null) {
+            maeRCache.set(t.id, null)
+            continue
+          }
+          const risk = Math.abs(t.entryPrice - t.initialStopLoss)
+          const minRisk = Math.abs(t.entryPrice) * IDEAL_RR_MIN_RISK_PCT
+          const windowStartSec = Math.floor(t.entryTimeMs / 1000)
+          const windowEndSec = Math.ceil(t.exitTimeMs / 1000)
+          const windowBars = series.bars.filter((b) => b.time >= windowStartSec && b.time <= windowEndSec)
+          if (!windowBars.length || risk <= minRisk) {
+            maeRCache.set(t.id, null)
+            continue
+          }
+          // Worst price seen against the trade during its own real holding window - never
+          // looks past the actual exit, so this reflects true in-trade "heat", not hindsight.
+          const worstAdverse =
+            t.side === 'Buy'
+              ? Math.max(0, t.entryPrice - Math.min(...windowBars.map((b) => b.low)))
+              : Math.max(0, Math.max(...windowBars.map((b) => b.high)) - t.entryPrice)
+          maeRCache.set(t.id, worstAdverse / risk)
+        }
+      }),
+    )
+
+    if (myGen === maeRrGeneration) applyMaeStats(trades)
   }
 
   function renderExpectancy(trades: SxaTrade[]) {
@@ -1374,23 +1892,23 @@ export function initAnalyticsPage(
     if (winnersHost) {
       winnersHost.innerHTML = `
         <h4>Winners</h4>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Total winners <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${wins.length}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Best win <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${fmtPct(bestWinPct)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average win <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${fmtPct(avgWinPct)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average duration <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${fmtDuration(avgWinDur)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Max consecutive wins <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${maxWinStreak}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Avg consecutive wins <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${avgWinStreak.toFixed(1)}</span></div>`
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Total winners ${infoDot('Total number of trades that closed as wins.', 'total winners')}</span><span class="sxa-wl-val">${wins.length}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Best win ${infoDot('Your largest single winning trade, as a percentage.', 'best win')}</span><span class="sxa-wl-val">${fmtPct(bestWinPct)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average win ${infoDot('Average size of your winning trades, as a percentage.', 'average win')}</span><span class="sxa-wl-val">${fmtPct(avgWinPct)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average duration ${infoDot('Average time a winning trade stayed open.', 'average duration of winners')}</span><span class="sxa-wl-val">${fmtDuration(avgWinDur)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Max consecutive wins ${infoDot('The longest streak of back-to-back winning trades.', 'max consecutive wins')}</span><span class="sxa-wl-val">${maxWinStreak}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Avg consecutive wins ${infoDot('Average length of your winning streaks.', 'average consecutive wins')}</span><span class="sxa-wl-val">${avgWinStreak.toFixed(1)}</span></div>`
     }
     const losersHost = root.querySelector<HTMLElement>('[data-sxa-losers-card]')
     if (losersHost) {
       losersHost.innerHTML = `
         <h4>Losers</h4>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Total losers <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${losses.length}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Worst loss <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${fmtPct(worstLossPct)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average loss <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${fmtPct(avgLossPct)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average duration <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${fmtDuration(avgLossDur)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Max consecutive losses <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${maxLossStreak}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Avg consecutive losses <span class="sxa-info-dot">i</span></span><span class="sxa-wl-val">${avgLossStreak.toFixed(1)}</span></div>`
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Total losers ${infoDot('Total number of trades that closed as losses.', 'total losers')}</span><span class="sxa-wl-val">${losses.length}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Worst loss ${infoDot('Your largest single losing trade, as a percentage.', 'worst loss')}</span><span class="sxa-wl-val">${fmtPct(worstLossPct)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average loss ${infoDot('Average size of your losing trades, as a percentage.', 'average loss')}</span><span class="sxa-wl-val">${fmtPct(avgLossPct)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average duration ${infoDot('Average time a losing trade stayed open.', 'average duration of losers')}</span><span class="sxa-wl-val">${fmtDuration(avgLossDur)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Max consecutive losses ${infoDot('The longest streak of back-to-back losing trades.', 'max consecutive losses')}</span><span class="sxa-wl-val">${maxLossStreak}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Avg consecutive losses ${infoDot('Average length of your losing streaks.', 'average consecutive losses')}</span><span class="sxa-wl-val">${avgLossStreak.toFixed(1)}</span></div>`
     }
 
     const streakHost = root.querySelector<HTMLElement>('[data-sxa-streak-strip]')
@@ -1444,6 +1962,14 @@ export function initAnalyticsPage(
 
   function renderSessionRadars(trades: SxaTrade[]) {
     const sessions: Array<'London' | 'New York' | 'Asia' | 'Out Of Session'> = ['London', 'New York', 'Asia', 'Out Of Session']
+    // Radar point labels are looked up by session key, but "Out Of Session" is rendered
+    // wrapped onto two lines (as an array) so it doesn't get clipped at the edge of the card.
+    const sessionLabels: Record<string, string | string[]> = {
+      London: 'London',
+      'New York': 'New York',
+      Asia: 'Asia',
+      'Out Of Session': ['Out of', 'Session'],
+    }
     const bySession: Record<string, SxaTrade[]> = {}
     for (const s of sessions) bySession[s] = trades.filter((t) => sessionForHour(new Date(t.entryTimeMs).getUTCHours()) === s)
 
@@ -1457,11 +1983,28 @@ export function initAnalyticsPage(
       ['Profit', (s) => bySession[s]!.reduce((a, t) => a + t.pnl, 0), LOSS],
     ]
 
+    const radarTips: Record<string, string> = {
+      'Win Rate': "Your strategy's win rate in each session",
+      'Total Trades': 'Number of trades in each session. See where you trade the most and how those sessions perform',
+      'Avg RR': 'Average Risk Reward Ratio (RR) based on each of the sessions',
+      Profit: 'The total return (%) per session',
+    }
+
     const host = root.querySelector<HTMLElement>('[data-sxa-session-radars]')
     if (!host) return
     host.innerHTML = metrics
-      .map(([label]) => `<div class="sxa-card sxa-radar-card"><h4>${label}</h4><canvas data-sxa-radar="${label.replace(/\s/g, '')}"></canvas></div>`)
+      .map(
+        ([label]) =>
+          `<div class="sxa-card sxa-radar-card"><h4>${label} ${infoDot(radarTips[label] ?? '', label)}</h4><canvas data-sxa-radar="${label.replace(/\s/g, '')}"></canvas></div>`,
+      )
       .join('')
+
+    const formatRadarValue = (label: string, v: number): string => {
+      if (label === 'Win Rate') return v.toFixed(0) + '%'
+      if (label === 'Total Trades') return String(Math.round(v))
+      if (label === 'Avg RR') return v.toFixed(2) + 'R'
+      return fmtMoney(v)
+    }
 
     for (const [label, fn, color] of metrics) {
       const key = 'radar' + label.replace(/\s/g, '')
@@ -1471,13 +2014,29 @@ export function initAnalyticsPage(
       charts[key] = new Chart(canvas, {
         type: 'radar',
         data: {
-          labels: sessions,
-          datasets: [{ data: sessions.map(fn), backgroundColor: color + '22', borderColor: color, pointBackgroundColor: color, borderWidth: 1.5 }],
+          labels: sessions.map((s) => sessionLabels[s] ?? s),
+          datasets: [{ label, data: sessions.map(fn), backgroundColor: color + '22', borderColor: color, pointBackgroundColor: color, borderWidth: 1.5 }],
         },
         options: {
           responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { r: { grid: { color: '#eee' }, angleLines: { color: '#eee' }, ticks: { display: false }, pointLabels: { font: { size: 10 }, color: '#6b7280' } } },
+          layout: { padding: 6 },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (items) => sessions[items[0]?.dataIndex ?? 0] ?? '',
+                label: (i) => `${label}: ${formatRadarValue(label, Number(i.parsed.r))}`,
+              },
+            },
+          },
+          scales: {
+            r: {
+              grid: { color: '#eee' },
+              angleLines: { color: '#eee' },
+              ticks: { display: false },
+              pointLabels: { font: { size: 9.5 }, color: '#6b7280' },
+            },
+          },
         },
       })
     }
@@ -1490,22 +2049,58 @@ export function initAnalyticsPage(
       const rs = list.map((t) => t.returnR).filter((v): v is number => v != null)
       return rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 0
     }
+    if (metric === 'winrate') return (list.filter((t) => t.pnl > 0).length / list.length) * 100
     return list.reduce((s, t) => s + pctMove(t), 0) / list.length
+  }
+
+  // Rounds a step size up to a "nice" round number (1/2/5 \u00d7 10^n) so axis ticks
+  // land on clean values like 5k/10k/15k instead of odd numbers like 3.6k/7.2k.
+  function niceStep(rawStep: number): number {
+    if (rawStep <= 0) return 1
+    const pow10 = Math.pow(10, Math.floor(Math.log10(rawStep)))
+    const frac = rawStep / pow10
+    const niceFrac = frac <= 1 ? 1 : frac <= 2 ? 2 : frac <= 5 ? 5 : 10
+    return niceFrac * pow10
   }
 
   function renderTimeBarChart(trades: SxaTrade[]) {
     const buckets: SxaTrade[][] = Array.from({ length: 24 }, () => [])
     for (const t of trades) buckets[new Date(t.entryTimeMs).getUTCHours()]!.push(t)
     const values = buckets.map((list) => computeHourMetric(list, timeMetric))
+    // Win rate is always 0-100%, so it gets a fixed 0-100 axis instead of the
+    // zero-mirrored scaling used for P/L, RR and % Profit (which can go negative).
+    const isWinRate = timeMetric === 'winrate'
+    // Mirror the axis around zero so the positive and negative ranges are symmetric
+    // (i.e. max === -min), instead of Chart.js's default asymmetric auto-scaling.
+    // Also snap the step size to a "nice" round number so ticks read like
+    // 0/5k/10k/15k/20k instead of uneven values like 0/-5k/-10k/-14k.
+    const maxAbs = values.reduce((m, v) => Math.max(m, Math.abs(v)), 0)
+    const step = isWinRate ? 25 : maxAbs === 0 ? 1 : niceStep((maxAbs * 1.1) / 4)
+    const axisMin = isWinRate ? 0 : maxAbs === 0 ? -1 : -Math.ceil((maxAbs * 1.1) / step) * step
+    const axisBound = isWinRate ? 100 : maxAbs === 0 ? 1 : Math.ceil((maxAbs * 1.1) / step) * step
 
     destroyChart('timeBar')
     const canvas = root.querySelector<HTMLCanvasElement>('[data-sxa-time-bar-canvas]')
     if (!canvas) return
+    const barDataset = { data: values, backgroundColor: values.map((v) => (isWinRate ? BRAND : v >= 0 ? GAIN : LOSS)), borderRadius: 3, barPercentage: 0.7, categoryPercentage: 0.85 }
+    const lineDataset = {
+      data: values,
+      borderColor: BRAND,
+      backgroundColor: BRAND + '22',
+      fill: true,
+      tension: 0.3,
+      borderWidth: 2,
+      pointRadius: 3,
+      pointBackgroundColor: values.map((v) => (isWinRate ? BRAND : v >= 0 ? GAIN : LOSS)),
+      pointBorderColor: values.map((v) => (isWinRate ? BRAND : v >= 0 ? GAIN : LOSS)),
+    }
+    // Each bucket covers the full hour (e.g. a trade at 4:37 falls in the "4:00-4:59" bucket),
+    // so the label spells out the whole span to avoid implying trades only land on the hour.
     charts.timeBar = new Chart(canvas, {
-      type: 'bar',
+      type: timeChartType,
       data: {
-        labels: Array.from({ length: 24 }, (_, h) => h + ':00'),
-        datasets: [{ data: values, backgroundColor: values.map((v) => (v >= 0 ? GAIN : LOSS)), borderRadius: 3, barPercentage: 0.7, categoryPercentage: 0.85 }],
+        labels: Array.from({ length: 24 }, (_, h) => `${h}:00-${h}:59`),
+        datasets: [timeChartType === 'bar' ? barDataset : lineDataset],
       },
       options: {
         responsive: true,
@@ -1514,8 +2109,26 @@ export function initAnalyticsPage(
           tooltip: { callbacks: { label: (i) => (timeMetric === 'pnl' ? fmtMoney(Number(i.parsed.y)) : timeMetric === 'rr' ? Number(i.parsed.y).toFixed(2) + 'R' : Number(i.parsed.y).toFixed(2) + '%') } },
         },
         scales: {
-          y: { ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS, callback: (v) => (timeMetric === 'pnl' ? '$' + (Number(v) / 1000).toFixed(0) + 'k' : Number(v).toFixed(1)) }, grid: { color: GRID }, border: { display: false } },
-          x: { ticks: { font: { size: 9.5 }, color: AXIS, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }, grid: { display: false }, border: { display: false } },
+          y: {
+            min: axisMin,
+            max: axisBound,
+            afterFit: (scale) => {
+              // Chart.js sometimes measures the tick label width before the
+              // mono font has fully loaded, reserving a hair too little space
+              // and clipping the leading "$" off negative values. Pad it out
+              // just enough to avoid clipping without leaving a visible gutter.
+              scale.width += 4
+            },
+            ticks: {
+              font: { family: 'IBM Plex Mono', size: 10.5 },
+              color: AXIS,
+              stepSize: timeMetric === 'pnl' || isWinRate ? step : undefined,
+              callback: (v) => (timeMetric === 'pnl' ? '$' + (Number(v) / 1000).toFixed(0) + 'k' : isWinRate ? Number(v).toFixed(0) + '%' : Number(v).toFixed(1)),
+            },
+            grid: { color: '#d7dae1' },
+            border: { display: false },
+          },
+          x: { ticks: { font: { size: 9 }, color: AXIS, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false }, border: { display: false } },
         },
       },
     })
@@ -1523,21 +2136,63 @@ export function initAnalyticsPage(
 
   function renderDayBarChart(trades: SxaTrade[]) {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    const totals = days.map((_, i) => trades.filter((t) => new Date(t.entryTimeMs).getUTCDay() === i).reduce((s, t) => s + t.pnl, 0))
+    const dayBuckets = days.map((_, i) => trades.filter((t) => new Date(t.entryTimeMs).getUTCDay() === i))
+    const totals = dayBuckets.map((list) => computeHourMetric(list, dayMetric))
+    // Win rate is always 0-100%, so it gets a fixed 0-100 axis instead of the
+    // zero-mirrored scaling used for P/L, RR and % Profit (which can go negative).
+    const isWinRate = dayMetric === 'winrate'
+    // Mirror the axis around zero (max === -min) with a "nice" round step size,
+    // same treatment as the Performance by time chart.
+    const maxAbs = totals.reduce((m, v) => Math.max(m, Math.abs(v)), 0)
+    const step = isWinRate ? 25 : maxAbs === 0 ? 1 : niceStep((maxAbs * 1.1) / 4)
+    const axisMin = isWinRate ? 0 : maxAbs === 0 ? -1 : -Math.ceil((maxAbs * 1.1) / step) * step
+    const axisBound = isWinRate ? 100 : maxAbs === 0 ? 1 : Math.ceil((maxAbs * 1.1) / step) * step
 
     destroyChart('dayBar')
     const canvas = root.querySelector<HTMLCanvasElement>('[data-sxa-day-bar-canvas]')
     if (!canvas) return
+    const dayBarDataset = { data: totals, backgroundColor: totals.map((v) => (isWinRate ? BRAND : v >= 0 ? GAIN : LOSS)), borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.8 }
+    const dayLineDataset = {
+      data: totals,
+      borderColor: BRAND,
+      backgroundColor: BRAND + '22',
+      fill: true,
+      tension: 0.3,
+      borderWidth: 2,
+      pointRadius: 4,
+      pointBackgroundColor: totals.map((v) => (isWinRate ? BRAND : v >= 0 ? GAIN : LOSS)),
+      pointBorderColor: totals.map((v) => (isWinRate ? BRAND : v >= 0 ? GAIN : LOSS)),
+    }
     charts.dayBar = new Chart(canvas, {
-      type: 'bar',
-      data: { labels: days, datasets: [{ data: totals, backgroundColor: totals.map((v) => (v >= 0 ? GAIN : LOSS)), borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.8 }] },
+      type: dayChartType,
+      data: { labels: days, datasets: [dayChartType === 'bar' ? dayBarDataset : dayLineDataset] },
       options: {
-        indexAxis: 'y',
         responsive: true,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (i) => fmtMoney(Number(i.parsed.x)) } } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (i) => (dayMetric === 'pnl' ? fmtMoney(Number(i.parsed.y)) : dayMetric === 'rr' ? Number(i.parsed.y).toFixed(2) + 'R' : Number(i.parsed.y).toFixed(2) + '%'),
+            },
+          },
+        },
         scales: {
-          x: { ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS, callback: (v) => '$' + (Number(v) / 1000).toFixed(0) + 'k' }, grid: { color: GRID }, border: { display: false } },
-          y: { ticks: { font: { size: 12 }, color: '#6b7280' }, grid: { display: false }, border: { display: false } },
+          y: {
+            min: axisMin,
+            max: axisBound,
+            afterFit: (scale) => {
+              scale.width += 4
+            },
+            ticks: {
+              font: { family: 'IBM Plex Mono', size: 10.5 },
+              color: '#4b5563',
+              stepSize: dayMetric === 'pnl' || isWinRate ? step : undefined,
+              callback: (v) => (dayMetric === 'pnl' ? '$' + (Number(v) / 1000).toFixed(0) + 'k' : isWinRate ? Number(v).toFixed(0) + '%' : Number(v).toFixed(1)),
+            },
+            grid: { color: '#d7dae1' },
+            border: { display: false },
+          },
+          x: { ticks: { font: { size: 12 }, color: '#4b5563' }, grid: { display: false }, border: { display: false } },
         },
       },
     })
@@ -1615,6 +2270,10 @@ export function initAnalyticsPage(
       const avgR = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 0
       return { display: avgR.toFixed(2) + 'R', raw: avgR, count: dayTrades.length }
     }
+    if (calMetric === 'winrate') {
+      const winRate = (dayTrades.filter((t) => t.pnl > 0).length / dayTrades.length) * 100
+      return { display: winRate.toFixed(0) + '%', raw: winRate, count: dayTrades.length }
+    }
     const base = calBasis === 'initial' ? opts.getStartingBalance() : balanceRef.value
     const pct = base !== 0 ? (pnl / base) * 100 : 0
     return { display: (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%', raw: pct, count: dayTrades.length }
@@ -1647,8 +2306,13 @@ export function initAnalyticsPage(
       if (!val) {
         html += `<div class="${cellClass}">${mini ? d : `<div class="sxa-cd-num">${d}</div>`}</div>`
       } else {
-        const intensity = mini ? 0.85 : Math.min(Math.abs(val.raw) / (calMetric === 'dollar' ? 2000 : calMetric === 'rr' ? 2 : 3), 1)
-        const bg = val.raw >= 0 ? `rgba(26,157,92,${0.35 + intensity * 0.55})` : `rgba(214,69,90,${0.35 + intensity * 0.55})`
+        // Win rate is a 0-100% scale with no natural positive/negative sign, so it's
+        // recentered on 50% (above = green/"good", below = red/"bad") instead of using
+        // the signed-value coloring the other metrics (P/L, RR, % return) already have.
+        const isWinRate = calMetric === 'winrate'
+        const colorVal = isWinRate ? val.raw - 50 : val.raw
+        const intensity = mini ? 0.85 : Math.min(Math.abs(colorVal) / (calMetric === 'dollar' ? 2000 : calMetric === 'rr' ? 2 : isWinRate ? 50 : 3), 1)
+        const bg = colorVal >= 0 ? `rgba(26,157,92,${0.35 + intensity * 0.55})` : `rgba(214,69,90,${0.35 + intensity * 0.55})`
         if (mini) {
           html += `<div class="${cellClass} sxa-cal-cell--data" style="background:${bg};" title="${val.display} \u00b7 ${val.count} trade(s)">${d}</div>`
         } else {
@@ -1763,6 +2427,9 @@ export function initAnalyticsPage(
           scales: {
             y: {
               max: 0,
+              afterFit: (scale) => {
+                scale.width += 4
+              },
               ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS, callback: (v) => (ddUnit === 'pct' ? Math.abs(Number(v)) + '%' : '$' + Math.abs(Number(v)).toLocaleString()) },
               grid: { color: GRID },
               border: { display: false },
@@ -1785,10 +2452,10 @@ export function initAnalyticsPage(
     const statsHost = root.querySelector<HTMLElement>('[data-sxa-drawdown-stats]')
     if (statsHost) {
       statsHost.innerHTML = `
-        <div class="sxa-accent-card"><div class="sxa-a-label">Max drawdown <span class="sxa-info-dot">i</span></div><div class="sxa-a-value">-${maxDD.toFixed(2)}%</div></div>
-        <div class="sxa-accent-card"><div class="sxa-a-label">Avg drawdown on equity <span class="sxa-info-dot">i</span></div><div class="sxa-a-value">-${avgDD.toFixed(2)}%</div></div>
-        <div class="sxa-accent-card"><div class="sxa-a-label">Time to recovery (days) <span class="sxa-info-dot">i</span></div><div class="sxa-a-value">${avgRecoveryDays.toFixed(1)}</div></div>
-        <div class="sxa-accent-card"><div class="sxa-a-label">Drawdown frequency <span class="sxa-info-dot">i</span></div><div class="sxa-a-value">${frequencyPerWeek.toFixed(1)}<span class="sxa-a-unit">/wk</span></div></div>`
+        <div class="sxa-accent-card"><div class="sxa-a-label">Max drawdown ${infoDot('The biggest drop in your account, measured from its highest point (peak) down to its lowest point (trough), before it goes back up again.', 'max drawdown')}</div><div class="sxa-a-value">-${maxDD.toFixed(2)}%</div></div>
+        <div class="sxa-accent-card"><div class="sxa-a-label">Avg drawdown on equity ${infoDot('On average, how much your account goes down during losing periods.', 'average drawdown on equity')}</div><div class="sxa-a-value">-${avgDD.toFixed(2)}%</div></div>
+        <div class="sxa-accent-card"><div class="sxa-a-label">Time to recovery (days) ${infoDot('Average number of days it takes to recover from a drawdown.', 'time to recovery')}</div><div class="sxa-a-value">${avgRecoveryDays.toFixed(1)}</div></div>
+        <div class="sxa-accent-card"><div class="sxa-a-label">Drawdown frequency ${infoDot('How many times your account has gone into a drawdown.', 'drawdown frequency')}</div><div class="sxa-a-value">${frequencyPerWeek.toFixed(1)}<span class="sxa-a-unit">/wk</span></div></div>`
     }
   }
 
@@ -1925,7 +2592,14 @@ export function initAnalyticsPage(
           interaction: { mode: 'index', intersect: false },
           plugins: { legend: { display: false }, tooltip: { enabled: false, external: mcExternalTooltip } },
           scales: {
-            y: { ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS, callback: (v) => '$' + (Number(v) / 1000).toFixed(0) + 'k' }, grid: { color: GRID }, border: { display: false } },
+            y: {
+              afterFit: (scale) => {
+                scale.width += 4
+              },
+              ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS, callback: (v) => '$' + (Number(v) / 1000).toFixed(0) + 'k' },
+              grid: { color: GRID },
+              border: { display: false },
+            },
             x: { ticks: { font: { size: 10 }, color: AXIS }, grid: { display: false }, border: { display: false } },
           },
         },
@@ -2093,6 +2767,177 @@ export function initAnalyticsPage(
     }
   }
 
+  // Stop Loss Simulator - replays trades with each stop pulled in by a % of its original
+  // distance. Uses the same per-trade Maximum Adverse Excursion data computed for the
+  // Drawdown tab (maeRCache: worst adverse move during the trade's own real entry-to-exit
+  // window, as a ratio of its original risk) to determine whether the tighter stop would
+  // have been hit before the trade's actual exit - a real historical-price replay, not a
+  // guess. Trades without price data yet are left at their real, unmodified result.
+  const SL_PALETTE = [AMBER, LOSS, GAIN, BRAND, '#8b5cf6', '#0ea5b4', '#ec4899', '#22c55e', '#f97316']
+  const SL_PRESETS = [10, 25, 50, 75]
+  type SLChip = { value: number; color: string; active: boolean; isCurrent: boolean }
+  let slChips: SLChip[] = []
+
+  function initSlChips() {
+    slChips = [
+      { value: 0, color: BRAND, active: true, isCurrent: true },
+      ...SL_PRESETS.map((v, i) => ({ value: v, color: SL_PALETTE[i % SL_PALETTE.length]!, active: i < 3, isCurrent: false })),
+    ]
+  }
+
+  /** Replays trades with the stop pulled in by `reductionPct`% of its original distance.
+   * A trade only changes outcome if its own real MAE (worst adverse move during its actual
+   * holding window) reached the new, tighter stop level before the trade's real exit -
+   * otherwise it plays out exactly as it actually did. The "current" scenario reproduces
+   * the actual realized result exactly (0% reduction). */
+  function computeSlScenario(trades: SxaTrade[], reductionPct: number, isCurrent: boolean) {
+    const startingBalance = opts.getStartingBalance()
+    let equity = startingBalance
+    let peak = startingBalance
+    let maxDD = 0
+    const cumRSeries: number[] = [0]
+    let cumR = 0
+    let grossProfit = 0
+    let grossLoss = 0
+    let wins = 0
+    let flipped = 0
+    let evaluable = 0
+    const stopFactor = 1 - reductionPct / 100
+
+    for (const t of trades) {
+      let dollar = t.pnl
+      let effectiveR = t.returnR ?? 0
+
+      if (!isCurrent) {
+        const maeR = maeRCache.get(t.id)
+        if (maeR != null && t.returnR != null) {
+          evaluable++
+          if (maeR >= stopFactor) {
+            // The tighter stop would have been touched before the trade's real exit.
+            const dollarPerR = t.returnR !== 0 ? Math.abs(t.pnl / t.returnR) : Math.abs(t.pnl)
+            dollar = -stopFactor * dollarPerR
+            effectiveR = -stopFactor
+            flipped++
+          }
+        }
+      }
+
+      cumR += effectiveR
+      cumRSeries.push(cumR)
+      equity += dollar
+      peak = Math.max(peak, equity)
+      maxDD = Math.max(maxDD, peak > 0 ? ((peak - equity) / peak) * 100 : 0)
+      if (dollar > 0) {
+        grossProfit += dollar
+        wins++
+      } else {
+        grossLoss += Math.abs(dollar)
+      }
+    }
+
+    const winRate = trades.length ? (wins / trades.length) * 100 : 0
+    const profit = equity - startingBalance
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0
+    return { cumRSeries, winRate, profit, profitFactor, avgDrawdown: maxDD, flipped, evaluable }
+  }
+
+  function renderSlChipRow() {
+    const host = root.querySelector<HTMLElement>('[data-sxa-sl-chip-row]')
+    if (!host) return
+    host.innerHTML = slChips
+      .map(
+        (c, i) => `
+      <button type="button" class="sxa-rr-chip${c.active ? ' sxa-rr-chip--active' : ''}${c.isCurrent ? ' sxa-rr-chip--current' : ''}" data-sxa-sl-chip="${i}" style="${c.active ? `border-color:${c.color}; background:${c.color}18;` : ''}">
+        <span class="sxa-rr-chip-dot" style="background:${c.color}"></span>
+        ${c.isCurrent ? 'Current' : `\u2212${c.value.toFixed(0)}%`}
+      </button>`,
+      )
+      .join('')
+  }
+
+  function renderSlSimulator(trades: SxaTrade[]) {
+    if (!root.querySelector('[data-sxa-sl-chip-row]')) return
+    if (!slChips.length) initSlChips()
+    const activeChips = slChips.filter((c) => c.active)
+    const scenarios = activeChips.map((c) => ({ chip: c, ...computeSlScenario(trades, c.value, c.isCurrent) }))
+
+    destroyChart('slMulti')
+    const canvas = root.querySelector<HTMLCanvasElement>('[data-sxa-sl-multi-canvas]')
+    if (canvas) {
+      const maxLen = Math.max(1, ...scenarios.map((s) => s.cumRSeries.length))
+      const labels: (string | number)[] = ['']
+      for (let i = 1; i < maxLen; i++) labels.push(i)
+      charts.slMulti = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: scenarios.map((s) => ({
+            data: s.cumRSeries,
+            borderColor: s.chip.color,
+            borderWidth: s.chip.isCurrent ? 2.5 : 2,
+            pointRadius: 0,
+            fill: false,
+            tension: 0.25,
+          })),
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS }, grid: { color: GRID }, border: { display: false } },
+            x: { ticks: { font: { size: 10 }, color: AXIS, maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+          },
+        },
+      })
+    }
+
+    const bestWinRate = scenarios.length ? Math.max(...scenarios.map((s) => s.winRate)) : 0
+    const bestProfit = scenarios.length ? Math.max(...scenarios.map((s) => s.profit)) : 0
+    const bestPF = scenarios.length ? Math.max(...scenarios.map((s) => (isFinite(s.profitFactor) ? s.profitFactor : -Infinity))) : 0
+    const bestDD = scenarios.length ? Math.min(...scenarios.map((s) => s.avgDrawdown)) : 0
+
+    const cell = (val: number, isBest: boolean, formatter: (v: number) => string) => (isBest ? `<span class="sxa-best-cell">${formatter(val)}</span>` : formatter(val))
+
+    const rows = scenarios
+      .map(
+        (s) => `
+      <tr class="${s.chip.isCurrent ? 'sxa-current-row' : ''}">
+        <td><div class="sxa-rr-row-label"><span class="sxa-dot" style="background:${s.chip.color}"></span>${s.chip.isCurrent ? 'Current <span class="sxa-rr-row-current">(no change)</span>' : `\u2212${s.chip.value.toFixed(0)}% stop`}</div></td>
+        <td>${cell(s.winRate, s.winRate === bestWinRate, (v) => v.toFixed(0) + '%')}</td>
+        <td>${cell(s.profit, s.profit === bestProfit, (v) => fmtPlain(v))}</td>
+        <td>${cell(s.profitFactor, s.profitFactor === bestPF, (v) => (isFinite(v) ? v.toFixed(2) : '\u221e'))}</td>
+        <td>${cell(s.avgDrawdown, s.avgDrawdown === bestDD, (v) => v.toFixed(1) + '%')}</td>
+      </tr>`,
+      )
+      .join('')
+
+    const table = root.querySelector<HTMLElement>('[data-sxa-sl-results-table]')
+    if (table) {
+      table.innerHTML = `
+        <thead><tr><th>Stop reduction</th><th>Win Rate</th><th>Profit</th><th>Profit Factor</th><th>Avg Drawdown</th></tr></thead>
+        <tbody>${rows}</tbody>`
+    }
+
+    const bestLine = root.querySelector<HTMLElement>('[data-sxa-sl-best-line]')
+    if (bestLine) {
+      const presetScenarios = scenarios.filter((s) => !s.chip.isCurrent)
+      if (presetScenarios.length) {
+        const best = presetScenarios.reduce((a, b) => (isFinite(b.profitFactor) && b.profitFactor > a.profitFactor ? b : a))
+        bestLine.innerHTML = best.chip.value === 0
+          ? ''
+          : `Based on your analytics, reducing your stop loss by <strong style="color:${best.chip.color}">${best.chip.value.toFixed(0)}%</strong> gives you the best results overall`
+      } else {
+        bestLine.textContent = ''
+      }
+    }
+
+    const hint = root.querySelector<HTMLElement>('[data-sxa-sl-coverage-hint]')
+    if (hint) {
+      const withPrice = trades.filter((t) => maeRCache.get(t.id) != null).length
+      hint.textContent = trades.length ? `${withPrice} of ${trades.length} trades have price data available for simulation.` : '\u00a0'
+    }
+  }
+
   const EXPORT_COLUMNS: Array<[string, (t: SxaTrade) => string | number]> = [
     ['Entry Time', (t) => new Date(t.entryTimeMs).toISOString()],
     ['Exit Time', (t) => new Date(t.exitTimeMs).toISOString()],
@@ -2131,6 +2976,7 @@ export function initAnalyticsPage(
     renderKPIs(trades)
     renderPnlChart(trades)
     renderRRCards(trades)
+    void computeIdealRrStats(trades)
     renderExpectancy(trades)
     renderWinnersLosers(trades)
     renderSideDonuts(trades)
@@ -2147,17 +2993,26 @@ export function initAnalyticsPage(
   }
 
   function renderDrawdownTab() {
-    renderDrawdown(getFilteredTrades())
+    const trades = getFilteredTrades()
+    renderDrawdown(trades)
+    void computeMaeStats(trades)
   }
 
   function renderSimulationTab() {
-    if (!root.querySelector('[data-sxa-mc-nsim]')) renderMcInputs(getFilteredTrades())
+    const trades = getFilteredTrades()
+    if (!root.querySelector('[data-sxa-mc-nsim]')) renderMcInputs(trades)
     runMonteCarloFromInputs()
     if (!rrChips.length) {
-      initRRChips(getFilteredTrades())
+      initRRChips(trades)
       renderRRChipRow()
     }
-    renderRRSimulator(getFilteredTrades())
+    renderRRSimulator(trades)
+    if (!slChips.length) {
+      initSlChips()
+      renderSlChipRow()
+    }
+    void computeMaeStats(trades)
+    renderSlSimulator(trades)
   }
 
   function renderAll() {
@@ -2190,8 +3045,32 @@ export function initAnalyticsPage(
       renderPnlChart(getFilteredTrades())
       return
     }
+    const timeChartTypeBtn = t.closest<HTMLButtonElement>('[data-sxa-time-chart-toggle] [data-sxa-time-chart-type]')
+    if (timeChartTypeBtn && root.contains(timeChartTypeBtn)) {
+      root
+        .querySelectorAll('[data-sxa-time-chart-toggle] [data-sxa-time-chart-type]')
+        .forEach((b) => b.classList.remove('sxa-chart-type-toggle__btn--active'))
+      timeChartTypeBtn.classList.add('sxa-chart-type-toggle__btn--active')
+      timeChartType = (timeChartTypeBtn.getAttribute('data-sxa-time-chart-type') as typeof timeChartType) ?? 'bar'
+      renderTimeBarChart(getFilteredTrades())
+      return
+    }
+    const dayChartTypeBtn = t.closest<HTMLButtonElement>('[data-sxa-day-chart-toggle] [data-sxa-day-chart-type]')
+    if (dayChartTypeBtn && root.contains(dayChartTypeBtn)) {
+      root
+        .querySelectorAll('[data-sxa-day-chart-toggle] [data-sxa-day-chart-type]')
+        .forEach((b) => b.classList.remove('sxa-chart-type-toggle__btn--active'))
+      dayChartTypeBtn.classList.add('sxa-chart-type-toggle__btn--active')
+      dayChartType = (dayChartTypeBtn.getAttribute('data-sxa-day-chart-type') as typeof dayChartType) ?? 'bar'
+      renderDayBarChart(getFilteredTrades())
+      return
+    }
     if (t.closest('[data-sxa-export-csv]')) {
       exportCsv()
+      return
+    }
+    if (t.closest('[data-sxa-breakeven-submit]')) {
+      applyBreakevenThreshold()
       return
     }
     // Every filter chip (Type/Assets/Side/Outcome/Tags/Session/Strategy/Day/Time/Timezone)
@@ -2360,6 +3239,36 @@ export function initAnalyticsPage(
       renderAll()
       return
     }
+    const metricDdBtn = t.closest<HTMLElement>('[data-sxa-metric-dd-btn]')
+    if (metricDdBtn && root.contains(metricDdBtn)) {
+      const menu = metricDdBtn.closest<HTMLElement>('[data-sxa-metric-dd]')?.querySelector<HTMLElement>('[data-sxa-metric-dd-menu]')
+      const wasOpen = menu ? menu.classList.contains('sxa-popover--open') : false
+      closeAllPopovers()
+      if (menu && !wasOpen) menu.classList.add('sxa-popover--open')
+      return
+    }
+    const metricDdItem = t.closest<HTMLElement>('[data-sxa-metric-dd-value]')
+    if (metricDdItem && root.contains(metricDdItem)) {
+      const dd = metricDdItem.closest<HTMLElement>('[data-sxa-metric-dd]')
+      const ddKey = dd?.getAttribute('data-sxa-metric-dd')
+      const value = metricDdItem.getAttribute('data-sxa-metric-dd-value') ?? 'pnl'
+      const label = dd?.querySelector<HTMLElement>('[data-sxa-metric-dd-label]')
+      if (label) label.textContent = metricDdItem.textContent
+      dd?.querySelectorAll('[data-sxa-metric-dd-value]').forEach((el) => el.classList.remove('sxa-metric-dd__item--active'))
+      metricDdItem.classList.add('sxa-metric-dd__item--active')
+      if (ddKey === 'time') {
+        timeMetric = value as typeof timeMetric
+        renderTimeBarChart(getFilteredTrades())
+      } else if (ddKey === 'day') {
+        dayMetric = value as typeof dayMetric
+        renderDayBarChart(getFilteredTrades())
+      } else if (ddKey === 'cal') {
+        calMetric = value as typeof calMetric
+        renderCalendar(getFilteredTrades())
+      }
+      closeAllPopovers()
+      return
+    }
     closeAllPopovers()
     if (t.closest('[data-sxa-mc-run]')) {
       runMonteCarloFromInputs()
@@ -2444,6 +3353,35 @@ export function initAnalyticsPage(
       }
       return
     }
+    const slChipBtn = t.closest<HTMLButtonElement>('[data-sxa-sl-chip]')
+    if (slChipBtn && root.contains(slChipBtn)) {
+      const idx = parseInt(slChipBtn.getAttribute('data-sxa-sl-chip') ?? '-1', 10)
+      if (slChips[idx]) {
+        slChips[idx]!.active = !slChips[idx]!.active
+        renderSlChipRow()
+        renderSlSimulator(getFilteredTrades())
+      }
+      return
+    }
+    if (t.closest('[data-sxa-sl-add-new]')) {
+      const input = window.prompt('Enter a custom stop loss reduction % (e.g. 40):')
+      const val = input != null ? parseFloat(input) : NaN
+      if (!isNaN(val) && val > 0 && val < 100) {
+        const color = SL_PALETTE[slChips.length % SL_PALETTE.length]!
+        slChips.push({ value: val, color, active: true, isCurrent: false })
+        renderSlChipRow()
+        renderSlSimulator(getFilteredTrades())
+      }
+      return
+    }
+    const slHowLink = t.closest<HTMLAnchorElement>('[data-sxa-sl-how]')
+    if (slHowLink && root.contains(slHowLink)) {
+      e.preventDefault()
+      window.alert(
+        'Each line replays your real trade history with the stop loss pulled in by that %. Using real historical price data, a trade only flips outcome if it actually moved against you far enough to hit the tighter stop before its real exit \u2014 otherwise it plays out exactly as it really did. "Current" reproduces your actual results exactly.',
+      )
+      return
+    }
     const rrHowLink = t.closest<HTMLAnchorElement>('[data-sxa-rr-how]')
     if (rrHowLink && root.contains(rrHowLink)) {
       e.preventDefault()
@@ -2457,14 +3395,6 @@ export function initAnalyticsPage(
   root.addEventListener('change', (e) => {
     const t = e.target as HTMLElement | null
     if (!t) return
-    if (t.matches('[data-sxa-time-metric]')) {
-      timeMetric = (t as HTMLSelectElement).value as typeof timeMetric
-      renderTimeBarChart(getFilteredTrades())
-    }
-    if (t.matches('[data-sxa-cal-metric]')) {
-      calMetric = (t as HTMLSelectElement).value as typeof calMetric
-      renderCalendar(getFilteredTrades())
-    }
     if (t.hasAttribute('data-sxa-fp-time-start') && t instanceof HTMLInputElement) {
       filters.timeStart = normalizeTimeFieldValue(t.value, '00:00')
       t.value = filters.timeStart
@@ -2476,6 +3406,15 @@ export function initAnalyticsPage(
       t.value = filters.timeEnd
       renderAll()
       return
+    }
+  })
+
+  // Pressing Enter in the Breakeven Threshold input submits it, same as clicking Submit.
+  root.addEventListener('keydown', (e) => {
+    const t = e.target as HTMLElement | null
+    if (t && t.hasAttribute('data-sxa-breakeven-input') && (e as KeyboardEvent).key === 'Enter') {
+      e.preventDefault()
+      applyBreakevenThreshold()
     }
   })
 

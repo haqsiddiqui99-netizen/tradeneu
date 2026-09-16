@@ -2981,6 +2981,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         durationMin,
         sessionId: r.sessionId,
         sessionName: r.sessionName,
+        entryPrice: r.entryPrice,
+        initialStopLoss: r.initialStopLoss,
       }
     })
   }
@@ -4547,6 +4549,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const text = btn.getAttribute('data-tip')
     if (!text) return
     kpiInfoTip.textContent = text
+    kpiInfoTip.classList.toggle('sx-dash-kpi-tip--grey', btn.getAttribute('data-tip-variant') === 'grey')
     kpiInfoTip.classList.add('sx-dash-kpi-tip--visible')
     positionKpiInfoTip(btn)
   }

@@ -2852,6 +2852,26 @@ a.sx-dash-account__item {
   transform: translateY(0) scale(1);
 }
 
+/* Dark-grey variant (instead of near-black) for simple one-line hints, e.g. the chart
+   style toggle buttons, as opposed to the longer black KPI/metric explainer tooltips.
+   Kept compact (close to the trigger button's own height) since the text is always
+   a single short line, unlike the multi-line KPI explainer tooltips. */
+.sx-dash-kpi-tip--grey {
+  background: #4b5563;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  max-width: none;
+  white-space: nowrap;
+}
+
+.sx-dash-kpi-tip--grey::after {
+  background: #4b5563;
+  width: 0.45rem;
+  height: 0.45rem;
+}
+
 .sx-dash-pulse__workspace {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -4208,9 +4228,9 @@ a.sx-dash-account__item {
   border-radius: 0.375rem;
   background: transparent;
   color: #344054;
-  font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
-  font-weight: 500;
+  font-family: 'Segoe UI Variable', 'Segoe UI', Inter, -apple-system, Roboto, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
   letter-spacing: normal;
   text-align: left;
   cursor: pointer;
@@ -4250,9 +4270,9 @@ a.sx-dash-account__item {
 
 .sx-dash-side__link--active span {
   position: relative;
-  font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-weight: 500;
-  font-size: 13px;
+  font-family: 'Segoe UI Variable', 'Segoe UI', Inter, -apple-system, Roboto, sans-serif;
+  font-weight: 400;
+  font-size: 15px;
 }
 
 .sx-dash-side__link--active .sx-dash-side__ico--grid {
@@ -6997,9 +7017,10 @@ a.sx-dash-account__item {
   background: transparent;
   padding: 9px 18px;
   border-radius: 8px;
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-family: 'Segoe UI Variable', 'Segoe UI', Inter, -apple-system, Roboto, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: normal;
   color: var(--sxa-ink-500);
   cursor: pointer;
 }
@@ -7063,12 +7084,12 @@ a.sx-dash-account__item {
   align-items: center;
   gap: 7px;
   background: var(--sxa-surface);
-  border: 1px solid #c3c8d1;
+  border: 1px solid #9aa0ac;
   border-radius: 10px;
-  padding: 7.5px 14px;
-  font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-weight: 500;
-  font-size: 13px;
+  padding: 6px 14px 9px;
+  font-family: 'Segoe UI Variable', 'Segoe UI', Inter, -apple-system, Roboto, sans-serif;
+  font-weight: 400;
+  font-size: 14.5px;
   letter-spacing: normal;
   color: var(--sxa-ink-800);
   cursor: pointer;
@@ -7079,7 +7100,7 @@ a.sx-dash-account__item {
 
 .sxa-chip:hover {
   background: var(--sxa-line-soft);
-  border-color: #a6acb8;
+  border-color: #7c828d;
 }
 
 .sxa-chip--static {
@@ -7097,13 +7118,27 @@ a.sx-dash-account__item {
 }
 
 .sxa-count-badge {
-  background: var(--sxa-brand);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a1a;
   color: #fff;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
-  padding: 1px 7px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
   margin-left: 2px;
+  flex-shrink: 0;
+}
+
+/* Our own `display: inline-flex` above is an author-stylesheet rule, so it beats the
+   browser's default `[hidden] { display: none }` UA rule (author rules always win over
+   UA rules regardless of specificity) — without this, `el.hidden = true` in JS no longer
+   actually hides the badge, leaving a stray "0" showing on chips with nothing selected. */
+.sxa-count-badge[hidden] {
+  display: none;
 }
 
 .sxa-spacer {
@@ -7113,7 +7148,7 @@ a.sx-dash-account__item {
 .sxa-clear-link {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--sxa-ink-500);
+  color: var(--sxa-ink-800);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -7154,7 +7189,7 @@ a.sx-dash-account__item {
 
 .sxa-active-filters__label {
   font-size: 12px;
-  color: var(--sxa-ink-300);
+  color: var(--sxa-ink-500);
   font-weight: 600;
 }
 
@@ -7495,11 +7530,22 @@ a.sx-dash-account__item {
 
 .sxa-mp-search {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 6px;
 }
 
+.sxa-mp-opt-all-inline {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
 .sxa-mp-search-input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   border: 1px solid #c3c8d1;
   border-radius: 8px;
   padding: 8px 30px 8px 10px;
@@ -7561,13 +7607,6 @@ a.sx-dash-account__item {
 
 .sxa-mp-opt--selected:hover {
   background: #c7d2fe;
-}
-
-.sxa-mp-opt--all {
-  border-bottom: 1px solid var(--sxa-line-soft);
-  border-radius: 0;
-  margin-bottom: 4px;
-  padding-bottom: 10px;
 }
 
 .sxa-mp-opt--hidden {
@@ -7823,22 +7862,6 @@ a.sx-dash-account__item {
   margin-top: 0;
 }
 
-.sxa-info-dot {
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: var(--sxa-line-soft);
-  color: var(--sxa-ink-300);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  font-style: italic;
-  font-family: Georgia, serif;
-  flex-shrink: 0;
-  cursor: default;
-}
-
 .sxa-kpi-strip {
   background: var(--sxa-surface);
   border: 1px solid var(--sxa-line);
@@ -7848,9 +7871,76 @@ a.sx-dash-account__item {
   overflow: hidden;
 }
 
+.sxa-breakeven-box {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--sxa-surface);
+  border: 1px solid #9aa0ac;
+  border-radius: 10px;
+}
+
+.sxa-breakeven-box__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--sxa-ink-800);
+  white-space: nowrap;
+}
+
+.sxa-breakeven-box__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sxa-breakeven-box__input {
+  width: 66px;
+  padding: 5px 8px;
+  border: 1px solid #9aa0ac;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: var(--sxa-ink-950);
+  background: var(--sxa-surface);
+}
+
+.sxa-breakeven-box__input:focus {
+  outline: none;
+  border-color: #7c828d;
+}
+
+.sxa-breakeven-box__submit {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sxa-breakeven-box__submit:hover {
+  background: #333;
+}
+
+@media (max-width: 900px) {
+  .sxa-section-title {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+}
+
 .sxa-kpi {
   padding: 16px 18px;
-  border-right: 1px solid var(--sxa-line-soft);
+  border-right: 1px solid #9aa0ac;
 }
 
 .sxa-kpi:last-child {
@@ -7859,7 +7949,7 @@ a.sx-dash-account__item {
 
 .sxa-kpi-label {
   font-size: 12px;
-  color: var(--sxa-ink-500);
+  color: var(--sxa-ink-800);
   margin-bottom: 6px;
   display: flex;
   align-items: center;
@@ -7929,28 +8019,69 @@ a.sx-dash-account__item {
 
 .sxa-tab-row {
   display: flex;
-  gap: 4px;
-  background: var(--sxa-line-soft);
+  background: var(--sxa-surface);
+  border: 1px solid #9aa0ac;
   border-radius: 8px;
-  padding: 3px;
+  padding: 0;
+  overflow: hidden;
 }
 
 .sxa-tab-row__btn {
   border: none;
+  border-right: 1px solid #9aa0ac;
   background: transparent;
-  padding: 5px 11px;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--sxa-ink-500);
-  border-radius: 6px;
+  padding: 6px 13px;
+  font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--sxa-ink-800);
+  border-radius: 0;
   cursor: pointer;
 }
 
+.sxa-tab-row__btn:last-child {
+  border-right: none;
+}
+
 .sxa-tab-row__btn--active {
-  background: var(--sxa-surface);
+  background: var(--sxa-line-soft);
   color: var(--sxa-ink-800);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.sxa-chart-type-toggle {
+  display: flex;
+  border: 1px solid #9aa0ac;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sxa-chart-type-toggle__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 100%;
+  border: none;
+  border-right: 1px solid #9aa0ac;
+  background: transparent;
+  color: var(--sxa-ink-500);
+  cursor: pointer;
+}
+
+.sxa-chart-type-toggle__btn:last-child {
+  border-right: none;
+}
+
+.sxa-chart-type-toggle__btn:hover {
+  background: var(--sxa-line-soft);
+}
+
+.sxa-chart-type-toggle__btn--active {
+  background: var(--sxa-line-soft);
+  color: var(--sxa-ink-800);
 }
 
 .sxa-analytics canvas {
@@ -8102,6 +8233,10 @@ a.sx-dash-account__item {
   gap: 5px;
 }
 
+.sxa-wl-lbl .sx-dash-pulse__kpi-info img {
+  opacity: 0.5;
+}
+
 .sxa-wl-val {
   font-weight: 700;
   font-family: 'IBM Plex Mono', monospace;
@@ -8129,8 +8264,15 @@ a.sx-dash-account__item {
   display: inline-block;
 }
 
+.sxa-radar-card {
+  padding: 18px 6px 14px;
+}
+
 .sxa-radar-card canvas {
+  display: block;
   max-height: 190px;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 .sxa-radar-card h4 {
@@ -8140,15 +8282,82 @@ a.sx-dash-account__item {
   text-align: center;
 }
 
-.sxa-heat-select select {
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
+.sxa-chart-type-toggle {
+  height: 30px;
+}
+
+.sxa-metric-dd {
+  position: relative;
+}
+
+.sxa-metric-dd__btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: normal;
   color: var(--sxa-ink-800);
-  border: 1px solid var(--sxa-line);
-  border-radius: 8px;
-  padding: 6px 10px;
+  border: 1px solid #9aa0ac;
+  border-radius: 10px;
   background: var(--sxa-surface);
+  cursor: pointer;
+}
+
+.sxa-metric-dd__btn svg {
+  flex-shrink: 0;
+  color: var(--sxa-ink-500);
+}
+
+.sxa-metric-dd__btn:hover {
+  border-color: #7c828d;
+  background: var(--sxa-line-soft);
+}
+
+.sxa-metric-dd__menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 170px;
+  background: var(--sxa-surface);
+  border: 1px solid #9aa0ac;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  z-index: 20;
+}
+
+.sxa-metric-dd__menu.sxa-popover--open {
+  display: block;
+}
+
+.sxa-metric-dd__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--sxa-ink-800);
+  cursor: pointer;
+}
+
+.sxa-metric-dd__item:hover {
+  background: var(--sxa-line-soft);
+}
+
+.sxa-metric-dd__item--active {
+  background: #c7d2fe;
+  font-weight: 600;
 }
 
 .sxa-heat-sub {
@@ -8394,17 +8603,6 @@ a.sx-dash-account__item {
   background: var(--sxa-line-soft);
 }
 
-.sxa-cal-select {
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--sxa-ink-800);
-  border: 1px solid var(--sxa-line);
-  border-radius: 8px;
-  padding: 6px 10px;
-  background: var(--sxa-surface);
-}
-
 /* Performance by month grid */
 .sxa-month-grid {
   width: 100%;
@@ -8640,6 +8838,50 @@ a.sx-dash-account__item {
   font-family: 'IBM Plex Mono', monospace;
   font-weight: 600;
   margin-left: auto;
+}
+
+/* Profit & loss over time \u2014 custom floating tooltip that follows the hovered point */
+.sxa-pnl-tooltip {
+  position: absolute;
+  background: #1c1f26;
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  padding: 10px 14px;
+  min-width: 170px;
+  display: none;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.sxa-pnl-tooltip--visible {
+  display: block;
+}
+
+.sxa-pnl-tooltip__time {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.sxa-pnl-tooltip__row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 2px 0;
+}
+
+.sxa-pnl-tooltip__row b {
+  margin-left: auto;
+  font-family: 'IBM Plex Mono', monospace;
+  color: #fff;
+  font-weight: 700;
 }
 
 /* RR simulator chips */
