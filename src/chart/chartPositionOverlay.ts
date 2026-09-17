@@ -1219,6 +1219,29 @@ export function mountChartPositionOverlay(opts: {
   const ro = new ResizeObserver(() => layoutRows())
   ro.observe(opts.chartHost)
 
+  // Vertical price-axis pan/zoom (dragging the chart up/down, or scroll-wheel zoom on the
+  // price axis) does not fire any of the time-scale / range-change hooks above, so the DOM
+  // order badges would otherwise freeze at their last computed Y while the price scale (and
+  // any native TV lines) keep moving. Run a lightweight rAF loop for the duration of any
+  // pointer drag on the chart host, and reposition once on wheel, to keep them pinned.
+  let dragRaf = 0
+  const dragTick = () => {
+    layoutRows()
+    dragRaf = requestAnimationFrame(dragTick)
+  }
+  const stopDragTick = () => {
+    if (dragRaf) cancelAnimationFrame(dragRaf)
+    dragRaf = 0
+  }
+  const startDragTick = () => {
+    if (dragRaf) return
+    dragRaf = requestAnimationFrame(dragTick)
+  }
+  opts.chartHost.addEventListener('pointerdown', startDragTick, { passive: true })
+  opts.chartHost.addEventListener('wheel', onRange, { passive: true })
+  window.addEventListener('pointerup', stopDragTick, { passive: true })
+  window.addEventListener('pointercancel', stopDragTick, { passive: true })
+
   return {
     sync,
     setSuppressed(next: boolean) {
@@ -1235,6 +1258,11 @@ export function mountChartPositionOverlay(opts: {
       ro.disconnect()
       unsubChartRange?.()
       unsubScale?.()
+      stopDragTick()
+      opts.chartHost.removeEventListener('pointerdown', startDragTick)
+      opts.chartHost.removeEventListener('wheel', onRange)
+      window.removeEventListener('pointerup', stopDragTick)
+      window.removeEventListener('pointercancel', stopDragTick)
       clearAllVisuals()
       overlay.remove()
     },

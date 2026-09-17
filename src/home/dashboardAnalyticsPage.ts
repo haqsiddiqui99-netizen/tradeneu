@@ -2470,18 +2470,28 @@ export function initAnalyticsPage(
     return { avgGain, avgLoss, winRate }
   }
 
+  // Number box + up/down stepper, matching the chart page footer's market quantity box.
+  const mcNumField = (attr: string, value: string | number, extraAttrs: string): string => `
+      <div class="sxa-mc-num">
+        <input type="number" ${attr} value="${value}" ${extraAttrs}>
+        <div class="sxa-mc-num__stepper">
+          <button type="button" class="sxa-mc-num__btn" data-sxa-mc-num-step="${attr}:1" aria-label="Increase"><i class="fa-solid fa-chevron-up" aria-hidden="true"></i></button>
+          <button type="button" class="sxa-mc-num__btn" data-sxa-mc-num-step="${attr}:-1" aria-label="Decrease"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
+        </div>
+      </div>`
+
   function renderMcInputs(trades: SxaTrade[]) {
     const d = computeMcDefaults(trades)
     const startingBalance = opts.getStartingBalance()
     const host = root.querySelector<HTMLElement>('[data-sxa-mc-input-grid]')
     if (!host) return
     host.innerHTML = `
-      <div class="sxa-mc-field"><label>N. Simulations</label><input type="number" data-sxa-mc-nsim value="10" min="1" max="50"></div>
-      <div class="sxa-mc-field"><label>Trades per sim</label><input type="number" data-sxa-mc-trades value="200" min="10" max="1000"></div>
-      <div class="sxa-mc-field"><label>Start balance $</label><input type="number" data-sxa-mc-start value="${startingBalance}" step="1000"></div>
-      <div class="sxa-mc-field"><label>Avg Gain</label><input type="number" data-sxa-mc-gain value="${d.avgGain.toFixed(2)}" step="1"></div>
-      <div class="sxa-mc-field"><label>Avg Loss</label><input type="number" data-sxa-mc-loss value="${d.avgLoss.toFixed(2)}" step="1"></div>
-      <div class="sxa-mc-field"><label>Win rate %</label><input type="number" data-sxa-mc-winrate value="${d.winRate.toFixed(2)}" step="0.1" min="0" max="100"></div>
+      <div class="sxa-mc-field sxa-mc-field--nsim"><label>N. Simulations</label>${mcNumField('data-sxa-mc-nsim', 10, 'min="1" max="50" step="1"')}</div>
+      <div class="sxa-mc-field"><label>Trades per sim</label>${mcNumField('data-sxa-mc-trades', 200, 'min="10" max="1000" step="10"')}</div>
+      <div class="sxa-mc-field"><label>Start balance $</label>${mcNumField('data-sxa-mc-start', startingBalance, 'step="1000"')}</div>
+      <div class="sxa-mc-field"><label>Avg Gain</label>${mcNumField('data-sxa-mc-gain', d.avgGain.toFixed(2), 'step="1"')}</div>
+      <div class="sxa-mc-field"><label>Avg Loss</label>${mcNumField('data-sxa-mc-loss', d.avgLoss.toFixed(2), 'step="1"')}</div>
+      <div class="sxa-mc-field"><label>Win rate %</label>${mcNumField('data-sxa-mc-winrate', d.winRate.toFixed(2), 'step="0.1" min="0" max="100"')}</div>
       <button type="button" class="sxa-export-btn" data-sxa-mc-reset>Reset values</button>
       <button type="button" class="sxa-run-btn" data-sxa-mc-run>Start simulation</button>`
   }
@@ -3277,6 +3287,21 @@ export function initAnalyticsPage(
     if (t.closest('[data-sxa-mc-reset]')) {
       renderMcInputs(getFilteredTrades())
       runMonteCarloFromInputs()
+      return
+    }
+    const mcStepBtn = t.closest<HTMLButtonElement>('[data-sxa-mc-num-step]')
+    if (mcStepBtn && root.contains(mcStepBtn)) {
+      const [attr, dirStr] = (mcStepBtn.getAttribute('data-sxa-mc-num-step') ?? '').split(':')
+      const dir = parseInt(dirStr ?? '1', 10) || 1
+      const input = root.querySelector<HTMLInputElement>(`[${attr}]`)
+      if (input) {
+        const step = parseFloat(input.step) || 1
+        const min = input.min !== '' ? parseFloat(input.min) : -Infinity
+        const max = input.max !== '' ? parseFloat(input.max) : Infinity
+        const next = Math.min(max, Math.max(min, (parseFloat(input.value) || 0) + dir * step))
+        input.value = String(Math.round(next * 100) / 100)
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      }
       return
     }
     const mbBtn = t.closest<HTMLButtonElement>('[data-sxa-month-basis] [data-sxa-mb]')
