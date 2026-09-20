@@ -83,6 +83,64 @@
   min-height: 0;
 }
 
+/* Trade dock dragged (almost) all the way up via its grip: the chart stage — including its
+   own top toolbar chrome — is collapsed away completely so the trade panel gets the full
+   page, rather than leaving a thin always-visible sliver behind. */
+.rw-root--tv.rw-root--trade-maximized,
+.rw-root--fxr.rw-root--tv.rw-root--trade-maximized {
+  grid-template-rows: 0px auto;
+}
+
+.rw-root--trade-maximized .rw-chart-wrap {
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* `.rw-chart-footer-tv` has no `overflow` of its own, so the grid track sizing algorithm
+   uses its *content's* natural (max-content) height as the row's minimum — i.e. the 'auto'
+   row never actually shrinks to the space left after the collapsed stage row, it just grows
+   past the viewport instead, pushing the pager off the bottom of the screen with no way to
+   reach it. Clipping overflow here makes its automatic minimum size 0, so the row properly
+   shrinks to the available space and the flex-grow chain below it (which does the real
+   scrolling, inside `.rw-order-book__body`) can do its job. */
+.rw-root--trade-maximized .rw-chart-footer-tv {
+  overflow: hidden;
+}
+
+/* `.rw-chart-footer-tv` itself stretches to fill the now-empty stage row (see above), but
+   its children don't grow by default — so the trade bar + positions table would otherwise
+   render at their natural height and leave the rest of that stretched space blank. Force
+   the whole chain to flex-grow so the positions table (and its pager) actually fill it. */
+.rw-root--trade-maximized .rw-foot__trade-dock-row {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.rw-root--trade-maximized .rw-foot__trade-dock {
+  flex-shrink: 0;
+}
+
+.rw-root--trade-maximized .rw-order-book {
+  flex: 1 1 auto;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+
+/* The floating bar-replay pill lives inside the now-collapsed chart stage — switch it to
+   viewport-fixed positioning so it keeps floating on top of the trade page instead of
+   collapsing away with its (now invisible) parent. */
+.rw-root--trade-maximized .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--tv,
+.rw-root--trade-maximized .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv {
+  position: fixed !important;
+  top: 14px;
+  bottom: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  z-index: 4000;
+}
+
 /* ——— Top toolbar ——— */
 .rw-top {
   grid-area: top;
@@ -2055,7 +2113,7 @@ button.rw-legend-status-btn:focus-visible {
   border-radius: var(--rw-tv-chip-r, 12px);
   background: transparent;
   color: #131722;
-  cursor: grab;
+  cursor: move;
   flex-shrink: 0;
   touch-action: none;
 }
@@ -2473,7 +2531,7 @@ button.rw-legend-status-btn:focus-visible {
   margin-right: 2px;
   color: #131722;
   opacity: 1;
-  cursor: grab;
+  cursor: move;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__drag:hover {
@@ -2692,12 +2750,12 @@ button.rw-legend-status-btn:focus-visible {
 .rw-replay-dock--dragging .rw-replay-dock__bar,
 .rw-replay-dock--dragging .rw-replay-dock__drag,
 .rw-replay-dock--dragging .rw-replay-dock__bar * {
-  cursor: grabbing !important;
+  cursor: move !important;
 }
 
 body.rw-replay-dock-dragging,
 body.rw-replay-dock-dragging * {
-  cursor: grabbing !important;
+  cursor: move !important;
 }
 
 /* While dragging the replay bar — dim the chart (FXReplay-style); dock stays bright above. */
@@ -3542,7 +3600,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   border-radius: 6px;
   background: transparent;
   color: #b2b5be;
-  cursor: grab;
+  cursor: move;
   flex-shrink: 0;
   touch-action: none;
 }
@@ -8023,6 +8081,17 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
     0 1px 6px rgba(17, 24, 39, 0.05);
 }
 
+/* While the grip is being dragged the height is driven frame-by-frame, so the
+   open/close easing has to stand down and text selection has to stay off. */
+.rw-order-book--resizing {
+  transition: none;
+}
+
+.rw-root--dock-resizing {
+  cursor: ns-resize;
+  user-select: none;
+}
+
 /* Full-width segmented control (Performance / Drawdown / Simulation style): equal-width
    segments in a rounded pill track, active segment shown as a raised white pill. */
 .rw-order-book__tabs {
@@ -8048,7 +8117,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   height: 34px;
   padding: 0 10px;
   margin: 0;
-  font: 500 13px var(--rw-font, sans-serif);
+  font: 500 16px Helvetica, sans-serif;
   color: #6a6d78;
   cursor: pointer;
   position: relative;
@@ -8070,7 +8139,10 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 .rw-order-book__body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  /* `scroll` (not `auto`) so both scrollbar tracks are always rendered — with `auto`,
+     whether they show at all depended on the exact row count vs. the panel's dragged
+     height, which made them appear/disappear unpredictably. */
+  overflow: scroll;
 }
 
 .rw-order-book__table {
@@ -8109,6 +8181,29 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   padding-right: 4px;
 }
 
+.rw-order-book__col-tradeid {
+  width: 44px;
+}
+
+/* Trade identifier badge (T1, T2, …) — same look/label used in the journal popup's
+   header, so a trade can be cross-referenced between the table and that dialog. */
+.rw-order-book__trade-id {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: #eef0f4;
+  color: #4b5261;
+  font: 600 12px var(--rw-font, sans-serif);
+  letter-spacing: 0.01em;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-order-book__trade-id {
+  background: #2a2e39;
+  color: #b4b9c6;
+}
+
 .rw-order-book__asset {
   color: #0b0d10;
   font-size: 13px;
@@ -8132,7 +8227,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   width: 13px;
   height: 13px;
   margin: 0;
-  border: 1px solid #d5d9e2;
+  border: 1px solid #8b91a0;
   border-radius: 2px;
   background: #fff;
   vertical-align: middle;

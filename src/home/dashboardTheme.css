@@ -1649,46 +1649,32 @@ a.sx-dash-account__item {
 
 /* ?? Dark dashboard theme (optional toggle) ?? */
 #sx-app-root[data-dashboard-theme='dark'] {
-  background-color: #0a0612 !important;
+  background-color: #000000 !important;
   color: #e2e8f0;
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash {
-  background: #0a0612;
+  background: #000000;
   color: #e2e8f0;
 }
 
+/* Dark theme: no decorative background effects for now — flat black. */
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash__mesh {
-  inset: -35%;
+  inset: 0;
   opacity: 1;
-  animation: sx-dash-mesh-drift 26s ease-in-out infinite alternate;
-  background:
-    radial-gradient(ellipse 80% 50% at 18% 38%, rgba(99, 102, 241, 0.38), transparent 55%),
-    radial-gradient(ellipse 58% 42% at 82% 18%, rgba(236, 72, 153, 0.3), transparent 50%),
-    radial-gradient(ellipse 68% 55% at 52% 100%, rgba(56, 189, 248, 0.2), transparent 46%),
-    conic-gradient(from 210deg at 50% 50%, #0f0820, #1a0b2e, #0d1630, #0f0820);
+  animation: none;
+  background: #000000;
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash__noise {
-  opacity: 0.055;
+  opacity: 0;
 }
 
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash__orb--a {
-  opacity: 0.5;
-  background: #7c3aed;
-  animation: sx-dash-float-a 17s ease-in-out infinite;
-}
-
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash__orb--b {
-  opacity: 0.5;
-  background: #db2777;
-  animation: sx-dash-float-b 21s ease-in-out infinite;
-}
-
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash__orb--a,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash__orb--b,
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash__orb--c {
-  opacity: 0.32;
-  background: #22d3ee;
-  animation: sx-dash-float-c 13s ease-in-out infinite;
+  opacity: 0;
+  animation: none;
 }
 
 #sx-app-root[data-dashboard-theme='light'] .sx-dash__glass-aside {
@@ -2789,21 +2775,32 @@ a.sx-dash-account__item {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 0.85rem;
+  height: 0.85rem;
   padding: 0;
   border: none;
-  background: transparent;
+  border-radius: 50%;
+  background: transparent !important;
+  /* Thin white ring so the dark icon stays visible against dark-theme backgrounds. */
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85) !important;
   color: #1a1a1a;
   cursor: pointer;
   line-height: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  overflow: hidden;
 }
 
 .sx-dash-pulse__kpi-info img {
   display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  /* Slightly overscale + crop (cover, not contain) so the icon's circle bleeds past the
+     button's own circular clip on every side — this hides the thin ring of background that
+     otherwise peeks through where the source PNG's circle doesn't quite touch its own edges. */
+  width: 118%;
+  height: 118%;
+  margin: -9%;
+  object-fit: cover;
 }
 
 .sx-dash-kpi-tip {
@@ -7862,6 +7859,13 @@ a.sx-dash-account__item {
   margin-top: 0;
 }
 
+/* Montecarlo Simulation / RR Simulator / Stop Loss Simulator headers. */
+.sxa-section-title--sim-header {
+  font-family: 'Segoe UI Variable', 'Segoe UI', Inter, -apple-system, Roboto, sans-serif;
+  font-size: 20px;
+  font-weight: 500;
+}
+
 .sxa-kpi-strip {
   background: var(--sxa-surface);
   border: 1px solid var(--sxa-line);
@@ -8469,15 +8473,38 @@ a.sx-dash-account__item {
 }
 
 .sxa-run-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--sxa-ink-950);
   color: #fff;
   border: none;
   border-radius: 9px;
-  padding: 10px 20px;
+  padding: 8.5px 17px;
   font-family: inherit;
   font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* Monte Carlo "Reset values" / "Start simulation", the CSV export icon button, and the
+   RR simulator / Stop Loss Simulator "+ Add new" buttons — match the sidebar's active nav
+   color instead of the default black used elsewhere. */
+[data-sxa-mc-reset],
+[data-sxa-mc-run],
+[data-sxa-export-csv],
+[data-sxa-rr-add-new],
+[data-sxa-sl-add-new] {
+  background: #6b7280;
+  border-color: #6b7280;
+}
+
+[data-sxa-mc-reset]:hover,
+[data-sxa-mc-run]:hover,
+[data-sxa-export-csv]:hover,
+[data-sxa-rr-add-new]:hover,
+[data-sxa-sl-add-new]:hover {
+  background: #5c6472;
 }
 
 .sxa-sim-stats {
@@ -8757,7 +8784,7 @@ a.sx-dash-account__item {
    at the end of the same row instead of wrapping to their own line underneath. */
 .sxa-mc-input-grid {
   display: grid;
-  grid-template-columns: 0.7fr 1fr 1fr 1fr 1fr 1fr minmax(max-content, auto) minmax(max-content, auto);
+  grid-template-columns: 0.85fr 1fr 1fr 1fr 1fr 1fr minmax(max-content, auto) minmax(max-content, auto);
   gap: 10px;
   align-items: end;
 }
@@ -8781,14 +8808,14 @@ a.sx-dash-account__item {
   height: 30.6px;
   overflow: hidden;
   box-sizing: border-box;
-  border: 1px solid var(--sxa-line);
+  border: 1px solid #9aa0ac;
   border-radius: 8px;
   background: var(--sxa-surface);
   transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
 
 .sxa-mc-num:hover {
-  border-color: #c4cad8;
+  border-color: #7c828d;
 }
 
 .sxa-mc-num:focus-within {
@@ -8825,7 +8852,7 @@ a.sx-dash-account__item {
   width: 22px;
   flex: 0 0 22px;
   border-left: 1px solid var(--sxa-line);
-  background: #f7f9fc;
+  background: var(--sxa-surface);
   box-sizing: border-box;
 }
 
@@ -8852,13 +8879,21 @@ a.sx-dash-account__item {
   border-bottom: 1px solid var(--sxa-line);
 }
 
-.sxa-mc-num__btn:hover {
-  background: var(--sxa-mp-hover, #eef0f5);
-  color: var(--sxa-ink-800);
+.sxa-mc-num__btn:hover,
+.sxa-mc-num__btn:active,
+.sxa-mc-num__btn:focus,
+.sxa-mc-num__btn:focus-visible {
+  background: transparent;
+  color: #8b91a1;
+  box-shadow: none;
+  outline: none;
 }
 
 .sxa-mc-input-grid button {
-  height: 37px;
+  height: 30.6px;
+  box-sizing: border-box;
+  padding-top: 0;
+  padding-bottom: 0;
   white-space: nowrap;
   justify-content: center;
 }
@@ -8871,7 +8906,7 @@ a.sx-dash-account__item {
 .sxa-mc-tooltip-panel {
   position: absolute;
   top: 8px;
-  right: 8px;
+  left: 8px;
   background: var(--sxa-surface);
   border: 1px solid var(--sxa-line);
   border-radius: 10px;
@@ -8882,7 +8917,7 @@ a.sx-dash-account__item {
   overflow-y: auto;
   display: none;
   z-index: 5;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .sxa-mc-tooltip-panel--visible {
@@ -9094,6 +9129,108 @@ a.sx-dash-account__item {
   .sxa-grid-4 {
     grid-template-columns: 1fr;
   }
+}
+
+/* Custom prompt modal (replaces window.prompt for RR simulator / Stop Loss Simulator
+   "+ Add new" inputs) so it matches the app's own styling. */
+.sxa-prompt-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sxa-prompt-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(15, 18, 24, 0.45);
+  cursor: default;
+}
+
+.sxa-prompt-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: min(360px, calc(100vw - 32px));
+  background: var(--sxa-surface);
+  border-radius: 14px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+  padding: 20px 22px 18px;
+}
+
+.sxa-prompt-modal__label {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--sxa-ink-800);
+  margin-bottom: 10px;
+}
+
+.sxa-prompt-modal__input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #9aa0ac;
+  border-radius: 9px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sxa-ink-800);
+  background: var(--sxa-surface);
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.sxa-prompt-modal__input::-webkit-outer-spin-button,
+.sxa-prompt-modal__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.sxa-prompt-modal__input:focus {
+  outline: none;
+  border-color: #2962ff;
+  box-shadow: 0 0 0 2px rgba(41, 98, 255, 0.15);
+}
+
+.sxa-prompt-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.sxa-prompt-modal__btn {
+  padding: 8px 18px;
+  border-radius: 9px;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sxa-prompt-modal__btn--primary {
+  background: #2962ff;
+  color: #fff;
+}
+
+.sxa-prompt-modal__btn--primary:hover {
+  background: #1e50e0;
+}
+
+.sxa-prompt-modal__btn--secondary {
+  background: rgba(154, 160, 172, 0.18);
+  color: var(--sxa-ink-800);
+}
+
+.sxa-prompt-modal__btn--secondary:hover {
+  background: rgba(154, 160, 172, 0.28);
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sxa-analytics {

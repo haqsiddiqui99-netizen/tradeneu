@@ -139,7 +139,7 @@ import {
   renderReplayJournalStats,
 } from '../replay/replayJournalUi'
 import { mountReplayOrderBook } from '../replay/replayOrderBookUi'
-import { openTradeJournalDialog, type TradeJournalDialogEntry } from '../replay/tradeJournalDialog'
+import { openTradeJournalDialog, type TradeJournalDialogEntry, type TradeJournalListRow } from '../replay/tradeJournalDialog'
 import { mountPartialCloseDialog } from '../replay/partialCloseDialog'
 import {
   applyScalperProtection,
@@ -947,9 +947,9 @@ export function mountChartWorkspace(
                   aria-haspopup="dialog"
                 ><span class="rw-scalper-mode-btn__ico" aria-hidden="true"></span></button>
               </div>
-              <div class="rw-view-toggle" data-rw-view-toggle role="group" aria-label="Chart / Trade view">
-                <button type="button" class="rw-view-toggle__btn rw-view-toggle__btn--current" data-rw-view-toggle-btn="chart" aria-pressed="true" disabled>Chart</button>
-                <button type="button" class="rw-view-toggle__btn rw-view-toggle__btn--active" data-rw-view-toggle-btn="trade" aria-pressed="false">Trade</button>
+              <div class="rw-view-toggle" data-rw-trade-dock-controls role="group" aria-label="Trade panel controls">
+                <button type="button" class="rw-view-toggle__btn rw-view-toggle__btn--grip" data-rw-trade-dock-grip title="Drag up or down to resize the trade panel" aria-label="Drag up or down to resize the trade panel">${icons.replayDragGrip}</button>
+                <button type="button" class="rw-view-toggle__btn rw-view-toggle__btn--active" data-rw-trade-dock-toggle aria-expanded="false" title="Open trade panel" aria-label="Open trade panel">${icons.chevronUp}</button>
               </div>
               <span class="rw-trade-bar__spacer" aria-hidden="true"></span>
               <div class="rw-trade-stats" data-rw-trade-stats>
@@ -2582,79 +2582,140 @@ export function mountChartWorkspace(
   cleanupFns.push(() => btnSessionSettingsEdit?.removeEventListener('click', onSessionSettingsEdit))
 
   const tradeDockRow = host.querySelector('[data-rw-trade-dock-row]') as HTMLElement | null
-  const onTradeDockCollapse = () => {
-    if (!tradeDockRow) return
-    tradeDockRow.classList.toggle('rw-foot__trade-dock-row--collapsed')
-  }
 
   const btnTradeFullscreen = host.querySelector('[data-rw-trade-fullscreen]') as HTMLButtonElement | null
   const onTradeFullscreen = () => toggleChartFullscreen()
   btnTradeFullscreen?.addEventListener('click', onTradeFullscreen)
   cleanupFns.push(() => btnTradeFullscreen?.removeEventListener('click', onTradeFullscreen))
 
-  // Chart / Trade view toggle: "Trade" maximizes the trade dock + positions panel over
-  // the whole workspace (chart tucked away); "Chart" restores the normal chart-first layout.
-  const viewToggleEl = host.querySelector('[data-rw-view-toggle]') as HTMLElement | null
-  const viewToggleBtns = Array.from(host.querySelectorAll('[data-rw-view-toggle-btn]')) as HTMLButtonElement[]
-  const resizeActiveChart = () => {
-    requestAnimationFrame(() => {
-      if (state.trading && !state.disposed) {
-        state.trading.chart.resize(chartHost.clientWidth, chartHost.clientHeight)
-        state.trading.repaintTimeShades()
-        state.redrawDrawings?.()
-      } else if (state.tvChart && !state.disposed) {
-        state.tvChart.resize()
-      }
-    })
+  // Trade panel (positions/orders beneath the chart) controls: the chevron opens and
+  // closes it, the grip beside it drags its height up or down.
+  const tradeDockToggleBtn = host.querySelector('[data-rw-trade-dock-toggle]') as HTMLButtonElement | null
+  const tradeDockGrip = host.querySelector('[data-rw-trade-dock-grip]') as HTMLButtonElement | null
+  const tradeDockPanel = host.querySelector('[data-rw-order-book]') as HTMLElement | null
+  const isTradeDockOpen = () => !(tradeDockRow?.classList.contains('rw-foot__trade-dock-row--collapsed') ?? true)
+  const syncTradeDockToggleUi = () => {
+    if (!tradeDockToggleBtn) return
+    const open = isTradeDockOpen()
+    tradeDockToggleBtn.innerHTML = open ? icons.chevronDown : icons.chevronUp
+    tradeDockToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false')
+    const label = open ? 'Close trade panel' : 'Open trade panel'
+    tradeDockToggleBtn.title = label
+    tradeDockToggleBtn.setAttribute('aria-label', label)
   }
-  let workspaceViewCurrent: 'chart' | 'trade' = 'chart'
-  let tradeFocusAnimTimer: number | null = null
-  const setWorkspaceView = (view: 'chart' | 'trade') => {
-    if (view === workspaceViewCurrent) return
-    workspaceViewCurrent = view
-    const wantTrade = view === 'trade'
-    // The button for the view you're already on looks (and behaves) disabled; the other
-    // button is the actionable one that switches you over.
-    viewToggleBtns.forEach((btn) => {
-      const isCurrent = btn.dataset.rwViewToggleBtn === view
-      btn.classList.toggle('rw-view-toggle__btn--current', isCurrent)
-      btn.classList.toggle('rw-view-toggle__btn--active', !isCurrent)
-      btn.setAttribute('aria-pressed', isCurrent ? 'true' : 'false')
-      btn.disabled = isCurrent
-    })
-    const isCollapsed = tradeDockRow?.classList.contains('rw-foot__trade-dock-row--collapsed') ?? false
-    if (wantTrade && isCollapsed) onTradeDockCollapse()
-    if (!wantTrade && !isCollapsed) onTradeDockCollapse()
-    // The dock stays in normal grid flow the whole time (chart row shrinks / dock row grows),
-    // so the `.rw-foot` toolbar below it is never repositioned or covered. The "-anim" class
-    // gives it a starting transform+opacity offset that eases away on the next frame, so it
-    // visibly eases up into place alongside the row-size change instead of just snapping.
-    if (tradeFocusAnimTimer !== null) {
-      window.clearTimeout(tradeFocusAnimTimer)
-      tradeFocusAnimTimer = null
+  // Remembers a user-dragged height across a close/reopen cycle. While closed, the inline
+  // height/min/max are stripped so the CSS collapse rule (max-height: 0) actually wins —
+  // otherwise the inline styles from a prior drag would out-rank it and keep the panel open.
+  let tradeDockCustomHeight: number | null = null
+  const setTradeDockOpen = (open: boolean) => {
+    if (!tradeDockRow || open === isTradeDockOpen()) return
+    tradeDockRow.classList.toggle('rw-foot__trade-dock-row--collapsed', !open)
+    if (open) {
+      if (tradeDockCustomHeight !== null) applyTradeDockHeight(tradeDockCustomHeight)
+    } else if (tradeDockPanel) {
+      tradeDockPanel.style.height = ''
+      tradeDockPanel.style.minHeight = ''
+      tradeDockPanel.style.maxHeight = ''
+      setTradeDockMaximized(false)
     }
-    rwRoot.classList.add('rw-root--trade-focus-anim')
-    rwRoot.classList.toggle('rw-root--trade-focus', wantTrade)
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        rwRoot.classList.remove('rw-root--trade-focus-anim')
-      })
-    })
-    resizeActiveChart()
-    tradeFocusAnimTimer = window.setTimeout(() => {
-      tradeFocusAnimTimer = null
-      resizeActiveChart()
-    }, 720)
+    syncTradeDockToggleUi()
+    resizeChartAfterLayout()
   }
-  const onViewToggleClick = (event: MouseEvent) => {
-    const btn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-rw-view-toggle-btn]')
-    const view = btn?.dataset.rwViewToggleBtn
-    if (view === 'chart' || view === 'trade') setWorkspaceView(view)
+  syncTradeDockToggleUi()
+  const onTradeDockToggleClick = () => setTradeDockOpen(!isTradeDockOpen())
+  tradeDockToggleBtn?.addEventListener('click', onTradeDockToggleClick)
+  cleanupFns.push(() => tradeDockToggleBtn?.removeEventListener('click', onTradeDockToggleClick))
+
+  // Grip drag ONLY — clicking it must never open/close the panel by itself. Dragging up
+  // grows the panel all the way to a near-full-page height; dragging down shrinks it all
+  // the way to fully closed. Height is written inline so it overrides the stylesheet's
+  // default min/max band while a drag is in progress.
+  const TRADE_DOCK_CLOSE_H = 40 // release below this height and it snaps fully closed
+  const TRADE_DOCK_DRAG_SLOP = 4 // pointer must move this many px before a drag "counts"
+  const TRADE_DOCK_MAX_SLOP = 8 // within this many px of the max, treat it as "maximized"
+  const tradeDockMaxHeight = () => Math.max(TRADE_DOCK_CLOSE_H, rwRoot.clientHeight - 120)
+  let tradeDockDragStartY = 0
+  let tradeDockDragStartH = 0
+  let tradeDockDragPointer: number | null = null
+  let tradeDockDragMoved = false
+  // Dragged (almost) all the way up: the chart/top-toolbar chrome is hidden completely and
+  // the trade panel takes the full page, while the floating bar-replay pill switches to
+  // viewport-fixed positioning so it keeps floating on top instead of disappearing with
+  // the now-collapsed chart area underneath it.
+  const setTradeDockMaximized = (maximized: boolean) => {
+    rwRoot.classList.toggle('rw-root--trade-maximized', maximized)
   }
-  viewToggleEl?.addEventListener('click', onViewToggleClick)
+  const applyTradeDockHeight = (px: number) => {
+    if (!tradeDockPanel) return
+    const maxH = tradeDockMaxHeight()
+    const h = Math.round(Math.min(maxH, Math.max(0, px)))
+    tradeDockPanel.style.height = `${h}px`
+    tradeDockPanel.style.minHeight = `${h}px`
+    tradeDockPanel.style.maxHeight = `${h}px`
+    setTradeDockMaximized(h >= maxH - TRADE_DOCK_MAX_SLOP)
+    return h
+  }
+  const onTradeDockGripMove = (ev: PointerEvent) => {
+    if (tradeDockDragPointer === null) return
+    const rawDelta = tradeDockDragStartY - ev.clientY
+    if (!tradeDockDragMoved) {
+      if (Math.abs(rawDelta) < TRADE_DOCK_DRAG_SLOP) return
+      // Drag intent confirmed — reveal the panel (if closed) so it can now track the pointer.
+      tradeDockDragMoved = true
+      tradeDockRow?.classList.remove('rw-foot__trade-dock-row--collapsed')
+      tradeDockPanel?.classList.add('rw-order-book--resizing')
+      rwRoot.classList.add('rw-root--dock-resizing')
+      syncTradeDockToggleUi()
+    }
+    const h = applyTradeDockHeight(tradeDockDragStartH + rawDelta)
+    if (h !== undefined) tradeDockCustomHeight = h
+    resizeChartAfterLayout()
+  }
+  const endTradeDockGripDrag = (ev: PointerEvent) => {
+    if (tradeDockDragPointer === null) return
+    tradeDockGrip?.releasePointerCapture?.(tradeDockDragPointer)
+    tradeDockDragPointer = null
+    if (tradeDockDragMoved) {
+      const finalH = tradeDockPanel?.getBoundingClientRect().height ?? 0
+      tradeDockPanel?.classList.remove('rw-order-book--resizing')
+      rwRoot.classList.remove('rw-root--dock-resizing')
+      if (finalH <= TRADE_DOCK_CLOSE_H) {
+        tradeDockRow?.classList.add('rw-foot__trade-dock-row--collapsed')
+        if (tradeDockPanel) {
+          tradeDockPanel.style.height = ''
+          tradeDockPanel.style.minHeight = ''
+          tradeDockPanel.style.maxHeight = ''
+        }
+        tradeDockCustomHeight = null
+        setTradeDockMaximized(false)
+      }
+      syncTradeDockToggleUi()
+      resizeChartAfterLayout()
+    }
+    tradeDockDragMoved = false
+    ev.preventDefault()
+  }
+  const onTradeDockGripDown = (ev: PointerEvent) => {
+    if (!tradeDockPanel || ev.button !== 0) return
+    tradeDockDragPointer = ev.pointerId
+    tradeDockDragStartY = ev.clientY
+    tradeDockDragStartH = isTradeDockOpen() ? tradeDockPanel.getBoundingClientRect().height : 0
+    tradeDockDragMoved = false
+    tradeDockGrip?.setPointerCapture?.(ev.pointerId)
+    ev.preventDefault()
+  }
+  tradeDockGrip?.addEventListener('pointerdown', onTradeDockGripDown)
+  tradeDockGrip?.addEventListener('pointermove', onTradeDockGripMove)
+  tradeDockGrip?.addEventListener('pointerup', endTradeDockGripDrag)
+  tradeDockGrip?.addEventListener('pointercancel', endTradeDockGripDrag)
+  // A plain click never reaches move/threshold, so it's already a no-op; this just guards
+  // against any residual click side-effects (e.g. focus ring) bubbling elsewhere.
+  tradeDockGrip?.addEventListener('click', (ev) => ev.preventDefault())
   cleanupFns.push(() => {
-    viewToggleEl?.removeEventListener('click', onViewToggleClick)
-    if (tradeFocusAnimTimer !== null) window.clearTimeout(tradeFocusAnimTimer)
+    tradeDockGrip?.removeEventListener('pointerdown', onTradeDockGripDown)
+    tradeDockGrip?.removeEventListener('pointermove', onTradeDockGripMove)
+    tradeDockGrip?.removeEventListener('pointerup', endTradeDockGripDrag)
+    tradeDockGrip?.removeEventListener('pointercancel', endTradeDockGripDrag)
   })
 
   // Custom order-type dropdown; the hidden native select stays the source of truth.
@@ -4032,6 +4093,29 @@ export function mountChartWorkspace(
         },
         getPrev: prevTrade ? () => buildJournalEntry(prevTrade.tradeNum) : undefined,
         getNext: nextTrade ? () => buildJournalEntry(nextTrade.tradeNum) : undefined,
+        listAllTrades: (): TradeJournalListRow[] => {
+          const closedRows: TradeJournalListRow[] = replayAccount.getClosedTrades().map((t) => ({
+            key: `closed:${t.tradeNum}`,
+            asset: journalAssetLabel(),
+            direction: t.direction,
+            status: t.pnl,
+            timestampMs: t.entryRealTime ?? t.entryTime * 1000,
+          }))
+          const openRows: TradeJournalListRow[] = replayAccount.getPositions().map((p) => ({
+            key: `open:${p.id}`,
+            asset: journalAssetLabel(),
+            direction: p.direction,
+            status: 'open' as const,
+            timestampMs: p.entryRealTime ?? p.entryTime * 1000,
+          }))
+          return [...openRows, ...closedRows]
+        },
+        onSelectTradeFromList: (key) => {
+          const [kind, idOrNum] = key.split(':')
+          if (kind !== 'closed') return
+          const target = buildJournalEntry(Number(idOrNum))
+          if (target) openTradeJournalDialog(target)
+        },
         onCaptureChartScreenshot: async () => {
           // In TradingView chart mode, use TV's own client-side snapshot API - it
           // mirrors exactly what its built-in camera/screenshot tool produces
@@ -8906,7 +8990,7 @@ export function mountChartWorkspace(
           `${draft.direction === 'long' ? 'Buy' : 'Sell'} ${draft.kind === 'limit' ? 'Limit' : 'Stop'} added @ ${formatSessionPrice(draft.triggerPrice)}`,
         )
         if (draft.openPendingTab && orderBook && tradeDockRow) {
-          tradeDockRow.classList.remove('rw-foot__trade-dock-row--collapsed')
+          setTradeDockOpen(true)
           orderBook.selectTab('pending')
           resizeChartAfterLayout()
         }

@@ -5,15 +5,34 @@
      also trigger the browser's native dark-mode form-control rendering on
      inputs/textareas. Every color below is a literal value for that reason. */
   color-scheme: light;
+  /* Base font for the whole dialog - every descendant that uses
+     `font-family: inherit` (buttons, inputs, labels, etc.) picks this up.
+     Elements that intentionally use a monospace font for numbers keep their
+     own explicit font-family and aren't affected. */
+  font-family: Helvetica, sans-serif;
   position: fixed;
-  inset: 0;
+  /* Confine the overlay to the right half of the screen, leaving the chart
+     on the left fully visible. No dimmed backdrop - the dialog itself is an
+     opaque panel that fills this half edge-to-edge, top to bottom. */
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  right: 0;
   z-index: 300;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 28px 16px;
-  background: rgba(11, 13, 16, 0.42);
+  justify-content: stretch;
+  align-items: stretch;
+  padding: 0;
+  background: transparent;
   animation: sxTradeJournalFadeIn 0.18s ease;
+}
+
+/* Used when paging between trades via the prev/next arrows - the overlay is
+   rebuilt from scratch each time, so skip the fade-in to avoid a visible
+   flash of the underlying chart each click. */
+.sx-trade-journal-overlay--instant {
+  animation: none;
+  opacity: 1;
 }
 
 @keyframes sxTradeJournalFadeIn {
@@ -27,16 +46,419 @@
 
 .sx-trade-journal-dialog {
   color-scheme: light;
-  width: min(760px, 96vw);
-  max-height: calc(100vh - 56px);
+  /* Fill the overlay's right-half box completely, edge-to-edge, top to
+     bottom - no floating card look, no gaps. */
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: 100%;
   overflow-y: auto;
   background: #ffffff;
   color: #1c2128;
-  border: 1px solid #e7e9ee;
-  border-radius: 20px;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+  border: none;
+  border-left: 1px solid #e7e9ee;
+  border-radius: 0;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.14);
   padding: 22px 30px 34px;
   font-family: inherit;
+}
+
+/* "All trades" list - swapped in over the same overlay slot as
+   .sx-trade-journal-dialog (same box: right-half panel, edge-to-edge). */
+.sx-trade-journal-alltrades {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  background: #ffffff;
+  color: #1c2128;
+  border-left: 1px solid #e7e9ee;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.14);
+  padding: 22px 30px 34px;
+  font-family: Helvetica, sans-serif;
+}
+
+.sx-trade-journal-alltrades[hidden] {
+  display: none;
+}
+
+.sx-trade-journal-alltrades__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-bottom: 18px;
+}
+
+.sx-trade-journal-alltrades__toolbar [data-sx-trade-journal-alltrades-close] {
+  position: absolute;
+  left: 0;
+}
+
+.sx-trade-journal-alltrades__tabs {
+  display: inline-flex;
+  border: 1px solid #8b8c8e;
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.sx-trade-journal-alltrades__tab {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 17px;
+  font-weight: 520;
+  color: #6b7280;
+  cursor: pointer;
+  font-family: Helvetica, sans-serif;
+}
+
+.sx-trade-journal-alltrades__tab--active {
+  background: #eef0f4;
+  color: #1c2128;
+}
+
+.sx-trade-journal-alltrades__search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #c3c8d1;
+  border-radius: 999px;
+  padding: 10px 16px;
+  margin-bottom: 18px;
+  color: #9aa1af;
+}
+
+.sx-trade-journal-alltrades__search {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  font-family: Helvetica, sans-serif;
+  color: #1c2128;
+  background: transparent;
+}
+
+.sx-trade-journal-alltrades__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.sx-trade-journal-alltrades__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.sx-trade-journal-alltrades__row:hover {
+  background: #f7f8fa;
+}
+
+.sx-trade-journal-alltrades__row--open {
+  cursor: default;
+}
+
+.sx-trade-journal-alltrades__row-icon {
+  color: #9aa1af;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.sx-trade-journal-alltrades__row-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1c2128;
+}
+
+.sx-trade-journal-alltrades__row-time {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: #9aa1af;
+  white-space: nowrap;
+}
+
+.sx-trade-journal-alltrades__badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.sx-trade-journal-alltrades__badge--open {
+  background: #1c2128;
+  color: #ffffff;
+}
+
+.sx-trade-journal-alltrades__badge--gain {
+  background: #123321;
+  color: #4ade80;
+}
+
+.sx-trade-journal-alltrades__badge--loss {
+  background: #3a1418;
+  color: #f87171;
+}
+
+.sx-trade-journal-alltrades__empty {
+  padding: 24px 10px;
+  color: #9aa1af;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ---------------- Calendar tab ---------------- */
+
+.sx-trade-journal-alltrades-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+}
+
+.sx-trade-journal-alltrades-calendar[hidden] {
+  display: none;
+}
+
+.sx-trade-journal-alltrades-calendar__nav {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.sx-trade-journal-alltrades-calendar__nav-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sx-trade-journal-alltrades-calendar__arrow {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.sx-trade-journal-alltrades-calendar__arrow:hover {
+  background: #f0f1f4;
+  color: #1c2128;
+}
+
+.sx-trade-journal-alltrades-calendar__label {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1c2128;
+  min-width: 70px;
+  text-align: center;
+  font-family: Helvetica, sans-serif;
+}
+
+.sx-trade-journal-alltrades-calendar__label[data-sx-trade-journal-cal-month-label] {
+  min-width: 118px;
+}
+
+.sx-trade-journal-alltrades-calendar__mode-toggle {
+  display: inline-flex;
+  border-radius: 999px;
+  background: #f0f1f4;
+  padding: 3px;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.sx-trade-journal-alltrades-calendar__mode-btn {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  font-family: Helvetica, sans-serif;
+}
+
+.sx-trade-journal-alltrades-calendar__mode-btn--active {
+  background: #ffffff;
+  color: #1c2128;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.sx-trade-journal-alltrades-calendar__body {
+  position: relative;
+}
+
+.sx-trade-journal-alltrades-calendar__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 6px;
+}
+
+.sx-trade-journal-alltrades-calendar__weekdays div {
+  text-align: center;
+  font-size: 17px;
+  font-weight: 520;
+  color: #6a6e77;
+  padding: 6px 0;
+}
+
+.sx-trade-journal-alltrades-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.sx-trade-journal-alltrades-calendar__cell {
+  border: 1px solid #eceef2;
+  border-radius: 10px;
+  min-height: 84px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #ffffff;
+}
+
+.sx-trade-journal-alltrades-calendar__cell--outside {
+  background: #f7f8fa;
+  color: #c3c8d1;
+}
+
+.sx-trade-journal-alltrades-calendar__cell--outside .sx-trade-journal-alltrades-calendar__cell-num {
+  color: #c3c8d1;
+}
+
+.sx-trade-journal-alltrades-calendar__cell--gain {
+  background: #eafaf1;
+  border-color: #bfead2;
+}
+
+.sx-trade-journal-alltrades-calendar__cell--loss {
+  background: #fdedef;
+  border-color: #f4c3cb;
+}
+
+.sx-trade-journal-alltrades-calendar__cell--flat {
+  background: #fff8e6;
+  border-color: #f6e2c2;
+}
+
+.sx-trade-journal-alltrades-calendar__cell-info {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.sx-trade-journal-alltrades-calendar__cell-num {
+  font-size: 15px;
+  font-weight: 600;
+  color: #6a6e77;
+  align-self: flex-end;
+}
+
+.sx-trade-journal-alltrades-calendar__cell-pnl {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1c2128;
+}
+
+.sx-trade-journal-alltrades-calendar__cell--gain .sx-trade-journal-alltrades-calendar__cell-pnl {
+  color: #1a9d5c;
+}
+
+.sx-trade-journal-alltrades-calendar__cell--loss .sx-trade-journal-alltrades-calendar__cell-pnl {
+  color: #d6455a;
+}
+
+.sx-trade-journal-alltrades-calendar__cell--flat .sx-trade-journal-alltrades-calendar__cell-pnl {
+  color: #b6690a;
+}
+
+/* Year view: 12 mini month grids in a responsive multi-column layout. */
+.sx-trade-journal-alltrades-calendar__year-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 22px 18px;
+}
+
+.sx-trade-journal-alltrades-calendar__mini-month-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1c2128;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.sx-trade-journal-alltrades-calendar__mini-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.sx-trade-journal-alltrades-calendar__mini-cell {
+  font-size: 10.5px;
+  color: #9aa1af;
+  text-align: center;
+  padding: 3px 0;
+  border-radius: 5px;
+}
+
+.sx-trade-journal-alltrades-calendar__mini-cell--outside {
+  color: #d7dae0;
+}
+
+.sx-trade-journal-alltrades-calendar__mini-cell--gain {
+  background: #d8f3e4;
+  color: #16794b;
+  font-weight: 700;
+  cursor: default;
+}
+
+.sx-trade-journal-alltrades-calendar__mini-cell--loss {
+  background: #fbd7dc;
+  color: #b03349;
+  font-weight: 700;
+  cursor: default;
+}
+
+.sx-trade-journal-alltrades-calendar__mini-cell--flat {
+  background: #fce9c2;
+  color: #92600a;
+  font-weight: 700;
+  cursor: default;
+}
+
+.sx-trade-journal-alltrades-calendar__tooltip {
+  position: absolute;
+  z-index: 10;
+  background: #4b5160;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 300;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  font-family: Helvetica, sans-serif;
+}
+
+.sx-trade-journal-alltrades-calendar__tooltip[hidden] {
+  display: none;
 }
 
 .sx-trade-journal-dialog::-webkit-scrollbar {
@@ -71,7 +493,7 @@
   width: 2rem;
   height: 2rem;
   border-radius: 0.5rem;
-  border: 1px solid #e7e9ee;
+  border: 1px solid #c3c8d1;
   background: #ffffff;
   color: #6b7280;
   font-size: 0.95rem;
@@ -95,13 +517,14 @@
 .sx-trade-journal-dialog__all-trades-pill {
   border: 1px solid #e7e9ee;
   border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 12.5px;
-  font-weight: 700;
+  padding: 7px 16px;
+  font-size: 16px;
+  font-weight: 500;
   color: #1c2128;
   background: #ffffff;
   cursor: pointer;
-  font-family: inherit;
+  font-family: Helvetica, sans-serif;
+  letter-spacing: 0.01em;
   flex-shrink: 0;
 }
 
@@ -109,12 +532,20 @@
   background: #f0f1f4;
 }
 
+.sx-trade-journal-dialog__modified-at {
+  font-size: 12px;
+  color: #9aa1af;
+  font-family: Helvetica, sans-serif;
+  white-space: nowrap;
+}
+
 .sx-trade-journal-dialog__save-status {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  color: #a6acb8;
+  font-size: 11px;
+  color: #000000;
+  font-family: Helvetica, sans-serif;
   margin-left: auto;
   white-space: nowrap;
 }
@@ -199,6 +630,23 @@
   color: #0b0d10;
 }
 
+/* Trade identifier badge (T1, T2, …) — matches the same "T#" label shown in the
+   Closed Positions table, so a trade can be cross-referenced between the two. */
+.sx-trade-journal-dialog__trade-id {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  margin-right: 8px;
+  border-radius: 6px;
+  background: #eef0f4;
+  color: #4b5261;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  vertical-align: middle;
+}
+
 .sx-trade-journal-dialog__side--buy {
   color: #1a9d5c;
 }
@@ -215,24 +663,51 @@
 }
 
 .sx-trade-journal-dialog__snapshot-strip {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
   margin-top: 12px;
+  padding: 12px;
+  background: #f7f8fa;
+  border: 1px solid #eceef2;
+  border-radius: 12px;
+}
+
+/* One slim line — chips size to their own content (not stretched into equal
+   columns) and the row scrolls horizontally instead of wrapping to a second
+   line or growing taller when everything doesn't fit at once. */
+.sx-trade-journal-dialog__snap-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.sx-trade-journal-dialog__snap-row::-webkit-scrollbar {
+  height: 5px;
+}
+
+.sx-trade-journal-dialog__snap-row::-webkit-scrollbar-thumb {
+  background: #d7dae0;
+  border-radius: 3px;
 }
 
 .sx-trade-journal-dialog__snap-chip {
-  background: #f0f1f4;
+  flex: 0 0 auto;
+  background: #ffffff;
+  border: 1px solid #eceef2;
   border-radius: 9px;
-  padding: 7px 12px;
+  padding: 6px 12px;
+  white-space: nowrap;
 }
 
 .sx-trade-journal-dialog__snap-label {
   font-size: 10px;
-  color: #a6acb8;
-  font-weight: 600;
+  color: #000000;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  white-space: nowrap;
+  font-family: Helvetica, sans-serif;
 }
 
 .sx-trade-journal-dialog__snap-value {
@@ -241,6 +716,7 @@
   margin-top: 1px;
   font-family: 'IBM Plex Mono', ui-monospace, monospace;
   color: #1c2128;
+  white-space: nowrap;
 }
 
 .sx-trade-journal-dialog__snap-value--gain {
@@ -256,19 +732,23 @@
 }
 
 .sx-trade-journal-dialog__section-label {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 540;
   color: #1c2128;
   margin-bottom: 10px;
   display: flex;
   align-items: center;
   gap: 8px;
+  font-family: Helvetica, sans-serif;
+  letter-spacing: 0.01em;
 }
 
 .sx-trade-journal-dialog__section-hint {
-  font-size: 11.5px;
-  color: #a6acb8;
+  font-size: 13.5px;
+  color: #9aa1af;
   font-weight: 500;
+  font-family: Helvetica, sans-serif;
+  letter-spacing: 0.01em;
 }
 
 .sx-trade-journal-dialog__media-actions {
@@ -309,6 +789,51 @@
   color: #d6455a;
 }
 
+.sx-trade-journal-dialog__voice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sx-trade-journal-dialog__voice-rec-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #d6455a;
+  background: #fdedef;
+  border: 1px solid #f4c3cb;
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.sx-trade-journal-dialog__voice-rec-indicator[hidden] {
+  display: none;
+}
+
+.sx-trade-journal-dialog__voice-rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e11d3c;
+  animation: sx-trade-journal-voice-rec-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes sx-trade-journal-voice-rec-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.75);
+  }
+}
+
 .sx-trade-journal-dialog__voice-list {
   display: flex;
   flex-direction: column;
@@ -318,28 +843,50 @@
 
 .sx-trade-journal-dialog__voice-item {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 6px;
   background: #f7f8fa;
   border: 1px solid #e7e9ee;
   border-radius: 10px;
-  padding: 6px 8px 6px 12px;
+  padding: 6px 8px 8px 12px;
+}
+
+.sx-trade-journal-dialog__voice-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .sx-trade-journal-dialog__voice-item audio {
   flex: 1;
+  min-width: 0;
   height: 32px;
+}
+
+.sx-trade-journal-dialog__voice-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #000000;
+  font-family: Helvetica, sans-serif;
+  padding-left: 2px;
+}
+
+.sx-trade-journal-dialog__voice-meta i {
+  font-size: 10px;
 }
 
 .sx-trade-journal-dialog__voice-rm {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background: rgba(11, 13, 16, 0.08);
-  color: #6b7280;
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
   border: none;
-  font-size: 10px;
+  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -347,8 +894,8 @@
 }
 
 .sx-trade-journal-dialog__voice-rm:hover {
-  background: rgba(11, 13, 16, 0.16);
-  color: #1c2128;
+  background: rgba(220, 38, 38, 0.16);
+  color: #b91c1c;
 }
 
 .sx-trade-journal-dialog__summary-textarea {
@@ -371,35 +918,209 @@
   border-color: #3652f6;
 }
 
+.sx-trade-journal-dialog__summary-textarea::placeholder {
+  color: #9aa1af;
+  font-family: Helvetica, sans-serif;
+  font-style: italic;
+}
+
 .sx-trade-journal-dialog__section-hint kbd {
   background: #f0f1f4;
   border-radius: 4px;
   padding: 1px 5px;
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
+  font-family: Helvetica, sans-serif;
+  font-size: 12.5px;
+  color: #9aa1af;
+}
+
+/* Screenshots stay confined to a fixed-width viewport; when there are more
+   than fit, left/right arrows scroll through them instead of the grid
+   wrapping onto new rows and growing the dialog. The carousel spans the
+   full section width so the arrows can sit at its outer left/right edges,
+   well outside the thumbnails themselves - like the lightbox nav. */
+.sx-trade-journal-dialog__screenshot-carousel {
+  position: relative;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.sx-trade-journal-dialog__screenshot-viewport {
+  /* Fits exactly two 240px thumbnails (plus the gap between them); anything
+     beyond that scrolls via the prev/next arrows instead of wrapping. Extra
+     side padding keeps thumbnails clear of the absolutely-positioned arrows. */
+  max-width: calc(240px * 2 + 14px + 76px);
+  padding: 0 38px;
+  margin: 0 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+.sx-trade-journal-dialog__screenshot-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.sx-trade-journal-dialog__screenshot-nav {
+  position: absolute;
+  /* Vertically centered on the card itself (name + image + badge), not
+     including the detached delete button below it. */
+  top: 108px;
+  transform: translateY(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #e7e9ee;
+  background: #fff;
+  color: #1f2430;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(15, 18, 24, 0.1);
+  transition: background 0.15s ease;
+}
+
+.sx-trade-journal-dialog__screenshot-nav--prev {
+  left: 0;
+}
+
+.sx-trade-journal-dialog__screenshot-nav--next {
+  right: 0;
+}
+
+.sx-trade-journal-dialog__screenshot-nav:hover {
+  background: #f0f1f4;
+}
+
+.sx-trade-journal-dialog__screenshot-nav[hidden] {
+  display: none;
 }
 
 .sx-trade-journal-dialog__screenshot-grid {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 12px;
+  gap: 14px;
 }
 
+/* Wraps each card + its detached delete button so they scroll together. */
+.sx-trade-journal-dialog__screenshot-thumb-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Self-contained card (name/image/badge) with rounded corners on every
+   side - the delete action lives outside it entirely (see -rm below). */
 .sx-trade-journal-dialog__screenshot-thumb {
-  width: 110px;
+  width: 240px;
+  flex-shrink: 0;
   border-radius: 10px;
   border: 1px solid #e7e9ee;
   position: relative;
   overflow: hidden;
+  opacity: 0;
+  animation: sx-tj-thumb-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Single click highlights/selects a thumbnail (double click opens it). */
+.sx-trade-journal-dialog__screenshot-thumb--selected {
+  border: 2px solid #4c7dff;
+  box-shadow: 0 0 0 3px rgba(76, 125, 255, 0.22);
+}
+
+/* Action toolbar that floats just above the selected card - it sits outside
+   the scrolling viewport (which clips vertically) and is x-positioned onto
+   the selected card from JS. Edit caption / Replace / Rename / Download /
+   Toggle preview only; delete already sits below the card. */
+.sx-trade-journal-dialog__screenshot-tools {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px;
+  background: #fff;
+  border: 1px solid #e7e9ee;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(15, 18, 24, 0.18);
+}
+
+.sx-trade-journal-dialog__screenshot-tools[hidden] {
+  display: none;
+}
+
+.sx-trade-journal-dialog__screenshot-tools button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: #4b5160;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sx-trade-journal-dialog__screenshot-tools button:hover {
+  background: #eef1ff;
+  color: #3652f6;
+}
+
+.sx-trade-journal-dialog__screenshot-tool--active {
+  background: #eef1ff;
+  color: #3652f6;
+}
+
+/* Used when paging between trades - skips the slide-in so the thumbnails
+   (and thus the whole window) don't appear to flash/blink on every click. */
+.sx-trade-journal-dialog__screenshot-thumb--no-anim {
+  opacity: 1;
+  animation: none;
+}
+
+/* Thumbnails slide in left-to-right, each one starting slightly after the previous
+   (staggered via an inline --sx-tj-thumb-delay set per item in tradeJournalDialog.ts). */
+@keyframes sx-tj-thumb-in {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.sx-trade-journal-dialog__screenshot-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: #4b5160;
+  background: #fff;
+  border-bottom: 1px solid #e7e9ee;
+  padding: 5px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sx-trade-journal-dialog__screenshot-thumb img {
   width: 100%;
-  height: 78px;
+  height: 168px;
   object-fit: cover;
   display: block;
-  cursor: zoom-in;
+  /* A plain pointer/"finger" cursor rather than the magnifying-glass zoom
+     cursor, per request. */
+  cursor: pointer;
 }
 
 .sx-trade-journal-dialog__screenshot-badge {
@@ -415,21 +1136,25 @@
   padding: 4px 0;
 }
 
+/* Delete is a small standalone round button detached below the card,
+   outside the image area entirely, instead of clipped inside its bottom edge. */
 .sx-trade-journal-dialog__screenshot-rm {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(11, 13, 16, 0.7);
-  color: #fff;
-  border: none;
-  font-size: 10px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 50%;
+  border: 1px solid #f0d3d8;
+  background: #fff;
+  color: #c23b4b;
+  font-size: 12px;
   cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.sx-trade-journal-dialog__screenshot-rm:hover {
+  background: #fdedef;
 }
 
 .sx-trade-journal-dialog__reflection-cols {
@@ -467,10 +1192,10 @@
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
+  font-weight: 400;
+  color: #000000;
   cursor: pointer;
-  font-family: inherit;
+  font-family: Helvetica, sans-serif;
 }
 
 .sx-trade-journal-dialog__reflection-chip--went-well.sx-trade-journal-dialog__reflection-chip--selected {
@@ -548,10 +1273,10 @@
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
+  font-weight: 400;
+  color: #000000;
   cursor: pointer;
-  font-family: inherit;
+  font-family: Helvetica, sans-serif;
 }
 
 .sx-trade-journal-dialog__emotion-chip--constructive.sx-trade-journal-dialog__emotion-chip--selected {
@@ -736,7 +1461,9 @@
 .sx-trade-journal-lightbox {
   position: fixed;
   inset: 0;
-  background: rgba(11, 13, 16, 0.82);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -744,9 +1471,57 @@
   padding: 40px;
 }
 
+.sx-trade-journal-lightbox__wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* Badge + file name sit above the image, outside its boundaries. */
+.sx-trade-journal-lightbox__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  max-width: min(880px, 76vw);
+}
+
+.sx-trade-journal-lightbox__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #fff;
+  background: #1f2430;
+  border-radius: 999px;
+  padding: 5px 10px;
+  flex-shrink: 0;
+}
+
+.sx-trade-journal-lightbox__name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #4b5160;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nav buttons sit beside the image as flex siblings, not overlapping it. */
+.sx-trade-journal-lightbox__stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  max-width: 100%;
+}
+
 .sx-trade-journal-lightbox__panel {
   position: relative;
-  max-width: min(920px, 100%);
+  max-width: min(880px, 76vw);
   max-height: 100%;
   display: flex;
   flex-direction: column;
@@ -755,27 +1530,28 @@
 
 .sx-trade-journal-lightbox__panel img {
   max-width: 100%;
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 160px);
   object-fit: contain;
   border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  background: #0b0d10;
+  box-shadow: 0 12px 40px rgba(15, 18, 24, 0.16);
+  background: #f4f5f7;
+  border: 1px solid #e7e9ee;
 }
 
 .sx-trade-journal-lightbox__actions {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
 .sx-trade-journal-lightbox__delete {
   display: flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
-  color: #ff8a8a;
+  border: 1px solid #e7e9ee;
+  background: #fff;
+  color: #d6455a;
   border-radius: 8px;
   padding: 8px 14px;
   font-size: 13px;
@@ -785,7 +1561,7 @@
 }
 
 .sx-trade-journal-lightbox__delete:hover {
-  background: rgba(255, 90, 90, 0.16);
+  background: #fdedef;
 }
 
 .sx-trade-journal-lightbox__close {
@@ -794,9 +1570,9 @@
   justify-content: center;
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  border: 1px solid #e7e9ee;
+  background: #fff;
+  color: #1f2430;
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
@@ -804,5 +1580,237 @@
 }
 
 .sx-trade-journal-lightbox__close:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: #f0f1f4;
+}
+
+.sx-trade-journal-lightbox__nav {
+  position: relative;
+  flex-shrink: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid #e7e9ee;
+  background: #fff;
+  color: #1f2430;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(15, 18, 24, 0.1);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.sx-trade-journal-lightbox__nav:hover {
+  background: #f0f1f4;
+}
+
+.sx-trade-journal-lightbox__nav[hidden] {
+  display: none;
+}
+
+.sx-trade-journal-lightbox__count {
+  color: #6b7280;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-right: auto;
+}
+
+/* Slide the newly-shown image in from the direction navigated toward. */
+@keyframes sx-tj-lightbox-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes sx-tj-lightbox-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.sx-trade-journal-lightbox__img--in-right {
+  animation: sx-tj-lightbox-in-right 0.25s ease both;
+}
+
+.sx-trade-journal-lightbox__img--in-left {
+  animation: sx-tj-lightbox-in-left 0.25s ease both;
+}
+
+/* Small text-input modal used for "Edit caption" / "Rename image". Appended
+   directly to <body>, so - like the rest of this file - every color is a
+   literal value rather than a page-scoped CSS variable. */
+.sx-trade-journal-prompt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100001;
+  background: rgba(11, 13, 16, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.sx-trade-journal-prompt-panel {
+  width: min(360px, 100%);
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e7e9ee;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+  padding: 18px;
+}
+
+.sx-trade-journal-prompt-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1c2128;
+  margin-bottom: 10px;
+}
+
+.sx-trade-journal-prompt-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d7dae1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #1c2128;
+  background: #fff;
+}
+
+.sx-trade-journal-prompt-input:focus {
+  outline: none;
+  border-color: #3652f6;
+}
+
+.sx-trade-journal-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.sx-trade-journal-prompt-btn {
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #e7e9ee;
+}
+
+.sx-trade-journal-prompt-btn--cancel {
+  background: #fff;
+  color: #4b5160;
+}
+
+.sx-trade-journal-prompt-btn--cancel:hover {
+  background: #f0f1f4;
+}
+
+.sx-trade-journal-prompt-btn--confirm {
+  background: #3652f6;
+  border-color: #3652f6;
+  color: #fff;
+}
+
+.sx-trade-journal-prompt-btn--confirm:hover {
+  filter: brightness(1.08);
+}
+
+/* ---------------- Read-only (dashboard Trades page) tabular view ----------------
+   Same markup as the editable dialog; this just hides every add/edit affordance
+   and restyles each remaining section as a compact label/value table row. */
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__progress-ring,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__menu-wrap,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__save-status,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__foot,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__media-actions,
+.sx-trade-journal-dialog--readonly input[data-sx-trade-journal-screenshot-input],
+.sx-trade-journal-dialog--readonly input[data-sx-trade-journal-screenshot-replace-input],
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__screenshot-tools,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__screenshot-rm,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__voice-actions,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__voice-rm,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__mini-add-row,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__note-toggle,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__tag-input-row,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__tag-rm {
+  display: none !important;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__reflection-chip:not(.sx-trade-journal-dialog__reflection-chip--selected),
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__emotion-chip:not(.sx-trade-journal-dialog__emotion-chip--selected) {
+  display: none;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__reflection-chip,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__emotion-chip,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__star-rating,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__tag-pill {
+  pointer-events: none;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section {
+  margin-top: 0;
+  padding: 14px 0;
+  border-bottom: 1px solid #eceef2;
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  column-gap: 20px;
+  align-items: start;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section:last-of-type {
+  border-bottom: none;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section-label {
+  grid-column: 1;
+  font-size: 13px;
+  font-weight: 700;
+  color: #6a6e77;
+  margin-bottom: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section-label > .sx-trade-journal-dialog__section-hint {
+  display: none;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section > *:not(.sx-trade-journal-dialog__section-label) {
+  grid-column: 2;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__summary-textarea,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__note-area textarea {
+  border: none;
+  background: transparent;
+  padding: 0;
+  resize: none;
+  min-height: 0;
+  color: #1c2128;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__note-area {
+  grid-column: 2;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__reflection-cols {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
 }

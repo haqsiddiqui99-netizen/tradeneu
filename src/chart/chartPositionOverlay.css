@@ -716,14 +716,21 @@
   gap: 2px;
   padding: 2px;
   border-radius: 7px;
-  background: rgba(19, 23, 34, 0.05);
+  /* No shared backdrop here — the grip should float free (no boxed/"selected" look) while
+     the chevron carries its own white pill via `--active` below. */
+  background: transparent;
   flex-shrink: 0;
   z-index: 1;
 }
 
+/* Icon-only buttons: the grip glyph for chart view, a chevron for trade view. */
 .rw-view-toggle__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
   height: 22px;
-  padding: 0 10px;
+  padding: 0;
   border: none;
   border-radius: 5px;
   background: transparent;
@@ -732,6 +739,53 @@
   letter-spacing: 0.01em;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
+}
+
+.rw-view-toggle__btn .sx-ico {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+/* Sized and colored to match the drag grip on the floating bar-replay dock (20×20 icon,
+   near-black ink) — no background in any state, so it never looks like a pressed/selected
+   toggle. */
+.rw-view-toggle__btn--grip {
+  width: 28px;
+  height: 26px;
+  cursor: ns-resize;
+  touch-action: none;
+  color: #131722;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none;
+}
+
+.rw-view-toggle__btn--grip:hover,
+.rw-view-toggle__btn--grip:active,
+.rw-view-toggle__btn--grip:focus,
+.rw-view-toggle__btn--grip:focus-visible {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none;
+}
+
+.rw-view-toggle__btn--grip .sx-ico {
+  width: 20px;
+  height: 20px;
+  transform: rotate(90deg);
+}
+
+/* The chevron sits right beside the grip and is the more important control
+   (open/close), so it reads a bit larger than the grip glyph. */
+.rw-view-toggle__btn[data-rw-trade-dock-toggle] {
+  width: 28px;
+  height: 26px;
+}
+
+.rw-view-toggle__btn[data-rw-trade-dock-toggle] .sx-ico {
+  width: 17px;
+  height: 17px;
 }
 
 .rw-view-toggle__btn:hover:not(:disabled) {
@@ -755,11 +809,16 @@
 }
 
 .rw-root[data-chart-theme='dark'] .rw-view-toggle {
-  background: rgba(255, 255, 255, 0.07);
+  background: transparent;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-view-toggle__btn {
   color: #b4b9c6;
+}
+
+/* Match the bar-replay drag grip's dark-theme ink (same value it uses elsewhere in the app). */
+.rw-root[data-chart-theme='dark'] .rw-view-toggle__btn--grip {
+  color: #787b86;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-view-toggle__btn:hover:not(:disabled) {

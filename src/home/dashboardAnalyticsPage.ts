@@ -603,9 +603,8 @@ export function buildAnalyticsPageHtml(): string {
       </div>
 
       <div class="sxa-tab-panel" data-sxa-panel="simulation">
-        <div class="sxa-section-title">Monte Carlo simulation ${infoDot('By performing Monte Carlo Simulations, you can estimate how effective your trading strategy is.', 'Monte Carlo simulation')}</div>
+        <div class="sxa-section-title sxa-section-title--sim-header">Montecarlo Simulation ${infoDot('By performing Monte Carlo Simulations, you can estimate how effective your trading strategy is.', 'Montecarlo Simulation')}</div>
         <div class="sxa-card" style="margin-bottom:20px;">
-          <div class="sxa-heat-sub">Generates independent equity paths from your win rate, average gain, and average loss \u2014 inputs default to your real stats but are fully editable to stress-test hypotheticals.</div>
           <div class="sxa-mc-input-grid" data-sxa-mc-input-grid></div>
           <div style="position:relative;">
             <canvas data-sxa-mc-canvas style="margin-top:18px;"></canvas>
@@ -615,9 +614,9 @@ export function buildAnalyticsPageHtml(): string {
           <div class="sxa-sim-stats sxa-sim-stats--wide" data-sxa-mc-stats></div>
         </div>
 
-        <div class="sxa-section-title">
-          RR simulator
-          ${infoDot('Test different risk-reward setups to see how your trades would\u2019ve performed under new conditions \u2014 no need to re-backtest.', 'RR simulator')}
+        <div class="sxa-section-title sxa-section-title--sim-header">
+          RR Simulator
+          ${infoDot('Test different risk-reward setups to see how your trades would\u2019ve performed under new conditions \u2014 no need to re-backtest.', 'RR Simulator')}
           <a href="#" class="sxa-how-link" data-sxa-rr-how style="margin-left:auto;">How this works?</a>
         </div>
         <div class="sxa-card">
@@ -634,7 +633,7 @@ export function buildAnalyticsPageHtml(): string {
           </div>
         </div>
 
-        <div class="sxa-section-title">
+        <div class="sxa-section-title sxa-section-title--sim-header">
           Stop Loss Simulator
           ${infoDot('Tests how different stop loss reductions would have affected your completed trades.', 'Stop Loss Simulator')}
           <a href="#" class="sxa-how-link" data-sxa-sl-how style="margin-left:auto;">How this works?</a>
@@ -784,6 +783,7 @@ export function initAnalyticsPage(
   let calDate = new Date()
   let ddUnit: 'pct' | 'dollar' = 'pct'
   let mcSeed = 1
+  let mcTooltipHovered = false
   // RR threshold that defines a "breakeven" trade: any trade whose Return (R) falls
   // within [-breakevenThresholdR, +breakevenThresholdR] counts as breakeven.
   let breakevenThresholdR = 0.1
@@ -831,6 +831,58 @@ export function initAnalyticsPage(
 
   function escapeAttr(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  }
+
+  // Custom-styled replacement for window.prompt(), used by the RR simulator and Stop Loss
+  // Simulator "+ Add new" buttons so the input dialog matches the app's own look instead of
+  // the browser's native prompt box. Resolves with the parsed number, or null if cancelled.
+  function showSxaNumberPrompt(opts: { label: string; placeholder?: string }): Promise<number | null> {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div')
+      overlay.className = 'sxa-prompt-modal'
+      overlay.innerHTML = `
+        <button type="button" class="sxa-prompt-modal__backdrop" aria-label="Close"></button>
+        <div class="sxa-prompt-modal__panel" role="dialog" aria-modal="true">
+          <label class="sxa-prompt-modal__label" for="sxa-prompt-modal-input">${escapeAttr(opts.label)}</label>
+          <input id="sxa-prompt-modal-input" type="number" step="any" inputmode="decimal" class="sxa-prompt-modal__input" placeholder="${escapeAttr(opts.placeholder ?? '')}" />
+          <div class="sxa-prompt-modal__actions">
+            <button type="button" class="sxa-prompt-modal__btn sxa-prompt-modal__btn--primary" data-sxa-prompt-ok>OK</button>
+            <button type="button" class="sxa-prompt-modal__btn sxa-prompt-modal__btn--secondary" data-sxa-prompt-cancel>Cancel</button>
+          </div>
+        </div>`
+      // Mount inside the .sxa-analytics scope (not document.body) so the panel inherits the
+      // theme's CSS custom properties, including dark-mode overrides.
+      const mountHost = root.querySelector<HTMLElement>('[data-sxa-root]') ?? root
+      mountHost.append(overlay)
+      const input = overlay.querySelector<HTMLInputElement>('.sxa-prompt-modal__input')!
+
+      let settled = false
+      const cleanup = (val: number | null) => {
+        if (settled) return
+        settled = true
+        document.removeEventListener('keydown', onKey, true)
+        overlay.remove()
+        resolve(val)
+      }
+      const submit = () => {
+        const v = parseFloat(input.value)
+        cleanup(Number.isFinite(v) ? v : null)
+      }
+      const onKey = (ke: KeyboardEvent) => {
+        if (ke.key === 'Enter') {
+          ke.preventDefault()
+          submit()
+        } else if (ke.key === 'Escape') {
+          ke.preventDefault()
+          cleanup(null)
+        }
+      }
+      document.addEventListener('keydown', onKey, true)
+      overlay.querySelector('[data-sxa-prompt-ok]')?.addEventListener('click', submit)
+      overlay.querySelector('[data-sxa-prompt-cancel]')?.addEventListener('click', () => cleanup(null))
+      overlay.querySelector('.sxa-prompt-modal__backdrop')?.addEventListener('click', () => cleanup(null))
+      requestAnimationFrame(() => input.focus())
+    })
   }
 
   function sxaFmtShortDate(ms: number): string {
@@ -2560,6 +2612,18 @@ export function initAnalyticsPage(
     destroyChart('mc')
     const canvas = root.querySelector<HTMLCanvasElement>('[data-sxa-mc-canvas]')
     const tooltipPanel = root.querySelector<HTMLElement>('[data-sxa-mc-tooltip]')
+    if (tooltipPanel && !tooltipPanel.dataset.hoverBound) {
+      tooltipPanel.dataset.hoverBound = '1'
+      // Keep the panel open while the cursor is over it, so the user can reach and drag
+      // the scrollbar to see simulations further down the list.
+      tooltipPanel.addEventListener('mouseenter', () => {
+        mcTooltipHovered = true
+      })
+      tooltipPanel.addEventListener('mouseleave', () => {
+        mcTooltipHovered = false
+        tooltipPanel.classList.remove('sxa-mc-tooltip-panel--visible')
+      })
+    }
     if (canvas) {
       const labels = Array.from({ length: tradesPerSim + 1 }, (_, i) => i)
       const datasets = paths.map((path, i) => ({
@@ -2574,7 +2638,10 @@ export function initAnalyticsPage(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       function mcExternalTooltip(context: any) {
         if (!tooltipPanel) return
-        const { tooltip } = context
+        // Cursor moved off the canvas onto the panel itself — leave it exactly where it is
+        // (still visible) so the user can scroll it instead of it vanishing underneath them.
+        if (mcTooltipHovered) return
+        const { tooltip, chart } = context
         if (tooltip.opacity === 0 || !tooltip.dataPoints || !tooltip.dataPoints.length) {
           tooltipPanel.classList.remove('sxa-mc-tooltip-panel--visible')
           return
@@ -2593,6 +2660,21 @@ export function initAnalyticsPage(
           .join('')
         tooltipPanel.innerHTML = `<div class="sxa-mc-tip-index">Trade ${tooltip.dataPoints[0].label}</div>${rows}`
         tooltipPanel.classList.add('sxa-mc-tooltip-panel--visible')
+
+        // Follow the cursor: sit beside the hovered point, flipping to the opposite side
+        // when there isn't enough room, so the panel never covers the area under the cursor.
+        const chartRect = chart.canvas.getBoundingClientRect()
+        const tipRect = tooltipPanel.getBoundingClientRect()
+        const gap = 14
+        let left = tooltip.caretX + gap
+        if (left + tipRect.width > chartRect.width - 4) {
+          left = tooltip.caretX - tipRect.width - gap
+        }
+        left = Math.max(4, Math.min(chartRect.width - tipRect.width - 4, left))
+        let top = tooltip.caretY - tipRect.height / 2
+        top = Math.max(4, Math.min(chartRect.height - tipRect.height - 4, top))
+        tooltipPanel.style.left = `${left}px`
+        tooltipPanel.style.top = `${top}px`
       }
       charts.mc = new Chart(canvas, {
         type: 'line',
@@ -3368,14 +3450,14 @@ export function initAnalyticsPage(
       return
     }
     if (t.closest('[data-sxa-rr-add-new]')) {
-      const input = window.prompt('Enter a custom R-multiple target (e.g. 2.75):')
-      const val = input != null ? parseFloat(input) : NaN
-      if (!isNaN(val) && val > 0) {
-        const color = RR_PALETTE[rrChips.length % RR_PALETTE.length]!
-        rrChips.push({ value: val, color, active: true, isCurrent: false })
-        renderRRChipRow()
-        renderRRSimulator(getFilteredTrades())
-      }
+      void showSxaNumberPrompt({ label: 'Enter a custom R-multiple target (e.g. 2.75):', placeholder: '2.75' }).then((val) => {
+        if (val != null && val > 0) {
+          const color = RR_PALETTE[rrChips.length % RR_PALETTE.length]!
+          rrChips.push({ value: val, color, active: true, isCurrent: false })
+          renderRRChipRow()
+          renderRRSimulator(getFilteredTrades())
+        }
+      })
       return
     }
     const slChipBtn = t.closest<HTMLButtonElement>('[data-sxa-sl-chip]')
@@ -3389,14 +3471,14 @@ export function initAnalyticsPage(
       return
     }
     if (t.closest('[data-sxa-sl-add-new]')) {
-      const input = window.prompt('Enter a custom stop loss reduction % (e.g. 40):')
-      const val = input != null ? parseFloat(input) : NaN
-      if (!isNaN(val) && val > 0 && val < 100) {
-        const color = SL_PALETTE[slChips.length % SL_PALETTE.length]!
-        slChips.push({ value: val, color, active: true, isCurrent: false })
-        renderSlChipRow()
-        renderSlSimulator(getFilteredTrades())
-      }
+      void showSxaNumberPrompt({ label: 'Enter a custom stop loss reduction % (e.g. 40):', placeholder: '40' }).then((val) => {
+        if (val != null && val > 0 && val < 100) {
+          const color = SL_PALETTE[slChips.length % SL_PALETTE.length]!
+          slChips.push({ value: val, color, active: true, isCurrent: false })
+          renderSlChipRow()
+          renderSlSimulator(getFilteredTrades())
+        }
+      })
       return
     }
     const slHowLink = t.closest<HTMLAnchorElement>('[data-sxa-sl-how]')

@@ -119,9 +119,9 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
 
   root.innerHTML = `
     <div class="rw-order-book__tabs" role="tablist" aria-label="Positions and orders">
-      <button type="button" class="rw-order-book__tab" role="tab" data-rw-ob-tab="closed" aria-selected="false">Closed Positions</button>
       <button type="button" class="rw-order-book__tab" role="tab" data-rw-ob-tab="open" aria-selected="true">Open Positions</button>
       <button type="button" class="rw-order-book__tab" role="tab" data-rw-ob-tab="pending" aria-selected="false">Pending Orders</button>
+      <button type="button" class="rw-order-book__tab" role="tab" data-rw-ob-tab="closed" aria-selected="false">Closed Positions</button>
     </div>
     <div class="rw-order-book__body" data-rw-ob-body></div>
     <div class="rw-order-book__foot" data-rw-ob-foot></div>
@@ -289,6 +289,7 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
         <input type="checkbox" data-rw-ob-select-all ${allOnPage ? 'checked' : ''} aria-label="Select all on page" />
       </th>
       <th class="rw-order-book__col-journal" scope="col">Journal</th>
+      <th class="rw-order-book__col-tradeid" scope="col">Trade</th>
       <th scope="col">Asset</th>
       <th scope="col">Side</th>
       <th scope="col">Date Start</th>
@@ -303,7 +304,7 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
       <th scope="col">Commission</th>
     </tr></thead>`
     if (!rows.length) {
-      return `${vizToggle}<table class="rw-order-book__table">${head}<tbody>${emptyRow(14)}</tbody></table>${pagerHtml(pages)}`
+      return `${vizToggle}<table class="rw-order-book__table">${head}<tbody>${emptyRow(15)}</tbody></table>${pagerHtml(pages)}`
     }
     const body = rows
       .map((t) => {
@@ -314,6 +315,7 @@ export function mountReplayOrderBook(root: HTMLElement, opts: MountReplayOrderBo
         return `<tr data-rw-ob-trade="${id}"${marked ? ' class="rw-order-book__row--marked"' : ''}>
           <td class="rw-order-book__col-check"><input type="checkbox" data-rw-ob-select="${id}" ${checked} aria-label="Select trade ${id}" /></td>
           <td class="rw-order-book__col-journal"><button type="button" class="rw-order-book__journal-btn" data-rw-ob-journal="${id}" title="Open journal" aria-label="Open journal">${RW_JOURNAL_ICON_SVG}</button></td>
+          <td class="rw-order-book__col-tradeid"><span class="rw-order-book__trade-id">T${id}</span></td>
           <td class="rw-order-book__asset">${assetLabel()}</td>
           <td class="${side.cls}">${side.text}</td>
           <td class="rw-order-book__mono"><button type="button" class="rw-order-book__link" data-rw-ob-mark="${id}" title="Mark this trade on the chart" aria-pressed="${marked ? 'true' : 'false'}">${escapeHtml(formatObDateTime(t.entryTime))}</button></td>

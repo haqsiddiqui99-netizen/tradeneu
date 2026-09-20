@@ -505,7 +505,7 @@ import {
   type StoredSession,
 } from '../data/sessionStore'
 import { propStatusLabel } from '../prop/propChallengeUi'
-import { openTradeJournalDialog, type TradeJournalDialogEntry } from '../replay/tradeJournalDialog'
+import { openTradeJournalDialog, type TradeJournalDialogEntry, type TradeJournalListRow } from '../replay/tradeJournalDialog'
 import { clearAllAuthSessions, getAuthUser, GUEST_AUTH_EMAIL } from '../auth/authSession'
 import { mountAiChatPanel } from '../ai/aiChatPanel'
 import { primarySessionSymbol } from '../sessionTypes'
@@ -1346,7 +1346,7 @@ function buildDashSidebarHtml(): string {
             <span class="sx-dash-account-static__greet">Hi <span data-sx-account-label>Guest</span>,</span>
             <span class="sx-dash-account-static__plan">
               You're on <strong data-sx-account-plan>Basic</strong> Plan
-            </span>
+        </span>
           </div>
         </div>
 
@@ -1381,7 +1381,7 @@ function buildDashTopbarHtml(): string {
             <span class="sx-dash-side__mono">TN</span>
             <span class="sx-dash-side__name">
               <span class="sx-dash-side__name-trade">TRADE</span><span class="sx-dash-side__name-neu">NEU</span>
-            </span>
+        </span>
           </div>
           <span class="sr-only">Tradeneu Premium Backtesting</span>
 
@@ -1389,56 +1389,56 @@ function buildDashTopbarHtml(): string {
             <button type="button" class="sx-dash-bar__upgrade" data-action="pro-upgrade">
               <i class="fa-solid fa-crown" aria-hidden="true"></i>
               <span>Upgrade</span>
-            </button>
+          </button>
 
-            <span class="sx-dash-tip-wrap inline-flex">
+        <span class="sx-dash-tip-wrap inline-flex">
               <button type="button" data-action="ai-chat" class="sx-dash-bar__icon" aria-label="Open AI assistant">
                 <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
-              </button>
+          </button>
               <span class="sx-dash-tip">AI Assistant</span>
-            </span>
+        </span>
 
             <span class="sx-dash-tip-wrap relative inline-flex">
               <div class="sx-dash-locale-dd relative" data-sx-locale-dropdown>
-                <button
-                  type="button"
+            <button
+              type="button"
                   class="sx-dash-locale-trigger sx-dash-bar__locale"
-                  aria-expanded="false"
-                  aria-haspopup="listbox"
-                  aria-label="Language"
-                >
-                  <span class="sx-dash-locale-trigger__code">EN</span>
+              aria-expanded="false"
+              aria-haspopup="listbox"
+              aria-label="Language"
+            >
+              <span class="sx-dash-locale-trigger__code">EN</span>
                   <i class="fa-solid fa-chevron-down sx-dash-locale-trigger__chev" aria-hidden="true"></i>
-                </button>
-                <div class="sx-dash-locale-panel hidden" role="listbox" aria-label="Choose language"></div>
-              </div>
-              <span class="sx-dash-tip">Translate</span>
-            </span>
+            </button>
+            <div class="sx-dash-locale-panel hidden" role="listbox" aria-label="Choose language"></div>
+          </div>
+          <span class="sx-dash-tip">Translate</span>
+        </span>
 
-            <span class="sx-dash-tip-wrap inline-flex">
+        <span class="sx-dash-tip-wrap inline-flex">
               <button type="button" class="sx-dash-bar__icon sx-dash-theme-icon-btn" aria-label="Switch theme">
                 <i class="fa-solid fa-sun sx-dash-theme-icon--when-dark" aria-hidden="true"></i>
                 <i class="fa-solid fa-moon sx-dash-theme-icon--when-light" aria-hidden="true"></i>
-              </button>
+            </button>
               <span class="sx-dash-tip">Change theme</span>
-            </span>
+          </span>
 
-            <span class="sx-dash-tip-wrap inline-flex">
+          <span class="sx-dash-tip-wrap inline-flex">
               <button type="button" data-action="dash-fullscreen" class="sx-dash-bar__icon sx-dash-fullscreen-btn" aria-label="Enter fullscreen">
                 <i class="fa-solid fa-expand sx-dash-fs-icon-expand" aria-hidden="true"></i>
                 <i class="fa-solid fa-compress sx-dash-fs-icon-compress" aria-hidden="true"></i>
-              </button>
-              <span class="sx-dash-tip">Fullscreen</span>
-            </span>
+            </button>
+            <span class="sx-dash-tip">Fullscreen</span>
+          </span>
 
-            <span class="sx-dash-tip-wrap inline-flex">
+          <span class="sx-dash-tip-wrap inline-flex">
               <button type="button" data-action="settings" class="sx-dash-bar__icon" aria-label="Settings">
                 <i class="fa-solid fa-gear" aria-hidden="true"></i>
-              </button>
+            </button>
               <span class="sx-dash-tip">Settings</span>
-            </span>
+          </span>
 
-          </div>
+        </div>
         </header>`
 }
 
@@ -1448,7 +1448,7 @@ function buildDashboardPageHeadHtml(): string {
               <div class="sx-dash-page-head__copy">
                 <h1 class="sx-dash-page-title">Backtesting</h1>
                 <p class="sx-dash-page-sub">Practice on the past, profit in the present — track sessions, tape and edge.</p>
-              </div>
+      </div>
               <div class="sx-dash-page-head__actions">
                 <button type="button" data-action="backtest" class="sx-dash-cta-btn sx-dash-cta-btn--primary">
                   <span class="sx-dash-cta-btn__icon" aria-hidden="true">+</span>
@@ -1456,17 +1456,17 @@ function buildDashboardPageHeadHtml(): string {
                     <span class="sx-dash-cta-btn__title">Backtesting Session</span>
                     <span class="sx-dash-cta-btn__sub">Start a session</span>
                   </span>
-                </button>
+            </button>
                 <button type="button" data-action="prop" class="sx-dash-cta-btn sx-dash-cta-btn--secondary">
                   <span class="sx-dash-cta-pro" title="Pro feature" role="img" aria-label="Pro feature">
                     <i class="fa-solid fa-crown" aria-hidden="true"></i>
-                  </span>
+        </span>
                   <span class="sx-dash-cta-btn__text">
                     <span class="sx-dash-cta-btn__title">Target Challenge</span>
                     <span class="sx-dash-cta-btn__sub">Start a challenge</span>
-                  </span>
+        </span>
                 </button>
-              </div>
+      </div>
             </div>`
 }
 
@@ -1479,19 +1479,19 @@ function buildDashGraphCardsHtml(): string {
                     <div>
                       <h3 class="sx-dash-graph__title">Time Invested</h3>
                       <p class="sx-dash-graph__total"><strong data-sx-activity-total>—</strong> spent in this range</p>
-                    </div>
+          </div>
                     <div class="sx-dash-graph__head-right">
                       <div class="sx-dash-graph__tabs" role="tablist" aria-label="Time Invested range">
                         <button type="button" class="sx-dash-graph__tab sx-dash-graph__tab--active" data-sx-activity-range="daily" role="tab" aria-selected="true">Daily</button>
                         <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="weekly" role="tab" aria-selected="false">Weekly</button>
                         <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="monthly" role="tab" aria-selected="false">Monthly</button>
                         <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="yearly" role="tab" aria-selected="false">Yearly</button>
-                      </div>
-                    </div>
-                  </div>
+              </div>
+                </div>
+              </div>
                   <div class="sx-dash-graph__chart sx-dash-activity-chart" role="img" aria-label="Practice hours by day">
                     <canvas data-sx-activity-chart-canvas></canvas>
-                  </div>
+            </div>
                 </article>
 
                 <article class="sx-dash-graph">
@@ -1500,19 +1500,19 @@ function buildDashGraphCardsHtml(): string {
                     <canvas data-sx-equity-chart-canvas></canvas>
                   </div>
                 </article>
-              </div>
+          </div>
 
               <div class="sx-dash-graph--full sx-dash-graphs-row">
                 <article class="sx-dash-graph">
                   <div class="sx-dash-graph__head">
                     <h3 class="sx-dash-graph__title">Win Rate</h3>
-                    <button
-                      type="button"
+            <button
+              type="button"
                       class="sx-dash-pulse__kpi-info"
                       data-tip="Share of your closed trades that ended as wins, by month."
                       aria-label="About win rate"
                     >${DASH_KPI_INFO_ICON_SVG}</button>
-                  </div>
+        </div>
                   <div class="sx-dash-graph__chart sx-dash-winrate-chart" role="img" aria-label="Win rate by month">
                     <canvas data-sx-winrate-chart-canvas></canvas>
                   </div>
@@ -1521,13 +1521,13 @@ function buildDashGraphCardsHtml(): string {
                 <article class="sx-dash-graph">
                   <div class="sx-dash-graph__head">
                     <h3 class="sx-dash-graph__title">Trades by symbol</h3>
-                    <button
-                      type="button"
+            <button
+              type="button"
                       class="sx-dash-pulse__kpi-info"
                       data-tip="Distribution of your closed trades across each symbol you've traded."
                       aria-label="About trades by symbol"
                     >${DASH_KPI_INFO_ICON_SVG}</button>
-                  </div>
+        </div>
                   <div class="sx-dash-graph__chart sx-dash-symbols-chart" role="img" aria-label="Trades by symbol">
                     <canvas data-sx-symbols-chart-canvas></canvas>
                   </div>
@@ -1580,12 +1580,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
             <section class="sx-dash-performance" aria-labelledby="sx-dash-performance-title">
               <header class="sx-dash-performance__head">
-                <div>
+          <div>
                   <h2 id="sx-dash-performance-title">Performance</h2>
                   <p>Your practice, market coverage, and trading results.</p>
-                </div>
+          </div>
                 ${buildPulseRangeHtml()}
-              </header>
+        </header>
 
               ${buildSessionPulseKpiHtml({ bare: true })}
 
@@ -1593,13 +1593,13 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
             </section>
 
             <div class="sx-dash-recent-sessions-host" data-sx-recent-sessions-anchor="dashboard"></div>
-          </div>
+            </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="sessions" role="tabpanel" hidden>
             <div class="sx-dash-recent-sessions-host" data-sx-recent-sessions-anchor="sessions">
         ${buildRecentSessionsSectionHtml()}
             </div>
-          </div>
+            </div>
 
           <div class="sx-dash-testing-panel hidden" data-testing-panel="analytics" role="tabpanel" hidden>
             <div class="sx-dash-analytics-deepdive" data-sxa-host>${buildAnalyticsPageHtml()}</div>
@@ -1650,16 +1650,16 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                     <option value="">All sessions</option>
                   </select>
                   <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-                </div>
+                    </div>
                 <div class="sxt-search-box">
                   <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                   <input type="search" data-sx-trades-search placeholder="Search trades" autocomplete="off" />
-                </div>
+                  </div>
                 <div class="sxt-spacer"></div>
                 <button type="button" data-sx-trades-clear-all class="hidden sxt-clear-all">
                   Clear All
                   <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
-                </button>
+                    </button>
                 <button type="button" data-sx-trades-refresh class="sxt-icon-btn" title="Reset table columns" aria-label="Reset table columns">
                   <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
                 </button>
@@ -1674,18 +1674,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                       <div class="sxt-colpicker__search">
                         <input type="search" data-sxt-colpicker-search placeholder="" autocomplete="off" />
                         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                      </div>
                     </div>
+                  </div>
                     <div class="sxt-colpicker__list" data-sxt-colpicker-list></div>
                   </div>
-                </div>
+                    </div>
                 <div class="sxt-filterby">
                   <span class="sxt-filterby__divider" aria-hidden="true"></span>
                   <span class="sxt-filterby__label">Filter by</span>
                   <button type="button" class="sxt-filterby__pill sx-dash-trades-filter-tab" data-sx-trades-filter-tab="basic" role="tab" aria-selected="false">Column</button>
                   <button type="button" class="sxt-filterby__pill sx-dash-trades-filter-tab" data-sx-trades-filter-tab="tags" role="tab" aria-selected="false">Tags</button>
                   <span class="hidden sxt-filter-count" data-sx-trades-filters-count></span>
-                </div>
+                  </div>
                 <div class="relative">
                   <div class="sx-dash-trades-filters-backdrop hidden" data-sx-trades-filters-backdrop></div>
                   <div class="sx-dash-trades-filters-panel hidden" data-sx-trades-filters-panel role="dialog" aria-modal="true" aria-label="Filters">
@@ -1694,12 +1694,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                       <button type="button" class="sx-dash-trades-filters-panel__close" data-sx-trades-filters-close aria-label="Close filters">
                         <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                       </button>
-                    </div>
+                </div>
 
                     <div class="sx-dash-trades-filters-panel__tabs" role="tablist" aria-label="Filter category">
                       <button type="button" class="sx-dash-trades-filter-tab" data-sx-trades-filter-tab="basic" role="tab" aria-selected="false">
                         <i class="fa-solid fa-sliders" aria-hidden="true"></i> Column
-                      </button>
+                  </button>
                       <button type="button" class="sx-dash-trades-filter-tab" data-sx-trades-filter-tab="tags" role="tab" aria-selected="false">
                         <i class="fa-solid fa-tag" aria-hidden="true"></i> Tags
                       </button>
@@ -1708,17 +1708,17 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                     <div class="sx-dash-trades-filters-panel__search">
                       <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                       <input type="search" data-sx-trades-filters-search placeholder="Search filter" autocomplete="off" />
-                    </div>
+                  </div>
 
                     <div class="sx-dash-trades-filters-panel__body" data-sx-trades-filters-body></div>
 
                     <div class="sx-dash-trades-filters-panel__foot">
                       <button type="button" class="sx-dash-trades-filters-clear" data-sx-trades-filters-clear>Clear All</button>
                       <button type="button" class="sx-dash-trades-filters-apply" data-sx-trades-filters-apply>Apply Filters</button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
               <div class="sxt-headerclone" data-sx-trades-headerclone>
                 <div class="sxt-headerclone__scroll" data-sx-trades-headerclone-scroll>
@@ -1806,10 +1806,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                       <i class="fa-solid fa-download" aria-hidden="true"></i>
                       Export
                     </button>
-                  </div>
-                </div>
               </div>
-            </section>
+            </div>
+          </div>
+        </section>
                     </div>
 
                   </div>
@@ -3049,6 +3049,16 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       },
       getPrev: prevKey ? () => sxBuildJournalEntry(prevKey) : undefined,
       getNext: nextKey ? () => sxBuildJournalEntry(nextKey) : undefined,
+      listAllTrades: (): TradeJournalListRow[] =>
+        sxCollectTradeRows().map((r) => ({
+          key: r.key,
+          asset: r.asset,
+          direction: r.direction === 'short' ? 'short' : 'long',
+          status: r.pnl,
+          timestampMs: r.entryRealTime,
+        })),
+      onSelectTradeFromList: (key) => sxOpenTradeJournalDialog(key),
+      readOnly: true,
     }
   }
 

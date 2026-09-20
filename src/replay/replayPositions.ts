@@ -70,6 +70,15 @@ export type ReplayJournalScreenshot = {
   align: ReplayJournalScreenshotAlign
   showCaption: boolean
   source?: ReplayJournalScreenshotSource
+  /** Original/generated file name shown in the lightbox, e.g. "TradingView_XAUUSD.png". */
+  name?: string
+}
+
+export type ReplayJournalVoiceNote = {
+  src: string
+  /** Wall-clock ms timestamp (Date.now()) captured when the note was recorded/added.
+   *  Missing for notes saved before this was tracked. */
+  recordedAt?: number
 }
 
 export type ReplayJournalBackground =
@@ -126,7 +135,7 @@ export type ReplayTradeJournal = {
   /** Emotion tap-chips selected for this trade (constructive/destructive/neutral, mixed together). */
   emotions?: string[]
   /** Recorded/uploaded voice-note clips, stored as playable audio data URLs. */
-  voiceNotes?: string[]
+  voiceNotes?: Array<string | ReplayJournalVoiceNote>
   /** Short free-text summary of the trade, separate from the optional detailed note. */
   summary?: string
   updatedAt: number
@@ -137,7 +146,7 @@ export function normalizeJournalScreenshots(
 ): ReplayJournalScreenshot[] {
   return (list ?? []).flatMap((item) => {
     if (typeof item === 'string') {
-      return item ? [{ src: item, caption: '', align: 'left' as const, showCaption: true, source: 'upload' as const }] : []
+      return item ? [{ src: item, caption: '', align: 'left' as const, showCaption: true, source: 'upload' as const, name: undefined }] : []
     }
     if (!item?.src) return []
     return [
@@ -147,8 +156,21 @@ export function normalizeJournalScreenshots(
         align: item.align === 'center' || item.align === 'right' ? item.align : 'left',
         showCaption: item.showCaption !== false,
         source: item.source === 'chart' ? 'chart' : ('upload' as const),
+        name: item.name,
       },
     ]
+  })
+}
+
+export function normalizeJournalVoiceNotes(
+  list?: Array<string | ReplayJournalVoiceNote>,
+): ReplayJournalVoiceNote[] {
+  return (list ?? []).flatMap((item) => {
+    if (typeof item === 'string') {
+      return item ? [{ src: item, recordedAt: undefined }] : []
+    }
+    if (!item?.src) return []
+    return [{ src: item.src, recordedAt: typeof item.recordedAt === 'number' ? item.recordedAt : undefined }]
   })
 }
 
@@ -340,7 +362,7 @@ function cloneClosedTrades(list: ClosedReplayTrade[]): ClosedReplayTrade[] {
           reflectionWentWell: trade.journal.reflectionWentWell ? [...trade.journal.reflectionWentWell] : undefined,
           reflectionToImprove: trade.journal.reflectionToImprove ? [...trade.journal.reflectionToImprove] : undefined,
           emotions: trade.journal.emotions ? [...trade.journal.emotions] : undefined,
-          voiceNotes: trade.journal.voiceNotes ? [...trade.journal.voiceNotes] : undefined,
+          voiceNotes: trade.journal.voiceNotes ? normalizeJournalVoiceNotes(trade.journal.voiceNotes) : undefined,
         }
       : undefined,
   }))
@@ -629,7 +651,7 @@ export function createReplayAccount(
       reflectionWentWell: journal.reflectionWentWell ? [...journal.reflectionWentWell] : undefined,
       reflectionToImprove: journal.reflectionToImprove ? [...journal.reflectionToImprove] : undefined,
       emotions: journal.emotions ? [...journal.emotions] : undefined,
-      voiceNotes: journal.voiceNotes ? [...journal.voiceNotes] : undefined,
+      voiceNotes: journal.voiceNotes ? normalizeJournalVoiceNotes(journal.voiceNotes) : undefined,
       summary: journal.summary,
       updatedAt: journal.updatedAt,
     }
