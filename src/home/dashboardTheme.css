@@ -5377,8 +5377,9 @@ a.sx-dash-account__item {
   border: 0;
   background: transparent;
   padding: 0.65rem 0.1rem;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
   color: #1a1a1a;
   cursor: pointer;
   text-align: left;
