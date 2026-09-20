@@ -45,6 +45,7 @@ import { mountBillingRoutes } from './billing/billingRoutes.mjs'
 import { parseAdminEmails } from './auth/adminAccess.mjs'
 import { mountTelemetryRoutes } from './telemetry/telemetryRoutes.mjs'
 import { mountGuestRoutes } from './guest/guestRoutes.mjs'
+import { mountStrategyAiRoutes } from './ai/strategyAiRoutes.mjs'
 import { getMarketWarmupStatus, isMarketWarmupEnabled, scheduleMarketWarmup } from './marketWarmup.mjs'
 import { authStorageStatus } from './auth/userPersistence.mjs'
 import { bootstrapAdminUsers } from './auth/bootstrapAdmin.mjs'
@@ -188,6 +189,7 @@ mountTelemetryRoutes(app, { dataDir: DATA_DIR })
 mountGuestRoutes(app, { dataDir: DATA_DIR })
 mountBillingRoutes(app, { dataDir: DATA_DIR })
 mountAdminRoutes(app, { dataDir: DATA_DIR })
+mountStrategyAiRoutes(app)
 const authStorage = authStorageStatus()
 if (authStorage.ready) {
   console.log(`[auth] user storage: ${authStorage.backend}`)

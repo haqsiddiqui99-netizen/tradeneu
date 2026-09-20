@@ -14,6 +14,7 @@ import {
 } from '../strategy/strategyCatalog'
 import { listCustomStrategies, saveCustomStrategy } from '../strategy/strategyStore'
 import { mountStrategyBuilder } from '../strategy/strategyBuilderUi'
+import { openStrategyAiModal } from '../strategy/strategyAiModal'
 
 export type MountStrategyPageOptions = {
   onBack?: () => void
@@ -38,6 +39,7 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
       </div>
       <div class="sx-strat-page__head-actions">
         <button type="button" class="sx-strat-page__btn sx-strat-page__btn--primary" data-sx-strat-new>+ New strategy</button>
+        <button type="button" class="sx-strat-page__btn sx-strat-page__btn--ai" data-sx-strat-ai><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> AI Strategy Builder</button>
         <button type="button" class="sx-strat-page__btn" data-sx-strat-run-backtest disabled>Run backtest</button>
         <button type="button" class="sx-strat-page__btn" data-sx-strat-open-chart disabled>Open in chart</button>
       </div>
@@ -149,6 +151,17 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
     builder.loadStrategy(blank)
     selectedId = blank.id
     paintList()
+  })
+
+  const btnAi = shell.querySelector('[data-sx-strat-ai]') as HTMLButtonElement
+  btnAi.addEventListener('click', () => {
+    openStrategyAiModal({
+      onStrategyReady: (strategy) => {
+        builder.loadStrategy(strategy)
+        selectedId = strategy.id
+        paintList()
+      },
+    })
   })
 
   btnOpenChart.addEventListener('click', () => {
