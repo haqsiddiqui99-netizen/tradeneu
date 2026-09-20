@@ -78,7 +78,7 @@
   display: flex;
   min-height: 12.5rem;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: space-between;
   overflow: hidden;
   padding: 1.2rem;
   background:
@@ -104,10 +104,14 @@
   z-index: 1;
 }
 
+.sx-billing-plan__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 .sx-billing-plan__brand {
-  position: absolute;
-  top: 1rem;
-  left: 1.15rem;
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -127,7 +131,33 @@
   font-weight: 800;
 }
 
-.sx-billing-plan__label,
+.sx-billing-plan__tier {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.25rem 0.65rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.sx-billing-plan__wifi {
+  align-self: flex-end;
+  margin: 0.6rem 0 -0.2rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1.2rem;
+  transform: rotate(90deg);
+}
+
+.sx-billing-plan__number {
+  margin: 0.7rem 0 1rem;
+  font-family: 'Courier New', ui-monospace, monospace;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
 .sx-billing-summary__eyebrow {
   color: rgba(255, 255, 255, 0.7);
   font-size: 0.7rem;
@@ -136,18 +166,29 @@
   letter-spacing: 0.07em;
 }
 
-.sx-billing-plan h2 {
-  margin: 0.3rem 0 1rem;
-  font-size: 1.5rem;
-  letter-spacing: -0.02em;
-}
-
-.sx-billing-plan__meta {
+.sx-billing-plan__footer {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 0.72rem;
+}
+
+.sx-billing-plan__footer span {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sx-billing-plan__footer strong {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.sx-billing-plan__footer > div:last-child {
+  text-align: right;
 }
 
 .sx-billing-summary {
@@ -262,6 +303,77 @@
   font-size: 0.7rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+.sx-billing-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+}
+
+.sx-billing-savedcard {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.7rem;
+  padding: 0.75rem 0.85rem;
+  background: #f9f9fa;
+}
+
+.sx-billing-savedcard__icon {
+  display: inline-flex;
+  height: 2.4rem;
+  width: 2.4rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.55rem;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #344054;
+  font-size: 1.05rem;
+}
+
+.sx-billing-savedcard__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.sx-billing-savedcard__copy strong {
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+.sx-billing-savedcard__copy span {
+  color: #98a2b3;
+  font-size: 0.68rem;
+}
+
+.sx-billing-savedcard__edit {
+  display: inline-flex;
+  height: 1.9rem;
+  width: 1.9rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+}
+
+.sx-billing-savedcard__edit:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #172033;
+}
+
+.sx-billing__text-btn--danger {
+  color: #ef5350;
 }
 
 .sx-billing__lower-grid {
@@ -528,7 +640,8 @@
   font-weight: 700;
 }
 
-.sx-billing-dialog__panel input {
+.sx-billing-dialog__panel input,
+.sx-billing-dialog__panel select {
   height: 2.5rem;
   border: 1px solid rgba(15, 23, 42, 0.15);
   border-radius: 0.55rem;
@@ -537,9 +650,11 @@
   font: inherit;
   font-size: 0.8rem;
   outline: none;
+  background: #fff;
 }
 
-.sx-billing-dialog__panel input:focus {
+.sx-billing-dialog__panel input:focus,
+.sx-billing-dialog__panel select:focus {
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
 }
@@ -633,8 +748,29 @@
   color: #d4d4d8;
 }
 
-#sx-app-root[data-dashboard-theme='dark'] .sx-billing-dialog__panel input {
+#sx-app-root[data-dashboard-theme='dark'] .sx-billing-dialog__panel input,
+#sx-app-root[data-dashboard-theme='dark'] .sx-billing-dialog__panel select {
   border-color: rgba(255, 255, 255, 0.12);
   background: #27272a;
+  color: #fafafa;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-billing-savedcard {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-billing-savedcard__icon {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: #d4d4d8;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-billing-savedcard__edit {
+  color: #a1a1aa;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-billing-savedcard__edit:hover {
+  background: rgba(255, 255, 255, 0.1);
   color: #fafafa;
 }
