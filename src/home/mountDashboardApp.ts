@@ -594,14 +594,6 @@ const SX_TRADES_COLUMNS: SxTradeColumnDef[] = [
   { id: 'fees', label: 'Fees' },
 ]
 
-const SX_TRADE_RATING_LABELS: Record<string, string> = {
-  '1': 'Poor',
-  '2': 'Below average',
-  '3': 'Average',
-  '4': 'Good',
-  '5': 'Excellent',
-}
-
 const TESTING_TABS = ['dashboard', 'sessions', 'trades', 'analytics'] as const
 type TestingTab = (typeof TESTING_TABS)[number]
 
@@ -3857,16 +3849,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   const sxTradesTagsSearch: Record<'include' | 'exclude', string> = { include: '', exclude: '' }
 
   function sxTradesTagsOptionGroups(): { label: string; value: string; itemLabel: string }[] {
+    // Trade Rating has its own dedicated filter under the "Trade" tab, so it's
+    // intentionally left out of this list — only real tags are selectable here.
     const allRows = sxCollectTradeRows()
-    const ratingIds = Array.from(new Set(allRows.map((r) => r.rating).filter((v): v is string => !!v))).sort(
-      (a, b) => Number(b) - Number(a),
-    )
     const tagSet = new Set<string>()
     for (const r of allRows) for (const tag of r.tags) tagSet.add(tag)
-    return [
-      ...ratingIds.map((id) => ({ label: 'Trade Rating', value: `rating:${id}`, itemLabel: SX_TRADE_RATING_LABELS[id] ?? `${id} / 5` })),
-      ...Array.from(tagSet).map((tag) => ({ label: 'Tags', value: `tag:${tag}`, itemLabel: tag })),
-    ]
+    return Array.from(tagSet).map((tag) => ({ label: 'Tags', value: `tag:${tag}`, itemLabel: tag }))
   }
 
   function sxRenderTradesTagsDropdown(kind: 'include' | 'exclude'): string {
