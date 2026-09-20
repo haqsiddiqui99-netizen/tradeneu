@@ -1533,7 +1533,14 @@ export function initAnalyticsPage(
             afterFit: (scale) => {
               scale.width += 4
             },
-            ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS, callback: (v) => '$' + (Number(v) / 1000).toFixed(0) + 'k' },
+            ticks: {
+              font: { family: 'IBM Plex Mono', size: 10.5 },
+              color: AXIS,
+              callback: (v, _idx, ticks) => {
+                const stepAbs = ticks.length > 1 ? Math.abs(Number(ticks[1]!.value) - Number(ticks[0]!.value)) : 0
+                return sxaAxisMoneyLabel(Number(v), stepAbs)
+              },
+            },
             // The gridlines are drawn dotted by sxaDashedGridPlugin below instead.
             grid: { display: false },
             border: { display: false },
@@ -2115,6 +2122,26 @@ export function initAnalyticsPage(
     return niceFrac * pow10
   }
 
+  // Formats a $ axis tick, adapting precision to how far apart adjacent ticks
+  // actually are (stepAbs). Blindly dividing by 1000 and rounding to whole "k"
+  // (the old behaviour) collapses distinct ticks onto the same label whenever
+  // the step is under ~$1k — e.g. $200/$400/$600 all became "$0k"/"$1k", and a
+  // near-$100k balance range with a ~$450 spread showed "$100k" for every tick.
+  function sxaAxisMoneyLabel(raw: number, stepAbs: number): string {
+    const v = Number(raw)
+    const sign = v < 0 ? '-' : ''
+    const abs = Math.abs(v)
+    const step = Math.abs(stepAbs) || abs || 1
+    if (step < 1000) {
+      // Sub-$1k spacing — show plain dollar amounts instead of a lossy "k" label.
+      return `${sign}$${Math.round(abs).toLocaleString()}`
+    }
+    // Wide range — "k" is fine, but keep enough decimals that ticks spaced
+    // `step` apart never collapse onto an identical rounded label.
+    const decimals = step % 1000 === 0 ? 0 : step < 10000 ? 2 : 1
+    return `${sign}$${(abs / 1000).toFixed(decimals)}k`
+  }
+
   function renderTimeBarChart(trades: SxaTrade[]) {
     const buckets: SxaTrade[][] = Array.from({ length: 24 }, () => [])
     for (const t of trades) buckets[new Date(t.entryTimeMs).getUTCHours()]!.push(t)
@@ -2175,7 +2202,7 @@ export function initAnalyticsPage(
               font: { family: 'IBM Plex Mono', size: 10.5 },
               color: AXIS,
               stepSize: timeMetric === 'pnl' || isWinRate ? step : undefined,
-              callback: (v) => (timeMetric === 'pnl' ? '$' + (Number(v) / 1000).toFixed(0) + 'k' : isWinRate ? Number(v).toFixed(0) + '%' : Number(v).toFixed(1)),
+              callback: (v) => (timeMetric === 'pnl' ? sxaAxisMoneyLabel(Number(v), step) : isWinRate ? Number(v).toFixed(0) + '%' : Number(v).toFixed(1)),
             },
             grid: { color: '#d7dae1' },
             border: { display: false },
@@ -2239,7 +2266,7 @@ export function initAnalyticsPage(
               font: { family: 'IBM Plex Mono', size: 10.5 },
               color: '#4b5563',
               stepSize: dayMetric === 'pnl' || isWinRate ? step : undefined,
-              callback: (v) => (dayMetric === 'pnl' ? '$' + (Number(v) / 1000).toFixed(0) + 'k' : isWinRate ? Number(v).toFixed(0) + '%' : Number(v).toFixed(1)),
+              callback: (v) => (dayMetric === 'pnl' ? sxaAxisMoneyLabel(Number(v), step) : isWinRate ? Number(v).toFixed(0) + '%' : Number(v).toFixed(1)),
             },
             grid: { color: '#d7dae1' },
             border: { display: false },
@@ -2688,7 +2715,14 @@ export function initAnalyticsPage(
               afterFit: (scale) => {
                 scale.width += 4
               },
-              ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS, callback: (v) => '$' + (Number(v) / 1000).toFixed(0) + 'k' },
+              ticks: {
+                font: { family: 'IBM Plex Mono', size: 10.5 },
+                color: AXIS,
+                callback: (v, _idx, ticks) => {
+                  const stepAbs = ticks.length > 1 ? Math.abs(Number(ticks[1]!.value) - Number(ticks[0]!.value)) : 0
+                  return sxaAxisMoneyLabel(Number(v), stepAbs)
+                },
+              },
               grid: { color: GRID },
               border: { display: false },
             },
