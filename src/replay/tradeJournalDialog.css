@@ -1157,6 +1157,10 @@
   background: #fdedef;
 }
 
+.sx-trade-journal-dialog__reflection-cols[hidden] {
+  display: none;
+}
+
 .sx-trade-journal-dialog__reflection-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1732,21 +1736,36 @@
 /* ---------------- Read-only (dashboard Trades page) tabular view ----------------
    Same markup as the editable dialog; this just hides every add/edit affordance
    and restyles each remaining section as a compact label/value table row. */
+.sx-trade-journal-dialog--readonly [data-sx-trade-journal-nav='prev'] {
+  margin-left: auto;
+}
+
 .sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__progress-ring,
 .sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__menu-wrap,
 .sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__save-status,
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__foot,
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__media-actions,
-.sx-trade-journal-dialog--readonly input[data-sx-trade-journal-screenshot-input],
-.sx-trade-journal-dialog--readonly input[data-sx-trade-journal-screenshot-replace-input],
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__screenshot-tools,
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__screenshot-rm,
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__voice-actions,
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__voice-rm,
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__mini-add-row,
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__note-toggle,
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__tag-input-row,
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__tag-rm {
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__note-toggle {
+  display: none !important;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Add/edit affordances are hidden by default and only revealed inside the one
+   section a user has switched into edit mode via its pencil button, so the
+   rest of the read view stays clean. */
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section:not(.sx-trade-journal-dialog__section--editing) .sx-trade-journal-dialog__media-actions,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section:not(.sx-trade-journal-dialog__section--editing) .sx-trade-journal-dialog__screenshot-tools,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section:not(.sx-trade-journal-dialog__section--editing) .sx-trade-journal-dialog__screenshot-rm,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section:not(.sx-trade-journal-dialog__section--editing) .sx-trade-journal-dialog__voice-actions,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section:not(.sx-trade-journal-dialog__section--editing) .sx-trade-journal-dialog__voice-rm,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section:not(.sx-trade-journal-dialog__section--editing) .sx-trade-journal-dialog__mini-add-row,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section:not(.sx-trade-journal-dialog__section--editing) .sx-trade-journal-dialog__tag-input-row,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section:not(.sx-trade-journal-dialog__section--editing) .sx-trade-journal-dialog__tag-rm {
   display: none !important;
 }
 
@@ -1762,14 +1781,72 @@
   pointer-events: none;
 }
 
+.sx-trade-journal-dialog__na {
+  font-size: 13.5px;
+  color: #9aa1af;
+  font-style: italic;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section--editing .sx-trade-journal-dialog__na {
+  display: none;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section--editing .sx-trade-journal-dialog__reflection-cols[hidden] {
+  display: grid !important;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section--editing .sx-trade-journal-dialog__emotion-group[hidden] {
+  display: block !important;
+}
+
+.sx-trade-journal-dialog__section-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 8px;
+  border: none;
+  background: #eef0f4;
+  color: #6b7280;
+  border-radius: 50%;
+  font-size: 10.5px;
+  cursor: pointer;
+  vertical-align: middle;
+  text-transform: none;
+}
+
+.sx-trade-journal-dialog__section-edit-btn:hover {
+  background: #e2e5ec;
+  color: #1c2128;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section--editing .sx-trade-journal-dialog__reflection-chip,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section--editing .sx-trade-journal-dialog__emotion-chip {
+  display: inline-block !important;
+  pointer-events: auto;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section--editing .sx-trade-journal-dialog__star-rating,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section--editing .sx-trade-journal-dialog__tag-pill {
+  pointer-events: auto;
+}
+
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section--editing .sx-trade-journal-dialog__summary-textarea,
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section--editing .sx-trade-journal-dialog__note-area textarea {
+  border: 1px solid #d5d9e2;
+  background: #ffffff;
+  padding: 10px 12px;
+  border-radius: 8px;
+  min-height: 90px;
+  resize: vertical;
+}
+
 .sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section {
+  display: block;
   margin-top: 0;
-  padding: 14px 0;
+  padding: 16px 0;
   border-bottom: 1px solid #eceef2;
-  display: grid;
-  grid-template-columns: 160px 1fr;
-  column-gap: 20px;
-  align-items: start;
 }
 
 .sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section:last-of-type {
@@ -1777,21 +1854,18 @@
 }
 
 .sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section-label {
-  grid-column: 1;
-  font-size: 13px;
-  font-weight: 700;
-  color: #6a6e77;
-  margin-bottom: 0;
+  display: block;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  color: #535456;
+  margin-bottom: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
 }
 
 .sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section-label > .sx-trade-journal-dialog__section-hint {
   display: none;
-}
-
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__section > *:not(.sx-trade-journal-dialog__section-label) {
-  grid-column: 2;
 }
 
 .sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__summary-textarea,
@@ -1801,16 +1875,34 @@
   padding: 0;
   resize: none;
   min-height: 0;
+  width: 100%;
   color: #1c2128;
 }
 
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__note-area {
-  grid-column: 2;
-}
-
-.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__reflection-cols {
-  grid-column: 2;
+.sx-trade-journal-dialog--readonly .sx-trade-journal-dialog__reflection-cols:not([hidden]) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+/* Centered modal (instead of the docked right-half panel used by the
+   editable dialog) - the dashboard Trades page has no chart to keep visible
+   alongside it, so a normal centered card reads better there. */
+.sx-trade-journal-overlay--readonly {
+  left: 0;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+  background: rgba(15, 17, 21, 0.45);
+}
+
+.sx-trade-journal-overlay--readonly .sx-trade-journal-dialog,
+.sx-trade-journal-overlay--readonly .sx-trade-journal-alltrades {
+  width: 100%;
+  max-width: 780px;
+  height: auto;
+  max-height: 90vh;
+  border-radius: 16px;
+  border: 1px solid #e7e9ee;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
 }

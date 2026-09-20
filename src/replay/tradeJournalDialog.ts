@@ -72,7 +72,7 @@ function snapChipHtml(label: string, valueHtml: string, cls = ''): string {
 }
 
 function naValue(v: number | null | undefined): string {
-  return v == null || !Number.isFinite(v) ? '\u2014' : String(v)
+  return v == null || !Number.isFinite(v) ? 'N/A' : String(v)
 }
 
 function exitReasonLabel(reason: ClosedReplayTrade['exitReason']): string {
@@ -81,7 +81,7 @@ function exitReasonLabel(reason: ClosedReplayTrade['exitReason']): string {
   return 'Manual close'
 }
 
-const REFLECTION_OPTIONS: Record<'wentWell' | 'toImprove', string[]> = {
+export const REFLECTION_OPTIONS: Record<'wentWell' | 'toImprove', string[]> = {
   wentWell: [
     'Followed my plan',
     'Good entry timing',
@@ -104,7 +104,7 @@ const REFLECTION_OPTIONS: Record<'wentWell' | 'toImprove', string[]> = {
   ],
 }
 
-const EMOTIONS: Record<'constructive' | 'destructive' | 'neutral', string[]> = {
+export const EMOTIONS: Record<'constructive' | 'destructive' | 'neutral', string[]> = {
   constructive: ['Confident', 'Calm', 'Focused', 'Disciplined', 'Patient', 'Hopeful', 'Relief', 'Eager'],
   destructive: [
     'Greedy',
@@ -222,7 +222,7 @@ export function openTradeJournalDialog(entry: TradeJournalDialogEntry, opts?: { 
   const rMultipleText =
     typeof trade.maxRiskReward === 'number' && Number.isFinite(trade.maxRiskReward)
       ? `${trade.maxRiskReward >= 0 ? '+' : ''}${trade.maxRiskReward.toFixed(2)}R`
-      : '\u2014'
+      : 'N/A'
   const sessionLabel = sessionForHour(new Date(entryTimeMs).getUTCHours())
 
   const journal = trade.journal
@@ -311,7 +311,7 @@ export function openTradeJournalDialog(entry: TradeJournalDialogEntry, opts?: { 
 
       <div class="sx-trade-journal-dialog__section" data-sx-trade-journal-section="summary">
         <div class="sx-trade-journal-dialog__section-label">Summary <span class="sx-trade-journal-dialog__section-hint">\u2014 write about your experience with this trade</span></div>
-        <textarea class="sx-trade-journal-dialog__summary-textarea" data-sx-trade-journal-summary placeholder="What happened, how it felt, what you'd tell yourself next time...">${escapeHtml(journal?.summary ?? '')}</textarea>
+        <textarea class="sx-trade-journal-dialog__summary-textarea" data-sx-trade-journal-summary rows="1" placeholder="What happened, how it felt, what you'd tell yourself next time...">${escapeHtml(journal?.summary ?? '')}</textarea>
       </div>
 
       <div class="sx-trade-journal-dialog__section" data-sx-trade-journal-section="media">
@@ -388,7 +388,7 @@ export function openTradeJournalDialog(entry: TradeJournalDialogEntry, opts?: { 
           <i class="fa-solid fa-plus" aria-hidden="true"></i> Add a written note (optional)
         </div>
         <div class="sx-trade-journal-dialog__note-area${journal?.notes ? ' sx-trade-journal-dialog__note-area--open' : ''}" data-sx-trade-journal-note-area>
-          <textarea data-sx-trade-journal-notes placeholder="Anything the quick options above didn't capture...">${escapeHtml(journal?.notes ?? '')}</textarea>
+          <textarea data-sx-trade-journal-notes rows="1" placeholder="Anything the quick options above didn't capture...">${escapeHtml(journal?.notes ?? '')}</textarea>
         </div>
       </div>
 
@@ -447,8 +447,9 @@ export function openTradeJournalDialog(entry: TradeJournalDialogEntry, opts?: { 
 
   /* ---------------- Read-only (dashboard Trades page) view ----------------
      Renders the same markup as the editable dialog, but hides every add/edit
-     affordance and any section that was never filled in, and shows only what
-     the user actually captured during the close-trade journaling session. */
+     affordance until its section's pencil/plus is clicked. Every section
+     always shows (with "N/A" where nothing was filled in), so there's always
+     somewhere to add missing details from. */
   if (readOnly) {
     overlay.querySelector<HTMLElement>('.sx-trade-journal-dialog')?.classList.add('sx-trade-journal-dialog--readonly')
     const hasVoiceNotes = normalizeJournalVoiceNotes(journal?.voiceNotes).length > 0
@@ -461,18 +462,110 @@ export function openTradeJournalDialog(entry: TradeJournalDialogEntry, opts?: { 
       notes: !!journal?.notes?.trim(),
       tags: !!journal?.tags?.length,
     }
-    overlay.querySelectorAll<HTMLElement>('[data-sx-trade-journal-section]').forEach((sec) => {
-      const key = sec.getAttribute('data-sx-trade-journal-section') ?? ''
-      if (!sectionHasContent[key]) sec.hidden = true
-    })
-    const summaryTa = overlay.querySelector<HTMLTextAreaElement>('[data-sx-trade-journal-summary]')
-    if (summaryTa) summaryTa.readOnly = true
-    const notesTa = overlay.querySelector<HTMLTextAreaElement>('[data-sx-trade-journal-notes]')
-    if (notesTa) notesTa.readOnly = true
-    overlay.querySelector<HTMLElement>('[data-sx-trade-journal-note-toggle]')?.setAttribute('hidden', '')
-    if (sectionHasContent.notes) {
-      overlay.querySelector<HTMLElement>('[data-sx-trade-journal-note-area]')?.classList.add('sx-trade-journal-dialog__note-area--open')
+    // Sizes a view-mode textarea to fit exactly its content (1 line for
+    // "N/A"/short text, taller for longer summaries) instead of leaving it
+    // at the browser's multi-row default height.
+    const autoSizeTa = (ta: HTMLTextAreaElement) => {
+      ta.style.height = 'auto'
+      ta.style.height = `${ta.scrollHeight}px`
     }
+    const summaryTa = overlay.querySelector<HTMLTextAreaElement>('[data-sx-trade-journal-summary]')
+    if (summaryTa) {
+      summaryTa.readOnly = true
+      if (!sectionHasContent.summary) summaryTa.placeholder = 'N/A'
+      autoSizeTa(summaryTa)
+    }
+    const notesTa = overlay.querySelector<HTMLTextAreaElement>('[data-sx-trade-journal-notes]')
+    if (notesTa) {
+      notesTa.readOnly = true
+      if (!sectionHasContent.notes) notesTa.placeholder = 'N/A'
+      autoSizeTa(notesTa)
+    }
+    overlay.querySelector<HTMLElement>('[data-sx-trade-journal-note-toggle]')?.setAttribute('hidden', '')
+    overlay.querySelector<HTMLElement>('[data-sx-trade-journal-note-area]')?.classList.add('sx-trade-journal-dialog__note-area--open')
+
+    // Drop an "N/A" placeholder into any collection section that has nothing
+    // to show yet (hiding its now-empty columns/groups so it reads as a
+    // single clean line, not a stack of empty headers), so the section
+    // header never reads as broken/empty.
+    if (!sectionHasContent.reflection) {
+      overlay.querySelector<HTMLElement>('.sx-trade-journal-dialog__reflection-cols')?.setAttribute('hidden', '')
+      overlay
+        .querySelector<HTMLElement>('[data-sx-trade-journal-section="reflection"] .sx-trade-journal-dialog__section-label')
+        ?.insertAdjacentHTML('afterend', '<div class="sx-trade-journal-dialog__na">N/A</div>')
+    }
+    if (!sectionHasContent.emotions) {
+      overlay.querySelectorAll<HTMLElement>('.sx-trade-journal-dialog__emotion-group').forEach((g) => (g.hidden = true))
+      overlay
+        .querySelector<HTMLElement>('[data-sx-trade-journal-section="emotions"]')
+        ?.insertAdjacentHTML('beforeend', '<div class="sx-trade-journal-dialog__na">N/A</div>')
+    }
+    if (!sectionHasContent.media) {
+      overlay
+        .querySelector<HTMLElement>('[data-sx-trade-journal-section="media"]')
+        ?.insertAdjacentHTML('beforeend', '<div class="sx-trade-journal-dialog__na">N/A</div>')
+    }
+    if (!sectionHasContent.tags) {
+      overlay
+        .querySelector<HTMLElement>('[data-sx-trade-journal-tag-list]')
+        ?.insertAdjacentHTML('beforebegin', '<div class="sx-trade-journal-dialog__na">N/A</div>')
+    }
+
+    // Chart screenshot reads more naturally after Emotions in this compact layout.
+    const mediaSec = overlay.querySelector<HTMLElement>('[data-sx-trade-journal-section="media"]')
+    const emotionsSec = overlay.querySelector<HTMLElement>('[data-sx-trade-journal-section="emotions"]')
+    if (mediaSec && emotionsSec?.parentElement) {
+      emotionsSec.parentElement.insertBefore(mediaSec, emotionsSec.nextSibling)
+    }
+
+    // A small pencil/plus next to every section header switches just that
+    // section into its normal editable state, without exposing every
+    // add/edit control at once. Text sections get a pencil ("Edit");
+    // multi-item/collection sections (screenshots, reflection chips,
+    // emotions, tags) get a plus ("Add") - available even when empty.
+    const addStyleSections = new Set(['media', 'reflection', 'emotions', 'tags'])
+    overlay.querySelectorAll<HTMLElement>('[data-sx-trade-journal-section]').forEach((sec) => {
+      const label = sec.querySelector<HTMLElement>('.sx-trade-journal-dialog__section-label')
+      if (!label) return
+      const key = sec.getAttribute('data-sx-trade-journal-section') ?? ''
+      const isAdd = addStyleSections.has(key)
+      const editBtn = document.createElement('button')
+      editBtn.type = 'button'
+      editBtn.className = 'sx-trade-journal-dialog__section-edit-btn'
+      editBtn.setAttribute('aria-label', isAdd ? 'Add' : 'Edit')
+      editBtn.innerHTML = isAdd
+        ? '<i class="fa-solid fa-plus" aria-hidden="true"></i>'
+        : '<i class="fa-solid fa-pen" aria-hidden="true"></i>'
+      editBtn.addEventListener('click', () => {
+        const editing = sec.classList.toggle('sx-trade-journal-dialog__section--editing')
+        if (isAdd) {
+          editBtn.innerHTML = editing
+            ? '<i class="fa-solid fa-minus" aria-hidden="true"></i>'
+            : '<i class="fa-solid fa-plus" aria-hidden="true"></i>'
+          editBtn.setAttribute('aria-label', editing ? 'Done' : 'Add')
+        }
+        if (summaryTa && sec.contains(summaryTa)) {
+          summaryTa.readOnly = !editing
+          if (!sectionHasContent.summary) {
+            summaryTa.placeholder = editing ? "What happened, how it felt, what you'd tell yourself next time..." : 'N/A'
+          }
+        }
+        if (notesTa && sec.contains(notesTa)) {
+          notesTa.readOnly = !editing
+          if (!sectionHasContent.notes) {
+            notesTa.placeholder = editing ? "Anything the quick options above didn't capture..." : 'N/A'
+          }
+        }
+        if (!editing) {
+          if (summaryTa && sec.contains(summaryTa)) autoSizeTa(summaryTa)
+          if (notesTa && sec.contains(notesTa)) autoSizeTa(notesTa)
+        }
+        if (editing) {
+          ;(summaryTa && sec.contains(summaryTa) ? summaryTa : notesTa && sec.contains(notesTa) ? notesTa : null)?.focus()
+        }
+      })
+      label.appendChild(editBtn)
+    })
   }
 
   /* ---------------- Screenshots ---------------- */
@@ -1020,19 +1113,6 @@ export function openTradeJournalDialog(entry: TradeJournalDialogEntry, opts?: { 
     })
   }
   renderEmotions()
-
-  if (readOnly) {
-    // Chips for unselected options are hidden via CSS, but their group/column
-    // wrappers still exist - collapse any group that ended up with nothing shown.
-    overlay.querySelectorAll<HTMLElement>('.sx-trade-journal-dialog__emotion-group').forEach((group) => {
-      if (!group.querySelector('.sx-trade-journal-dialog__emotion-chip--selected')) group.hidden = true
-    })
-    overlay.querySelectorAll<HTMLElement>('[data-sx-trade-journal-reflection-wrap]').forEach((wrap) => {
-      if (!wrap.querySelector('.sx-trade-journal-dialog__reflection-chip--selected')) {
-        wrap.parentElement?.setAttribute('hidden', '')
-      }
-    })
-  }
 
   /* ---------------- Star rating ---------------- */
   const stars = overlay.querySelectorAll<SVGElement>('.sx-trade-journal-dialog__star')
