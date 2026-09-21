@@ -367,6 +367,7 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
             <strong>${sub?.currentPeriodEnd ? date(sub.currentPeriodEnd) : tier === 'free' ? 'Free' : '\u2014'}</strong>
           </div>
         </div>
+        <i class="fa-brands fa-cc-mastercard sx-billing-plan__scheme" aria-hidden="true" title="Dummy card design"></i>
       </article>
 
       <article class="sx-billing-summary">

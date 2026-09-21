@@ -191,6 +191,15 @@
   text-align: right;
 }
 
+.sx-billing-plan__scheme {
+  position: absolute;
+  right: 1.2rem;
+  bottom: 1rem;
+  font-size: 1.9rem;
+  color: rgba(255, 255, 255, 0.92);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+}
+
 .sx-billing-summary {
   display: flex;
   min-height: 12.5rem;
@@ -232,8 +241,14 @@
 }
 
 .sx-billing-invoices {
-  grid-row: span 2;
+  display: flex;
+  min-height: 12.5rem;
+  flex-direction: column;
   padding: 1rem;
+}
+
+.sx-billing-invoices > div {
+  overflow-y: auto;
 }
 
 .sx-billing-invoices h2,
