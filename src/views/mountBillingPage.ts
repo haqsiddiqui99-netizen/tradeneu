@@ -347,7 +347,8 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
     const sub: BillingSubscription | null = billing.subscription
     const latest = billing.transactions[0]
     const cycle = sub?.cycle ? sub.cycle[0].toUpperCase() + sub.cycle.slice(1) : 'No billing cycle'
-    content.innerHTML = `<div class="sx-billing__top-grid">
+    content.innerHTML = `<div class="sx-billing__hero">
+    <div class="sx-billing__top-grid">
       <article class="sx-billing-plan">
         <div class="sx-billing-plan__top">
           <div class="sx-billing-plan__brand">
@@ -390,7 +391,7 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
       </aside>
     </div>
 
-    <section class="sx-billing-card">
+    <section class="sx-billing-card sx-billing-card--flat">
       <header class="sx-billing-card__head">
         <div><h2>Payment Method</h2><p>Saved cards for your own reference \u2014 kept on this device only.</p></div>
         <button type="button" class="sx-billing__btn sx-billing__btn--dark" data-billing-action="add-card">
@@ -399,6 +400,7 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
       </header>
       <div class="sx-billing-cards" data-billing-cards>${cardRows(cards)}</div>
     </section>
+    </div>
 
     <div class="sx-billing__lower-grid">
       <section class="sx-billing-card">
