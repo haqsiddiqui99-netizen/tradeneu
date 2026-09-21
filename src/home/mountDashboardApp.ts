@@ -1735,7 +1735,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                         <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"><input type="checkbox" data-sx-trades-select-all class="sxt-row-check" aria-label="Select all trades" /></th>
                         <th class="sxt-sticky-col sxt-col-action" data-sxt-col="action">Action</th>
                         <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
-                        <th data-sxt-col="tradeNum">Trade #</th>
+                        <th data-sxt-col="tradeNum">${sxSortHeaderHtml('tradeNum', 'Trade #')}</th>
                         <th draggable="true" data-sxt-col="side">Side</th>
                         <th draggable="true" class="sxt-group-divide" data-sxt-col="session">Session</th>
                         <th draggable="true" data-sxt-col="type">Type</th>
@@ -1769,7 +1769,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                         <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"></th>
                         <th class="sxt-sticky-col sxt-col-action" data-sxt-col="action">Action</th>
                         <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
-                        <th data-sxt-col="tradeNum">Trade #</th>
+                        <th data-sxt-col="tradeNum">${sxSortHeaderHtml('tradeNum', 'Trade #')}</th>
                         <th draggable="true" data-sxt-col="side">Side</th>
                         <th draggable="true" class="sxt-group-divide" data-sxt-col="session">Session</th>
                         <th draggable="true" data-sxt-col="type">Type</th>
@@ -2761,7 +2761,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     sxSyncTradesHeaderCloneWidths()
   }
 
-  type SxTradeSortKey = 'entryTime' | 'entryRealTime' | 'exitTime' | 'pnl' | 'entryPrice' | 'exitPrice'
+  type SxTradeSortKey = 'tradeNum' | 'entryTime' | 'entryRealTime' | 'exitTime' | 'pnl' | 'entryPrice' | 'exitPrice'
   let sxTradesSortKey: SxTradeSortKey = 'exitTime'
   let sxTradesSortDir: 'asc' | 'desc' = 'desc'
   let sxTradesHighlightKey: string | null = null
@@ -3503,7 +3503,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const filtered = sxApplyTradesFilters(allRows)
     const searched = sxTradesSearchFilter(filtered)
     const dir = sxTradesSortDir === 'asc' ? 1 : -1
-    searched.sort((a, b) => (a[sxTradesSortKey] - b[sxTradesSortKey]) * dir)
+    if (sxTradesSortKey === 'tradeNum') {
+      // The visible "Trade #" pill (T1, T2, ...) comes from sxTradesTNumberByKey
+      // (chronological equity-curve order), not the raw per-session tradeNum
+      // field, so sort by that same lookup to match what's on screen.
+      searched.sort((a, b) => {
+        const an = sxTradesTNumberByKey.get(a.key) ?? 0
+        const bn = sxTradesTNumberByKey.get(b.key) ?? 0
+        return (an - bn) * dir
+      })
+    } else {
+      searched.sort((a, b) => (a[sxTradesSortKey] - b[sxTradesSortKey]) * dir)
+    }
     return searched
   }
 

@@ -5246,7 +5246,7 @@ a.sx-dash-account__item {
   right: 0;
   bottom: 2.5rem;
   left: auto;
-  width: min(24rem, 92vw);
+  width: min(22rem, 92vw);
   max-height: none;
   display: flex;
   flex-direction: column;

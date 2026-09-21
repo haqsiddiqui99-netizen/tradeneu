@@ -1,0 +1,784 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+/**
+ * src/strategy/manualStrategyBuilder.css
+ *
+ * Scoped port of the "manual strategy builder" design supplied by the user.
+ * Everything that was originally on :root / html / body / * is scoped under
+ * .sx-manual-strat so it can't leak into the rest of the dashboard, since the
+ * source design uses very generic class names (.btn, .sel, .rule, .chip, ...).
+ */
+/* Light theme (default — matches #sx-app-root[data-dashboard-theme='light']). */
+.sx-manual-strat {
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --raise: #f1f5f9;
+  --raise2: #e6ebf1;
+  --line: #e2e8f0;
+  --line2: #cbd5e1;
+  --tx: #0f172a;
+  --dim: #64748b;
+  --dimmer: #94a3b8;
+  --gold: #b7791f;
+  --gold-soft: rgba(183, 121, 31, 0.12);
+  --long: #15803d;
+  --short: #dc2626;
+  --warn: #b45309;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  color-scheme: light;
+  display: block;
+  height: 100%;
+  min-height: 42rem;
+  margin: 0;
+  border-radius: 1rem;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--tx);
+  font: 400 14px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dark theme — matches #sx-app-root[data-dashboard-theme='dark']. */
+#sx-app-root[data-dashboard-theme='dark'] .sx-manual-strat {
+  --bg: #0f151c;
+  --panel: #151d26;
+  --raise: #1d2733;
+  --raise2: #232f3d;
+  --line: #26333f;
+  --line2: #33434f;
+  --tx: #e4eaf0;
+  --dim: #8a9aab;
+  --dimmer: #5f7080;
+  --gold: #e0a94a;
+  --gold-soft: rgba(224, 169, 74, 0.13);
+  --long: #3fbf8f;
+  --short: #e5615e;
+  --warn: #d9a441;
+  color-scheme: dark;
+}
+
+.sx-manual-strat,
+.sx-manual-strat *,
+.sx-manual-strat *::before,
+.sx-manual-strat *::after {
+  box-sizing: border-box;
+}
+
+.sx-manual-strat button,
+.sx-manual-strat input,
+.sx-manual-strat select,
+.sx-manual-strat textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.sx-manual-strat :focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sx-manual-strat * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ---------- shell ---------- */
+.sx-manual-strat .app {
+  display: flex;
+  flex-direction: column;
+  min-height: 42rem;
+  height: 100%;
+}
+.sx-manual-strat .topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  height: 56px;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+.sx-manual-strat .backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: 0;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 4px;
+}
+.sx-manual-strat .backLink:hover {
+  color: var(--tx);
+}
+.sx-manual-strat .brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.sx-manual-strat .brand .mark {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--gold);
+  box-shadow: inset 0 0 0 3px var(--panel);
+}
+.sx-manual-strat .crumb {
+  color: var(--dimmer);
+  margin: 0 2px;
+}
+.sx-manual-strat .nameField {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  min-width: 170px;
+  max-width: 34vw;
+}
+.sx-manual-strat .nameField:hover {
+  border-color: var(--line2);
+}
+.sx-manual-strat .nameField:focus {
+  border-color: var(--gold);
+  background: var(--raise);
+  outline: none;
+}
+.sx-manual-strat .forked {
+  font-size: 11.5px;
+  color: var(--gold);
+  background: var(--gold-soft);
+  padding: 3px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.sx-manual-strat .spacer {
+  flex: 1;
+}
+
+/* ---------- controls ---------- */
+.sx-manual-strat .btn {
+  background: var(--raise);
+  border: 1px solid var(--line2);
+  border-radius: 7px;
+  padding: 7px 13px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: background 0.12s, border-color 0.12s;
+}
+.sx-manual-strat .btn:hover {
+  background: var(--raise2);
+}
+.sx-manual-strat .btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--dim);
+}
+.sx-manual-strat .btn-ghost:hover {
+  background: var(--raise);
+  color: var(--tx);
+}
+.sx-manual-strat .btn-primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #17120a;
+  font-weight: 600;
+}
+.sx-manual-strat .btn-primary:hover {
+  background: #ebb758;
+  border-color: #ebb758;
+}
+.sx-manual-strat .btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.sx-manual-strat .sel,
+.sx-manual-strat .num,
+.sx-manual-strat .txt {
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-size: 13.5px;
+}
+.sx-manual-strat .sel {
+  appearance: none;
+  padding-right: 26px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--dim) 50%),
+    linear-gradient(135deg, var(--dim) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.sx-manual-strat .sel:hover,
+.sx-manual-strat .num:hover,
+.sx-manual-strat .txt:hover {
+  border-color: var(--line2);
+}
+.sx-manual-strat .sel:focus,
+.sx-manual-strat .num:focus,
+.sx-manual-strat .txt:focus {
+  border-color: var(--gold);
+  outline: none;
+}
+.sx-manual-strat .num {
+  width: 60px;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.sx-manual-strat .seg {
+  display: inline-flex;
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 2px;
+}
+.sx-manual-strat .seg button {
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  padding: 5px 12px;
+  cursor: pointer;
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 500;
+}
+.sx-manual-strat .seg button[aria-pressed='true'] {
+  background: var(--raise2);
+  color: var(--tx);
+}
+.sx-manual-strat .seg button[data-dir='long'][aria-pressed='true'] {
+  color: var(--long);
+}
+.sx-manual-strat .seg button[data-dir='short'][aria-pressed='true'] {
+  color: var(--short);
+}
+
+/* ---------- context bar ---------- */
+.sx-manual-strat .context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 11px 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.sx-manual-strat .ctxItem {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.sx-manual-strat .ctxItem span {
+  font-size: 12px;
+  color: var(--dimmer);
+}
+.sx-manual-strat .ctxItem .sel,
+.sx-manual-strat .ctxItem .txt {
+  padding: 5px 9px;
+  font-size: 13px;
+}
+.sx-manual-strat .ticker {
+  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  width: 104px;
+  text-transform: uppercase;
+}
+.sx-manual-strat .bars {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--dim);
+}
+.sx-manual-strat .bars b {
+  color: var(--tx);
+  font-weight: 500;
+}
+
+/* ---------- rail bar (templates + saved strategies, top strip) ---------- */
+.sx-manual-strat .railBar {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  flex: 0 0 auto;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.sx-manual-strat .railGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.sx-manual-strat .railGroup--mine {
+  min-width: 0;
+}
+.sx-manual-strat .railDiv {
+  width: 1px;
+  flex: 0 0 auto;
+  align-self: stretch;
+  background: var(--line);
+  margin: 2px 0;
+}
+.sx-manual-strat .railHead {
+  font-size: 11px;
+  color: var(--dimmer);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.sx-manual-strat .railList {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.sx-manual-strat .tpl {
+  flex: 0 0 auto;
+  text-align: left;
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sx-manual-strat .tpl:hover {
+  background: var(--raise2);
+}
+.sx-manual-strat .tpl[aria-current='true'] {
+  background: var(--gold-soft);
+  border-color: var(--gold);
+}
+.sx-manual-strat .tpl b {
+  display: block;
+  font-weight: 500;
+  font-size: 13px;
+}
+.sx-manual-strat .tpl em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--dimmer);
+  margin-top: 1px;
+  font-family: var(--mono);
+}
+.sx-manual-strat .tpl[aria-current='true'] em {
+  color: var(--gold);
+}
+.sx-manual-strat .railBar .empty {
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--dimmer);
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+/* ---------- body grid ---------- */
+.sx-manual-strat .main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  flex: 1;
+  min-height: 0;
+}
+.sx-manual-strat .canvas {
+  padding: 22px 24px 120px;
+  overflow-y: auto;
+  min-width: 0;
+}
+.sx-manual-strat .reader {
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  padding: 20px 18px 40px;
+  overflow-y: auto;
+}
+
+/* ---------- blocks ---------- */
+.sx-manual-strat .block {
+  margin-bottom: 26px;
+}
+.sx-manual-strat .blockHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.sx-manual-strat .kw {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  color: var(--gold);
+}
+.sx-manual-strat .blockHead h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.sx-manual-strat .blockHead p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--dimmer);
+}
+.sx-manual-strat .joinPick {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+.sx-manual-strat .rules {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.sx-manual-strat .rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  flex-wrap: wrap;
+}
+.sx-manual-strat .rule + .rule {
+  border-top: 1px solid var(--line);
+}
+.sx-manual-strat .joinTag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--dimmer);
+  width: 30px;
+  flex: 0 0 30px;
+  text-align: right;
+}
+.sx-manual-strat .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 2px;
+}
+.sx-manual-strat .chip .sel {
+  border: 0;
+  background: transparent;
+  padding: 4px 24px 4px 7px;
+  font-weight: 500;
+}
+.sx-manual-strat .chip .num {
+  border: 0;
+  background: var(--raise2);
+  width: 44px;
+  padding: 4px 6px;
+  border-radius: 5px;
+}
+.sx-manual-strat .chip .paren {
+  color: var(--dimmer);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.sx-manual-strat .chip:focus-within {
+  border-color: var(--gold);
+}
+.sx-manual-strat .op {
+  color: var(--dim);
+  font-size: 13px;
+}
+.sx-manual-strat .del {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  color: var(--dimmer);
+  cursor: pointer;
+  padding: 5px 7px;
+  border-radius: 6px;
+  line-height: 1;
+  font-size: 15px;
+}
+.sx-manual-strat .del:hover {
+  background: var(--raise);
+  color: var(--short);
+}
+.sx-manual-strat .ruleFoot {
+  border-top: 1px solid var(--line);
+  padding: 8px 12px;
+  display: flex;
+  gap: 6px;
+}
+.sx-manual-strat .addLink {
+  background: transparent;
+  border: 0;
+  color: var(--gold);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 6px;
+  border-radius: 5px;
+}
+.sx-manual-strat .addLink:hover {
+  background: var(--gold-soft);
+}
+
+/* ---------- position / risk ---------- */
+.sx-manual-strat .posGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.sx-manual-strat .field {
+  background: var(--panel);
+  padding: 12px 13px;
+}
+.sx-manual-strat .field label {
+  display: block;
+  font-size: 12px;
+  color: var(--dimmer);
+  margin-bottom: 7px;
+}
+.sx-manual-strat .field .row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.sx-manual-strat .field .sel {
+  flex: 1;
+  min-width: 0;
+}
+.sx-manual-strat .field .hint {
+  margin-top: 7px;
+  font-size: 11.5px;
+  color: var(--dimmer);
+  font-family: var(--mono);
+}
+
+/* ---------- reader ---------- */
+.sx-manual-strat .readerHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.sx-manual-strat .readerHead h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dim);
+}
+.sx-manual-strat .prose {
+  border-left: 2px solid var(--gold);
+  padding: 2px 0 2px 14px;
+  font-size: 15.5px;
+  line-height: 1.62;
+  letter-spacing: -0.003em;
+}
+.sx-manual-strat .prose p {
+  margin: 0 0 10px;
+}
+.sx-manual-strat .prose p:last-child {
+  margin-bottom: 0;
+}
+.sx-manual-strat .prose .v {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--gold);
+}
+.sx-manual-strat .prose .long {
+  color: var(--long);
+}
+.sx-manual-strat .prose .short {
+  color: var(--short);
+}
+.sx-manual-strat .prose.flash {
+  animation: sx-manual-strat-flash 0.5s ease;
+}
+@keyframes sx-manual-strat-flash {
+  from {
+    background: var(--gold-soft);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.sx-manual-strat .checks {
+  margin-top: 24px;
+}
+.sx-manual-strat .check {
+  display: flex;
+  gap: 9px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.sx-manual-strat .check i {
+  font-style: normal;
+  flex: 0 0 auto;
+  line-height: 1.4;
+}
+.sx-manual-strat .check.ok i {
+  color: var(--long);
+}
+.sx-manual-strat .check.warn i {
+  color: var(--warn);
+}
+.sx-manual-strat .check.bad i {
+  color: var(--short);
+}
+.sx-manual-strat .check span {
+  color: var(--dim);
+}
+.sx-manual-strat .check b {
+  color: var(--tx);
+  font-weight: 500;
+}
+
+.sx-manual-strat .jsonWrap {
+  margin-top: 24px;
+}
+.sx-manual-strat .jsonToggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+  cursor: pointer;
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 500;
+}
+.sx-manual-strat .jsonToggle:hover {
+  color: var(--tx);
+}
+.sx-manual-strat pre.json {
+  margin: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--dim);
+  overflow-x: auto;
+  max-height: 300px;
+}
+.sx-manual-strat pre.json .k {
+  color: var(--tx);
+}
+.sx-manual-strat pre.json .n {
+  color: var(--gold);
+}
+
+/* ---------- action bar ---------- */
+.sx-manual-strat .actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  background: linear-gradient(to top, var(--bg) 62%, rgba(15, 21, 28, 0));
+  grid-column: 1;
+}
+.sx-manual-strat .actions .est {
+  font-size: 12.5px;
+  color: var(--dimmer);
+  font-family: var(--mono);
+}
+.sx-manual-strat .actionsInner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 1180px) {
+  .sx-manual-strat .main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sx-manual-strat .reader {
+    grid-column: 1 / -1;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .sx-manual-strat .actions {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 760px) {
+  .sx-manual-strat .railBar {
+    padding: 8px 12px;
+    gap: 10px;
+  }
+  .sx-manual-strat .railHead span {
+    display: none;
+  }
+  .sx-manual-strat .empty {
+    display: none;
+  }
+  .sx-manual-strat .canvas {
+    padding: 18px 14px 100px;
+  }
+  .sx-manual-strat .topbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .sx-manual-strat .brand span:last-child,
+  .sx-manual-strat .crumb {
+    display: none;
+  }
+  .sx-manual-strat .nameField {
+    max-width: none;
+    flex: 1;
+  }
+  .sx-manual-strat .rule {
+    gap: 6px;
+  }
+  .sx-manual-strat .joinTag {
+    display: none;
+  }
+}

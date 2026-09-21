@@ -12,6 +12,8 @@ type BillingAddress = {
   name: string
   company: string
   email: string
+  mobile: string
+  address: string
   taxId: string
 }
 
@@ -210,9 +212,8 @@ function addressHtml(address: BillingAddress | null, fallbackEmail: string): str
       <span class="sx-billing__empty-icon"><i class="fa-regular fa-address-card" aria-hidden="true"></i></span>
       <div>
         <strong>No billing information saved</strong>
-        <p>Add a billing name, company, email, and tax ID for your records.</p>
+        <p>Add your name, email, mobile number, address, and GST number for your records.</p>
       </div>
-      <button type="button" class="sx-billing__text-btn" data-billing-action="edit-address">Add details</button>
     </div>`
   }
   return `<article class="sx-billing-address">
@@ -220,7 +221,9 @@ function addressHtml(address: BillingAddress | null, fallbackEmail: string): str
       <strong>${escapeHtml(address.name)}</strong>
       ${address.company ? `<p><span>Company</span>${escapeHtml(address.company)}</p>` : ''}
       <p><span>Email</span>${escapeHtml(address.email || fallbackEmail)}</p>
-      ${address.taxId ? `<p><span>Tax ID</span>${escapeHtml(address.taxId)}</p>` : ''}
+      ${address.mobile ? `<p><span>Mobile</span>${escapeHtml(address.mobile)}</p>` : ''}
+      ${address.address ? `<p><span>Address</span>${escapeHtml(address.address)}</p>` : ''}
+      ${address.taxId ? `<p><span>GST No.</span>${escapeHtml(address.taxId)}</p>` : ''}
     </div>
     <div class="sx-billing-address__actions">
       <button type="button" data-billing-action="delete-address"><i class="fa-regular fa-trash-can" aria-hidden="true"></i> Delete</button>
@@ -288,10 +291,12 @@ function addressDialogHtml(address: BillingAddress | null, auth: AuthUser | null
         </div>
         <button type="button" class="sx-billing-dialog__x" data-billing-action="close-address" aria-label="Close">&times;</button>
       </header>
-      <label>Billing name<input name="name" required maxlength="80" value="${escapeHtml(address?.name ?? auth?.name ?? '')}" /></label>
+      <label>Full name<input name="name" required maxlength="80" value="${escapeHtml(address?.name ?? auth?.name ?? '')}" /></label>
       <label>Company name<input name="company" maxlength="100" value="${escapeHtml(address?.company ?? '')}" /></label>
       <label>Billing email<input name="email" type="email" required maxlength="120" value="${escapeHtml(address?.email ?? auth?.email ?? '')}" /></label>
-      <label>Tax / VAT number<input name="taxId" maxlength="40" value="${escapeHtml(address?.taxId ?? '')}" /></label>
+      <label>Mobile number<input name="mobile" type="tel" maxlength="20" value="${escapeHtml(address?.mobile ?? '')}" /></label>
+      <label>Address<textarea name="address" rows="2" maxlength="240">${escapeHtml(address?.address ?? '')}</textarea></label>
+      <label>GST No. / Tax ID<input name="taxId" maxlength="40" value="${escapeHtml(address?.taxId ?? '')}" /></label>
       <footer>
         <button type="button" class="sx-billing__btn sx-billing__btn--ghost" data-billing-action="close-address">Cancel</button>
         <button type="submit" class="sx-billing__btn sx-billing__btn--dark">Save information</button>
@@ -388,23 +393,23 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
         <header><h2>Invoices</h2><button type="button" data-billing-action="view-all">View all</button></header>
         <div>${invoiceRows(billing.transactions)}</div>
       </aside>
-    </div>
 
-    <section class="sx-billing-card">
-      <header class="sx-billing-card__head">
-        <div><h2>Payment Method</h2><p>Saved cards for your own reference \u2014 kept on this device only.</p></div>
-        <button type="button" class="sx-billing__btn sx-billing__btn--dark" data-billing-action="add-card">
-          <i class="fa-solid fa-plus" aria-hidden="true"></i> Add New Card
-        </button>
-      </header>
-      <div class="sx-billing-cards" data-billing-cards>${cardRows(cards)}</div>
-    </section>
+      <section class="sx-billing-card sx-billing-card--payment">
+        <header class="sx-billing-card__head">
+          <div><h2>Payment Method</h2><p>Saved cards for your own reference \u2014 kept on this device only.</p></div>
+          <button type="button" class="sx-billing__btn sx-billing__btn--dark" data-billing-action="add-card">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i> Add New Card
+          </button>
+        </header>
+        <div class="sx-billing-cards" data-billing-cards>${cardRows(cards)}</div>
+      </section>
+    </div>
 
     <div class="sx-billing__lower-grid">
       <section class="sx-billing-card">
         <header class="sx-billing-card__head">
           <div><h2>Billing Information</h2><p>Details used on your printable invoices.</p></div>
-          ${address ? '<button type="button" class="sx-billing__text-btn" data-billing-action="edit-address"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit</button>' : ''}
+          <button type="button" class="sx-billing__text-btn" data-billing-action="edit-address"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add</button>
         </header>
         <div data-billing-address>${addressHtml(address, email)}</div>
       </section>
@@ -477,6 +482,8 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
         name: String(data.get('name') ?? '').trim(),
         company: String(data.get('company') ?? '').trim(),
         email: String(data.get('email') ?? '').trim(),
+        mobile: String(data.get('mobile') ?? '').trim(),
+        address: String(data.get('address') ?? '').trim(),
         taxId: String(data.get('taxId') ?? '').trim(),
       }
       writeAddress(email, address)
