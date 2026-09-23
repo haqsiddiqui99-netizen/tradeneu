@@ -176,6 +176,17 @@ const BRAND = '#3652f6'
 const GRID = '#f0f1f4'
 const AXIS = '#6b7280'
 
+// Chart.js draws tick labels straight onto <canvas>, so they can't pick up CSS colors
+// automatically the way DOM text does. This reads the Analytics page's own text-color
+// token (`--sxa-ink-800`, which already flips between dark and light values based on
+// `#sx-app-root[data-dashboard-theme]`) so axis labels stay legible in both themes,
+// matching the rest of the dashboard's text color.
+function sxaAxisLabelColor(root: HTMLElement): string {
+  const host = root.querySelector('.sxa-analytics') ?? root
+  const v = getComputedStyle(host).getPropertyValue('--sxa-ink-800').trim()
+  return v || AXIS
+}
+
 // Chart.js v4 doesn't support dashing the actual y-axis gridlines out of the box (only the
 // axis border / tick marks). This tiny plugin draws them manually so we can render dotted
 // horizontal gridlines while leaving Chart.js's own grid disabled (y.grid.display: false).
@@ -1417,6 +1428,7 @@ export function initAnalyticsPage(
   }
 
   function renderPnlChart(trades: SxaTrade[]) {
+    const axisColor = sxaAxisLabelColor(root)
     destroyChart('pnl')
     const canvas = root.querySelector<HTMLCanvasElement>('[data-sxa-pnl-canvas]')
     const tooltipPanel = root.querySelector<HTMLElement>('[data-sxa-pnl-tooltip]')
@@ -1535,7 +1547,7 @@ export function initAnalyticsPage(
             },
             ticks: {
               font: { family: 'IBM Plex Mono', size: 10.5 },
-              color: AXIS,
+              color: axisColor,
               callback: (v, _idx, ticks) => {
                 const stepAbs = ticks.length > 1 ? Math.abs(Number(ticks[1]!.value) - Number(ticks[0]!.value)) : 0
                 return sxaAxisMoneyLabel(Number(v), stepAbs)
@@ -1546,7 +1558,7 @@ export function initAnalyticsPage(
             border: { display: false },
           },
           x: {
-            ticks: { font: { size: 10 }, color: AXIS, maxTicksLimit: 10, maxRotation: 0 },
+            ticks: { font: { size: 10 }, color: axisColor, maxTicksLimit: 10, maxRotation: 0 },
             grid: { display: false },
             border: { display: false },
           },
@@ -2143,6 +2155,7 @@ export function initAnalyticsPage(
   }
 
   function renderTimeBarChart(trades: SxaTrade[]) {
+    const axisColor = sxaAxisLabelColor(root)
     const buckets: SxaTrade[][] = Array.from({ length: 24 }, () => [])
     for (const t of trades) buckets[new Date(t.entryTimeMs).getUTCHours()]!.push(t)
     const values = buckets.map((list) => computeHourMetric(list, timeMetric))
@@ -2200,20 +2213,27 @@ export function initAnalyticsPage(
             },
             ticks: {
               font: { family: 'IBM Plex Mono', size: 10.5 },
-              color: AXIS,
+              color: axisColor,
               stepSize: timeMetric === 'pnl' || isWinRate ? step : undefined,
               callback: (v) => (timeMetric === 'pnl' ? sxaAxisMoneyLabel(Number(v), step) : isWinRate ? Number(v).toFixed(0) + '%' : Number(v).toFixed(1)),
             },
-            grid: { color: '#d7dae1' },
-            border: { display: false },
+            // The zero line doubles as the chart's x-axis (bars grow up/down from it), so
+            // it stays solid; every other horizontal gridline is dotted for less visual noise.
+            // Chart.js draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+            grid: {
+              color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+              lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+            },
+            border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
           },
-          x: { ticks: { font: { size: 9 }, color: AXIS, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false }, border: { display: false } },
+          x: { ticks: { font: { size: 9 }, color: axisColor, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false }, border: { display: false } },
         },
       },
     })
   }
 
   function renderDayBarChart(trades: SxaTrade[]) {
+    const axisColor = sxaAxisLabelColor(root)
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     const dayBuckets = days.map((_, i) => trades.filter((t) => new Date(t.entryTimeMs).getUTCDay() === i))
     const totals = dayBuckets.map((list) => computeHourMetric(list, dayMetric))
@@ -2264,14 +2284,20 @@ export function initAnalyticsPage(
             },
             ticks: {
               font: { family: 'IBM Plex Mono', size: 10.5 },
-              color: '#4b5563',
+              color: axisColor,
               stepSize: dayMetric === 'pnl' || isWinRate ? step : undefined,
               callback: (v) => (dayMetric === 'pnl' ? sxaAxisMoneyLabel(Number(v), step) : isWinRate ? Number(v).toFixed(0) + '%' : Number(v).toFixed(1)),
             },
-            grid: { color: '#d7dae1' },
-            border: { display: false },
+            // The zero line doubles as the chart's x-axis (bars grow up/down from it), so
+            // it stays solid; every other horizontal gridline is dotted for less visual noise.
+            // Chart.js draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+            grid: {
+              color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+              lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+            },
+            border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
           },
-          x: { ticks: { font: { size: 12 }, color: '#4b5563' }, grid: { display: false }, border: { display: false } },
+          x: { ticks: { font: { size: 12 }, color: axisColor }, grid: { display: false }, border: { display: false } },
         },
       },
     })

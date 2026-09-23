@@ -97,6 +97,15 @@ const SX_EQUITY_GAIN = '#4caf50'
 const SX_EQUITY_LOSS = '#e5484d'
 const SX_EQUITY_ZERO = '#9aa1ac'
 
+// Chart.js draws axis tick labels straight onto <canvas>, so they can't pick up CSS colors
+// automatically the way DOM text does. This mirrors `.sx-dash-graph__title`'s own color
+// tokens (`#475467` light / `#a1a1aa` dark, see dashboardTheme.css) so the "Time Invested",
+// "Equity Curve", "Win Rate" and "Trades by symbol" chart axes stay legible in both themes.
+function sxDashAxisLabelColor(): string {
+  const dark = document.getElementById('sx-app-root')?.getAttribute('data-dashboard-theme') === 'dark'
+  return dark ? '#a1a1aa' : '#475467'
+}
+
 function sxEquityPointColor(values: (number | null)[], idx: number): string {
   const v = values[idx]
   if (typeof v !== 'number') return SX_EQUITY_GAIN
@@ -138,6 +147,7 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
     return Math.round(n).toLocaleString()
   }
 
+  const axisColor = sxDashAxisLabelColor()
   let chart = sxEquityChartRegistry.get(canvas)
   if (!chart) {
     const parent = canvas.parentElement
@@ -176,13 +186,13 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
           y: {
             min: suggestedMin,
             suggestedMax,
-            ticks: { stepSize: (suggestedMax - suggestedMin) / 4, color: '#475467', callback: tickCallback },
+            ticks: { stepSize: (suggestedMax - suggestedMin) / 4, color: axisColor, callback: tickCallback },
             grid: { color: '#eeeeee' },
             border: { display: false },
           },
           x: {
             grid: { display: false },
-            ticks: { color: '#475467' },
+            ticks: { color: axisColor },
             border: { display: false },
           },
         },
@@ -202,7 +212,7 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
     const yScale = chart.options.scales?.y as {
       min?: number
       suggestedMax?: number
-      ticks?: { stepSize?: number; callback?: (v: number | string) => string }
+      ticks?: { stepSize?: number; callback?: (v: number | string) => string; color?: string }
     }
     if (yScale) {
       yScale.min = suggestedMin
@@ -210,8 +220,11 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
       if (yScale.ticks) {
         yScale.ticks.stepSize = (suggestedMax - suggestedMin) / 4
         yScale.ticks.callback = tickCallback
+        yScale.ticks.color = axisColor
       }
     }
+    const xScale = chart.options.scales?.x as { ticks?: { color?: string } }
+    if (xScale?.ticks) xScale.ticks.color = axisColor
   }
   ;(chart as Chart & { $sxFullLabels?: string[] }).$sxFullLabels = equity.monthLabels
   chart.update()
@@ -254,6 +267,7 @@ function syncActivityBarChart(
   const rawMax = Math.max(floorHours, sxNiceCeilStep(maxVal * 1.15))
   const stepSize = sxNiceHourStep(rawMax)
   const suggestedMax = Math.ceil(rawMax / stepSize) * stepSize
+  const axisColor = sxDashAxisLabelColor()
 
   let chart = sxActivityChartRegistry.get(canvas)
   if (!chart) {
@@ -295,7 +309,7 @@ function syncActivityBarChart(
             suggestedMax,
             ticks: {
               stepSize,
-              color: '#475467',
+              color: axisColor,
               callback: (value) => sxFormatDurationHours(Number(value)),
             },
             grid: { color: '#eeeeee' },
@@ -303,7 +317,7 @@ function syncActivityBarChart(
           },
           x: {
             grid: { display: false },
-            ticks: { color: '#475467', font: { weight: '500' } },
+            ticks: { color: axisColor, font: { weight: '500' } },
             border: { display: false },
           },
         },
@@ -316,11 +330,16 @@ function syncActivityBarChart(
     chart.data.labels = labels
     chart.data.datasets[0]!.data = hours
     ;(chart as Chart & { $sxFullLabels?: string[] }).$sxFullLabels = fullLabels
-    const yScale = chart.options.scales?.y as { suggestedMax?: number; ticks?: { stepSize?: number } }
+    const yScale = chart.options.scales?.y as { suggestedMax?: number; ticks?: { stepSize?: number; color?: string } }
     if (yScale) {
       yScale.suggestedMax = suggestedMax
-      if (yScale.ticks) yScale.ticks.stepSize = stepSize
+      if (yScale.ticks) {
+        yScale.ticks.stepSize = stepSize
+        yScale.ticks.color = axisColor
+      }
     }
+    const xScale = chart.options.scales?.x as { ticks?: { color?: string } }
+    if (xScale?.ticks) xScale.ticks.color = axisColor
   }
   chart.update()
 }
@@ -340,6 +359,7 @@ function syncSymbolsBarChart(
   // like 12.5 / 37.5.
   const stepSize = Math.max(1, Math.round(sxNiceCeilStep(Math.max(1, maxVal / 4))))
   const suggestedMax = stepSize * 4
+  const axisColor = sxDashAxisLabelColor()
 
   let chart = sxSymbolsChartRegistry.get(canvas)
   if (!chart) {
@@ -394,14 +414,14 @@ function syncSymbolsBarChart(
             stacked: true,
             min: 0,
             suggestedMax,
-            ticks: { stepSize, precision: 0, color: '#475467' },
+            ticks: { stepSize, precision: 0, color: axisColor },
             grid: { color: '#eeeeee' },
             border: { display: false },
           },
           y: {
             stacked: true,
             grid: { display: false },
-            ticks: { color: '#475467', font: { size: 12 } },
+            ticks: { color: axisColor, font: { size: 12 } },
             border: { display: false },
           },
         },
@@ -413,11 +433,16 @@ function syncSymbolsBarChart(
     chart.data.labels = labels
     chart.data.datasets[0]!.data = winValues
     chart.data.datasets[1]!.data = lossValues
-    const xScale = chart.options.scales?.x as { suggestedMax?: number; ticks?: { stepSize?: number } }
+    const xScale = chart.options.scales?.x as { suggestedMax?: number; ticks?: { stepSize?: number; color?: string } }
     if (xScale) {
       xScale.suggestedMax = suggestedMax
-      if (xScale.ticks) xScale.ticks.stepSize = stepSize
+      if (xScale.ticks) {
+        xScale.ticks.stepSize = stepSize
+        xScale.ticks.color = axisColor
+      }
     }
+    const yScale = chart.options.scales?.y as { ticks?: { color?: string } }
+    if (yScale?.ticks) yScale.ticks.color = axisColor
   }
   chart.update()
 }
@@ -425,6 +450,7 @@ function syncSymbolsBarChart(
 function syncWinRateBarChart(canvas: HTMLCanvasElement, points: { label: string; winRate: number | null }[]) {
   const labels = points.map((p) => p.label)
   const values = points.map((p) => (p.winRate == null ? 0 : Math.round(p.winRate * 100) / 100))
+  const axisColor = sxDashAxisLabelColor()
 
   let chart = sxWinRateChartRegistry.get(canvas)
   if (!chart) {
@@ -459,13 +485,13 @@ function syncWinRateBarChart(canvas: HTMLCanvasElement, points: { label: string;
           y: {
             min: 0,
             max: 100,
-            ticks: { stepSize: 20, color: '#475467', callback: (v) => `${v}%` },
+            ticks: { stepSize: 20, color: axisColor, callback: (v) => `${v}%` },
             grid: { color: '#eeeeee' },
             border: { display: false },
           },
           x: {
             grid: { display: false },
-            ticks: { color: '#475467', font: { weight: '500' } },
+            ticks: { color: axisColor, font: { weight: '500' } },
             border: { display: false },
           },
         },
@@ -476,6 +502,10 @@ function syncWinRateBarChart(canvas: HTMLCanvasElement, points: { label: string;
   } else {
     chart.data.labels = labels
     chart.data.datasets[0]!.data = values
+    const yScale = chart.options.scales?.y as { ticks?: { color?: string } }
+    if (yScale?.ticks) yScale.ticks.color = axisColor
+    const xScale = chart.options.scales?.x as { ticks?: { color?: string } }
+    if (xScale?.ticks) xScale.ticks.color = axisColor
   }
   chart.update()
 }
@@ -1885,6 +1915,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         const next = cur === 'dark' ? 'light' : 'dark'
         writeDashTheme(next)
         applyDashTheme(appRoot, next)
+        // Chart.js draws axis labels onto <canvas>, so they don't repaint on their own when
+        // the CSS theme variables flip — force a redraw so they pick up the new text color.
+        sxAnalyticsPage?.renderAll()
+        syncSessionPulse()
+        syncDashboardPerf()
+        syncTradesUi()
       })
     })
 
@@ -3227,6 +3263,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (!canvas) return
     const labels = points.map((_, i) => `T${i + 1}`)
     const bound = sxSparkAxisBound(points)
+    const axisColor = sxDashAxisLabelColor()
+    const isDarkTheme = document.getElementById('sx-app-root')?.getAttribute('data-dashboard-theme') === 'dark'
+    const gridColor = isDarkTheme ? 'rgba(255,255,255,0.08)' : '#f0f1f4'
+    const borderColor = isDarkTheme ? '#3a4150' : '#9ca3af'
     let chart = sxTradesSparkChartRegistry.get(canvas)
     if (!chart) {
       const config: ChartConfiguration<'line'> = {
@@ -3279,7 +3319,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
               suggestedMax: bound,
               ticks: {
                 font: { family: 'IBM Plex Mono', size: 9.5 },
-                color: '#1f2937',
+                color: axisColor,
                 maxTicksLimit: 3,
                 stepSize: bound,
                 padding: 2,
@@ -3288,13 +3328,13 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                   return `$${Math.round(n / 1000)}k`
                 },
               },
-              grid: { color: '#f0f1f4' },
-              border: { display: true, color: '#9ca3af' },
+              grid: { color: gridColor },
+              border: { display: true, color: borderColor },
             },
             x: {
-              ticks: { font: { size: 9.5 }, color: '#1f2937', maxRotation: 0 },
+              ticks: { font: { size: 9.5 }, color: axisColor, maxRotation: 0 },
               grid: { display: false },
-              border: { display: true, color: '#9ca3af' },
+              border: { display: true, color: borderColor },
             },
           },
         },
@@ -3334,12 +3374,26 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     }
     ;(chart as unknown as { _sxKeys?: string[] })._sxKeys = keys
     chart.data.labels = labels
-    const yScale = chart.options.scales?.y as { min?: number; suggestedMax?: number; ticks?: { stepSize?: number } }
+    const yScale = chart.options.scales?.y as {
+      min?: number
+      suggestedMax?: number
+      ticks?: { stepSize?: number; color?: string }
+      grid?: { color?: string }
+      border?: { color?: string }
+    }
     if (yScale) {
       yScale.min = -bound
       yScale.suggestedMax = bound
-      if (yScale.ticks) yScale.ticks.stepSize = bound
+      if (yScale.ticks) {
+        yScale.ticks.stepSize = bound
+        yScale.ticks.color = axisColor
+      }
+      if (yScale.grid) yScale.grid.color = gridColor
+      if (yScale.border) yScale.border.color = borderColor
     }
+    const xScale = chart.options.scales?.x as { ticks?: { color?: string }; border?: { color?: string } }
+    if (xScale?.ticks) xScale.ticks.color = axisColor
+    if (xScale?.border) xScale.border.color = borderColor
     chart.update()
   }
 

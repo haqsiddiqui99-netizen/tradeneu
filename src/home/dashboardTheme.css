@@ -6051,6 +6051,212 @@ a.sx-dash-account__item {
   background: #0a0612;
 }
 
+/* Dashboard "Trades" tab — dark theme. `.sxt-trades` defines its own --sxt-* palette
+   (see the light-mode definition above); flipping those tokens here re-colors the KPI
+   strip, sparkline card, table and pagination since nearly everything below reads from
+   them. The handful of rules that use plain hex/rgba (borders, hover states, and a few
+   "solid dark button" backgrounds that would otherwise turn light along with --sxt-ink-950)
+   get explicit overrides underneath. */
+#sx-app-root[data-dashboard-theme='dark'] .sxt-trades {
+  --sxt-ink-950: #f3f4f7;
+  --sxt-ink-800: #e5e7eb;
+  --sxt-ink-500: #9aa1ac;
+  --sxt-ink-300: #6b7280;
+  --sxt-paper: #0b0d10;
+  --sxt-surface: #12151c;
+  --sxt-line: #262b35;
+  --sxt-line-soft: #1a1e27;
+  --sxt-brand-soft: rgba(54, 82, 246, 0.18);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-spark-cell {
+  background: linear-gradient(180deg, rgba(54, 82, 246, 0.08), transparent);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-headerclone__table thead tr.sxt-col-row th,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-table thead tr.sxt-col-row th,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-table tbody td {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-sticky-col.sxt-col-asset {
+  box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.4);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-action-btn {
+  background: var(--sxt-surface);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-row-check {
+  border-color: #4b5563;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tradenum-pill {
+  color: var(--sxt-ink-500);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-session-dd__btn,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-session-dd__menu {
+  border-color: #333a47;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-session-dd__btn:hover {
+  border-color: #464e5c;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-session-dd__item--active {
+  background: rgba(54, 82, 246, 0.24);
+  color: #fff;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-icon-btn:hover,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-filter-btn:hover,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-filterby__pill:hover,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-page-btns button:hover:not(:disabled):not(.sxt-page-btn--active) {
+  border-color: #3a4150;
+}
+
+/* These three were solid "black button" fills keyed off --sxt-ink-950 — now that it flips
+   to a light color for text legibility, they need their own fixed dark accent instead of
+   turning into pale, low-contrast buttons. */
+#sx-app-root[data-dashboard-theme='dark'] .sxt-export-btn,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-filter-count,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-filterby__pill.sx-dash-trades-filter-tab--active,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-page-btns button.sxt-page-btn--active {
+  background: #2c44d6;
+  border-color: #2c44d6;
+  color: #fff;
+}
+
+/* Trades "Filters" slide-out panel + tag filter dropdown — this was entirely
+   hardcoded to a light/cream palette with no dark-mode support at all, so it
+   showed up as a stark white panel with light-grey/cream outlines whenever
+   it was opened while the dashboard was in dark theme. */
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filter-tab {
+  color: var(--sxt-ink-500);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filter-tab--active {
+  background: var(--sxt-surface);
+  color: var(--sxt-ink-950);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-pill {
+  border-color: #333a47;
+  background: var(--sxt-surface);
+  color: var(--sxt-ink-500);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-pill:hover {
+  border-color: #464e5c;
+  color: var(--sxt-ink-950);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-pill--active {
+  background: #2c44d6;
+  border-color: #2c44d6;
+  color: #fff;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filters-backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filters-panel {
+  border-color: #262b35;
+  background: var(--sxt-paper);
+  box-shadow: -24px 0 64px rgba(0, 0, 0, 0.55);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filters-panel__head,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-accordion,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filters-panel__foot {
+  border-color: #262b35;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filters-panel__title,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-accordion__head,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__label,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__mode--active,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__trigger,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__panel-searchbox input,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-date-range input[type='date'],
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-text-filter input[type='text'] {
+  color: var(--sxt-ink-950);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filters-panel__close {
+  color: var(--sxt-ink-500);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filters-panel__close:hover {
+  background: var(--sxt-line-soft);
+  color: var(--sxt-ink-950);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filters-panel__tabs .sx-dash-trades-filter-tab,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__modes {
+  background: var(--sxt-line-soft);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filters-panel__tabs .sx-dash-trades-filter-tab--active,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__mode--active {
+  background: var(--sxt-surface);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filters-panel__search,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__trigger,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__panel,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__panel-searchbox,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-date-range input[type='date'],
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-text-filter input[type='text'],
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-fixedbar__track {
+  border-color: #333a47;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__dropdown--open .sxt-tagsfilter__trigger {
+  border-color: #464e5c;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-filters-panel__search,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__trigger,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__panel,
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__divider span,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-date-range input[type='date'],
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-text-filter input[type='text'] {
+  background: var(--sxt-surface);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__panel-searchbox {
+  background: var(--sxt-line-soft);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__item:hover {
+  background: var(--sxt-line-soft);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxt-tagsfilter__panel-search > input[type='checkbox'] {
+  border-color: #4b5563;
+  background: var(--sxt-surface);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-checkbox {
+  color: var(--sxt-ink-500);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-date-range label {
+  color: var(--sxt-ink-500);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-trades-text-filter input[type='text']:focus {
+  border-color: #464e5c;
+}
+
 .sxt-session-dd {
   position: relative;
 }
@@ -8176,6 +8382,26 @@ a.sx-dash-account__item {
 .sxa-chart-type-toggle__btn--active {
   background: var(--sxa-line-soft);
   color: var(--sxa-ink-800);
+}
+
+/* These toggle buttons also carry `.sx-dash-pulse__kpi-info` purely as a JS hook for the
+   shared tooltip system (data-tip). Undo that class's circular "i"-icon styling (fixed
+   0.85rem circle + white ring box-shadow + forced transparent bg) so the segmented
+   bar/line control keeps its own rectangular, non-overlapping look. */
+.sxa-chart-type-toggle__btn.sx-dash-pulse__kpi-info {
+  width: 30px;
+  height: 100%;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none !important;
+}
+
+.sxa-chart-type-toggle__btn.sx-dash-pulse__kpi-info:hover {
+  background: var(--sxa-line-soft) !important;
+}
+
+.sxa-chart-type-toggle__btn--active.sx-dash-pulse__kpi-info {
+  background: var(--sxa-line-soft) !important;
 }
 
 .sxa-analytics canvas {
