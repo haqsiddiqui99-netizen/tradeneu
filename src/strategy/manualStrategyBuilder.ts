@@ -213,6 +213,14 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
           <div class="bars" id="barsInfo">\u2248 <b>74,800</b> bars available</div>
         </div>
 
+        <div class="summaryBar" aria-label="Strategy summary">
+          <div><span>Direction</span><b id="summaryDir">Long</b></div>
+          <div><span>Entry</span><b id="summaryEntry">1 · AND</b></div>
+          <div><span>Exit</span><b id="summaryExit">1 · OR</b></div>
+          <div><span>Target</span><b id="summaryTarget">2R</b></div>
+          <div><span>Est. trades</span><b id="summaryTrades">—</b></div>
+        </div>
+
         <div class="railBar">
           <div class="railGroup">
             <div class="railHead"><span>Templates</span></div>
@@ -732,6 +740,11 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const dens = ({ all: 0.008, any: 0.019 }[S.entryJoin] ?? 0.008) / Math.max(1, S.entry.length * 0.6)
     const est = Math.max(0, Math.round(baseBars * dens))
     $('barsInfo').innerHTML = '\u2248 <b>' + baseBars.toLocaleString() + '</b> bars available'
+    $('summaryDir').textContent = S.dir === 'both' ? 'Both' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
+    $('summaryEntry').textContent = S.entry.length + ' · ' + S.entryJoin.toUpperCase()
+    $('summaryExit').textContent = S.exit.length + ' · ' + S.exitJoin.toUpperCase()
+    $('summaryTarget').textContent = S.risk.tp[0] === 'rr' ? S.risk.tp[1] + 'R' : String(S.risk.tp[1])
+    $('summaryTrades').textContent = S.entry.length ? est.toLocaleString() : '—'
     $('est').textContent = S.entry.length
       ? '\u2248 ' + est.toLocaleString() + ' trades over the selected range \u00b7 under 2s'
       : 'Add an entry condition to run'
