@@ -187,8 +187,14 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
             min: suggestedMin,
             suggestedMax,
             ticks: { stepSize: (suggestedMax - suggestedMin) / 4, color: axisColor, callback: tickCallback },
-            grid: { color: '#eeeeee' },
-            border: { display: false },
+            // The zero line doubles as the chart's x-axis, so it stays solid; every
+            // other horizontal gridline is dotted for less visual noise. Chart.js
+            // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+            grid: {
+              color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+              lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+            },
+            border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
           },
           x: {
             grid: { display: false },
@@ -312,8 +318,14 @@ function syncActivityBarChart(
               color: axisColor,
               callback: (value) => sxFormatDurationHours(Number(value)),
             },
-            grid: { color: '#eeeeee' },
-            border: { display: false },
+            // The zero line doubles as the chart's x-axis, so it stays solid; every
+            // other horizontal gridline is dotted for less visual noise. Chart.js
+            // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+            grid: {
+              color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+              lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+            },
+            border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
           },
           x: {
             grid: { display: false },
@@ -415,8 +427,14 @@ function syncSymbolsBarChart(
             min: 0,
             suggestedMax,
             ticks: { stepSize, precision: 0, color: axisColor },
-            grid: { color: '#eeeeee' },
-            border: { display: false },
+            // The zero line doubles as the chart's y-axis, so it stays solid; every
+            // other vertical gridline is dotted for less visual noise. Chart.js
+            // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+            grid: {
+              color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+              lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+            },
+            border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
           },
           y: {
             stacked: true,
@@ -486,8 +504,14 @@ function syncWinRateBarChart(canvas: HTMLCanvasElement, points: { label: string;
             min: 0,
             max: 100,
             ticks: { stepSize: 20, color: axisColor, callback: (v) => `${v}%` },
-            grid: { color: '#eeeeee' },
-            border: { display: false },
+            // The zero line doubles as the chart's x-axis, so it stays solid; every
+            // other horizontal gridline is dotted for less visual noise. Chart.js
+            // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+            grid: {
+              color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+              lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+            },
+            border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
           },
           x: {
             grid: { display: false },

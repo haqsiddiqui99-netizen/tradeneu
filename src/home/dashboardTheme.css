@@ -3547,6 +3547,16 @@ a.sx-dash-account__item {
   background: rgba(255, 255, 255, 0.03);
 }
 
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-pulse__kpi-item {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-pulse__kpi-item:hover {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3), 0 14px 28px rgba(0, 0, 0, 0.24);
+}
+
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-pulse__kpi-item + .sx-dash-pulse__kpi-item {
   border-color: rgba(255, 255, 255, 0.16);
 }
@@ -9557,5 +9567,22 @@ a.sx-dash-account__item {
   --sxa-line: rgba(255, 255, 255, 0.1);
   --sxa-line-soft: rgba(255, 255, 255, 0.05);
   --sxa-surface: #1c2128;
+  --sxa-gain-soft: rgba(26, 157, 92, 0.14);
+  --sxa-loss-soft: rgba(214, 69, 90, 0.14);
+}
+
+/* "Winners and losers" cards were hardcoded to a light mint/pink card that
+   never flipped for dark theme. Give them their own dark-mode border + row
+   divider so they sit on the dark surface instead of glowing pale. */
+#sx-app-root[data-dashboard-theme='dark'] .sxa-wl-card--win {
+  border-color: rgba(26, 157, 92, 0.35);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxa-wl-card--loss {
+  border-color: rgba(214, 69, 90, 0.35);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxa-wl-row {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
