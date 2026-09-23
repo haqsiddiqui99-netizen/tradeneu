@@ -2,7 +2,8 @@
  * src/strategy/manualStrategyBuilder.ts
  *
  * "Manual strategy builder" — a self-contained rule-based strategy editor
- * (templates rail, entry/exit condition rows, position & risk grid, a
+ * (templates rail, entry/exit condition rows, position & risk grid, a stat
+ * strip, a live summary line, an illustrative equity sparkline, a
  * plain-English readout, sanity checks, and a JSON preview) ported from a
  * standalone prototype supplied by the user. Everything is scoped under the
  * `.sx-manual-strat` wrapper (see manualStrategyBuilder.css) and all DOM
@@ -42,14 +43,17 @@ type Strategy = {
   risk: { size: RiskField; stop: RiskField; tp: RiskField; trail: RiskField }
 }
 
+type RhsSpec = { kind: 'ind'; ind: string; p?: Record<string, number> } | { kind: 'num'; value: number }
+
 type Template = {
   name: string
+  cat: string
   meta: string
   dir: 'long' | 'short' | 'both'
   entryJoin: 'all' | 'any'
   exitJoin: 'all' | 'any'
-  entry: [string, string, { kind: 'ind'; ind: string; p?: Record<string, number> } | { kind: 'num'; value: number }][]
-  exit: [string, string, { kind: 'ind'; ind: string; p?: Record<string, number> } | { kind: 'num'; value: number }][]
+  entry: [string, string, RhsSpec, Record<string, number>?][]
+  exit: [string, string, RhsSpec, Record<string, number>?][]
   risk: { size: RiskField; stop: RiskField; tp: RiskField; trail: RiskField }
 }
 
@@ -72,6 +76,16 @@ const IND: Record<string, IndicatorDef> = {
   hour: { label: 'Bar hour (UTC)', params: [] },
   barsheld: { label: 'Bars in trade', params: [] },
   pnlr: { label: 'Open P&L in R', params: [] },
+  adx: { label: 'ADX', params: [['period', 14, 2, 100]] },
+  donchianhi: { label: 'Donchian upper', params: [['period', 20, 2, 200]] },
+  donchianlo: { label: 'Donchian lower', params: [['period', 20, 2, 200]] },
+  stochk: { label: 'Stoch %K', params: [['period', 14, 1, 100], ['smooth', 3, 1, 20]] },
+  stochd: { label: 'Stoch %D', params: [['period', 14, 1, 100], ['smooth', 3, 1, 20]] },
+  bbwidth: { label: 'Bollinger width %', params: [['period', 20, 2, 200], ['sd', 2, 0.5, 5]] },
+  supertrend: { label: 'Supertrend', params: [['period', 10, 1, 100], ['mult', 3, 0.5, 10]] },
+  macdhist: { label: 'MACD histogram', params: [['fast', 12, 1, 100], ['slow', 26, 1, 200], ['signal', 9, 1, 100]] },
+  orh: { label: 'Opening range high', params: [['mins', 30, 5, 240]] },
+  orl: { label: 'Opening range low', params: [['mins', 30, 5, 240]] },
 }
 
 const OPS: Record<string, string> = {
@@ -85,20 +99,26 @@ const OPS: Record<string, string> = {
   fall: 'falls for',
 }
 
+const CATS: Record<string, string> = {
+  trend: 'Trend',
+  reversion: 'Mean reversion',
+  breakout: 'Breakout',
+  momentum: 'Momentum',
+  volatility: 'Volatility',
+  session: 'Session / time',
+  intraday: 'Intraday',
+}
+
 const uid = () => Math.random().toString(36).slice(2, 9)
 
 function defP(indKey: string): Record<string, number> {
   return Object.fromEntries((IND[indKey].params ?? []).map((p) => [p[0], p[1]]))
 }
 
-function mkRule(
-  l: string,
-  op: string,
-  r: { kind: 'ind'; ind: string; p?: Record<string, number> } | { kind: 'num'; value: number },
-): Rule {
+function mkRule(l: string, op: string, r: RhsSpec, lp?: Record<string, number>): Rule {
   return {
     id: uid(),
-    left: { ind: l, p: defP(l) },
+    left: { ind: l, p: Object.assign(defP(l), lp ?? {}) },
     op,
     rhs:
       r.kind === 'ind'
@@ -108,9 +128,11 @@ function mkRule(
 }
 
 const TEMPLATES: Template[] = [
+  // --- trend ---
   {
     name: 'EMA 9/21 Crossover',
-    meta: 'trend · 1 in / 1 out',
+    cat: 'trend',
+    meta: '1 in · 1 out',
     dir: 'long',
     entryJoin: 'all',
     exitJoin: 'any',
@@ -119,34 +141,9 @@ const TEMPLATES: Template[] = [
     risk: { size: ['riskpct', 1], stop: ['atr', 1.5], tp: ['rr', 2], trail: ['none', 1] },
   },
   {
-    name: 'RSI Mean Reversion',
-    meta: 'reversion · 2 in / 1 out',
-    dir: 'both',
-    entryJoin: 'all',
-    exitJoin: 'any',
-    entry: [
-      ['rsi', 'lt', { kind: 'num', value: 30 }],
-      ['close', 'gt', { kind: 'ind', ind: 'sma', p: { period: 200 } }],
-    ],
-    exit: [['rsi', 'gt', { kind: 'num', value: 55 }]],
-    risk: { size: ['riskpct', 0.75], stop: ['atr', 2], tp: ['rr', 1.5], trail: ['none', 1] },
-  },
-  {
-    name: 'Bollinger Breakout',
-    meta: 'breakout · 2 in / 1 out',
-    dir: 'long',
-    entryJoin: 'all',
-    exitJoin: 'any',
-    entry: [
-      ['close', 'xabove', { kind: 'ind', ind: 'bbu', p: { period: 20, sd: 2 } }],
-      ['volume', 'gt', { kind: 'ind', ind: 'volsma', p: { period: 20 } }],
-    ],
-    exit: [['close', 'xbelow', { kind: 'ind', ind: 'sma', p: { period: 20 } }]],
-    risk: { size: ['riskpct', 1], stop: ['atr', 2], tp: ['rr', 3], trail: ['atr', 2] },
-  },
-  {
     name: 'MACD + EMA50 Trend',
-    meta: 'trend · 2 in / 1 out',
+    cat: 'trend',
+    meta: '2 in · 1 out',
     dir: 'both',
     entryJoin: 'all',
     exitJoin: 'any',
@@ -158,8 +155,211 @@ const TEMPLATES: Template[] = [
     risk: { size: ['riskpct', 1], stop: ['atr', 1.5], tp: ['rr', 2.5], trail: ['be', 1] },
   },
   {
+    name: 'Triple EMA Ribbon',
+    cat: 'trend',
+    meta: '3 in · 1 out',
+    dir: 'long',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [
+      ['ema', 'gt', { kind: 'ind', ind: 'ema', p: { period: 21 } }, { period: 8 }],
+      ['ema', 'gt', { kind: 'ind', ind: 'ema', p: { period: 55 } }, { period: 21 }],
+      ['close', 'gt', { kind: 'ind', ind: 'ema', p: { period: 8 } }],
+    ],
+    exit: [['ema', 'xbelow', { kind: 'ind', ind: 'ema', p: { period: 21 } }, { period: 8 }]],
+    risk: { size: ['riskpct', 1], stop: ['atr', 1.5], tp: ['none', 0], trail: ['atr', 2] },
+  },
+  {
+    name: 'ADX Trend Filter + MA Cross',
+    cat: 'trend',
+    meta: '2 in · 1 out',
+    dir: 'both',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [
+      ['ema', 'xabove', { kind: 'ind', ind: 'ema', p: { period: 21 } }],
+      ['adx', 'gt', { kind: 'num', value: 25 }],
+    ],
+    exit: [['ema', 'xbelow', { kind: 'ind', ind: 'ema', p: { period: 21 } }]],
+    risk: { size: ['riskpct', 1], stop: ['atr', 1.5], tp: ['rr', 2], trail: ['none', 1] },
+  },
+  {
+    name: 'Supertrend Flip',
+    cat: 'trend',
+    meta: '1 in · 1 out',
+    dir: 'both',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [['close', 'xabove', { kind: 'ind', ind: 'supertrend', p: { period: 10, mult: 3 } }]],
+    exit: [['close', 'xbelow', { kind: 'ind', ind: 'supertrend', p: { period: 10, mult: 3 } }]],
+    risk: { size: ['riskpct', 1], stop: ['atr', 1.5], tp: ['none', 0], trail: ['atr', 2] },
+  },
+
+  // --- reversion ---
+  {
+    name: 'RSI Mean Reversion',
+    cat: 'reversion',
+    meta: '2 in · 1 out',
+    dir: 'both',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [
+      ['rsi', 'lt', { kind: 'num', value: 30 }],
+      ['close', 'gt', { kind: 'ind', ind: 'sma', p: { period: 200 } }],
+    ],
+    exit: [['rsi', 'gt', { kind: 'num', value: 55 }]],
+    risk: { size: ['riskpct', 0.75], stop: ['atr', 2], tp: ['rr', 1.5], trail: ['none', 1] },
+  },
+  {
+    name: 'Bollinger Band Reversion',
+    cat: 'reversion',
+    meta: '2 in · 1 out',
+    dir: 'both',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [
+      ['close', 'lt', { kind: 'ind', ind: 'bbl', p: { period: 20, sd: 2 } }],
+      ['rsi', 'lt', { kind: 'num', value: 35 }],
+    ],
+    exit: [['close', 'gt', { kind: 'ind', ind: 'sma', p: { period: 20 } }]],
+    risk: { size: ['riskpct', 0.75], stop: ['atr', 2], tp: ['rr', 1.5], trail: ['none', 1] },
+  },
+  {
+    name: 'Stochastic Reversal',
+    cat: 'reversion',
+    meta: '2 in · 1 out',
+    dir: 'both',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [
+      ['stochk', 'xabove', { kind: 'ind', ind: 'stochd', p: { period: 14, smooth: 3 } }],
+      ['stochk', 'lt', { kind: 'num', value: 20 }],
+    ],
+    exit: [['stochk', 'xbelow', { kind: 'ind', ind: 'stochd', p: { period: 14, smooth: 3 } }]],
+    risk: { size: ['riskpct', 0.75], stop: ['atr', 1.5], tp: ['rr', 1.5], trail: ['none', 1] },
+  },
+  {
+    name: 'VWAP Reversion',
+    cat: 'reversion',
+    meta: '2 in · 1 out',
+    dir: 'long',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [
+      ['rsi', 'lt', { kind: 'num', value: 20 }],
+      ['close', 'lt', { kind: 'ind', ind: 'vwap' }],
+    ],
+    exit: [['close', 'xabove', { kind: 'ind', ind: 'vwap' }]],
+    risk: { size: ['riskpct', 0.5], stop: ['atr', 1.5], tp: ['rr', 1.5], trail: ['none', 1] },
+  },
+
+  // --- breakout ---
+  {
+    name: 'Bollinger Breakout',
+    cat: 'breakout',
+    meta: '2 in · 1 out',
+    dir: 'long',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [
+      ['close', 'xabove', { kind: 'ind', ind: 'bbu', p: { period: 20, sd: 2 } }],
+      ['volume', 'gt', { kind: 'ind', ind: 'volsma', p: { period: 20 } }],
+    ],
+    exit: [['close', 'xbelow', { kind: 'ind', ind: 'sma', p: { period: 20 } }]],
+    risk: { size: ['riskpct', 1], stop: ['atr', 2], tp: ['rr', 3], trail: ['atr', 2] },
+  },
+  {
+    name: 'Donchian Channel Breakout',
+    cat: 'breakout',
+    meta: '1 in · 1 out',
+    dir: 'long',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [['close', 'xabove', { kind: 'ind', ind: 'donchianhi', p: { period: 20 } }]],
+    exit: [['close', 'xbelow', { kind: 'ind', ind: 'donchianlo', p: { period: 10 } }]],
+    risk: { size: ['riskpct', 1], stop: ['atr', 2], tp: ['none', 0], trail: ['atr', 2.5] },
+  },
+
+  // --- momentum ---
+  {
+    name: 'MACD Histogram Turn',
+    cat: 'momentum',
+    meta: '1 in · 1 out',
+    dir: 'both',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [['macdhist', 'xabove', { kind: 'num', value: 0 }]],
+    exit: [['macdhist', 'xbelow', { kind: 'num', value: 0 }]],
+    risk: { size: ['riskpct', 1], stop: ['atr', 1.5], tp: ['rr', 2], trail: ['none', 1] },
+  },
+  {
+    name: 'RSI Trend Continuation',
+    cat: 'momentum',
+    meta: '3 in · 1 out',
+    dir: 'long',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [
+      ['close', 'gt', { kind: 'ind', ind: 'sma', p: { period: 200 } }],
+      ['rsi', 'gte', { kind: 'num', value: 45 }],
+      ['rsi', 'lte', { kind: 'num', value: 55 }],
+    ],
+    exit: [['rsi', 'gt', { kind: 'num', value: 70 }]],
+    risk: { size: ['riskpct', 1], stop: ['atr', 1.5], tp: ['rr', 2], trail: ['none', 1] },
+  },
+
+  // --- volatility ---
+  {
+    name: 'ATR Squeeze Breakout',
+    cat: 'volatility',
+    meta: '2 in · 1 out',
+    dir: 'both',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [
+      ['bbwidth', 'lt', { kind: 'num', value: 1.5 }],
+      ['close', 'xabove', { kind: 'ind', ind: 'bbu', p: { period: 20, sd: 2 } }],
+    ],
+    exit: [['close', 'xbelow', { kind: 'ind', ind: 'sma', p: { period: 20 } }]],
+    risk: { size: ['riskpct', 1], stop: ['atr', 2], tp: ['rr', 2.5], trail: ['atr', 2] },
+  },
+
+  // --- session / time ---
+  {
+    name: 'Opening Range Breakout',
+    cat: 'session',
+    meta: '1 in · 1 out',
+    dir: 'both',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [['close', 'xabove', { kind: 'ind', ind: 'orh', p: { mins: 30 } }]],
+    exit: [['close', 'xbelow', { kind: 'ind', ind: 'orl', p: { mins: 30 } }]],
+    risk: { size: ['riskpct', 1], stop: ['atr', 1], tp: ['rr', 2], trail: ['none', 1] },
+  },
+  {
+    name: 'London Open Momentum',
+    cat: 'session',
+    meta: '3 in · 2 out',
+    dir: 'long',
+    entryJoin: 'all',
+    exitJoin: 'any',
+    entry: [
+      ['hour', 'gte', { kind: 'num', value: 7 }],
+      ['hour', 'lte', { kind: 'num', value: 9 }],
+      ['close', 'xabove', { kind: 'ind', ind: 'ema', p: { period: 20 } }],
+    ],
+    exit: [
+      ['close', 'xbelow', { kind: 'ind', ind: 'ema', p: { period: 20 } }],
+      ['hour', 'gte', { kind: 'num', value: 16 }],
+    ],
+    risk: { size: ['riskpct', 1], stop: ['atr', 1.5], tp: ['rr', 2], trail: ['be', 1] },
+  },
+
+  // --- intraday ---
+  {
     name: 'VWAP Pullback',
-    meta: 'intraday · 2 in / 1 out',
+    cat: 'intraday',
+    meta: '2 in · 1 out',
     dir: 'long',
     entryJoin: 'all',
     exitJoin: 'any',
@@ -214,6 +414,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         </div>
 
         <div class="main">
+
           <aside class="rail">
             <div class="railHead"><span>Templates</span></div>
             <div id="tplList"></div>
@@ -226,6 +427,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
           </aside>
 
           <main class="canvas">
+
             <div class="statStrip" id="statStrip"></div>
             <div class="liveLine" id="liveLine"></div>
 
@@ -340,32 +542,44 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
                 </div>
               </div>
             </section>
+
           </main>
 
-          <aside class="reader">
-            <div class="sparkWrap">
-              <div class="sHead"><span>Equity shape</span><span>illustrative — not backtest data</span></div>
-              <svg class="spark" id="sparkSvg" viewBox="0 0 300 58" preserveAspectRatio="none" aria-label="Illustrative equity shape">
-                <defs>
-                  <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#E0A94A" stop-opacity="0.35"/>
-                    <stop offset="100%" stop-color="#E0A94A" stop-opacity="0"/>
-                  </linearGradient>
-                </defs>
-                <path class="fill" id="sparkFill" fill="url(#sparkGrad)"/>
-                <path class="line" id="sparkLine"/>
-              </svg>
+          <div class="readerBar">
+            <div class="readerCol sparkCol">
+              <div class="sparkWrap">
+                <div class="sHead"><span>Equity shape</span><span>illustrative — not backtest data</span></div>
+                <svg class="spark" id="sparkSvg" viewBox="0 0 300 58" preserveAspectRatio="none" aria-label="Illustrative equity shape">
+                  <defs>
+                    <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#E0A94A" stop-opacity="0.35"/>
+                      <stop offset="100%" stop-color="#E0A94A" stop-opacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <path class="fill" id="sparkFill" fill="url(#sparkGrad)"/>
+                  <path class="line" id="sparkLine"/>
+                </svg>
+              </div>
             </div>
-            <div class="readerHead"><h3>Plain English</h3></div>
-            <div class="prose" id="prose"></div>
-            <div class="checks" id="checks"></div>
-            <div class="jsonWrap">
-              <button class="jsonToggle" id="jsonToggle" aria-expanded="false">
-                <span>Strategy JSON</span><span id="jsonCaret">Show</span>
-              </button>
-              <pre class="json" id="json" hidden></pre>
+
+            <div class="readerCol proseCol">
+              <div class="readerHead"><h3>Plain English</h3></div>
+              <div class="prose" id="prose"></div>
             </div>
-          </aside>
+
+            <div class="readerCol checksCol">
+              <div class="checks" id="checks"></div>
+            </div>
+
+            <div class="readerCol jsonCol">
+              <div class="jsonWrap">
+                <button class="jsonToggle" id="jsonToggle" aria-expanded="false">
+                  <span>Strategy JSON</span><span id="jsonCaret">Show</span>
+                </button>
+                <pre class="json" id="json" hidden></pre>
+              </div>
+            </div>
+          </div>
 
           <div class="actions">
             <div class="actionsInner">
@@ -373,6 +587,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
               <span class="est" id="est"></span>
             </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -391,8 +606,8 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       dir: t.dir,
       entryJoin: t.entryJoin,
       exitJoin: t.exitJoin,
-      entry: t.entry.map((r) => mkRule(r[0], r[1], r[2])),
-      exit: t.exit.map((r) => mkRule(r[0], r[1], r[2])),
+      entry: t.entry.map((r) => mkRule(r[0], r[1], r[2], r[3])),
+      exit: t.exit.map((r) => mkRule(r[0], r[1], r[2], r[3])),
       risk: JSON.parse(JSON.stringify(t.risk)),
     }
     dirty = false
@@ -510,8 +725,8 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       row.className = 'rule'
 
       const tag = document.createElement('span')
-      tag.className = 'joinTag'
-      tag.textContent = i === 0 ? '' : join === 'all' ? 'and' : 'or'
+      tag.className = 'joinTag' + (i === 0 ? ' first' : '')
+      tag.textContent = i === 0 ? 'if' : join === 'all' ? 'and' : 'or'
       row.appendChild(tag)
 
       row.appendChild(operandChip(r.left, update))
@@ -682,6 +897,15 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     p.classList.add('flash')
   }
 
+  function estimates(): { baseBars: number; est: number } {
+    const tf = $<HTMLSelectElement>('tf').value
+    const baseBarsByTf: Record<string, number> = { '1m': 740000, '5m': 148000, '15m': 74800, '1h': 18700, '4h': 4700, '1D': 790 }
+    const baseBars = baseBarsByTf[tf] ?? 74800
+    const dens = ({ all: 0.008, any: 0.019 }[S.entryJoin] ?? 0.008) / Math.max(1, S.entry.length * 0.6)
+    const est = S.entry.length ? Math.max(0, Math.round(baseBars * dens)) : 0
+    return { baseBars, est }
+  }
+
   function longestLookback(): number {
     let m = 0
     ;[...S.entry, ...S.exit].forEach((r) => {
@@ -739,51 +963,11 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     })
 
     $<HTMLButtonElement>('btnRun').disabled = !S.entry.length
-    const baseBarsByTf: Record<string, number> = { '1m': 740000, '5m': 148000, '15m': 74800, '1h': 18700, '4h': 4700, '1D': 790 }
-    const baseBars = baseBarsByTf[tf] ?? 74800
-    const dens = ({ all: 0.008, any: 0.019 }[S.entryJoin] ?? 0.008) / Math.max(1, S.entry.length * 0.6)
-    const est = Math.max(0, Math.round(baseBars * dens))
+    const { baseBars, est } = estimates()
     $('barsInfo').innerHTML = '\u2248 <b>' + baseBars.toLocaleString() + '</b> bars available'
     $('est').textContent = S.entry.length
       ? '\u2248 ' + est.toLocaleString() + ' trades over the selected range \u00b7 under 2s'
       : 'Add an entry condition to run'
-  }
-
-  function renderStats() {
-    const host = $('statStrip')
-    const dir = S.dir === 'both' ? 'Both ways' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
-    const rr = S.risk.tp[0] === 'rr' ? S.risk.tp[1] + 'R' : '—'
-    const tf = $<HTMLSelectElement>('tf').value
-    const baseBars = ({ '1m': 740000, '5m': 148000, '15m': 74800, '1h': 18700, '4h': 4700, '1D': 790 } as Record<string, number>)[tf] ?? 74800
-    const dens = ({ all: 0.008, any: 0.019 }[S.entryJoin] ?? 0.008) / Math.max(1, S.entry.length * 0.6)
-    const est = S.entry.length ? Math.max(0, Math.round(baseBars * dens)) : 0
-    const items = [
-      ['Direction', dir, S.dir === 'long' ? 'long' : S.dir === 'short' ? 'short' : ''],
-      ['Entry', S.entry.length ? S.entry.length + ' · ' + S.entryJoin.toUpperCase() : 'none set', S.entry.length ? '' : 'warn'],
-      ['Exit', S.exit.length ? S.exit.length + ' · ' + S.exitJoin.toUpperCase() : 'stop/target only', ''],
-      ['Target', rr, ''],
-      ['Est. trades', est.toLocaleString(), est ? '' : 'warn'],
-    ]
-    host.innerHTML = items
-      .map(([label, value, cls]) => '<div class="stat"><label>' + label + '</label><div class="val ' + cls + '">' + value + '</div></div>')
-      .join('')
-  }
-
-  function renderLiveLine() {
-    const dir = S.dir === 'both' ? 'Long/short' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
-    const stop = S.risk.stop[0] === 'none' ? 'no stop' : S.risk.stop[1] + '× ' + S.risk.stop[0] + ' stop'
-    const target = S.risk.tp[0] === 'rr' ? S.risk.tp[1] + 'R target' : 'no fixed target'
-    $('liveLine').innerHTML = '<b>' + dir + '</b> · ' + (S.entry.length ? 'entry rules active' : 'no entry set') + ' · ' + stop + ', ' + target
-  }
-
-  function renderSpark() {
-    const line = $('sparkLine')
-    const fill = $('sparkFill')
-    if (!line || !fill) return
-    const points = [34, 31, 35, 32, 34, 29, 32, 28, 30, 24, 27, 23, 25, 20, 22, 18, 21, 16, 19, 14]
-    const path = points.map((y, i) => (i ? 'L' : 'M') + (i * 300 / (points.length - 1)).toFixed(1) + ',' + y).join(' ')
-    line.setAttribute('d', path)
-    fill.setAttribute('d', path + ' L300,58 L0,58 Z')
   }
 
   function renderJson() {
@@ -867,6 +1051,94 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     $<HTMLInputElement>('trailVal').disabled = rt === 'none'
   }
 
+  function stripTags(t: string): string {
+    return t.replace(/<[^>]+>/g, '')
+  }
+
+  function renderLiveLine() {
+    const e = sentence(S.entry, S.entryJoin)
+    const dir = S.dir === 'both' ? 'Long/short' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
+    const stop = S.risk.stop[0] === 'none' ? 'no stop' : S.risk.stop[1] + '\u00d7 ' + S.risk.stop[0] + ' stop'
+    const tp = S.risk.tp[0] === 'rr' ? S.risk.tp[1] + 'R target' : IND[S.risk.tp[0]] ? S.risk.tp[0] : 'no fixed target'
+    const txt = '<b>' + dir + '</b> \u00b7 ' + (e ? 'when ' + stripTags(e) : 'no entry set') + ' \u00b7 ' + stop + ', ' + tp
+    $('liveLine').innerHTML = txt
+  }
+
+  function renderStats() {
+    const statHost = $('statStrip')
+    const { est } = estimates()
+    const dirLabel = S.dir === 'both' ? 'Both ways' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
+    const dirCls = S.dir === 'long' ? 'long' : S.dir === 'short' ? 'short' : ''
+    const rr = S.risk.tp[0] === 'rr' ? S.risk.tp[1] + 'R' : '\u2014'
+    const items: [string, string, string][] = [
+      ['Direction', dirLabel, dirCls],
+      ['Entry', S.entry.length ? S.entry.length + ' \u00b7 ' + (S.entryJoin === 'all' ? 'AND' : 'OR') : 'none set', S.entry.length ? '' : 'warn'],
+      ['Exit', S.exit.length ? S.exit.length + ' \u00b7 ' + (S.exitJoin === 'all' ? 'AND' : 'OR') : 'stop/target only', ''],
+      ['Target', rr, ''],
+      ['Est. trades', est.toLocaleString(), est === 0 ? 'warn' : ''],
+    ]
+    if (!statHost.dataset.init) {
+      statHost.innerHTML = items
+        .map(([label, value, cls]) => '<div class="stat"><label>' + label + '</label><div class="val ' + cls + '">' + value + '</div></div>')
+        .join('')
+      statHost.dataset.init = '1'
+      return
+    }
+    items.forEach(([, value, cls], i) => {
+      const cell = statHost.children[i] as HTMLElement
+      const val = cell.querySelector<HTMLElement>('.val')!
+      const changed = val.textContent !== String(value)
+      val.textContent = value
+      val.className = 'val ' + (cls || '')
+      if (changed) {
+        cell.classList.remove('pulse')
+        void cell.offsetWidth
+        cell.classList.add('pulse')
+      }
+    })
+  }
+
+  function seededRand(seed: number): () => number {
+    let s = seed % 2147483647
+    if (s <= 0) s += 2147483646
+    return () => {
+      s = (s * 16807) % 2147483647
+      return (s - 1) / 2147483646
+    }
+  }
+
+  function renderSpark() {
+    const tp = parseFloat(String(S.risk.tp[1])) || 1
+    const stop = parseFloat(String(S.risk.stop[1])) || 1
+    const edge = S.entry.length * 0.35 + (S.exit.length ? 0.25 : 0) + Math.min(1.2, tp / (stop || 1)) * 0.3
+    const seed =
+      Math.abs(
+        S.name.length * 131 +
+          S.entry.length * 17 +
+          S.exit.length * 11 +
+          Math.round(tp * 10) +
+          Math.round(stop * 10) +
+          (S.dir === 'long' ? 3 : S.dir === 'short' ? 7 : 11),
+      ) + 1
+    const rnd = seededRand(seed)
+    const n = 36
+    const w = 300
+    const h = 58
+    const drift = Math.max(-0.3, Math.min(0.55, (edge - 0.9) * 0.35))
+    let y = 34
+    const pts = [y]
+    for (let i = 1; i < n; i++) {
+      y += (rnd() - 0.5) * 6.5 + drift
+      y = Math.max(4, Math.min(h - 4, y))
+      pts.push(y)
+    }
+    const step = w / (n - 1)
+    const line = pts.map((p, i) => (i === 0 ? 'M' : 'L') + (i * step).toFixed(1) + ',' + (h - p).toFixed(1)).join(' ')
+    const fill = line + ' L' + w + ',' + h + ' L0,' + h + ' Z'
+    $('sparkLine').setAttribute('d', line)
+    $('sparkFill').setAttribute('d', fill)
+  }
+
   function markDirty() {
     if (activeTpl >= 0 && !dirty) {
       dirty = true
@@ -879,7 +1151,15 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   function renderLibrary() {
     const tplHost = $('tplList')
     tplHost.textContent = ''
+    let lastCat: string | null = null
     TEMPLATES.forEach((t, i) => {
+      if (t.cat !== lastCat) {
+        lastCat = t.cat
+        const h = document.createElement('div')
+        h.className = 'railSub'
+        h.textContent = CATS[t.cat] ?? t.cat
+        tplHost.appendChild(h)
+      }
       const b = document.createElement('button')
       b.className = 'tpl'
       b.setAttribute('aria-current', String(i === activeTpl && !dirty))
@@ -919,8 +1199,8 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     renderJson()
     renderLibrary()
     renderStats()
-    renderLiveLine()
     renderSpark()
+    renderLiveLine()
   }
   function update() {
     markDirty()
@@ -939,6 +1219,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       renderChecks()
       renderHints()
       renderJson()
+      renderStats()
     })
   })
   $<HTMLSelectElement>('entryJoin').onchange = (e) => {
