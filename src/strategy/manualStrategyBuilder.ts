@@ -213,31 +213,22 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
           <div class="bars" id="barsInfo">\u2248 <b>74,800</b> bars available</div>
         </div>
 
-        <div class="summaryBar" aria-label="Strategy summary">
-          <div><span>Direction</span><b id="summaryDir">Long</b></div>
-          <div><span>Entry</span><b id="summaryEntry">1 · AND</b></div>
-          <div><span>Exit</span><b id="summaryExit">1 · OR</b></div>
-          <div><span>Target</span><b id="summaryTarget">2R</b></div>
-          <div><span>Est. trades</span><b id="summaryTrades">—</b></div>
-        </div>
-
-        <div class="railBar">
-          <div class="railGroup">
+        <div class="main">
+          <aside class="rail">
             <div class="railHead"><span>Templates</span></div>
-            <div class="railList" id="tplList"></div>
-          </div>
-          <div class="railDiv"></div>
-          <div class="railGroup railGroup--mine">
+            <div id="tplList"></div>
+            <div class="railDiv"></div>
             <div class="railHead"><span>Your strategies</span>
               <button class="addLink" id="btnNew" title="Blank strategy">New</button>
             </div>
-            <div class="railList" id="mineList"></div>
+            <div id="mineList"></div>
             <p class="empty" id="mineEmpty">Nothing saved yet. Edit any template and it becomes yours.</p>
-          </div>
-        </div>
+          </aside>
 
-        <div class="main">
           <main class="canvas">
+            <div class="statStrip" id="statStrip"></div>
+            <div class="liveLine" id="liveLine"></div>
+
             <section class="block">
               <div class="blockHead">
                 <span class="kw">WHEN</span>
@@ -352,6 +343,19 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
           </main>
 
           <aside class="reader">
+            <div class="sparkWrap">
+              <div class="sHead"><span>Equity shape</span><span>illustrative — not backtest data</span></div>
+              <svg class="spark" id="sparkSvg" viewBox="0 0 300 58" preserveAspectRatio="none" aria-label="Illustrative equity shape">
+                <defs>
+                  <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#E0A94A" stop-opacity="0.35"/>
+                    <stop offset="100%" stop-color="#E0A94A" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path class="fill" id="sparkFill" fill="url(#sparkGrad)"/>
+                <path class="line" id="sparkLine"/>
+              </svg>
+            </div>
             <div class="readerHead"><h3>Plain English</h3></div>
             <div class="prose" id="prose"></div>
             <div class="checks" id="checks"></div>
@@ -740,14 +744,46 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const dens = ({ all: 0.008, any: 0.019 }[S.entryJoin] ?? 0.008) / Math.max(1, S.entry.length * 0.6)
     const est = Math.max(0, Math.round(baseBars * dens))
     $('barsInfo').innerHTML = '\u2248 <b>' + baseBars.toLocaleString() + '</b> bars available'
-    $('summaryDir').textContent = S.dir === 'both' ? 'Both' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
-    $('summaryEntry').textContent = S.entry.length + ' · ' + S.entryJoin.toUpperCase()
-    $('summaryExit').textContent = S.exit.length + ' · ' + S.exitJoin.toUpperCase()
-    $('summaryTarget').textContent = S.risk.tp[0] === 'rr' ? S.risk.tp[1] + 'R' : String(S.risk.tp[1])
-    $('summaryTrades').textContent = S.entry.length ? est.toLocaleString() : '—'
     $('est').textContent = S.entry.length
       ? '\u2248 ' + est.toLocaleString() + ' trades over the selected range \u00b7 under 2s'
       : 'Add an entry condition to run'
+  }
+
+  function renderStats() {
+    const host = $('statStrip')
+    const dir = S.dir === 'both' ? 'Both ways' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
+    const rr = S.risk.tp[0] === 'rr' ? S.risk.tp[1] + 'R' : '—'
+    const tf = $<HTMLSelectElement>('tf').value
+    const baseBars = ({ '1m': 740000, '5m': 148000, '15m': 74800, '1h': 18700, '4h': 4700, '1D': 790 } as Record<string, number>)[tf] ?? 74800
+    const dens = ({ all: 0.008, any: 0.019 }[S.entryJoin] ?? 0.008) / Math.max(1, S.entry.length * 0.6)
+    const est = S.entry.length ? Math.max(0, Math.round(baseBars * dens)) : 0
+    const items = [
+      ['Direction', dir, S.dir === 'long' ? 'long' : S.dir === 'short' ? 'short' : ''],
+      ['Entry', S.entry.length ? S.entry.length + ' · ' + S.entryJoin.toUpperCase() : 'none set', S.entry.length ? '' : 'warn'],
+      ['Exit', S.exit.length ? S.exit.length + ' · ' + S.exitJoin.toUpperCase() : 'stop/target only', ''],
+      ['Target', rr, ''],
+      ['Est. trades', est.toLocaleString(), est ? '' : 'warn'],
+    ]
+    host.innerHTML = items
+      .map(([label, value, cls]) => '<div class="stat"><label>' + label + '</label><div class="val ' + cls + '">' + value + '</div></div>')
+      .join('')
+  }
+
+  function renderLiveLine() {
+    const dir = S.dir === 'both' ? 'Long/short' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
+    const stop = S.risk.stop[0] === 'none' ? 'no stop' : S.risk.stop[1] + '× ' + S.risk.stop[0] + ' stop'
+    const target = S.risk.tp[0] === 'rr' ? S.risk.tp[1] + 'R target' : 'no fixed target'
+    $('liveLine').innerHTML = '<b>' + dir + '</b> · ' + (S.entry.length ? 'entry rules active' : 'no entry set') + ' · ' + stop + ', ' + target
+  }
+
+  function renderSpark() {
+    const line = $('sparkLine')
+    const fill = $('sparkFill')
+    if (!line || !fill) return
+    const points = [34, 31, 35, 32, 34, 29, 32, 28, 30, 24, 27, 23, 25, 20, 22, 18, 21, 16, 19, 14]
+    const path = points.map((y, i) => (i ? 'L' : 'M') + (i * 300 / (points.length - 1)).toFixed(1) + ',' + y).join(' ')
+    line.setAttribute('d', path)
+    fill.setAttribute('d', path + ' L300,58 L0,58 Z')
   }
 
   function renderJson() {
@@ -882,6 +918,9 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     renderHints()
     renderJson()
     renderLibrary()
+    renderStats()
+    renderLiveLine()
+    renderSpark()
   }
   function update() {
     markDirty()
