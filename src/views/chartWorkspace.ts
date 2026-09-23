@@ -4349,6 +4349,23 @@ export function mountChartWorkspace(
 
     cleanupFns.push(() => flushPersistReplay())
 
+    // Closing the tab, refreshing, or switching away doesn't always run the component's
+    // normal dispose/cleanup path (that only fires on in-app navigation, e.g. the Home
+    // button). Without these, the replay cursor a trader was paused on could silently
+    // never get saved, so resuming the session later would fall back to the session start.
+    const onPageHideOrUnload = () => flushPersistReplay()
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flushPersistReplay()
+    }
+    window.addEventListener('pagehide', onPageHideOrUnload)
+    window.addEventListener('beforeunload', onPageHideOrUnload)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    cleanupFns.push(() => {
+      window.removeEventListener('pagehide', onPageHideOrUnload)
+      window.removeEventListener('beforeunload', onPageHideOrUnload)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    })
+
     function renderJournalPanel(markPrice: number) {
       const b = lastBar(replay.slice())
       const ba = b ? bidAskFromBar(b) : undefined
@@ -5366,8 +5383,11 @@ export function mountChartWorkspace(
       bootSettledViewport = null
       userViewportPinned = false
       state.tvChart.setReplayLockedViewport(null)
-      const isHistorical = isHistoricalSessionBars(chartBars)
-      const idx = isHistorical ? sessionReplayStartIndex : replay.getState().index
+      // `replay`'s current index already reflects the correct boot position (session start for
+      // a fresh session, or the saved resume position when reopening a paused one) — don't
+      // clobber a resumed position back to the session start just because the session is
+      // historical/backtest data.
+      const idx = replay.getState().index
       const tvBars = tvBarsForChart(chartBars)
       const tvRes = intervalPillToTvResolution(chartTimeframe)
       const tvPeriod = tvBarPeriodSecForPill(chartTimeframe)
@@ -5384,11 +5404,7 @@ export function mountChartWorkspace(
       // One forced paint to load data; no fit refit (avoids REPLAY_BAR_SPACING override).
       nextReplayTickFit = false
       nextReplayTickForce = true
-      if (isHistorical && replay.getState().index !== idx) {
-        replay.setIndex(idx)
-      } else {
-        onReplayTick(replay.slice(), idx)
-      }
+      onReplayTick(replay.slice(), idx)
 
       state.tvChart.flushPendingRefresh()
       state.tvChart.resize()
@@ -5661,11 +5677,14 @@ export function mountChartWorkspace(
       savedReplayIndex != null &&
       savedReplayIndex >= 1 &&
       savedReplayIndex <= chartBars.length
+    // A saved resume position always wins, even for historical/backtest sessions — otherwise
+    // reopening a paused session snaps the chart back to the session's start instead of where
+    // the trader left off (e.g. paused 15min into a session, resume should stay at that point).
     const initialReplayIndex =
-      historicalSession
-        ? sessionReplayStartIndex
-        : savedReplayLooksValid
-          ? Math.round(savedReplayIndex!)
+      savedReplayLooksValid
+        ? Math.round(savedReplayIndex!)
+        : historicalSession
+          ? sessionReplayStartIndex
           : chartBars.length > 0
             ? chartBars.length
             : sessionReplayStartIndex
@@ -8846,6 +8865,10 @@ export function mountChartWorkspace(
       lockedTvViewport = null
       pendingTvViewportRestore = null
       state.tvChart?.setReplayLockedViewport(null)
+      // Persist the paused position immediately rather than waiting for the debounce
+      // timer or the workspace to unmount — so the trader's resume point is safe even
+      // if they close the tab right after pausing.
+      flushPersistReplay()
     }
 
     function beginReplayPlayback() {
