@@ -1,7 +1,7 @@
 import './accountPage.css'
 import { defaultBacktestSlippage } from '../backtest/backtestChartUi'
 import { resolveAppPath } from '../appPaths'
-import { changePassword } from '../auth/authApi'
+import { changePassword, fetchAuthDevices, revokeAuthDevice, type AuthDevice } from '../auth/authApi'
 import type { AuthUser } from '../auth/authSession'
 import { GUEST_AUTH_EMAIL } from '../auth/authSession'
 import { dashLocaleMenuLabel } from '../home/dashboardLocales'
@@ -30,6 +30,14 @@ import {
   writeUserTimezone,
 } from '../home/dashboardUserPrefs'
 import { listAllStrategies, strategySelectLabel } from '../strategy/strategyCatalog'
+import {
+  deletedSessionRetentionDays,
+  listDeletedSessions,
+  purgeAllDeletedSessions,
+  purgeDeletedSession,
+  restoreSession,
+  type DeletedSession,
+} from '../data/sessionStore'
 
 export type ProfileSessionStats = {
   total: number
@@ -43,10 +51,12 @@ export type ProfileSessionStats = {
 export type AccountTabKey =
   | 'account'
   | 'security'
+  | 'devices'
   | 'subscription'
   | 'backtesting'
   | 'costs'
   | 'usage'
+  | 'deleted'
 
 export type MountAccountPageOptions = {
   onBack?: () => void
@@ -61,6 +71,8 @@ export type MountAccountPageOptions = {
   onOpenSubscription?: () => void
   onDisplayNameChange?: (name: string) => void
   onAvatarChange?: () => void
+  /** Fired when a session is restored from the recycle bin. */
+  onSessionsChange?: () => void
   freeSessionLimit?: number
   showAdminLink?: boolean
   adminHref?: string
@@ -69,11 +81,19 @@ export type MountAccountPageOptions = {
 const TABS: ReadonlyArray<{ key: AccountTabKey; label: string; icon: string }> = [
   { key: 'account', label: 'Account', icon: 'fa-regular fa-user' },
   { key: 'security', label: 'Security', icon: 'fa-solid fa-shield-halved' },
+  { key: 'devices', label: 'Devices', icon: 'fa-solid fa-desktop' },
   { key: 'subscription', label: 'Subscription', icon: 'fa-regular fa-credit-card' },
   { key: 'backtesting', label: 'Backtesting', icon: 'fa-solid fa-chart-simple' },
   { key: 'costs', label: 'Spreads & Commissions', icon: 'fa-solid fa-percent' },
   { key: 'usage', label: 'Usage', icon: 'fa-solid fa-gauge-high' },
+  { key: 'deleted', label: 'Deleted Sessions', icon: 'fa-regular fa-trash-can' },
 ]
+
+const DEVICE_ICONS: Record<AuthDevice['kind'], string> = {
+  desktop: 'fa-solid fa-desktop',
+  tablet: 'fa-solid fa-tablet-screen-button',
+  phone: 'fa-solid fa-mobile-screen',
+}
 
 /** Reference rows for the auto slippage estimate, mirroring defaultBacktestSlippage. */
 const SLIPPAGE_REFERENCE = [
@@ -111,6 +131,30 @@ function formatMemberSince(ms: number): string {
   } catch {
     return '—'
   }
+}
+
+function formatDateTime(ms: number): string {
+  if (!ms) return '—'
+  try {
+    return new Date(ms).toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+  } catch {
+    return '—'
+  }
+}
+
+function formatRelative(ms: number): string {
+  if (!ms) return 'unknown'
+  const diff = Date.now() - ms
+  if (diff < 60_000) return 'just now'
+  const mins = Math.round(diff / 60_000)
+  if (mins < 60) return `${mins} min ago`
+  const hours = Math.round(mins / 60)
+  if (hours < 24) return `${hours} hr ago`
+  const days = Math.round(hours / 24)
+  return days === 1 ? 'yesterday' : `${days} days ago`
 }
 
 function initialsFrom(name: string): string {
@@ -410,6 +454,18 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
         </div>
       </section>
 
+      <section class="sx-acct__panel" role="tabpanel" id="sx-acct-panel-devices" aria-labelledby="sx-acct-tab-devices" data-sx-acct-panel="devices" hidden tabindex="0">
+        <div class="sx-acct__grid">
+          <div class="sx-acct-card sx-acct-card--span">
+            <div class="sx-acct-card__head">
+              <h2 class="sx-acct-card__title">Signed-in devices</h2>
+              <p class="sx-acct-card__lead">Every browser currently holding a session for this account. Signing one out ends its session immediately.</p>
+            </div>
+            <div data-sx-acct-devices></div>
+          </div>
+        </div>
+      </section>
+
       <section class="sx-acct__panel" role="tabpanel" id="sx-acct-panel-subscription" aria-labelledby="sx-acct-tab-subscription" data-sx-acct-panel="subscription" hidden tabindex="0">
         <div class="sx-acct__grid">
           <div class="sx-acct-card">
@@ -572,6 +628,18 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           </div>
         </div>
       </section>
+
+      <section class="sx-acct__panel" role="tabpanel" id="sx-acct-panel-deleted" aria-labelledby="sx-acct-tab-deleted" data-sx-acct-panel="deleted" hidden tabindex="0">
+        <div class="sx-acct__grid">
+          <div class="sx-acct-card sx-acct-card--span">
+            <div class="sx-acct-card__head">
+              <h2 class="sx-acct-card__title">Recycle bin</h2>
+              <p class="sx-acct-card__lead">Deleted sessions stay here for ${deletedSessionRetentionDays()} days, then clear themselves.</p>
+            </div>
+            <div data-sx-acct-deleted></div>
+          </div>
+        </div>
+      </section>
     </div>
   `
   root.appendChild(shell)
@@ -592,6 +660,8 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     panels.forEach((p) => {
       p.hidden = p.dataset.sxAcctPanel !== key
     })
+    if (key === 'devices') void loadDevices()
+    if (key === 'deleted') renderDeleted()
   }
 
   tabButtons.forEach((btn) => {
@@ -604,8 +674,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
       selectTab(tabButtons[next]!.dataset.sxAcctTab as AccountTabKey, true)
     })
   })
-
-  selectTab(opts.initialTab && TABS.some((t) => t.key === opts.initialTab) ? opts.initialTab : 'account')
 
   /* ——— Saved-message flashes. Each panel owns one, so they are keyed by
      element rather than sharing a single timer. ——— */
@@ -810,6 +878,139 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     flashSaved(costsSaved, 'Costs saved')
   })
 
+  /* ——— Devices ———
+     The list lives on the account, not in this browser, so it has to be
+     fetched. Loaded the first time the tab is opened rather than on mount. ——— */
+  const devicesHost = q<HTMLElement>('[data-sx-acct-devices]')
+  let devicesLoaded = false
+
+  function renderDevicesMessage(icon: string, title: string, detail: string) {
+    if (!devicesHost) return
+    devicesHost.innerHTML = `<div class="sx-acct-empty"><i class="${icon}" aria-hidden="true"></i><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></div>`
+  }
+
+  function renderDevices(devices: AuthDevice[]) {
+    if (!devicesHost) return
+    if (!devices.length) {
+      renderDevicesMessage('fa-solid fa-desktop', 'No devices recorded yet', 'Sign in again and this browser will appear here.')
+      return
+    }
+    devicesHost.innerHTML = `<div class="sx-acct-rows">${devices
+      .map(
+        (d) => `<div class="sx-acct-row${d.current ? ' sx-acct-row--current' : ''}">
+        <div class="sx-acct-row__ico"><i class="${DEVICE_ICONS[d.kind] ?? DEVICE_ICONS.desktop}" aria-hidden="true"></i></div>
+        <div class="sx-acct-row__copy">
+          <p class="sx-acct-row__title">${escapeHtml(d.browser)} on ${escapeHtml(d.os)}${d.current ? '<span class="sx-acct-pill sx-acct-pill--ok">This device</span>' : ''}</p>
+          <p class="sx-acct-row__meta">Last active ${escapeHtml(formatRelative(d.lastSeenAt))} · First seen ${escapeHtml(formatDateTime(d.firstSeenAt))}${d.ip ? ` · ${escapeHtml(d.ip)}` : ''}</p>
+        </div>
+        <div class="sx-acct-row__actions">
+          <button type="button" class="sx-acct-btn sx-acct-btn--danger" data-sx-acct-revoke="${escapeAttr(d.id)}">${d.current ? 'Sign out' : 'Sign out device'}</button>
+        </div>
+      </div>`,
+      )
+      .join('')}</div>`
+
+    devicesHost.querySelectorAll<HTMLButtonElement>('[data-sx-acct-revoke]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-sx-acct-revoke')
+        if (!id) return
+        const device = devices.find((d) => d.id === id)
+        const label = device ? `${device.browser} on ${device.os}` : 'this device'
+        if (!window.confirm(`Sign out ${label}? That browser will need to sign in again.`)) return
+        btn.disabled = true
+        btn.textContent = 'Signing out…'
+        void revokeAuthDevice(id).then((result) => {
+          if (!result.ok) {
+            btn.disabled = false
+            btn.textContent = 'Sign out device'
+            renderDevicesMessage('fa-solid fa-triangle-exclamation', 'Could not sign that device out', result.error)
+            return
+          }
+          // Revoking your own device invalidates this page's session, so send
+          // the user to login rather than leaving a dead UI behind.
+          if (result.signedOutSelf) {
+            window.location.assign(resolveAppPath('login'))
+            return
+          }
+          void loadDevices(true)
+        })
+      })
+    })
+  }
+
+  async function loadDevices(force = false) {
+    if (!devicesHost || (devicesLoaded && !force)) return
+    devicesLoaded = true
+    if (isGuest) {
+      renderDevicesMessage('fa-solid fa-user-lock', 'Guest sessions are not tied to an account', 'Sign in to see and manage the devices holding your session.')
+      return
+    }
+    renderDevicesMessage('fa-solid fa-circle-notch fa-spin', 'Loading devices…', 'Fetching the sessions on your account.')
+    const result = await fetchAuthDevices()
+    if (!result.ok) {
+      renderDevicesMessage('fa-solid fa-triangle-exclamation', 'Could not load your devices', result.error)
+      return
+    }
+    renderDevices(result.devices)
+  }
+
+  /* ——— Deleted sessions ——— */
+  const deletedHost = q<HTMLElement>('[data-sx-acct-deleted]')
+
+  function renderDeleted() {
+    if (!deletedHost) return
+    const rows: DeletedSession[] = listDeletedSessions()
+    if (!rows.length) {
+      deletedHost.innerHTML = `<div class="sx-acct-empty"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><strong>Nothing in the bin</strong><span>Sessions you delete show up here so you can put them back.</span></div>`
+      return
+    }
+    deletedHost.innerHTML = `<div class="sx-acct-rows">${rows
+      .map(
+        (s) => `<div class="sx-acct-row">
+        <div class="sx-acct-row__ico"><i class="fa-regular fa-chart-bar" aria-hidden="true"></i></div>
+        <div class="sx-acct-row__copy">
+          <p class="sx-acct-row__title">${escapeHtml(s.name || 'Untitled session')}<span class="sx-acct-pill">${s.sessionType === 'prop' ? 'Prop' : 'Backtest'}</span></p>
+          <p class="sx-acct-row__meta">${escapeHtml(s.assets || '—')} · Deleted ${escapeHtml(formatRelative(s.deletedAt))} · Created ${escapeHtml(formatDateTime(s.createdAt))}</p>
+        </div>
+        <div class="sx-acct-row__actions">
+          <button type="button" class="sx-acct-btn" data-sx-acct-restore="${escapeAttr(s.id)}"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Restore</button>
+          <button type="button" class="sx-acct-btn sx-acct-btn--danger" data-sx-acct-purge="${escapeAttr(s.id)}">Delete forever</button>
+        </div>
+      </div>`,
+      )
+      .join('')}</div>
+      <div class="sx-acct-rows__foot">
+        <p class="sx-acct-hint" style="margin:0">${rows.length} session${rows.length === 1 ? '' : 's'} recoverable for up to ${deletedSessionRetentionDays()} days.</p>
+        <button type="button" class="sx-acct-btn sx-acct-btn--danger" data-sx-acct-empty-bin>Empty bin</button>
+      </div>`
+
+    deletedHost.querySelectorAll<HTMLButtonElement>('[data-sx-acct-restore]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-sx-acct-restore')
+        if (id) restoreSession(id)
+        renderDeleted()
+        opts.onSessionsChange?.()
+      })
+    })
+
+    deletedHost.querySelectorAll<HTMLButtonElement>('[data-sx-acct-purge]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-sx-acct-purge')
+        if (!id) return
+        const row = rows.find((s) => s.id === id)
+        if (!window.confirm(`Permanently delete "${row?.name || 'this session'}"? This cannot be undone.`)) return
+        purgeDeletedSession(id)
+        renderDeleted()
+      })
+    })
+
+    deletedHost.querySelector('[data-sx-acct-empty-bin]')?.addEventListener('click', () => {
+      if (!window.confirm(`Permanently delete all ${rows.length} session${rows.length === 1 ? '' : 's'} in the bin? This cannot be undone.`)) return
+      purgeAllDeletedSessions()
+      renderDeleted()
+    })
+  }
+
   /* ——— Password ——— */
   const passCurrent = q<HTMLInputElement>('[data-sx-acct-pass-current]')
   const passNew = q<HTMLInputElement>('[data-sx-acct-pass-new]')
@@ -880,6 +1081,9 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
   passSaveBtn?.addEventListener('click', () => {
     void onPassSave()
   })
+
+  // Last, so the panel renderers it may kick off are all defined by now.
+  selectTab(opts.initialTab && TABS.some((t) => t.key === opts.initialTab) ? opts.initialTab : 'account')
 
   return () => {
     savedTimers.forEach((t) => clearTimeout(t))

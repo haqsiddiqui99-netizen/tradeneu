@@ -542,6 +542,7 @@ import {
 import { formatSessionModalDate } from '../data/sessionDateRange'
 import {
   createSession,
+  deletedSessionRetentionDays,
   deleteSession,
   duplicateSession,
   getLastSessionId,
@@ -2299,6 +2300,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       onOpenSubscription: openUpgradePlansModal,
       onDisplayNameChange: () => syncSidebarProfile(),
       onAvatarChange: () => syncSidebarProfile(),
+      onSessionsChange: () => syncRecentSessionsUi(),
       freeSessionLimit: FREE_SESSION_LIMIT,
     })
   }
@@ -5123,7 +5125,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       if (act === 'session-delete') {
         void confirmDialog({
           title: 'Delete session',
-          message: `Delete "${session.name}"? This cannot be undone.`,
+          message: `Delete "${session.name}"? You can restore it from Profile Settings → Deleted Sessions for the next ${deletedSessionRetentionDays()} days.`,
           confirmLabel: 'Delete',
           cancelLabel: 'Cancel',
           danger: true,

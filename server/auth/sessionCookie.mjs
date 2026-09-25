@@ -98,6 +98,9 @@ export function setSessionCookie(res, user, { secure }) {
     sub: user.id ?? user.sub ?? '',
     provider: user.provider ?? 'local',
     loggedInAt: user.loggedInAt ?? Date.now(),
+    // Device this token was minted for; revoking it in Profile Settings
+    // invalidates the token. Absent on tokens issued before device tracking.
+    did: user.did ?? '',
     exp,
   })
   res.setHeader(

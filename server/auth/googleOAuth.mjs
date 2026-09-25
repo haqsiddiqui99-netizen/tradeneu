@@ -24,6 +24,7 @@ import {
 } from './sessionCookie.mjs'
 import { recordAuthLogin } from '../telemetry/telemetryRoutes.mjs'
 import { isAdminEmail } from './adminAccess.mjs'
+import { clientIp, newDeviceId, recordDeviceLogin } from './deviceRegistry.mjs'
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
@@ -241,6 +242,12 @@ export function mountGoogleAuthRoutes(app, { dataDir }) {
       }
       appendUsersFile(dataDir, user)
       recordAuthLogin(dataDir, user, 'google')
+      user.did = newDeviceId()
+      await recordDeviceLogin(dataDir, user.email, {
+        deviceId: user.did,
+        userAgent: req.headers['user-agent'],
+        ip: clientIp(req),
+      })
       setSessionCookie(res, user, { secure })
       res.redirect(homePath(user.email))
     } catch (e) {

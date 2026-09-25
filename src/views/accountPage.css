@@ -701,6 +701,118 @@
   gap: 14px;
 }
 
+/* ——— Row lists (devices, recycle bin) ——— */
+.sx-acct-rows {
+  display: grid;
+  gap: 10px;
+}
+
+.sx-acct-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 13px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--raise);
+}
+
+.sx-acct-row--current {
+  border-color: var(--accent);
+}
+
+.sx-acct-row__ico {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--raise2);
+  color: var(--dim);
+  font-size: 14px;
+}
+
+.sx-acct-row__copy {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.sx-acct-row__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.sx-acct-row__meta {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+.sx-acct-row__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sx-acct-row__actions .sx-acct-btn {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+
+.sx-acct-btn--danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.sx-acct-btn--danger:hover {
+  background: var(--danger);
+  color: var(--panel);
+}
+
+.sx-acct-empty {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 28px 16px;
+  border: 1px dashed var(--line2);
+  border-radius: 12px;
+  color: var(--dim);
+  text-align: center;
+}
+
+.sx-acct-empty i {
+  font-size: 20px;
+  opacity: 0.6;
+}
+
+.sx-acct-empty strong {
+  color: var(--tx);
+  font-size: 13.5px;
+}
+
+.sx-acct-empty span {
+  font-size: 12.5px;
+}
+
+.sx-acct-rows__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
 /* ——— Dark theme ——— */
 #sx-app-root[data-dashboard-theme='dark'] .sx-acct {
   --bg: #000000;

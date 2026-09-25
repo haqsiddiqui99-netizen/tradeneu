@@ -166,6 +166,71 @@ export async function changePassword(
   }
 }
 
+export type AuthDevice = {
+  id: string
+  browser: string
+  os: string
+  kind: 'desktop' | 'tablet' | 'phone'
+  ip: string
+  firstSeenAt: number
+  lastSeenAt: number
+  /** True for the browser making the request. */
+  current: boolean
+}
+
+export type FetchDevicesResult =
+  | { ok: true; devices: AuthDevice[] }
+  | { ok: false; error: string; offline?: boolean }
+
+export async function fetchAuthDevices(): Promise<FetchDevicesResult> {
+  try {
+    const res = await fetch('/api/auth/devices', { credentials: 'include', cache: 'no-store' })
+    const { json, text } = await readResponsePayload(res)
+    if (!json || typeof json !== 'object') {
+      return { ok: false, error: formatNonJsonError(res, text), offline: res.status >= 502 }
+    }
+    const body = json as { ok?: boolean; devices?: AuthDevice[]; error?: string }
+    if (!res.ok || !body.ok || !Array.isArray(body.devices)) {
+      return {
+        ok: false,
+        error: body.error || `Request failed (${res.status}).`,
+        offline: res.status >= 502,
+      }
+    }
+    return { ok: true, devices: body.devices }
+  } catch {
+    return {
+      ok: false,
+      error: 'Cannot reach the account server. Run npm run dev and try again.',
+      offline: true,
+    }
+  }
+}
+
+export type RevokeDeviceResult =
+  | { ok: true; signedOutSelf: boolean }
+  | { ok: false; error: string }
+
+export async function revokeAuthDevice(id: string): Promise<RevokeDeviceResult> {
+  try {
+    const res = await fetch(`/api/auth/devices/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+    const { json, text } = await readResponsePayload(res)
+    if (!json || typeof json !== 'object') {
+      return { ok: false, error: formatNonJsonError(res, text) }
+    }
+    const body = json as { ok?: boolean; error?: string; signedOutSelf?: boolean }
+    if (!res.ok || !body.ok) {
+      return { ok: false, error: body.error || `Request failed (${res.status}).` }
+    }
+    return { ok: true, signedOutSelf: body.signedOutSelf === true }
+  } catch {
+    return { ok: false, error: 'Cannot reach the account server. Try again.' }
+  }
+}
+
 export async function fetchAuthServerStatus(): Promise<AuthServerStatus> {
   try {
     const res = await fetch('/api/auth/config', { credentials: 'include', cache: 'no-store' })

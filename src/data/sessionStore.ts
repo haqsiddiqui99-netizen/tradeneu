@@ -5,8 +5,13 @@ import type { PropChallengeState } from '../prop/propTypes'
 import { postTelemetryEvent } from '../telemetry/telemetryApi'
 
 const LS_SESSIONS = 'suplexity-sessions-v1'
+const LS_DELETED_SESSIONS = 'suplexity-deleted-sessions-v1'
 const LS_LAST_SESSION_ID = 'suplexity-last-session-id'
 const LS_SESSION_OWNER = 'suplexity-sessions-owner-v1'
+
+/** Recycle bin retention. Whichever limit is hit first wins. */
+const DELETED_RETENTION_DAYS = 30
+const DELETED_MAX_ENTRIES = 50
 /** Legacy single-draft key — migrated once into the session list. */
 const LS_LEGACY_DRAFT = 'suplexity-last-session-draft'
 
@@ -26,6 +31,10 @@ export type SessionReplaySnapshot = {
   account: ReplayAccountPersisted
   replayBarIndex?: number
   savedAt: number
+}
+
+export type DeletedSession = StoredSession & {
+  deletedAt: number
 }
 
 export type SessionBacktestSnapshot = {
@@ -201,12 +210,93 @@ export function updateSessionChartIndicators(
   return updateSession(id, { activeChartIndicators })
 }
 
+function readRawDeleted(): DeletedSession[] {
+  try {
+    const raw = localStorage.getItem(LS_DELETED_SESSIONS)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((row): row is DeletedSession => {
+      if (!row || typeof row !== 'object') return false
+      const s = row as Partial<DeletedSession>
+      return typeof s.id === 'string' && typeof s.deletedAt === 'number' && isValidPayload(s)
+    })
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Applies retention on every read so an untouched bin still ages out, rather
+ * than only pruning when something new is deleted.
+ */
+function pruneDeleted(rows: DeletedSession[]): DeletedSession[] {
+  const cutoff = Date.now() - DELETED_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  return [...rows]
+    .filter((s) => s.deletedAt >= cutoff)
+    .sort((a, b) => b.deletedAt - a.deletedAt)
+    .slice(0, DELETED_MAX_ENTRIES)
+}
+
+function writeRawDeleted(rows: DeletedSession[]): void {
+  try {
+    localStorage.setItem(LS_DELETED_SESSIONS, JSON.stringify(pruneDeleted(rows)))
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+/** Sessions in the recycle bin, most recently deleted first. */
+export function listDeletedSessions(): DeletedSession[] {
+  const pruned = pruneDeleted(readRawDeleted())
+  writeRawDeleted(pruned)
+  return pruned
+}
+
+/** How long a deleted session stays restorable. */
+export function deletedSessionRetentionDays(): number {
+  return DELETED_RETENTION_DAYS
+}
+
+/**
+ * Moves a session to the recycle bin. Restorable from Profile Settings for
+ * {@link DELETED_RETENTION_DAYS} days; use purgeDeletedSession to drop it for good.
+ */
 export function deleteSession(id: string): boolean {
-  const sessions = readRawSessions().filter((s) => s.id !== id)
-  if (sessions.length === readRawSessions().length) return false
-  writeRawSessions(sessions)
+  const sessions = readRawSessions()
+  const victim = sessions.find((s) => s.id === id)
+  if (!victim) return false
+  writeRawSessions(sessions.filter((s) => s.id !== id))
+  writeRawDeleted([{ ...victim, deletedAt: Date.now() }, ...readRawDeleted().filter((s) => s.id !== id)])
   if (getLastSessionId() === id) setLastSessionId(null)
   return true
+}
+
+/** Moves a session back out of the recycle bin. */
+export function restoreSession(id: string): StoredSession | null {
+  const deleted = readRawDeleted()
+  const row = deleted.find((s) => s.id === id)
+  if (!row) return null
+  writeRawDeleted(deleted.filter((s) => s.id !== id))
+  const { deletedAt: _deletedAt, ...session } = row
+  const restored: StoredSession = { ...session, updatedAt: Date.now() }
+  writeRawSessions(sortSessions([restored, ...readRawSessions().filter((s) => s.id !== id)]))
+  return restored
+}
+
+/** Permanently removes one session from the recycle bin. */
+export function purgeDeletedSession(id: string): boolean {
+  const deleted = readRawDeleted()
+  if (!deleted.some((s) => s.id === id)) return false
+  writeRawDeleted(deleted.filter((s) => s.id !== id))
+  return true
+}
+
+/** Permanently empties the recycle bin. */
+export function purgeAllDeletedSessions(): number {
+  const count = readRawDeleted().length
+  writeRawDeleted([])
+  return count
 }
 
 export function duplicateSession(id: string): StoredSession | null {
@@ -278,6 +368,7 @@ export function getSessionOwnerEmail(): string | null {
 /** Remove all saved chart sessions for the current browser profile. */
 export function clearAllSessions(): void {
   writeRawSessions([])
+  writeRawDeleted([])
   setLastSessionId(null)
   try {
     localStorage.removeItem(LS_LEGACY_DRAFT)

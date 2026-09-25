@@ -18,13 +18,22 @@ import {
 import { googleConfigured } from './googleOAuth.mjs'
 import { recordAuthLogin } from '../telemetry/telemetryRoutes.mjs'
 import { isAdminEmail } from './adminAccess.mjs'
+import {
+  clientIp,
+  listDevices,
+  newDeviceId,
+  recordDeviceLogin,
+  revokeDevice,
+  sessionDeviceActive,
+  touchDevice,
+} from './deviceRegistry.mjs'
 
 function isSecureRequest(req) {
   const proto = req.get('x-forwarded-proto') || req.protocol || 'http'
   return proto === 'https'
 }
 
-function sessionUserFromRow(row) {
+function sessionUserFromRow(row, deviceId) {
   return {
     id: row.id,
     email: row.email,
@@ -33,7 +42,19 @@ function sessionUserFromRow(row) {
     country: row.country || '',
     provider: 'local',
     loggedInAt: row.lastLoginAt ?? Date.now(),
+    did: deviceId,
   }
+}
+
+/** Mints a device for this sign-in and records it against the account. */
+async function startDeviceSession(dataDir, req, user) {
+  const deviceId = newDeviceId()
+  await recordDeviceLogin(dataDir, user.email, {
+    deviceId,
+    userAgent: req.headers['user-agent'],
+    ip: clientIp(req),
+  })
+  return deviceId
 }
 
 export function mountLocalAuthRoutes(app, { dataDir }) {
@@ -52,13 +73,21 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
     })
   })
 
-  app.get('/api/auth/me', (req, res) => {
+  app.get('/api/auth/me', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store')
     const session = readSessionFromRequest(req)
     if (!session) {
       res.status(401).json({ ok: false, error: 'not_authenticated' })
       return
     }
+    // A device revoked from another browser only takes effect here, which is
+    // the first call every client makes on boot.
+    if (!(await sessionDeviceActive(dataDir, session))) {
+      clearSessionCookie(res, { secure: isSecureRequest(req) })
+      res.status(401).json({ ok: false, error: 'device_revoked' })
+      return
+    }
+    void touchDevice(dataDir, session.email, session.did)
     res.json({
       ok: true,
       user: {
@@ -83,7 +112,8 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
         return
       }
       const secure = isSecureRequest(req)
-      setSessionCookie(res, sessionUserFromRow(result.user), { secure })
+      const deviceId = await startDeviceSession(dataDir, req, result.user)
+      setSessionCookie(res, sessionUserFromRow(result.user, deviceId), { secure })
       recordAuthLogin(dataDir, result.user, 'local')
       res.json({
         ok: true,
@@ -105,7 +135,8 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
         return
       }
       const secure = isSecureRequest(req)
-      setSessionCookie(res, sessionUserFromRow(result.user), { secure })
+      const deviceId = await startDeviceSession(dataDir, req, result.user)
+      setSessionCookie(res, sessionUserFromRow(result.user, deviceId), { secure })
       recordAuthLogin(dataDir, result.user, 'local')
       res.json({
         ok: true,
@@ -117,10 +148,62 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
     }
   })
 
-  app.post('/api/auth/logout', (req, res) => {
+  app.post('/api/auth/logout', async (req, res) => {
+    const session = readSessionFromRequest(req)
+    // Signing out should take the device off the list, not leave it showing as
+    // still connected.
+    if (session?.email && session.did) {
+      await revokeDevice(dataDir, session.email, session.did).catch(() => {})
+    }
     const secure = isSecureRequest(req)
     clearSessionCookie(res, { secure })
     res.json({ ok: true })
+  })
+
+  app.get('/api/auth/devices', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = readSessionFromRequest(req)
+    if (!session?.email) {
+      res.status(401).json({ ok: false, error: 'Sign in to see your devices.' })
+      return
+    }
+    if ((session.provider || 'local') === 'guest') {
+      res.status(400).json({ ok: false, error: 'Guest sessions are not tied to an account.' })
+      return
+    }
+    try {
+      const outcome = await listDevices(dataDir, session.email, session.did)
+      if (!outcome.ok) {
+        res.status(outcome.status ?? 400).json({ ok: false, error: outcome.error })
+        return
+      }
+      res.json({ ok: true, devices: outcome.result })
+    } catch (e) {
+      console.error('[auth] list devices error:', e?.message || e)
+      res.status(500).json({ ok: false, error: 'Could not load your devices. Try again.' })
+    }
+  })
+
+  app.delete('/api/auth/devices/:id', async (req, res) => {
+    const session = readSessionFromRequest(req)
+    if (!session?.email) {
+      res.status(401).json({ ok: false, error: 'Sign in to manage your devices.' })
+      return
+    }
+    const deviceId = String(req.params.id || '')
+    try {
+      const outcome = await revokeDevice(dataDir, session.email, deviceId)
+      if (!outcome.ok) {
+        res.status(outcome.status ?? 400).json({ ok: false, error: outcome.error })
+        return
+      }
+      // Revoking the device you are on is a sign-out, so drop the cookie too.
+      if (deviceId === session.did) clearSessionCookie(res, { secure: isSecureRequest(req) })
+      res.json({ ok: true, signedOutSelf: deviceId === session.did })
+    } catch (e) {
+      console.error('[auth] revoke device error:', e?.message || e)
+      res.status(500).json({ ok: false, error: 'Could not sign out that device. Try again.' })
+    }
   })
 
   app.post('/api/auth/change-password', async (req, res) => {
