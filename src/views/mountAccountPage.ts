@@ -310,41 +310,34 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
       <section class="sx-acct__panel" role="tabpanel" id="sx-acct-panel-account" aria-labelledby="sx-acct-tab-account" data-sx-acct-panel="account" hidden tabindex="0">
         <div class="sx-acct__grid">
           <div class="sx-acct-card">
-            <div class="sx-acct-card__head"><h2 class="sx-acct-card__title">Profile</h2></div>
+            <div class="sx-acct-card__head">
+              <h2 class="sx-acct-card__title">Profile</h2>
+              <p class="sx-acct-card__lead">How you appear inside Tradeneu.</p>
+            </div>
             <div class="sx-acct-identity">
-              <div class="sx-acct-avatar" data-sx-acct-dp-preview>${avatarMarkup(initials, avatarUrl)}</div>
-              <div>
+              <div class="sx-acct-avatar-wrap">
+                <div class="sx-acct-avatar" data-sx-acct-dp-preview>${avatarMarkup(initials, avatarUrl)}</div>
+                <button type="button" class="sx-acct-avatar-edit" data-sx-acct-dp-change aria-label="Change photo" title="Change photo"><i class="fa-solid fa-camera" aria-hidden="true"></i></button>
+              </div>
+              <div class="sx-acct-identity__copy">
                 <p class="sx-acct-identity__name" data-sx-acct-name-display>${escapeHtml(displayName)}</p>
-                <p class="sx-acct-identity__meta">
-                  <span class="sx-acct-pill sx-acct-pill--plan">${planLabel}</span>
-                  ${isGuest ? '<span class="sx-acct-pill">Guest mode</span>' : '<span class="sx-acct-pill sx-acct-pill--ok">Signed in</span>'}
-                </p>
-                <div class="sx-acct-identity__actions">
-                  <button type="button" class="sx-acct-btn" data-sx-acct-dp-change>Change photo</button>
-                  <button type="button" class="sx-acct-btn" data-sx-acct-dp-remove ${avatarUrl ? '' : 'hidden'}>Remove</button>
-                </div>
-                <input type="file" accept="image/png,image/jpeg,image/webp" hidden data-sx-acct-dp-file />
+                <p class="sx-acct-identity__meta">${isGuest ? 'Guest mode · stored in this browser only' : 'Signed in'}</p>
+                <button type="button" class="sx-acct-linkbtn" data-sx-acct-dp-remove ${avatarUrl ? '' : 'hidden'}>Remove photo</button>
               </div>
             </div>
+            <input type="file" accept="image/png,image/jpeg,image/webp" hidden data-sx-acct-dp-file />
             <div class="sx-acct-fields">
               <div class="sx-acct-field">
                 <label class="sx-acct-label" for="sx-acct-username">Display name</label>
-                <div class="sx-acct-input-row">
-                  <input id="sx-acct-username" class="sx-acct-input" type="text" maxlength="48" value="${escapeAttr(displayName)}" autocomplete="nickname" readonly data-sx-acct-username />
-                  <button type="button" class="sx-acct-icon-btn" data-sx-acct-edit-username aria-label="Edit display name" title="Edit display name"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>
-                </div>
+                <input id="sx-acct-username" class="sx-acct-input" type="text" maxlength="48" value="${escapeAttr(displayName)}" autocomplete="nickname" data-sx-acct-username />
                 <p class="sx-acct-hint">Shown in the sidebar and on your sessions.</p>
               </div>
               <div class="sx-acct-field">
                 <label class="sx-acct-label" for="sx-acct-email">Email</label>
                 <input id="sx-acct-email" class="sx-acct-input" type="email" value="${escapeAttr(email)}" disabled />
+                <p class="sx-acct-hint">${isGuest ? 'Placeholder address for guest mode.' : 'Contact support to change your account email.'}</p>
               </div>
             </div>
-            <div class="sx-acct-actions">
-              <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-save-profile>Save profile</button>
-              ${isGuest ? `<a class="sx-acct-btn" href="${resolveAppPath('login')}">Create account</a>` : ''}
-            </div>
-            <p class="sx-acct-saved" data-sx-acct-profile-saved aria-live="polite"></p>
           </div>
 
           <div class="sx-acct-card">
@@ -354,7 +347,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
             </div>
             <div class="sx-acct-fields">
               <div class="sx-acct-field">
-                <label class="sx-acct-label" for="sx-acct-timezone">Account timezone</label>
+                <label class="sx-acct-label" for="sx-acct-timezone">Timezone</label>
                 <select id="sx-acct-timezone" class="sx-acct-select" data-sx-acct-timezone>
                   ${SETTINGS_TIMEZONE_OPTIONS.map((z) => `<option value="${z.id}">${escapeHtml(z.label)}</option>`).join('')}
                 </select>
@@ -369,13 +362,17 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
                   </button>
                   <div class="sx-acct-locale__menu" id="sx-acct-locale-menu" hidden role="listbox" aria-labelledby="sx-acct-locale-label"></div>
                 </div>
-                <p class="sx-acct-hint">Header language label.</p>
+                <p class="sx-acct-hint">Language shown in the header.</p>
               </div>
             </div>
-            <div class="sx-acct-actions">
-              <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-save-regional>Save regional</button>
-            </div>
-            <p class="sx-acct-saved" data-sx-acct-regional-saved aria-live="polite"></p>
+          </div>
+        </div>
+
+        <div class="sx-acct-savebar">
+          <p class="sx-acct-saved" data-sx-acct-account-saved aria-live="polite"></p>
+          <div class="sx-acct-savebar__actions">
+            ${isGuest ? `<a class="sx-acct-btn" href="${resolveAppPath('login')}">Create account</a>` : ''}
+            <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-save-account>Save changes</button>
           </div>
         </div>
       </section>
@@ -693,8 +690,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     )
   }
 
-  const profileSaved = q<HTMLElement>('[data-sx-acct-profile-saved]')
-  const regionalSaved = q<HTMLElement>('[data-sx-acct-regional-saved]')
+  const accountSaved = q<HTMLElement>('[data-sx-acct-account-saved]')
   const backtestingSaved = q<HTMLElement>('[data-sx-acct-backtesting-saved]')
   const costsSaved = q<HTMLElement>('[data-sx-acct-costs-saved]')
   const passMsg = q<HTMLElement>('[data-sx-acct-pass-msg]')
@@ -727,10 +723,10 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
         writeUserAvatar(dataUrl)
         applyAvatar(dataUrl)
         opts.onAvatarChange?.()
-        flashSaved(profileSaved, 'Photo updated')
+        flashSaved(accountSaved, 'Photo updated')
       })
       .catch((err: unknown) => {
-        if (profileSaved) profileSaved.textContent = err instanceof Error ? err.message : 'Could not update photo.'
+        if (accountSaved) accountSaved.textContent = err instanceof Error ? err.message : 'Could not update photo.'
       })
       .finally(() => {
         dpFile.value = ''
@@ -741,47 +737,40 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     writeUserAvatar(null)
     applyAvatar(null)
     opts.onAvatarChange?.()
-    flashSaved(profileSaved, 'Photo removed')
+    flashSaved(accountSaved, 'Photo removed')
   })
 
-  /* ——— Display name ——— */
+  /* ——— Account tab: name, timezone and language all commit together on
+     "Save changes", so nothing on this tab applies until you ask for it. ——— */
   const usernameInput = q<HTMLInputElement>('[data-sx-acct-username]')
-  const editUsernameBtn = q<HTMLButtonElement>('[data-sx-acct-edit-username]')
   const nameDisplay = q<HTMLElement>('[data-sx-acct-name-display]')
+  const timezoneSelect = q<HTMLSelectElement>('[data-sx-acct-timezone]')
+  if (timezoneSelect) timezoneSelect.value = readUserTimezone()
 
-  editUsernameBtn?.addEventListener('click', () => {
-    if (!usernameInput) return
-    usernameInput.readOnly = false
-    usernameInput.focus()
-    usernameInput.select()
-    editUsernameBtn.classList.add('is-active')
-  })
+  let pendingLocale = opts.readLocale()
 
-  const onSaveProfile = () => {
-    if (!usernameInput) return
-    const next = usernameInput.value.trim().slice(0, 48) || readDisplayName()
+  const onSaveAccount = () => {
+    const next = usernameInput?.value.trim().slice(0, 48) || readDisplayName()
     writeDisplayName(next)
-    usernameInput.value = next
-    usernameInput.readOnly = true
-    editUsernameBtn?.classList.remove('is-active')
+    if (usernameInput) usernameInput.value = next
     if (nameDisplay) nameDisplay.textContent = next
     shell.querySelectorAll('[data-sx-acct-avatar-fallback]').forEach((el) => {
       el.textContent = initialsFrom(next)
     })
     opts.onDisplayNameChange?.(next)
-    flashSaved(profileSaved, 'Profile saved')
+
+    if (timezoneSelect) writeUserTimezone(timezoneSelect.value)
+    if (pendingLocale !== opts.readLocale()) opts.writeLocale(pendingLocale)
+
+    flashSaved(accountSaved, 'Changes saved')
   }
-  q('[data-sx-acct-save-profile]')?.addEventListener('click', onSaveProfile)
+  q('[data-sx-acct-save-account]')?.addEventListener('click', onSaveAccount)
   usernameInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault()
-      onSaveProfile()
+      onSaveAccount()
     }
   })
-
-  /* ——— Regional ——— */
-  const timezoneSelect = q<HTMLSelectElement>('[data-sx-acct-timezone]')
-  if (timezoneSelect) timezoneSelect.value = readUserTimezone()
 
   const localePicker = q<HTMLElement>('[data-sx-acct-locale-picker]')
   const localeTrigger = q<HTMLButtonElement>('#sx-acct-locale-trigger')
@@ -826,7 +815,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
       e.preventDefault()
       const code = btn.dataset.localeCode
       if (!code) return
-      opts.writeLocale(code)
+      pendingLocale = code
       if (localeValue) localeValue.textContent = localeLabel(code)
       localeMenu.querySelectorAll<HTMLButtonElement>('.sx-acct-locale__option').forEach((o) => {
         const active = o.dataset.localeCode === code
@@ -834,7 +823,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
         o.setAttribute('aria-selected', active ? 'true' : 'false')
       })
       closeLocaleMenu()
-      flashSaved(regionalSaved, 'Language saved')
     })
   })
 
@@ -842,11 +830,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     if (localePicker && !localePicker.contains(e.target as Node)) closeLocaleMenu()
   }
   document.addEventListener('click', onDocumentClick)
-
-  q('[data-sx-acct-save-regional]')?.addEventListener('click', () => {
-    if (timezoneSelect) writeUserTimezone(timezoneSelect.value)
-    flashSaved(regionalSaved, 'Regional saved')
-  })
 
   /* ——— Backtesting defaults ——— */
   q('[data-sx-acct-save-backtesting]')?.addEventListener('click', () => {

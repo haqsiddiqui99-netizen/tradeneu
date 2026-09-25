@@ -17,6 +17,9 @@
   --accent: #334155;
   --accent-tx: #ffffff;
   --accent-hover: #1e293b;
+  /* Progress fill is kept off --accent so it stays readable when the accent is
+     close in value to the track. */
+  --meter: #334155;
   --link: #2563eb;
   --ok: #16a34a;
   --danger: #dc2626;
@@ -27,6 +30,13 @@
   background: var(--bg);
   color: var(--tx);
   font-family: 'Segoe UI Variable', 'Segoe UI', Inter, -apple-system, Roboto, sans-serif;
+}
+
+/* Several components below set an explicit `display`, which outranks the user
+   agent's `[hidden] { display: none }`. Without this, anything toggled with the
+   hidden attribute stays on screen. */
+.sx-acct [hidden] {
+  display: none !important;
 }
 
 .sx-acct--embedded {
@@ -385,25 +395,80 @@
 }
 
 .sx-acct-identity__meta {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+.sx-acct-identity__copy {
+  min-width: 0;
+}
+
+/* Camera badge tucked onto the avatar corner, so the photo controls sit on the
+   thing they change instead of as two more buttons in the form. */
+.sx-acct-avatar-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.sx-acct-avatar-edit {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--dim);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sx-acct-avatar-edit:hover {
+  border-color: var(--line2);
+  background: var(--raise2);
+  color: var(--tx);
+}
+
+.sx-acct-linkbtn {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font: inherit;
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.sx-acct-linkbtn:hover {
+  color: var(--tx);
+}
+
+/* One save action for the whole tab, sitting below both cards. */
+.sx-acct-savebar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin: 6px 0 10px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
 }
 
-.sx-acct-identity__actions {
+.sx-acct-savebar__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
-.sx-acct-identity__actions .sx-acct-btn {
-  height: 32px;
-  min-height: 32px;
-  padding: 0 11px;
-  font-size: 12.5px;
-  font-weight: 500;
+.sx-acct-savebar .sx-acct-saved {
+  margin: 0;
 }
 
 .sx-acct-pill {
@@ -483,7 +548,7 @@
   display: block;
   height: 100%;
   border-radius: 99px;
-  background: var(--accent);
+  background: var(--meter);
 }
 
 .sx-acct-stats {
@@ -719,7 +784,7 @@
 }
 
 .sx-acct-row--current {
-  border-color: var(--accent);
+  border-color: var(--dim);
 }
 
 .sx-acct-row__ico {
@@ -824,15 +889,26 @@
   --tx: #f1f1f1;
   --dim: #9a9a9a;
   --dimmer: #6b6b6b;
-  --accent: #e0a94a;
-  --accent-tx: #17120a;
-  --accent-hover: #ebb758;
+  --accent: #3a3a3a;
+  --accent-tx: #f1f1f1;
+  --accent-hover: #4a4a4a;
+  --meter: #8a8a8a;
   --link: #38bdf8;
   --ok: #4ade80;
   --danger: #e5615e;
 
   /* Keeps the tab strip's own scrollbar and the native form controls dark. */
   color-scheme: dark;
+}
+
+/* A grey primary button can't rely on fill alone to read as the main action,
+   so it keeps a border the secondary buttons don't have. */
+#sx-app-root[data-dashboard-theme='dark'] .sx-acct-btn--primary {
+  border-color: #545454;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-acct-btn--primary:hover {
+  border-color: #666666;
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-acct--embedded {
@@ -846,12 +922,6 @@
 #sx-app-root[data-dashboard-theme='dark'] .sx-acct-pill--ok {
   border-color: rgba(74, 222, 128, 0.3);
   background: rgba(74, 222, 128, 0.12);
-}
-
-/* The active tab underline is the text colour in light theme; on dark, gold
-   reads as the selection marker the rest of the app already uses. */
-#sx-app-root[data-dashboard-theme='dark'] .sx-acct__tab[aria-selected='true'] {
-  border-bottom-color: var(--accent);
 }
 
 @media (max-width: 720px) {
