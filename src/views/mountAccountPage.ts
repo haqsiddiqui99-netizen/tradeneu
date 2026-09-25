@@ -1,6 +1,22 @@
 import './accountPage.css'
 import { defaultBacktestSlippage } from '../backtest/backtestChartUi'
 import { resolveAppPath } from '../appPaths'
+import { fetchMyBilling, recordCheckoutComplete, type MyBilling } from '../billing/billingApi'
+import {
+  BILLING_CYCLES,
+  CYCLE_LABELS,
+  FEATURE_GROUPS,
+  isBillingCycle,
+  PLAN_BLURBS,
+  PLAN_HIGHLIGHTS,
+  PLAN_LIMITS,
+  PLAN_NAMES,
+  PRICING,
+  type AccountTier,
+  type BillingCycle,
+  type FeatureRow,
+} from './planCatalog'
+import { createCheckoutOverlay, type CheckoutPlan } from './subscriptionCheckout'
 import {
   changeAuthEmail,
   changePassword,
@@ -73,7 +89,11 @@ export type MountAccountPageOptions = {
   readLocale: () => string
   writeLocale: (code: string) => void
   localeOptions: ReadonlyArray<{ code: string; name: string }>
-  readTier?: () => 'free' | 'intermediate' | 'pro'
+  readTier?: () => AccountTier
+  /** Persist the plan after a (demo) checkout completes in the Subscription tab. */
+  writeTier?: (tier: AccountTier) => void
+  /** Fired once the checkout overlay closes so the host can refresh tier-gated UI. */
+  onTierChange?: (tier: AccountTier) => void
   getSessionStats?: () => ProfileSessionStats
   getAuthUser?: () => AuthUser | null
   onOpenSubscription?: () => void
@@ -234,6 +254,70 @@ function compressAvatarFile(file: File): Promise<string> {
   })
 }
 
+/** Comparison cells carry ✓/× glyphs that deserve colour rather than raw text. */
+function compareCell(value: string): string {
+  if (value === '✓') return '<span class="sx-acct-cmp__yes" aria-label="Included">✓</span>'
+  if (value === '×') return '<span class="sx-acct-cmp__no" aria-label="Not included">×</span>'
+  if (value === '—') return '<span class="sx-acct-cmp__no" aria-label="Not applicable">—</span>'
+  return `<span class="sx-acct-cmp__val">${escapeHtml(value)}</span>`
+}
+
+/** Full feature matrix, with the column the user is actually on called out. */
+function comparisonHtml(tier: AccountTier): string {
+  const columns: ReadonlyArray<{ key: AccountTier; pick: (row: FeatureRow) => string }> = [
+    { key: 'free', pick: (r) => r.free },
+    { key: 'intermediate', pick: (r) => r.mid },
+    { key: 'pro', pick: (r) => r.pro },
+  ]
+  const head = columns
+    .map(
+      (c) =>
+        `<th scope="col"${c.key === tier ? ' class="is-current"' : ''}>${escapeHtml(PLAN_NAMES[c.key])}${
+          c.key === tier ? '<span class="sx-acct-cmp__tag">You</span>' : ''
+        }</th>`,
+    )
+    .join('')
+  return FEATURE_GROUPS.map(
+    (group, i) => `
+      <details class="sx-acct-accordion"${i === 0 ? ' open' : ''}>
+        <summary class="sx-acct-accordion__summary">
+          <span>${escapeHtml(group.title)}</span>
+          <i class="fa-solid fa-chevron-down sx-acct-accordion__chev" aria-hidden="true"></i>
+        </summary>
+        <div class="sx-acct-accordion__body">
+          <table class="sx-acct-table sx-acct-cmp">
+            <thead><tr><th scope="col">Feature</th>${head}</tr></thead>
+            <tbody>${group.rows
+              .map(
+                (row) =>
+                  `<tr><th scope="row">${escapeHtml(row.label)}</th>${columns
+                    .map((c) => `<td${c.key === tier ? ' class="is-current"' : ''}>${compareCell(c.pick(row))}</td>`)
+                    .join('')}</tr>`,
+              )
+              .join('')}</tbody>
+          </table>
+        </div>
+      </details>`,
+  ).join('')
+}
+
+function formatDate(ms: number): string {
+  if (!ms) return '—'
+  try {
+    return new Date(ms).toLocaleDateString(undefined, { dateStyle: 'medium' })
+  } catch {
+    return '—'
+  }
+}
+
+function formatAmount(n: number): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(n)
+  } catch {
+    return `$${n.toFixed(2)}`
+  }
+}
+
 function avatarMarkup(initials: string, avatarUrl: string | null): string {
   if (avatarUrl) return `<img src="${escapeAttr(avatarUrl)}" alt="" />`
   return `<span data-sx-acct-avatar-fallback>${escapeHtml(initials)}</span>`
@@ -252,7 +336,10 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
   const sessionsUsed = stats?.total ?? 0
   const sessionPct =
     tier === 'pro' ? 100 : Math.min(100, Math.round((sessionsUsed / Math.max(1, sessionLimit)) * 100))
-  const planLabel = tier === 'pro' ? 'Premium Plan' : tier === 'intermediate' ? 'Ultra Plan' : 'Free'
+  const planLabel = PLAN_NAMES[tier]
+  const planLimits = PLAN_LIMITS[tier]
+  const planPriceLine =
+    tier === 'free' ? 'Free forever' : `${formatAmount(PRICING.monthly[tier].amount)} / month`
   const initials = initialsFrom(displayName)
   const avatarUrl = readUserAvatar()
   const memberSinceLabel = stats?.memberSinceMs ? formatMemberSince(stats.memberSinceMs) : '—'
@@ -514,7 +601,11 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Current plan</h2>
-              <p class="sx-acct-card__lead">${planLabel} · ${tier === 'pro' ? '$19 / month' : tier === 'intermediate' ? '$9 / month' : 'Free forever'}</p>
+              <p class="sx-acct-card__lead">${escapeHtml(PLAN_BLURBS[tier])}</p>
+            </div>
+            <div class="sx-acct-plan-now">
+              <span class="sx-acct-plan-now__name">${escapeHtml(planLabel)}</span>
+              <span class="sx-acct-pill sx-acct-pill--plan">${escapeHtml(planPriceLine)}</span>
             </div>
             <ul class="sx-acct-checklist">
               ${features
@@ -524,15 +615,22 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
                 )
                 .join('')}
             </ul>
+            <dl class="sx-acct-stats sx-acct-stats--tight" data-sx-acct-plan-stats>
+              <div><dt>Billing cycle</dt><dd data-sx-acct-plan-cycle>${tier === 'free' ? '—' : '…'}</dd></div>
+              <div><dt>Renews on</dt><dd data-sx-acct-plan-renews>${tier === 'free' ? '—' : '…'}</dd></div>
+              <div><dt>Status</dt><dd data-sx-acct-plan-status>${tier === 'free' ? 'No subscription' : '…'}</dd></div>
+              <div><dt>Member since</dt><dd>${escapeHtml(memberSinceLabel)}</dd></div>
+            </dl>
             <div class="sx-acct-actions">
-              <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-manage-plan>${tier === 'free' ? 'Compare plans' : 'Open Manage Plan'}</button>
+              <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-scroll-to="plans">${tier === 'pro' ? 'Review plans' : 'Upgrade plan'}</button>
+              <button type="button" class="sx-acct-btn" data-sx-acct-manage-plan>Manage subscription</button>
             </div>
           </div>
 
           <div class="sx-acct-card">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Entitlement</h2>
-              <p class="sx-acct-card__lead">How much of your plan you have used.</p>
+              <p class="sx-acct-card__lead">What your plan allows and how much of it you have used.</p>
             </div>
             <div class="sx-acct-usage">
               <div class="sx-acct-usage__top">
@@ -541,15 +639,130 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
               </div>
               <div class="sx-acct-usage__bar" role="progressbar" aria-valuemin="0" aria-valuemax="${tier === 'pro' ? Math.max(sessionsUsed, 1) : sessionLimit}" aria-valuenow="${sessionsUsed}"><span style="width:${sessionPct}%"></span></div>
             </div>
+            <dl class="sx-acct-stats sx-acct-stats--tight" style="margin-top:16px">
+              <div><dt>Indicators</dt><dd>${escapeHtml(planLimits.indicators)}</dd></div>
+              <div><dt>Charts</dt><dd>${escapeHtml(planLimits.charts)}</dd></div>
+              <div><dt>Data retention</dt><dd>${escapeHtml(planLimits.retention)}</dd></div>
+              <div><dt>Trades / session</dt><dd>${escapeHtml(planLimits.trades)}</dd></div>
+            </dl>
             <p class="sx-acct-hint" style="margin-top:14px">
               ${
                 tier === 'pro'
-                  ? 'You are on Premium Plan. Manage billing, pause, or cancel from the subscription page.'
+                  ? 'You are on Premium Plan — nothing here is capped. Manage billing, pause, or cancel below.'
                   : tier === 'intermediate'
-                    ? 'You are on Ultra Plan. Upgrade to Premium for unlimited sessions and futures data.'
+                    ? 'You are on Ultra Plan. Premium removes every cap and adds seconds data and futures.'
                     : 'Upgrade when you need more sessions, charts, and analytics.'
               }
             </p>
+          </div>
+
+          <div class="sx-acct-card sx-acct-card--span" data-sx-acct-plans>
+            <div class="sx-acct-card__head sx-acct-card__head--row">
+              <div>
+                <h2 class="sx-acct-card__title">Plans</h2>
+                <p class="sx-acct-card__lead">Switch cycle to see the discounted rate. Longer cycles bill less per month.</p>
+              </div>
+              <div class="sx-acct-cycle" role="group" aria-label="Billing cycle">
+                ${BILLING_CYCLES.map(
+                  (c) =>
+                    `<button type="button" class="sx-acct-cycle__btn${c === 'monthly' ? ' is-active' : ''}" data-sx-acct-cycle="${c}">${CYCLE_LABELS[c]}</button>`,
+                ).join('')}
+              </div>
+            </div>
+
+            <div class="sx-acct-plans">
+              <article class="sx-acct-plan${tier === 'free' ? ' is-current' : ''}">
+                <header class="sx-acct-plan__head">
+                  <h3 class="sx-acct-plan__name">${PLAN_NAMES.free}</h3>
+                  ${tier === 'free' ? '<span class="sx-acct-pill sx-acct-pill--ok">Current</span>' : ''}
+                </header>
+                <p class="sx-acct-plan__price"><strong>Free</strong><span class="sx-acct-plan__unit">forever</span></p>
+                <p class="sx-acct-plan__desc">${PLAN_BLURBS.free}</p>
+                <ul class="sx-acct-plan__features">
+                  ${PLAN_HIGHLIGHTS.free.map((f) => `<li><i class="fa-solid fa-check" aria-hidden="true"></i>${escapeHtml(f)}</li>`).join('')}
+                </ul>
+                ${
+                  tier === 'free'
+                    ? '<button type="button" class="sx-acct-btn" disabled>Included with your account</button>'
+                    : '<button type="button" class="sx-acct-btn" data-sx-acct-manage-plan>Switch to Basic</button>'
+                }
+              </article>
+
+              <article class="sx-acct-plan${tier === 'intermediate' ? ' is-current' : ''}">
+                <header class="sx-acct-plan__head">
+                  <h3 class="sx-acct-plan__name">${PLAN_NAMES.intermediate}</h3>
+                  ${
+                    tier === 'intermediate'
+                      ? '<span class="sx-acct-pill sx-acct-pill--ok">Current</span>'
+                      : `<span class="sx-acct-plan__save" data-sx-acct-save="intermediate">${PRICING.monthly.intermediate.save}</span>`
+                  }
+                </header>
+                <p class="sx-acct-plan__price">
+                  <strong data-sx-acct-price="intermediate">${PRICING.monthly.intermediate.label}</strong>
+                  <span class="sx-acct-plan__unit">$<span data-sx-acct-period="intermediate">${PRICING.monthly.intermediate.period}</span></span>
+                </p>
+                <p class="sx-acct-plan__meta">
+                  <s data-sx-acct-was="intermediate">${PRICING.monthly.intermediate.original}</s>
+                  <span data-sx-acct-billed="intermediate">${PRICING.monthly.intermediate.billed}</span>
+                </p>
+                <p class="sx-acct-plan__desc">${PLAN_BLURBS.intermediate}</p>
+                <ul class="sx-acct-plan__features">
+                  ${PLAN_HIGHLIGHTS.intermediate.map((f) => `<li><i class="fa-solid fa-check" aria-hidden="true"></i>${escapeHtml(f)}</li>`).join('')}
+                </ul>
+                ${
+                  tier === 'intermediate'
+                    ? '<button type="button" class="sx-acct-btn" data-sx-acct-manage-plan>Manage plan</button>'
+                    : tier === 'pro'
+                      ? '<button type="button" class="sx-acct-btn" disabled>Included in Premium Plan</button>'
+                      : '<button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-upgrade="intermediate">Upgrade to Ultra</button>'
+                }
+              </article>
+
+              <article class="sx-acct-plan sx-acct-plan--best${tier === 'pro' ? ' is-current' : ''}">
+                <header class="sx-acct-plan__head">
+                  <h3 class="sx-acct-plan__name">${PLAN_NAMES.pro}</h3>
+                  ${
+                    tier === 'pro'
+                      ? '<span class="sx-acct-pill sx-acct-pill--ok">Current</span>'
+                      : `<span class="sx-acct-plan__save" data-sx-acct-save="pro">${PRICING.monthly.pro.save}</span>`
+                  }
+                </header>
+                <p class="sx-acct-plan__price">
+                  <strong data-sx-acct-price="pro">${PRICING.monthly.pro.label}</strong>
+                  <span class="sx-acct-plan__unit">$<span data-sx-acct-period="pro">${PRICING.monthly.pro.period}</span></span>
+                </p>
+                <p class="sx-acct-plan__meta">
+                  <s data-sx-acct-was="pro">${PRICING.monthly.pro.original}</s>
+                  <span data-sx-acct-billed="pro">${PRICING.monthly.pro.billed}</span>
+                </p>
+                <p class="sx-acct-plan__desc">${PLAN_BLURBS.pro}</p>
+                <ul class="sx-acct-plan__features">
+                  ${PLAN_HIGHLIGHTS.pro.map((f) => `<li><i class="fa-solid fa-check" aria-hidden="true"></i>${escapeHtml(f)}</li>`).join('')}
+                </ul>
+                ${
+                  tier === 'pro'
+                    ? '<button type="button" class="sx-acct-btn" data-sx-acct-manage-plan>Manage plan</button>'
+                    : '<button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-upgrade="pro">Upgrade to Premium</button>'
+                }
+              </article>
+            </div>
+            <p class="sx-acct-hint" style="margin-top:14px">Taxes may apply at checkout. Plan changes take effect immediately; the new cycle starts on your next renewal.</p>
+          </div>
+
+          <div class="sx-acct-card sx-acct-card--span">
+            <div class="sx-acct-card__head">
+              <h2 class="sx-acct-card__title">Compare plans</h2>
+              <p class="sx-acct-card__lead">Every limit side by side. Your current plan is highlighted.</p>
+            </div>
+            ${comparisonHtml(tier)}
+          </div>
+
+          <div class="sx-acct-card sx-acct-card--span">
+            <div class="sx-acct-card__head">
+              <h2 class="sx-acct-card__title">Billing &amp; invoices</h2>
+              <p class="sx-acct-card__lead">Payments recorded against this account.</p>
+            </div>
+            <div data-sx-acct-billing><p class="sx-acct-hint">Loading billing history…</p></div>
           </div>
         </div>
       </section>
@@ -704,6 +917,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
       p.hidden = p.dataset.sxAcctPanel !== key
     })
     if (key === 'devices') void loadDevices()
+    if (key === 'subscription') void loadBilling()
     if (key === 'deleted') renderDeleted()
   }
 
@@ -754,6 +968,140 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
 
   const onManagePlan = () => opts.onOpenSubscription?.()
   shell.querySelectorAll('[data-sx-acct-manage-plan]').forEach((b) => b.addEventListener('click', onManagePlan))
+
+  /* ——— Subscription tab: pricing switcher, checkout and invoices ——— */
+  let cycle: BillingCycle = 'monthly'
+
+  function applyCycle(next: BillingCycle) {
+    cycle = next
+    shell.querySelectorAll<HTMLButtonElement>('[data-sx-acct-cycle]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.getAttribute('data-sx-acct-cycle') === next)
+    })
+    ;(['intermediate', 'pro'] as const).forEach((plan) => {
+      const price = PRICING[next][plan]
+      const put = (field: string, text: string) => {
+        const el = shell.querySelector(`[data-sx-acct-${field}="${plan}"]`)
+        if (el) el.textContent = text
+      }
+      put('price', price.label)
+      put('period', price.period)
+      put('was', price.original)
+      put('billed', price.billed)
+      put('save', price.save)
+    })
+  }
+
+  shell.querySelectorAll<HTMLButtonElement>('[data-sx-acct-cycle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = btn.getAttribute('data-sx-acct-cycle')
+      if (isBillingCycle(next)) applyCycle(next)
+    })
+  })
+  applyCycle('monthly')
+
+  q('[data-sx-acct-scroll-to="plans"]')?.addEventListener('click', () => {
+    q('[data-sx-acct-plans]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+
+  const checkout = createCheckoutOverlay({
+    onComplete: (order, method) => {
+      opts.writeTier?.(order.plan)
+      void recordCheckoutComplete(order, method)
+    },
+    // The tab renders tier-dependent markup top to bottom, so the host remounts
+    // it rather than us patching a dozen nodes in place.
+    onDismissAfterComplete: () => opts.onTierChange?.(opts.readTier?.() ?? tier),
+  })
+
+  shell.querySelectorAll<HTMLButtonElement>('[data-sx-acct-upgrade]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const plan = btn.getAttribute('data-sx-acct-upgrade')
+      if (plan === 'intermediate' || plan === 'pro') checkout.open(plan as CheckoutPlan, cycle)
+    })
+  })
+
+  const billingHost = q<HTMLElement>('[data-sx-acct-billing]')
+  let billingRequested = false
+
+  function setPlanStat(field: string, text: string) {
+    const el = q<HTMLElement>(`[data-sx-acct-plan-${field}]`)
+    if (el) el.textContent = text
+  }
+
+  function applyBilling(data: MyBilling | null) {
+    const sub = data?.subscription ?? null
+    const noSub = tier === 'free' ? 'No subscription' : 'Not recorded'
+    setPlanStat('cycle', sub ? CYCLE_LABELS[sub.cycle] : tier === 'free' ? '—' : 'Monthly')
+    setPlanStat('renews', sub ? formatDate(sub.currentPeriodEnd) : '—')
+    setPlanStat('status', sub ? sub.status.charAt(0).toUpperCase() + sub.status.slice(1) : noSub)
+    if (!billingHost) return
+
+    const summary = sub
+      ? `<dl class="sx-acct-stats sx-acct-stats--tight" style="margin-bottom:16px">
+          <div><dt>Subscription</dt><dd>${escapeHtml(PLAN_NAMES[sub.plan])}</dd></div>
+          <div><dt>Billing cycle</dt><dd>${CYCLE_LABELS[sub.cycle]}</dd></div>
+          <div><dt>Monthly value</dt><dd>${escapeHtml(formatAmount(sub.mrr))}</dd></div>
+          <div><dt>Next charge</dt><dd>${escapeHtml(formatDate(sub.currentPeriodEnd))}</dd></div>
+        </dl>`
+      : ''
+
+    const rows = data?.transactions ?? []
+    const history = rows.length
+      ? `<div class="sx-acct-tablewrap">
+          <table class="sx-acct-table">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Plan</th>
+                <th scope="col">Cycle</th>
+                <th scope="col">Method</th>
+                <th scope="col">Status</th>
+                <th scope="col">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows
+                .map(
+                  (t) => `<tr>
+                    <td>${escapeHtml(formatDate(t.ts))}</td>
+                    <td>${escapeHtml(PLAN_NAMES[t.plan])}</td>
+                    <td>${CYCLE_LABELS[t.cycle]}</td>
+                    <td>${escapeHtml(t.method)}</td>
+                    <td>${escapeHtml(t.status)}</td>
+                    <td>${escapeHtml(formatAmount(t.total))}</td>
+                  </tr>`,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>`
+      : `<div class="sx-acct-empty">
+          <i class="fa-regular fa-file-lines" aria-hidden="true"></i>
+          <strong>No payments yet</strong>
+          <span>Invoices show up here as soon as your first upgrade goes through.</span>
+        </div>`
+
+    billingHost.innerHTML = `${summary}${history}`
+  }
+
+  async function loadBilling() {
+    if (billingRequested) return
+    billingRequested = true
+    if (isGuest) {
+      setPlanStat('cycle', '—')
+      setPlanStat('renews', '—')
+      setPlanStat('status', 'Guest mode')
+      if (billingHost) {
+        billingHost.innerHTML = `<div class="sx-acct-empty">
+          <i class="fa-regular fa-user" aria-hidden="true"></i>
+          <strong>Guest mode has no billing</strong>
+          <span>Create an account to subscribe and keep your invoices.</span>
+        </div>`
+      }
+      return
+    }
+    applyBilling(await fetchMyBilling())
+  }
 
   /* ——— Avatar ——— */
   const dpPreview = q<HTMLElement>('[data-sx-acct-dp-preview]')
@@ -1243,6 +1591,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
   return () => {
     savedTimers.forEach((t) => clearTimeout(t))
     savedTimers.clear()
+    checkout.dispose()
     document.removeEventListener('click', onDocumentClick)
   }
 }

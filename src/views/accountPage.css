@@ -727,6 +727,265 @@
   font-weight: 600;
 }
 
+.sx-acct-tablewrap {
+  overflow-x: auto;
+}
+
+/* ——— Subscription tab ——— */
+.sx-acct-card__head--row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sx-acct-plan-now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.sx-acct-plan-now__name {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Denser than the profile stat grid: these are facts to scan, not headline
+   numbers, so they get more columns and less weight. */
+.sx-acct-stats--tight {
+  margin-top: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 12px;
+}
+
+.sx-acct-stats--tight dd {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sx-acct-cycle {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--raise);
+}
+
+.sx-acct-cycle__btn {
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 99px;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sx-acct-cycle__btn:hover {
+  color: var(--tx);
+}
+
+.sx-acct-cycle__btn.is-active {
+  background: var(--accent);
+  color: var(--accent-tx);
+}
+
+.sx-acct-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.sx-acct-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--raise);
+}
+
+.sx-acct-plan--best {
+  background: var(--raise2);
+}
+
+.sx-acct-plan.is-current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.sx-acct-plan__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.sx-acct-plan__name {
+  margin: 0;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.sx-acct-plan__save {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.sx-acct-plan__price {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+}
+
+.sx-acct-plan__price strong {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.sx-acct-plan__unit {
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+.sx-acct-plan__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.sx-acct-plan__meta s {
+  color: var(--dimmer);
+}
+
+.sx-acct-plan__desc {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+.sx-acct-plan__features {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.sx-acct-plan__features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.sx-acct-plan__features i {
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--ok);
+}
+
+/* Pinned to the bottom so CTAs line up across cards of different heights. */
+.sx-acct-plan .sx-acct-btn {
+  width: 100%;
+  margin-top: auto;
+  justify-content: center;
+}
+
+.sx-acct-plan .sx-acct-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.sx-acct-accordion {
+  border-top: 1px solid var(--line);
+}
+
+.sx-acct-accordion:first-of-type {
+  border-top: 0;
+}
+
+.sx-acct-accordion__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 2px;
+  font-size: 13px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.sx-acct-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.sx-acct-accordion__chev {
+  font-size: 11px;
+  color: var(--dim);
+  transition: transform 0.15s ease;
+}
+
+.sx-acct-accordion[open] .sx-acct-accordion__chev {
+  transform: rotate(180deg);
+}
+
+.sx-acct-accordion__body {
+  overflow-x: auto;
+  padding-bottom: 10px;
+}
+
+.sx-acct-cmp th[scope='row'] {
+  color: var(--tx);
+  font-weight: 600;
+}
+
+.sx-acct-cmp thead th {
+  white-space: nowrap;
+}
+
+.sx-acct-cmp th.is-current,
+.sx-acct-cmp td.is-current {
+  background: var(--raise);
+  color: var(--tx);
+}
+
+.sx-acct-cmp__tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: var(--accent);
+  color: var(--accent-tx);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+}
+
+.sx-acct-cmp__yes {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.sx-acct-cmp__no {
+  color: var(--dimmer);
+}
+
 /* ——— Locale picker ——— */
 .sx-acct-locale {
   position: relative;

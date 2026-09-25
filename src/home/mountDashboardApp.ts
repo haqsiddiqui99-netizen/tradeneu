@@ -583,7 +583,7 @@ import { mountAccountPage } from '../views/mountAccountPage'
 import { mountSubscriptionPage } from '../views/mountSubscriptionPage'
 import { mountBillingPage } from '../views/mountBillingPage'
 import { buildAnalyticsPageHtml, initAnalyticsPage, type SxaTrade } from './dashboardAnalyticsPage'
-import type { ProfileSessionStats } from '../views/mountAccountPage'
+import type { AccountTabKey, ProfileSessionStats } from '../views/mountAccountPage'
 import { postTelemetryEvent } from '../telemetry/telemetryApi'
 import { DASH_LOCALES, dashLocaleMenuLabel, isDashLocaleCode } from './dashboardLocales'
 import { readDisplayName, readUserAvatar } from './dashboardUserPrefs'
@@ -2263,7 +2263,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (refreshed) openChartWithStoredSession(refreshed, { autoRunBacktest: opts?.runBacktest })
   }
 
-  function showSettingsPage() {
+  function showSettingsPage(initialTab?: AccountTabKey) {
     if (!viewSettingsPanel) return
     disposeChart?.()
     disposeChart = null
@@ -2288,6 +2288,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeSettings?.()
     disposeSettings = mountAccountPage(viewSettingsPanel, {
       embedded: true,
+      initialTab,
       readLocale: readDashLocale,
       writeLocale: (code) => {
         writeDashLocale(code)
@@ -2295,6 +2296,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       },
       localeOptions: DASH_LOCALES,
       readTier: readAccountTier,
+      writeTier: writeAccountTier,
+      onTierChange: () => {
+        applyAccountTierUi()
+        syncSidebarProfile()
+        if (viewSettingsPanel && !viewSettingsPanel.hidden) showSettingsPage('subscription')
+      },
       getSessionStats: getProfileSessionStats,
       getAuthUser: () => getAuthUser(),
       onOpenSubscription: openUpgradePlansModal,
