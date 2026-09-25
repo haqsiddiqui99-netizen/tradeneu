@@ -406,7 +406,8 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         <header class="topbar">
           ${opts.onBack ? `<button type="button" class="backLink" data-sx-back><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Strategies</button>` : ''}
           <div class="nameFieldWrap">
-            <input class="nameField" id="stratName" value="EMA 9/21 Crossover" aria-label="Strategy name">
+            <input class="nameField" id="stratName" value="EMA 9/21 Crossover" aria-label="Strategy name" readonly>
+            <span class="nameFieldGhost" id="nameFieldGhost" aria-hidden="true"></span>
             <button type="button" class="nameFieldEdit" id="nameFieldEdit" title="Edit strategy name" aria-label="Edit strategy name"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>
           </div>
           <span class="forked" id="forkTag" hidden>Copy — saves to your strategies</span>
@@ -855,8 +856,19 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     renderAll()
   }
 
+  // The name box hugs its text instead of stretching across the header, so
+  // its width has to be measured from the rendered glyphs — the hidden ghost
+  // span carries the same font and gives us that width.
+  function sizeNameField() {
+    const input = $<HTMLInputElement>('stratName')
+    const ghost = $<HTMLElement>('nameFieldGhost')
+    ghost.textContent = input.value || 'Untitled strategy'
+    input.style.width = Math.min(520, Math.max(88, Math.ceil(ghost.offsetWidth) + 2)) + 'px'
+  }
+
   function syncControls() {
     $<HTMLInputElement>('stratName').value = S.name
+    sizeNameField()
     $<HTMLSelectElement>('entryJoin').value = S.entryJoin
     $<HTMLSelectElement>('exitJoin').value = S.exitJoin
     $<HTMLSelectElement>('sizeType').value = S.risk.size[0]
@@ -1602,6 +1614,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       dirty = true
       S.name = S.name + ' (my copy)'
       $<HTMLInputElement>('stratName').value = S.name
+      sizeNameField()
       $<HTMLElement>('forkTag').hidden = false
     }
   }
@@ -1763,6 +1776,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
             if (activeMineId === m.id) {
               S.name = m.name
               $<HTMLInputElement>('stratName').value = S.name
+              sizeNameField()
               renderJson()
             }
           }
@@ -1848,15 +1862,23 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   $<HTMLInputElement>('stratName').oninput = (e) => {
     S.name = (e.target as HTMLInputElement).value
+    sizeNameField()
     markDirty()
     renderJson()
     renderLibrary()
   }
   $<HTMLButtonElement>('nameFieldEdit').onclick = () => {
     const input = $<HTMLInputElement>('stratName')
+    input.readOnly = false
     input.focus()
     input.select()
   }
+  $<HTMLInputElement>('stratName').addEventListener('blur', () => {
+    $<HTMLInputElement>('stratName').readOnly = true
+  })
+  $<HTMLInputElement>('stratName').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === 'Escape') $<HTMLInputElement>('stratName').blur()
+  })
   ;['symbol', 'tf', 'range', 'session'].forEach((id) => {
     $(id).addEventListener('input', () => {
       clearBacktestResult()
@@ -1976,6 +1998,9 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   loadTemplate(TEMPLATES[0]!)
   void refreshLiveBarCounts($<HTMLSelectElement>('symbol').value)
+  // First measure can land before the webfont swaps in, which would leave the
+  // box sized for the fallback font's metrics.
+  void document.fonts?.ready.then(() => sizeNameField())
 
   return {
     dispose: () => {

@@ -129,12 +129,14 @@
 }
 /* No app wordmark in this header — the strategy name is the header, and
    with the brand/crumb gone it gets the room that used to belong to them.
-   The outlined box is now `.nameFieldWrap`, which hosts the borderless
-   text input plus a dedicated "Edit" pencil button, so the box (not just
-   the raw input) is the visible, clickable "edit this name" affordance
-   and can grow to fit longer strategy names. */
+   The outlined box is `.nameFieldWrap`: a borderless text input plus a
+   pencil button. The box hugs the name (its width is measured from the
+   ghost span in JS) rather than stretching across the header, and the
+   input stays read-only until the pencil is pressed, so the pencil is
+   the actual way into editing rather than a decorative hint. */
 .sx-manual-strat .nameFieldWrap {
-  display: flex;
+  display: inline-flex;
+  position: relative;
   align-items: center;
   gap: 2px;
   background: transparent;
@@ -146,9 +148,8 @@
   border-radius: 6px;
   height: 38px;
   padding: 0 4px 0 9px;
-  min-width: 200px;
   max-width: 65vw;
-  flex: 0 1 560px;
+  flex: 0 0 auto;
 }
 .sx-manual-strat .nameFieldWrap:hover {
   border-color: var(--tx);
@@ -158,7 +159,7 @@
   background: var(--raise);
 }
 .sx-manual-strat .nameField {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   background: transparent;
   border: 0;
@@ -167,9 +168,26 @@
   font-weight: 600;
   font-size: 15px;
   letter-spacing: -0.01em;
+  text-overflow: ellipsis;
 }
 .sx-manual-strat .nameField:focus {
   outline: none;
+}
+.sx-manual-strat .nameField[readonly] {
+  cursor: default;
+}
+/* Off-screen mirror of the input text, used only to measure how wide the
+   box needs to be for the current name. */
+.sx-manual-strat .nameFieldGhost {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
 }
 .sx-manual-strat .nameFieldEdit {
   flex: 0 0 auto;
@@ -1517,8 +1535,7 @@
     gap: 8px;
   }
   .sx-manual-strat .nameFieldWrap {
-    max-width: none;
-    flex: 1;
+    max-width: 55vw;
   }
   .sx-manual-strat .rule {
     gap: 6px;
