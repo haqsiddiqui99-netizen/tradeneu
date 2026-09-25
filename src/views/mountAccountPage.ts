@@ -656,7 +656,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
             <div class="sx-acct-card__head sx-acct-card__head--row">
               <div>
                 <h2 class="sx-acct-card__title">Plans</h2>
-                <p class="sx-acct-card__lead">Switch cycle to see the discounted rate. Longer cycles bill less per month.</p>
               </div>
               <div class="sx-acct-cycle" role="group" aria-label="Billing cycle">
                 ${BILLING_CYCLES.map(
@@ -664,7 +663,35 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
                     `<button type="button" class="sx-acct-cycle__btn${c === 'monthly' ? ' is-active' : ''}" data-sx-acct-cycle="${c}">${CYCLE_LABELS[c]}</button>`,
                 ).join('')}
               </div>
-              <button type="button" class="sx-acct-btn" data-sx-acct-manage-plan>Manage subscription</button>
+              <div class="sx-acct-manage" data-sx-acct-manage-picker>
+                <button type="button" class="sx-acct-btn" id="sx-acct-manage-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="sx-acct-manage-menu" data-sx-acct-manage-toggle>
+                  <i class="fa-regular fa-credit-card" aria-hidden="true"></i>
+                  Manage Subscription
+                  <i class="fa-solid fa-chevron-down sx-acct-manage__chev" aria-hidden="true"></i>
+                </button>
+                <div class="sx-acct-manage__menu" id="sx-acct-manage-menu" hidden role="menu" aria-label="Manage Subscription">
+                  <button type="button" role="menuitem" class="sx-acct-manage__item" data-sx-acct-manage-item="billing">
+                    <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+                    <span><strong>Billing option</strong><em>Change your billing cycle</em></span>
+                  </button>
+                  <button type="button" role="menuitem" class="sx-acct-manage__item" data-sx-acct-manage-item="history">
+                    <i class="fa-regular fa-clock" aria-hidden="true"></i>
+                    <span><strong>Payment history</strong><em>Invoices and receipts</em></span>
+                  </button>
+                  <button type="button" role="menuitem" class="sx-acct-manage__item" data-sx-acct-manage-item="address">
+                    <i class="fa-regular fa-map" aria-hidden="true"></i>
+                    <span><strong>Billing &amp; shipping address</strong><em>Update your contact details</em></span>
+                  </button>
+                  <button type="button" role="menuitem" class="sx-acct-manage__item" data-sx-acct-manage-item="pause">
+                    <i class="fa-solid fa-pause" aria-hidden="true"></i>
+                    <span><strong>Pause subscription</strong><em>Temporarily stop billing</em></span>
+                  </button>
+                  <button type="button" role="menuitem" class="sx-acct-manage__item sx-acct-manage__item--danger" data-sx-acct-manage-item="cancel">
+                    <i class="fa-regular fa-circle-xmark" aria-hidden="true"></i>
+                    <span><strong>Cancel subscription</strong><em>End renewals at period end</em></span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div class="sx-acct-plans">
@@ -754,7 +781,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
             ${comparisonHtml(tier)}
           </div>
 
-          <div class="sx-acct-card sx-acct-card--span">
+          <div class="sx-acct-card sx-acct-card--span" data-sx-acct-billing-card>
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Billing &amp; invoices</h2>
               <p class="sx-acct-card__lead">Payments recorded against this account.</p>
@@ -995,6 +1022,55 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     })
   })
   applyCycle('monthly')
+
+  /* ——— Manage Subscription dropdown: opens in place rather than navigating
+     to the standalone subscription page. ——— */
+  const managePicker = q<HTMLElement>('[data-sx-acct-manage-picker]')
+  const manageTrigger = q<HTMLButtonElement>('#sx-acct-manage-trigger')
+  const manageMenu = q<HTMLElement>('#sx-acct-manage-menu')
+
+  function closeManageMenu() {
+    if (!manageMenu) return
+    manageMenu.hidden = true
+    manageTrigger?.setAttribute('aria-expanded', 'false')
+  }
+
+  manageTrigger?.addEventListener('click', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!manageMenu) return
+    if (manageMenu.hidden) {
+      manageMenu.hidden = false
+      manageTrigger.setAttribute('aria-expanded', 'true')
+    } else {
+      closeManageMenu()
+    }
+  })
+
+  manageMenu?.querySelectorAll<HTMLButtonElement>('[data-sx-acct-manage-item]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const kind = btn.getAttribute('data-sx-acct-manage-item')
+      closeManageMenu()
+      if (kind === 'billing') {
+        q('[data-sx-acct-plans]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } else if (kind === 'history') {
+        q('[data-sx-acct-billing-card]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } else if (kind === 'address') {
+        window.alert('Address saved locally for now. Payment provider sync coming soon.')
+      } else if (kind === 'pause') {
+        window.alert('Pause request noted. Live pause will connect when billing is enabled.')
+      } else if (kind === 'cancel') {
+        if (window.confirm('Cancel renewals? You keep access until the end of the current period.')) {
+          window.alert('Cancel request noted. Live cancellation will connect when billing is enabled.')
+        }
+      }
+    })
+  })
+
+  const onDocumentClickManage = (e: MouseEvent) => {
+    if (managePicker && !managePicker.contains(e.target as Node)) closeManageMenu()
+  }
+  document.addEventListener('click', onDocumentClickManage)
 
   const checkout = createCheckoutOverlay({
     onComplete: (order, method) => {
@@ -1586,5 +1662,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     savedTimers.clear()
     checkout.dispose()
     document.removeEventListener('click', onDocumentClick)
+    document.removeEventListener('click', onDocumentClickManage)
   }
 }

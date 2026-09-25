@@ -748,7 +748,7 @@
   justify-self: center;
 }
 
-.sx-acct-card__head--row > .sx-acct-btn {
+.sx-acct-card__head--row > .sx-acct-manage {
   grid-column: 3;
   justify-self: end;
 }
@@ -759,9 +759,96 @@
   }
 
   .sx-acct-card__head--row > .sx-acct-cycle,
-  .sx-acct-card__head--row > .sx-acct-btn {
+  .sx-acct-card__head--row > .sx-acct-manage {
     justify-self: start;
   }
+}
+
+/* ——— Manage Subscription dropdown ——— */
+.sx-acct-manage {
+  position: relative;
+}
+
+.sx-acct-manage > .sx-acct-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sx-acct-manage__chev {
+  font-size: 10px;
+  color: var(--dim);
+  transition: transform 0.15s ease;
+}
+
+.sx-acct-manage > .sx-acct-btn[aria-expanded='true'] .sx-acct-manage__chev {
+  transform: rotate(180deg);
+}
+
+.sx-acct-manage__menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 280px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.14);
+}
+
+.sx-acct-manage__menu[hidden] {
+  display: none;
+}
+
+.sx-acct-manage__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tx);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sx-acct-manage__item:hover {
+  background: var(--raise2);
+}
+
+.sx-acct-manage__item i {
+  margin-top: 2px;
+  width: 14px;
+  font-size: 13px;
+  color: var(--dim);
+  text-align: center;
+}
+
+.sx-acct-manage__item span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sx-acct-manage__item strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sx-acct-manage__item em {
+  font-size: 11.5px;
+  font-style: normal;
+  color: var(--dim);
+}
+
+.sx-acct-manage__item--danger strong,
+.sx-acct-manage__item--danger i {
+  color: var(--danger);
 }
 
 .sx-acct-plan-now {
@@ -1232,7 +1319,8 @@
   box-shadow: none;
 }
 
-#sx-app-root[data-dashboard-theme='dark'] .sx-acct-locale__menu {
+#sx-app-root[data-dashboard-theme='dark'] .sx-acct-locale__menu,
+#sx-app-root[data-dashboard-theme='dark'] .sx-acct-manage__menu {
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55);
 }
 
