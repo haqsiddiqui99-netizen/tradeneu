@@ -434,6 +434,11 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
               <option>2019 \u2192 today</option><option>Custom\u2026</option>
             </select>
           </div>
+          <div class="ctxItem customRange" id="customRange" hidden>
+            <input class="txt dateField" type="date" id="rangeStart" aria-label="Range start date">
+            <span class="customRangeTo">to</span>
+            <input class="txt dateField" type="date" id="rangeEnd" aria-label="Range end date">
+          </div>
           <div class="ctxItem"><span>Sessions</span>
             <select class="sel" id="session" aria-label="Session filter">
               <option selected>All hours</option><option>London + New York</option>
@@ -1291,11 +1296,14 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   function renderJson() {
     if ($<HTMLElement>('json').hidden) return
+    const rangeValue = $<HTMLSelectElement>('range').value
+    const rangeDates = rangeValue === CUSTOM_RANGE ? rangeToDates(rangeValue) : null
     const obj = {
       name: S.name,
       symbol: $<HTMLSelectElement>('symbol').value.toUpperCase(),
       timeframe: $<HTMLSelectElement>('tf').value,
-      range: $<HTMLSelectElement>('range').value,
+      range: rangeValue,
+      ...(rangeDates ? { rangeStart: rangeDates.startDate ?? null, rangeEnd: rangeDates.endDate ?? null } : {}),
       session: $<HTMLSelectElement>('session').value,
       direction: S.dir,
       entry: {
@@ -1443,6 +1451,9 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   const TF_STEP_SEC: Record<string, number> = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1D': 86400 }
 
+  const CUSTOM_RANGE = 'Custom\u2026'
+  let lastPresetRange = 'Last 3 years'
+
   function rangeToDates(range: string): { startDate?: string; endDate?: string } {
     const end = new Date()
     const endDate = end.toISOString().slice(0, 10)
@@ -1450,8 +1461,34 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     if (range === 'Last 6 months') start.setMonth(start.getMonth() - 6)
     else if (range === 'Last 3 years') start.setFullYear(start.getFullYear() - 3)
     else if (range === '2019 \u2192 today') return { startDate: '2019-01-01', endDate }
-    else return {} // "Custom…" has no picker yet — fall back to the freshest available bars
+    else if (range === CUSTOM_RANGE) {
+      // Either side may be left blank, which just means "open-ended on that
+      // end" rather than an invalid range.
+      const from = $<HTMLInputElement>('rangeStart').value
+      const to = $<HTMLInputElement>('rangeEnd').value
+      if (from && to && from > to) return { startDate: to, endDate: from }
+      return { startDate: from || undefined, endDate: to || undefined }
+    } else return {}
     return { startDate: start.toISOString().slice(0, 10), endDate }
+  }
+
+  // The two date fields only exist for "Custom…" — seed them from whichever
+  // preset was showing, so switching over starts from that same window
+  // instead of an empty pair of inputs.
+  function syncCustomRange() {
+    const isCustom = $<HTMLSelectElement>('range').value === CUSTOM_RANGE
+    $<HTMLElement>('customRange').hidden = !isCustom
+    if (!isCustom) return
+    const startEl = $<HTMLInputElement>('rangeStart')
+    const endEl = $<HTMLInputElement>('rangeEnd')
+    const today = new Date().toISOString().slice(0, 10)
+    endEl.max = today
+    startEl.max = today
+    if (!startEl.value && !endEl.value) {
+      const seed = rangeToDates(lastPresetRange)
+      startEl.value = seed.startDate ?? ''
+      endEl.value = seed.endDate ?? today
+    }
   }
 
   function sessionToHourFilter(session: string): { fromHour: number; toHour: number } | null {
@@ -1906,8 +1943,13 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   $<HTMLInputElement>('stratName').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === 'Escape') $<HTMLInputElement>('stratName').blur()
   })
-  ;['symbol', 'tf', 'range', 'session'].forEach((id) => {
-    $(id).addEventListener('input', () => {
+  ;['symbol', 'tf', 'range', 'session', 'rangeStart', 'rangeEnd'].forEach((id) => {
+    const onContextChange = () => {
+      if (id === 'range') {
+        const value = $<HTMLSelectElement>('range').value
+        if (value !== CUSTOM_RANGE) lastPresetRange = value
+        syncCustomRange()
+      }
       clearBacktestResult()
       renderProse()
       renderChecks()
@@ -1915,7 +1957,12 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       renderJson()
       renderStats()
       renderSpark()
-    })
+    }
+    // Both events: the dressed dropdowns drive their hidden <select>
+    // programmatically and only fire 'change', while the date inputs fire
+    // 'input' as they're typed into.
+    $(id).addEventListener('input', onContextChange)
+    $(id).addEventListener('change', onContextChange)
   })
   $<HTMLSelectElement>('entryJoin').onchange = (e) => {
     S.entryJoin = (e.target as HTMLSelectElement).value as 'all' | 'any'
@@ -2023,6 +2070,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   host.querySelector('[data-sx-back]')?.addEventListener('click', () => opts.onBack?.())
 
   loadTemplate(TEMPLATES[0]!)
+  syncCustomRange()
   // First measure can land before the webfont swaps in, which would leave the
   // box sized for the fallback font's metrics.
   void document.fonts?.ready.then(() => sizeNameField())

@@ -452,6 +452,41 @@
 .sx-manual-strat .ctxItem .txt:hover {
   border-color: transparent;
 }
+/* Start/end pickers for the "Custom…" range. They sit next to the Range
+   dropdown and are styled as the same pill as .dd__btn so the row reads as
+   one set of controls. */
+.sx-manual-strat .customRange[hidden] {
+  display: none;
+}
+.sx-manual-strat .customRangeTo {
+  color: var(--dim);
+}
+.sx-manual-strat .ctxItem .dateField {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--tx);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.sx-manual-strat .ctxItem .dateField:hover {
+  background: var(--raise2);
+  border-color: var(--dimmer);
+}
+.sx-manual-strat .ctxItem .dateField:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+.sx-manual-strat .ctxItem .dateField::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+}
+.sx-manual-strat .ctxItem .dateField:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}
 .sx-manual-strat .ticker {
   font-family: var(--sans);
   font-weight: 700;
