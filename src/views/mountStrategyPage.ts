@@ -34,10 +34,6 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
       <header class="sx-strat-page__intake-head">
         ${opts?.onBack ? `<button type="button" class="sx-strat-page__back" data-sx-strat-back aria-label="Back to dashboard"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>Dashboard</span></button>` : ''}
         <h1 class="sx-strat-page__intake-title">Strategies</h1>
-        <div class="sx-strat-page__intake-tabs">
-          <span class="sx-strat-page__intake-tab is-active"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> My strategies</span>
-          <button type="button" class="sx-strat-page__intake-feedback" data-sx-strat-feedback><i class="fa-regular fa-comment" aria-hidden="true"></i> Leave feedback</button>
-        </div>
       </header>
       <div class="sx-strat-page__intake-hero">
         <h2 class="sx-strat-page__intake-hero-title">Let\u2019s build your strategy</h2>
@@ -155,10 +151,6 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
         })
       }
     })
-  })
-
-  shell.querySelector('[data-sx-strat-feedback]')?.addEventListener('click', () => {
-    window.open('mailto:support@tradeneu.com?subject=Strategy%20builder%20feedback', '_blank')
   })
 
   shell.querySelector('[data-sx-strat-to-intake]')?.addEventListener('click', () => showIntake())

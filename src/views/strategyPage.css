@@ -346,9 +346,8 @@
   height: 100%;
 }
 
-/* Strategies intake screen — landing view with "My strategies" tab + the
-   three starting-point cards (have / need / built-in), shown before the
-   full rule editor. */
+/* Strategies intake screen — landing view with the three starting-point
+   cards (have / need / built-in), shown before the full rule editor. */
 .sx-strat-page__intake-head {
   display: flex;
   align-items: center;
@@ -362,45 +361,6 @@
   font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-}
-
-.sx-strat-page__intake-tabs {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-left: auto;
-}
-
-.sx-strat-page__intake-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0;
-  border-bottom: 2px solid transparent;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #a1a1aa;
-}
-
-.sx-strat-page__intake-tab.is-active {
-  color: #38bdf8;
-  border-bottom-color: #38bdf8;
-}
-
-.sx-strat-page__intake-feedback {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  height: 2.1rem;
-  padding: 0 0.9rem;
-  border: 0;
-  border-radius: 999px;
-  background: #18181b;
-  color: #fff;
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
 }
 
 .sx-strat-page__intake-hero {
@@ -520,19 +480,6 @@
   color: #0f172a;
 }
 
-.sx-strat-page--embedded .sx-strat-page__intake-tab {
-  color: #94a3b8;
-}
-
-.sx-strat-page--embedded .sx-strat-page__intake-tab.is-active {
-  color: #2563eb;
-  border-bottom-color: #2563eb;
-}
-
-.sx-strat-page--embedded .sx-strat-page__intake-feedback {
-  background: #0f172a;
-}
-
 .sx-strat-page--embedded .sx-strat-page__intake-hero {
   background: radial-gradient(circle at 85% 0%, rgba(37, 99, 235, 0.08), transparent 45%);
 }
@@ -565,6 +512,126 @@
   color: #2563eb;
 }
 
+/* Dark theme. The embedded rules above are hardcoded light, so on a dark
+   dashboard this page stayed white next to a black sidebar. Palette matches
+   the manual builder's dark theme (see manualStrategyBuilder.css), since that
+   builder renders inside this shell and the two must not disagree. */
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded {
+  border-color: #2a2a2a;
+  background: #000000;
+  color: #f1f1f1;
+  box-shadow: none;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__head,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__intake-head {
+  border-bottom-color: #2a2a2a;
+  background: #121212;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__title,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__intake-title,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__intake-hero-title {
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__subtitle,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__intake-hero-subtitle,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__intake-card-desc,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__list-label,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__card-meta,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__empty,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__editor-summary {
+  color: #9a9a9a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__intake-hero {
+  background: radial-gradient(circle at 85% 0%, rgba(224, 169, 74, 0.07), transparent 45%);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__intake-card,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__card,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__editor {
+  border-color: #2a2a2a;
+  background: #121212;
+  color: #f1f1f1;
+  box-shadow: none;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__intake-card:hover,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__card:hover {
+  border-color: #3a3a3a;
+  background: #1a1a1a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__card.is-active {
+  border-color: #e0a94a;
+  background: #1a1a1a;
+  box-shadow: 0 0 0 1px rgba(224, 169, 74, 0.25);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__list {
+  border-right-color: #2a2a2a;
+  background: #0d0d0d;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__btn {
+  border-color: #3a3a3a;
+  background: #1a1a1a;
+  color: #e5e5e5;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__btn:hover:not(:disabled) {
+  border-color: #4a4a4a;
+  background: #242424;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__btn--primary,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-btn--primary {
+  border-color: transparent;
+  background: #e0a94a;
+  color: #17120a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__btn--primary:hover:not(:disabled),
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-btn--primary:hover:not(:disabled) {
+  background: #ebb758;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__editor .sx-strat-builder {
+  --sx-strat-text: #f1f1f1;
+  --sx-strat-muted: #9a9a9a;
+  --sx-strat-border: #2a2a2a;
+  --sx-strat-bg: #1a1a1a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__editor .sx-strat-input,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__editor .sx-strat-select {
+  border-color: #2a2a2a;
+  background: #1a1a1a;
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-builder__readonly {
+  background: #1a1a1a;
+  color: #e0a94a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-btn--ghost {
+  color: #e0a94a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__tag {
+  background: rgba(224, 169, 74, 0.14);
+  color: #e0a94a;
+}
+
+/* The embedded theme darkens only this one link colour for a light card; on
+   a dark card it needs the lighter blue the other two links already use. */
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__intake-card-link--blue {
+  color: #38bdf8;
+}
+
 @media (max-width: 900px) {
   .sx-strat-page__body {
     grid-template-columns: 1fr;
@@ -578,5 +645,9 @@
 
   .sx-strat-page--embedded .sx-strat-page__list {
     border-bottom-color: #e8eaed;
+  }
+
+  #sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__list {
+    border-bottom-color: #2a2a2a;
   }
 }
