@@ -166,6 +166,94 @@ export async function changePassword(
   }
 }
 
+export type AuthProfile = {
+  name: string
+  username: string
+  email: string
+}
+
+export type AuthProfileResult =
+  | { ok: true; profile: AuthProfile }
+  | { ok: false; error: string; offline?: boolean }
+
+function parseProfileResponse(res: Response, json: unknown, text: string): AuthProfileResult {
+  if (!json || typeof json !== 'object') {
+    return { ok: false, error: formatNonJsonError(res, text), offline: res.status >= 502 }
+  }
+  const body = json as { ok?: boolean; profile?: AuthProfile; error?: string }
+  if (!res.ok || !body.ok || !body.profile) {
+    return {
+      ok: false,
+      error: body.error || `Request failed (${res.status}).`,
+      offline: res.status >= 502,
+    }
+  }
+  return { ok: true, profile: body.profile }
+}
+
+export async function fetchAuthProfile(): Promise<AuthProfileResult> {
+  try {
+    const res = await fetch('/api/auth/profile', { credentials: 'include', cache: 'no-store' })
+    const { json, text } = await readResponsePayload(res)
+    return parseProfileResponse(res, json, text)
+  } catch {
+    return {
+      ok: false,
+      error: 'Cannot reach the account server. Run npm run dev and try again.',
+      offline: true,
+    }
+  }
+}
+
+export async function updateAuthProfile(input: {
+  name: string
+  username: string
+}): Promise<AuthProfileResult> {
+  try {
+    const res = await fetch('/api/auth/profile', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(input),
+    })
+    const { json, text } = await readResponsePayload(res)
+    return parseProfileResponse(res, json, text)
+  } catch {
+    return {
+      ok: false,
+      error: 'Cannot reach the account server. Run npm run dev and try again.',
+      offline: true,
+    }
+  }
+}
+
+export type ChangeEmailResult = { ok: true; email: string } | { ok: false; error: string }
+
+export async function changeAuthEmail(
+  password: string,
+  newEmail: string,
+): Promise<ChangeEmailResult> {
+  try {
+    const res = await fetch('/api/auth/change-email', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ password, newEmail }),
+    })
+    const { json, text } = await readResponsePayload(res)
+    if (!json || typeof json !== 'object') {
+      return { ok: false, error: formatNonJsonError(res, text) }
+    }
+    const body = json as { ok?: boolean; error?: string; email?: string }
+    if (!res.ok || !body.ok || !body.email) {
+      return { ok: false, error: body.error || `Request failed (${res.status}).` }
+    }
+    return { ok: true, email: body.email }
+  } catch {
+    return { ok: false, error: 'Cannot reach the account server. Try again.' }
+  }
+}
+
 export type AuthDevice = {
   id: string
   browser: string

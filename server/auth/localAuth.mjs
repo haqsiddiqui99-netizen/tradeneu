@@ -11,9 +11,12 @@ import {
 import {
   authStorageStatus,
   authenticateUser,
+  changeUserEmail,
   changeUserPassword,
+  getAccountProfile,
   publicUser,
   registerUser,
+  updateAccountProfile,
 } from './userStore.mjs'
 import { googleConfigured } from './googleOAuth.mjs'
 import { recordAuthLogin } from '../telemetry/telemetryRoutes.mjs'
@@ -228,6 +231,93 @@ export function mountLocalAuthRoutes(app, { dataDir }) {
     } catch (e) {
       console.error('[auth] change-password error:', e?.message || e)
       res.status(500).json({ ok: false, error: 'Could not update password. Try again.' })
+    }
+  })
+
+  /**
+   * Rejects anyone the Account tab's account-level actions cannot serve.
+   * @returns {{ email: string } | null} null once a response has been sent
+   */
+  function requireAccountSession(req, res, verb) {
+    const session = readSessionFromRequest(req)
+    if (!session?.email) {
+      res.status(401).json({ ok: false, error: `Sign in to ${verb}.` })
+      return null
+    }
+    if ((session.provider || 'local') === 'guest') {
+      res.status(400).json({ ok: false, error: 'Guest accounts are stored in this browser only.' })
+      return null
+    }
+    if ((session.provider || 'local') !== 'local') {
+      res.status(400).json({
+        ok: false,
+        error: 'This account signs in through Google. Manage these details there.',
+      })
+      return null
+    }
+    return session
+  }
+
+  app.get('/api/auth/profile', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = requireAccountSession(req, res, 'see your profile')
+    if (!session) return
+    try {
+      const result = await getAccountProfile(dataDir, session.email)
+      if (!result.ok) {
+        res.status(result.status ?? 400).json({ ok: false, error: result.error })
+        return
+      }
+      res.json({ ok: true, profile: result.profile })
+    } catch (e) {
+      console.error('[auth] profile read error:', e?.message || e)
+      res.status(500).json({ ok: false, error: 'Could not load your profile. Try again.' })
+    }
+  })
+
+  app.post('/api/auth/profile', async (req, res) => {
+    const session = requireAccountSession(req, res, 'update your profile')
+    if (!session) return
+    try {
+      const result = await updateAccountProfile(dataDir, session.email, req.body ?? {})
+      if (!result.ok) {
+        res.status(result.status ?? 400).json({ ok: false, error: result.error })
+        return
+      }
+      // The name rides in the session token, so it has to be re-minted or the
+      // old one comes back on the next page load.
+      setSessionCookie(res, { ...session, name: result.profile.name }, { secure: isSecureRequest(req) })
+      res.json({ ok: true, profile: result.profile })
+    } catch (e) {
+      console.error('[auth] profile update error:', e?.message || e)
+      res.status(500).json({ ok: false, error: 'Could not update your profile. Try again.' })
+    }
+  })
+
+  app.post('/api/auth/change-email', async (req, res) => {
+    const session = requireAccountSession(req, res, 'change your email')
+    if (!session) return
+    try {
+      const result = await changeUserEmail(
+        dataDir,
+        session.email,
+        req.body?.password,
+        req.body?.newEmail,
+      )
+      if (!result.ok) {
+        res.status(result.status ?? 400).json({ ok: false, error: result.error })
+        return
+      }
+      // The old cookie still names the old address, which no longer resolves
+      // to a stored account — re-issue before replying or the next request
+      // signs them out.
+      setSessionCookie(res, sessionUserFromRow(result.user, session.did), {
+        secure: isSecureRequest(req),
+      })
+      res.json({ ok: true, email: result.user.email })
+    } catch (e) {
+      console.error('[auth] change-email error:', e?.message || e)
+      res.status(500).json({ ok: false, error: 'Could not change your email. Try again.' })
     }
   })
 }

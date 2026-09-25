@@ -92,6 +92,60 @@ export async function getUserByEmail(dataDir, email) {
   return legacy.find((u) => u && normalizeEmailKey(u.email) === e) ?? null
 }
 
+function normalizeUsernameKey(username) {
+  return String(username || '')
+    .trim()
+    .toLowerCase()
+}
+
+/**
+ * Usernames are not part of the storage key, so this scans the user files the
+ * same way the mobile lookup does. Fine at this scale; if the account count
+ * ever makes it hurt, the fix is an index file, not a different key.
+ *
+ * @returns {Promise<import('./userStore.mjs').StoredUser | null>}
+ */
+export async function getUserByUsername(dataDir, username) {
+  const u = normalizeUsernameKey(username)
+  if (!u) return null
+  const users = readUsersFromFile(dataDir)
+  return users.find((x) => normalizeUsernameKey(x?.username) === u) ?? null
+}
+
+/**
+ * Re-keys an account onto a new email address.
+ *
+ * The storage filename is derived from the email, so changing the address
+ * means writing a new file and dropping the old one. The new file is written
+ * first: a crash between the two leaves a duplicate, which `getUserByEmail`
+ * resolves to the right record, whereas the reverse order would lose the
+ * account outright.
+ */
+export async function moveUserEmail(dataDir, oldEmail, user) {
+  const from = normalizeEmailKey(oldEmail)
+  const to = normalizeEmailKey(user.email)
+  writeUserToFile(dataDir, user)
+  if (from && from !== to) {
+    try {
+      fs.rmSync(userFilePath(dataDir, from), { force: true })
+    } catch {
+      /* the new record is already durable; a stale file is not worth failing on */
+    }
+  }
+  // Installations still on the pre-split users.json need the same edit, or the
+  // old address would come back on the next legacy read.
+  const legacy = usersFilePath(dataDir)
+  if (!fs.existsSync(legacy)) return
+  try {
+    const parsed = JSON.parse(fs.readFileSync(legacy, 'utf8'))
+    if (!Array.isArray(parsed)) return
+    const next = parsed.map((u) => (u && normalizeEmailKey(u.email) === from ? user : u))
+    fs.writeFileSync(legacy, JSON.stringify(next, null, 2), 'utf8')
+  } catch {
+    /* legacy file is a fallback only */
+  }
+}
+
 /** @returns {Promise<import('./userStore.mjs').StoredUser | null>} */
 export async function getUserByMobile(dataDir, mobileDigits) {
   const m = String(mobileDigits || '').replace(/\D/g, '')

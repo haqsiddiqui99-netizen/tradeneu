@@ -101,10 +101,10 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
           </div>
 
           <div class="sx-login__field">
-            <label class="sx-login__label" for="sx-login-email">Email</label>
+            <label class="sx-login__label" for="sx-login-email" data-sx-login-email-label>Email</label>
             <div class="sx-login__input-wrap">
               <span class="sx-login__input-prefix" aria-hidden="true">@</span>
-              <input class="sx-login__input sx-login__input--inset" id="sx-login-email" name="email" type="email" autocomplete="username" placeholder="you@example.com" required />
+              <input class="sx-login__input sx-login__input--inset" id="sx-login-email" name="email" type="text" autocomplete="username" placeholder="you@example.com" required />
             </div>
           </div>
 
@@ -274,8 +274,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
   }
 
   function validateSigninForm(): string | null {
-    const email = emailInput.value.trim()
-    if (!email) return 'Enter your email address.'
+    if (!emailInput.value.trim()) return 'Enter your email address or username.'
     if (!passInput.value) return 'Enter your password.'
     return null
   }
@@ -291,6 +290,12 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
     submitBtn.textContent = signupMode ? 'Create account' : 'Sign in'
     passInput.autocomplete = signupMode ? 'new-password' : 'current-password'
     passInput.placeholder = signupMode ? 'At least 8 characters' : 'Password'
+    // Sign-in accepts a username too, so the field cannot be type=email there
+    // or the browser would reject anything without an @ before we see it.
+    emailInput.type = signupMode ? 'email' : 'text'
+    emailInput.placeholder = signupMode ? 'you@example.com' : 'you@example.com or username'
+    const emailLabel = wrap.querySelector('[data-sx-login-email-label]')
+    if (emailLabel) emailLabel.textContent = signupMode ? 'Email' : 'Email or username'
     signupOnlyFields.forEach((el) => {
       el.hidden = !signupMode
     })

@@ -1,7 +1,15 @@
 import './accountPage.css'
 import { defaultBacktestSlippage } from '../backtest/backtestChartUi'
 import { resolveAppPath } from '../appPaths'
-import { changePassword, fetchAuthDevices, revokeAuthDevice, type AuthDevice } from '../auth/authApi'
+import {
+  changeAuthEmail,
+  changePassword,
+  fetchAuthDevices,
+  fetchAuthProfile,
+  revokeAuthDevice,
+  updateAuthProfile,
+  type AuthDevice,
+} from '../auth/authApi'
 import type { AuthUser } from '../auth/authSession'
 import { GUEST_AUTH_EMAIL } from '../auth/authSession'
 import { dashLocaleMenuLabel } from '../home/dashboardLocales'
@@ -304,34 +312,75 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     <div class="sx-acct__body">
       <section class="sx-acct__panel" role="tabpanel" id="sx-acct-panel-account" aria-labelledby="sx-acct-tab-account" data-sx-acct-panel="account" hidden tabindex="0">
         <div class="sx-acct__grid">
-          <div class="sx-acct-card">
-            <div class="sx-acct-card__head">
-              <h2 class="sx-acct-card__title">Profile</h2>
-              <p class="sx-acct-card__lead">How you appear inside Tradeneu.</p>
+          <div class="sx-acct__col">
+            <div class="sx-acct-card">
+              <div class="sx-acct-card__head">
+                <h2 class="sx-acct-card__title">Profile</h2>
+                <p class="sx-acct-card__lead">How you appear inside Tradeneu.</p>
+              </div>
+              <div class="sx-acct-identity">
+                <div class="sx-acct-avatar-wrap">
+                  <div class="sx-acct-avatar" data-sx-acct-dp-preview>${avatarMarkup(initials, avatarUrl)}</div>
+                  <button type="button" class="sx-acct-avatar-edit" data-sx-acct-dp-change aria-label="Change photo" title="Change photo"><i class="fa-solid fa-camera" aria-hidden="true"></i></button>
+                </div>
+                <div class="sx-acct-identity__copy">
+                  <p class="sx-acct-identity__name" data-sx-acct-name-display>${escapeHtml(displayName)}</p>
+                  <p class="sx-acct-identity__meta">${isGuest ? 'Guest mode · stored in this browser only' : 'Signed in'}</p>
+                  <button type="button" class="sx-acct-linkbtn" data-sx-acct-dp-remove ${avatarUrl ? '' : 'hidden'}>Remove photo</button>
+                </div>
+              </div>
+              <input type="file" accept="image/png,image/jpeg,image/webp" hidden data-sx-acct-dp-file />
+              <div class="sx-acct-fields">
+                <div class="sx-acct-field">
+                  <label class="sx-acct-label" for="sx-acct-displayname">Display name</label>
+                  <input id="sx-acct-displayname" class="sx-acct-input" type="text" maxlength="48" value="${escapeAttr(displayName)}" autocomplete="nickname" data-sx-acct-username />
+                  <p class="sx-acct-hint">Shown in the sidebar and on your sessions.</p>
+                </div>
+                <div class="sx-acct-field">
+                  <label class="sx-acct-label" for="sx-acct-handle">Username</label>
+                  <input id="sx-acct-handle" class="sx-acct-input" type="text" maxlength="32" spellcheck="false" autocapitalize="none" autocomplete="username" placeholder="${isGuest ? 'Create an account to claim one' : 'Loading…'}" ${isGuest ? 'disabled' : ''} data-sx-acct-handle />
+                  <p class="sx-acct-hint" data-sx-acct-handle-hint>${isGuest ? 'Guest mode has no username.' : 'Lowercase letters, numbers, and hyphens. You can sign in with this instead of your email.'}</p>
+                </div>
+              </div>
             </div>
-            <div class="sx-acct-identity">
-              <div class="sx-acct-avatar-wrap">
-                <div class="sx-acct-avatar" data-sx-acct-dp-preview>${avatarMarkup(initials, avatarUrl)}</div>
-                <button type="button" class="sx-acct-avatar-edit" data-sx-acct-dp-change aria-label="Change photo" title="Change photo"><i class="fa-solid fa-camera" aria-hidden="true"></i></button>
+
+            <div class="sx-acct-card">
+              <div class="sx-acct-card__head">
+                <h2 class="sx-acct-card__title">Email</h2>
+                <p class="sx-acct-card__lead">The address you sign in with and receive account notices at.</p>
               </div>
-              <div class="sx-acct-identity__copy">
-                <p class="sx-acct-identity__name" data-sx-acct-name-display>${escapeHtml(displayName)}</p>
-                <p class="sx-acct-identity__meta">${isGuest ? 'Guest mode · stored in this browser only' : 'Signed in'}</p>
-                <button type="button" class="sx-acct-linkbtn" data-sx-acct-dp-remove ${avatarUrl ? '' : 'hidden'}>Remove photo</button>
+              <div class="sx-acct-fields">
+                <div class="sx-acct-field">
+                  <label class="sx-acct-label" for="sx-acct-email">Email address</label>
+                  <input id="sx-acct-email" class="sx-acct-input" type="email" value="${escapeAttr(email)}" readonly data-sx-acct-email-current />
+                </div>
               </div>
-            </div>
-            <input type="file" accept="image/png,image/jpeg,image/webp" hidden data-sx-acct-dp-file />
-            <div class="sx-acct-fields">
-              <div class="sx-acct-field">
-                <label class="sx-acct-label" for="sx-acct-username">Display name</label>
-                <input id="sx-acct-username" class="sx-acct-input" type="text" maxlength="48" value="${escapeAttr(displayName)}" autocomplete="nickname" data-sx-acct-username />
-                <p class="sx-acct-hint">Shown in the sidebar and on your sessions.</p>
+              ${
+                isGuest
+                  ? `<p class="sx-acct-hint">Placeholder address for guest mode. Create an account to set a real one.</p>`
+                  : `<div class="sx-acct-actions">
+                <button type="button" class="sx-acct-btn" data-sx-acct-email-open><i class="fa-regular fa-envelope" aria-hidden="true"></i>Change email</button>
               </div>
-              <div class="sx-acct-field">
-                <label class="sx-acct-label" for="sx-acct-email">Email</label>
-                <input id="sx-acct-email" class="sx-acct-input" type="email" value="${escapeAttr(email)}" disabled />
-                <p class="sx-acct-hint">${isGuest ? 'Placeholder address for guest mode.' : 'Contact support to change your account email.'}</p>
-              </div>
+              <div class="sx-acct-fields" data-sx-acct-email-form hidden>
+                <div class="sx-acct-field">
+                  <label class="sx-acct-label" for="sx-acct-email-new">New email address</label>
+                  <input id="sx-acct-email-new" class="sx-acct-input" type="email" autocomplete="email" data-sx-acct-email-new />
+                </div>
+                <div class="sx-acct-field">
+                  <label class="sx-acct-label" for="sx-acct-email-pass">Confirm with your password</label>
+                  <div class="sx-acct-input-row">
+                    <input id="sx-acct-email-pass" class="sx-acct-input" type="password" autocomplete="current-password" data-sx-acct-email-pass />
+                    <button type="button" class="sx-acct-icon-btn" data-sx-acct-pass-toggle="email" aria-label="Show password" title="Show password">${eyeIcon}</button>
+                  </div>
+                  <p class="sx-acct-hint">Email is how you sign in and reset your password, so it needs your password to change.</p>
+                </div>
+                <div class="sx-acct-actions">
+                  <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-email-save>Update email</button>
+                  <button type="button" class="sx-acct-btn" data-sx-acct-email-cancel>Cancel</button>
+                </div>
+              </div>`
+              }
+              <p class="sx-acct-saved" data-sx-acct-email-msg aria-live="polite"></p>
             </div>
           </div>
 
@@ -669,15 +718,20 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     })
   })
 
-  /* ——— Saved-message flashes. Each panel owns one, so they are keyed by
-     element rather than sharing a single timer. ——— */
+  /* ——— Status lines. Each panel owns one, so they are keyed by element rather
+     than sharing a single timer. Only success auto-clears: an error the user
+     did not get to read is worse than one that lingers. ——— */
   const savedTimers = new Map<HTMLElement, ReturnType<typeof setTimeout>>()
 
-  function flashSaved(el: HTMLElement | null, text = 'Saved') {
+  function setStatus(el: HTMLElement | null, text: string, tone: 'ok' | 'busy' | 'error' = 'ok') {
     if (!el) return
     el.textContent = text
+    el.classList.toggle('is-error', tone === 'error')
+    el.classList.toggle('is-busy', tone === 'busy')
     const existing = savedTimers.get(el)
     if (existing) clearTimeout(existing)
+    savedTimers.delete(el)
+    if (tone !== 'ok') return
     savedTimers.set(
       el,
       setTimeout(() => {
@@ -686,6 +740,8 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
       }, 2200),
     )
   }
+
+  const flashSaved = (el: HTMLElement | null, text = 'Saved') => setStatus(el, text)
 
   const accountSaved = q<HTMLElement>('[data-sx-acct-account-saved]')
   const backtestingSaved = q<HTMLElement>('[data-sx-acct-backtesting-saved]')
@@ -723,7 +779,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
         flashSaved(accountSaved, 'Photo updated')
       })
       .catch((err: unknown) => {
-        if (accountSaved) accountSaved.textContent = err instanceof Error ? err.message : 'Could not update photo.'
+        setStatus(accountSaved, err instanceof Error ? err.message : 'Could not update photo.', 'error')
       })
       .finally(() => {
         dpFile.value = ''
@@ -737,14 +793,47 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     flashSaved(accountSaved, 'Photo removed')
   })
 
-  /* ——— Account tab: name, timezone and language all commit together on
-     "Save changes", so nothing on this tab applies until you ask for it. ——— */
+  /* ——— Account tab: name, username, timezone and language all commit together
+     on "Save changes", so nothing on this tab applies until you ask for it. ——— */
   const usernameInput = q<HTMLInputElement>('[data-sx-acct-username]')
   const nameDisplay = q<HTMLElement>('[data-sx-acct-name-display]')
+  const handleInput = q<HTMLInputElement>('[data-sx-acct-handle]')
+  const handleHint = q<HTMLElement>('[data-sx-acct-handle-hint]')
   const timezoneSelect = q<HTMLSelectElement>('[data-sx-acct-timezone]')
   if (timezoneSelect) timezoneSelect.value = readUserTimezone()
 
   let pendingLocale = opts.readLocale()
+  /** Username as the server last confirmed it, so we can skip a no-op write. */
+  let savedHandle = ''
+
+  const HANDLE_HELP =
+    'Lowercase letters, numbers, and hyphens. You can sign in with this instead of your email.'
+
+  function setHandleHint(text: string, tone: 'help' | 'ok' | 'error' = 'help') {
+    if (!handleHint) return
+    handleHint.textContent = text
+    handleHint.classList.toggle('is-error', tone === 'error')
+    handleHint.classList.toggle('is-ok', tone === 'ok')
+  }
+
+  if (!isGuest && handleInput) {
+    void fetchAuthProfile().then((result) => {
+      if (!result.ok) {
+        handleInput.placeholder = ''
+        setHandleHint(result.error, 'error')
+        return
+      }
+      savedHandle = result.profile.username
+      handleInput.value = savedHandle
+      handleInput.placeholder = ''
+      setHandleHint('You are using your current username.', 'ok')
+    })
+    handleInput.addEventListener('input', () => {
+      const typed = handleInput.value.trim().toLowerCase()
+      if (!savedHandle || typed === savedHandle) setHandleHint('You are using your current username.', 'ok')
+      else setHandleHint(HANDLE_HELP)
+    })
+  }
 
   const onSaveAccount = () => {
     const next = usernameInput?.value.trim().slice(0, 48) || readDisplayName()
@@ -759,14 +848,95 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     if (timezoneSelect) writeUserTimezone(timezoneSelect.value)
     if (pendingLocale !== opts.readLocale()) opts.writeLocale(pendingLocale)
 
-    flashSaved(accountSaved, 'Changes saved')
+    // The username is the only part of this tab the server owns, so it is the
+    // only part that can fail. Everything above has already been applied.
+    const handle = handleInput?.value.trim().toLowerCase() ?? ''
+    if (isGuest || !handleInput || !handle || handle === savedHandle) {
+      flashSaved(accountSaved, 'Changes saved')
+      return
+    }
+    setStatus(accountSaved, 'Saving…', 'busy')
+    void updateAuthProfile({ name: next, username: handle }).then((result) => {
+      if (!result.ok) {
+        handleInput.value = savedHandle
+        setHandleHint(result.error, 'error')
+        setStatus(accountSaved, 'Everything else saved — username unchanged', 'error')
+        return
+      }
+      savedHandle = result.profile.username
+      handleInput.value = savedHandle
+      setHandleHint('You are using your current username.', 'ok')
+      flashSaved(accountSaved, 'Changes saved')
+    })
   }
   q('[data-sx-acct-save-account]')?.addEventListener('click', onSaveAccount)
-  usernameInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      onSaveAccount()
+  const saveOnEnter = (e: KeyboardEvent) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    onSaveAccount()
+  }
+  usernameInput?.addEventListener('keydown', saveOnEnter)
+  handleInput?.addEventListener('keydown', saveOnEnter)
+
+  /* ——— Change email. Separate from "Save changes" because it needs the
+     password and re-issues the session. ——— */
+  const emailForm = q<HTMLElement>('[data-sx-acct-email-form]')
+  const emailCurrent = q<HTMLInputElement>('[data-sx-acct-email-current]')
+  const emailNew = q<HTMLInputElement>('[data-sx-acct-email-new]')
+  const emailPass = q<HTMLInputElement>('[data-sx-acct-email-pass]')
+  const emailMsg = q<HTMLElement>('[data-sx-acct-email-msg]')
+  const emailOpen = q<HTMLButtonElement>('[data-sx-acct-email-open]')
+  const emailSave = q<HTMLButtonElement>('[data-sx-acct-email-save]')
+
+  function closeEmailForm() {
+    if (emailForm) emailForm.hidden = true
+    if (emailOpen) emailOpen.hidden = false
+    if (emailNew) emailNew.value = ''
+    if (emailPass) emailPass.value = ''
+  }
+
+  emailOpen?.addEventListener('click', () => {
+    if (emailForm) emailForm.hidden = false
+    emailOpen.hidden = true
+    if (emailMsg) emailMsg.textContent = ''
+    emailNew?.focus()
+  })
+  q('[data-sx-acct-email-cancel]')?.addEventListener('click', () => {
+    closeEmailForm()
+    if (emailMsg) emailMsg.textContent = ''
+  })
+
+  const onChangeEmail = () => {
+    if (!emailNew || !emailPass || !emailSave) return
+    const next = emailNew.value.trim()
+    const password = emailPass.value
+    if (!next || !password) {
+      setStatus(emailMsg, 'Enter the new address and your password.', 'error')
+      return
     }
+    emailSave.disabled = true
+    setStatus(emailMsg, 'Updating…', 'busy')
+    void changeAuthEmail(password, next)
+      .then((result) => {
+        if (!result.ok) {
+          setStatus(emailMsg, result.error, 'error')
+          return
+        }
+        if (emailCurrent) emailCurrent.value = result.email
+        const headerEmail = shell.querySelector('.sx-acct__email')
+        if (headerEmail) headerEmail.textContent = result.email
+        closeEmailForm()
+        flashSaved(emailMsg, 'Email updated')
+      })
+      .finally(() => {
+        emailSave.disabled = false
+      })
+  }
+  emailSave?.addEventListener('click', onChangeEmail)
+  emailPass?.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    onChangeEmail()
   })
 
   const localePicker = q<HTMLElement>('[data-sx-acct-locale-picker]')
@@ -1015,7 +1185,12 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
   }
   passNew?.addEventListener('input', syncPasswordStrength)
 
-  const passInputs = { current: passCurrent, new: passNew, confirm: passConfirm } as const
+  const passInputs = {
+    current: passCurrent,
+    new: passNew,
+    confirm: passConfirm,
+    email: emailPass,
+  } as const
   shell.querySelectorAll<HTMLButtonElement>('[data-sx-acct-pass-toggle]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const key = btn.getAttribute('data-sx-acct-pass-toggle') as keyof typeof passInputs | null
@@ -1033,23 +1208,23 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     if (!passCurrent || !passNew || !passConfirm || !passMsg) return
     const checks = passwordChecks(passNew.value)
     if (!passCurrent.value) {
-      passMsg.textContent = 'Enter your current password.'
+      setStatus(passMsg, 'Enter your current password.', 'error')
       return
     }
     if (!checks.length || !checks.upper || !checks.lower || !checks.number || !checks.special) {
-      passMsg.textContent = 'New password must meet all strength rules.'
+      setStatus(passMsg, 'New password must meet all strength rules.', 'error')
       return
     }
     if (passNew.value !== passConfirm.value) {
-      passMsg.textContent = 'New passwords do not match.'
+      setStatus(passMsg, 'New passwords do not match.', 'error')
       return
     }
     if (passSaveBtn) passSaveBtn.disabled = true
-    passMsg.textContent = 'Updating…'
+    setStatus(passMsg, 'Updating…', 'busy')
     const result = await changePassword(passCurrent.value, passNew.value)
     if (passSaveBtn) passSaveBtn.disabled = false
     if (!result.ok) {
-      passMsg.textContent = result.error
+      setStatus(passMsg, result.error, 'error')
       return
     }
     passCurrent.value = ''
