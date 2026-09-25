@@ -1,0 +1,760 @@
+/* Profile Settings — the merged Profile + Settings page.
+   Written against its own token set rather than platformPage.css, because that
+   sheet is dark-first with a pile of --embedded light overrides and this page
+   has to read cleanly in both themes. Light values live here; the dark block at
+   the bottom re-points the same tokens, matching the palette used by the
+   Strategy and Subscription pages. */
+.sx-acct {
+  --bg: #f1f5f9;
+  --panel: #ffffff;
+  --raise: #f8fafc;
+  --raise2: #f1f5f9;
+  --line: #e2e8f0;
+  --line2: #cbd5e1;
+  --tx: #0f172a;
+  --dim: #64748b;
+  --dimmer: #94a3b8;
+  --accent: #334155;
+  --accent-tx: #ffffff;
+  --accent-hover: #1e293b;
+  --link: #2563eb;
+  --ok: #16a34a;
+  --danger: #dc2626;
+
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--tx);
+  font-family: 'Segoe UI Variable', 'Segoe UI', Inter, -apple-system, Roboto, sans-serif;
+}
+
+.sx-acct--embedded {
+  height: auto;
+  overflow: visible;
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+}
+
+/* ——— Header ——— */
+.sx-acct__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 24px 14px;
+  background: var(--panel);
+  border-radius: 1.25rem 1.25rem 0 0;
+}
+
+.sx-acct:not(.sx-acct--embedded) .sx-acct__head {
+  border-radius: 0;
+}
+
+.sx-acct__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--tx);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sx-acct__back:hover {
+  background: var(--raise2);
+  border-color: var(--line2);
+}
+
+.sx-acct__head-copy {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.sx-acct__eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.sx-acct__title {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.sx-acct__email {
+  margin: 0 0 0 10px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--dim);
+}
+
+.sx-acct__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ——— Tab strip ——— */
+.sx-acct__tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  /* Scrolls rather than wraps on narrow screens, but without a scrollbar
+     eating into the 42px strip — the tabs are swipeable and all six fit at
+     normal desktop widths. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sx-acct__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.sx-acct__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  height: 42px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sx-acct__tab i {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.sx-acct__tab:hover {
+  color: var(--tx);
+}
+
+.sx-acct__tab[aria-selected='true'] {
+  color: var(--tx);
+  font-weight: 650;
+  border-bottom-color: var(--tx);
+}
+
+/* ——— Panels ——— */
+.sx-acct__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 22px 24px 28px;
+}
+
+.sx-acct__panel[hidden] {
+  display: none;
+}
+
+.sx-acct__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.sx-acct-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  padding: 18px;
+}
+
+.sx-acct-card--span {
+  grid-column: 1 / -1;
+}
+
+.sx-acct-card__head {
+  margin-bottom: 14px;
+}
+
+.sx-acct-card__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.sx-acct-card__lead {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--dim);
+}
+
+/* ——— Fields ——— */
+.sx-acct-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.sx-acct-fields--2 {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.sx-acct-fields--3 {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.sx-acct-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sx-acct-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dim);
+}
+
+.sx-acct-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dimmer);
+}
+
+.sx-acct-input,
+.sx-acct-select {
+  width: 100%;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--raise);
+  color: var(--tx);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.sx-acct-select {
+  cursor: pointer;
+}
+
+.sx-acct-input:focus,
+.sx-acct-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.sx-acct-input:disabled,
+.sx-acct-input[readonly] {
+  color: var(--dim);
+  cursor: default;
+}
+
+.sx-acct-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sx-acct-input-row .sx-acct-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sx-acct-icon-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.sx-acct-icon-btn:hover,
+.sx-acct-icon-btn.is-active {
+  border-color: var(--line2);
+  background: var(--raise2);
+  color: var(--tx);
+}
+
+/* ——— Buttons ——— */
+.sx-acct-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.sx-acct-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 15px;
+  border: 1px solid var(--line2);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--tx);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sx-acct-btn:hover {
+  background: var(--raise2);
+}
+
+.sx-acct-btn--primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-tx);
+}
+
+.sx-acct-btn--primary:hover {
+  background: var(--accent-hover);
+}
+
+.sx-acct-saved {
+  margin: 10px 0 0;
+  min-height: 16px;
+  font-size: 12.5px;
+  color: var(--ok);
+}
+
+/* ——— Identity block ——— */
+.sx-acct-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.sx-acct-avatar {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--raise2);
+  color: var(--dim);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.sx-acct-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sx-acct-identity__name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sx-acct-identity__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+
+.sx-acct-identity__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sx-acct-identity__actions .sx-acct-btn {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 11px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.sx-acct-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--raise2);
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sx-acct-pill--plan {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-tx);
+}
+
+.sx-acct-pill--ok {
+  border-color: rgba(22, 163, 74, 0.3);
+  background: rgba(22, 163, 74, 0.1);
+  color: var(--ok);
+}
+
+/* ——— Lists ——— */
+.sx-acct-checklist {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13.5px;
+}
+
+.sx-acct-checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.sx-acct-checklist i {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--ok);
+}
+
+.sx-acct-checklist li.is-muted,
+.sx-acct-checklist li.is-muted i {
+  color: var(--dimmer);
+}
+
+/* ——— Usage meter ——— */
+.sx-acct-usage__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--dim);
+  margin-bottom: 7px;
+}
+
+.sx-acct-usage__top strong {
+  color: var(--tx);
+}
+
+.sx-acct-usage__bar {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--raise2);
+}
+
+.sx-acct-usage__bar span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+}
+
+.sx-acct-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  margin: 0;
+}
+
+.sx-acct-stats div {
+  min-width: 0;
+}
+
+.sx-acct-stats dt {
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.sx-acct-stats dd {
+  margin: 3px 0 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+/* ——— Toggle row ——— */
+.sx-acct-toggle {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  margin-top: 16px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--raise);
+  cursor: pointer;
+}
+
+.sx-acct-toggle input {
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.sx-acct-toggle strong {
+  display: block;
+  font-size: 13.5px;
+}
+
+.sx-acct-toggle em {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  font-style: normal;
+  color: var(--dim);
+}
+
+/* ——— Password strength ——— */
+.sx-acct-strength[hidden] {
+  display: none;
+}
+
+.sx-acct-strength__bar {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--raise2);
+}
+
+.sx-acct-strength__bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--danger);
+  transition: width 0.18s ease;
+}
+
+.sx-acct-strength__bar span[data-level='3'],
+.sx-acct-strength__bar span[data-level='4'] {
+  background: #d97706;
+}
+
+.sx-acct-strength__bar span[data-level='5'] {
+  background: var(--ok);
+}
+
+.sx-acct-strength__label {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.sx-acct-strength__rules {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--dimmer);
+}
+
+.sx-acct-strength__rules li::before {
+  content: '○ ';
+}
+
+.sx-acct-strength__rules li.is-met {
+  color: var(--ok);
+}
+
+.sx-acct-strength__rules li.is-met::before {
+  content: '● ';
+}
+
+/* ——— Reference table (auto slippage) ——— */
+.sx-acct-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sx-acct-table th,
+.sx-acct-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-top: 1px solid var(--line);
+  color: var(--dim);
+}
+
+.sx-acct-table thead th {
+  border-top: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sx-acct-table td:first-child {
+  color: var(--tx);
+  font-weight: 600;
+}
+
+/* ——— Locale picker ——— */
+.sx-acct-locale {
+  position: relative;
+}
+
+.sx-acct-locale__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--raise);
+  color: var(--tx);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.sx-acct-locale__trigger:hover {
+  border-color: var(--line2);
+}
+
+.sx-acct-locale__menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.14);
+}
+
+.sx-acct-locale__menu[hidden] {
+  display: none;
+}
+
+.sx-acct-locale__option {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--tx);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sx-acct-locale__option:hover {
+  background: var(--raise2);
+}
+
+.sx-acct-locale__option--active {
+  background: var(--raise2);
+  font-weight: 650;
+}
+
+/* ——— Sign-in prompt for guests ——— */
+.sx-acct-guest {
+  display: grid;
+  gap: 14px;
+}
+
+/* ——— Dark theme ——— */
+#sx-app-root[data-dashboard-theme='dark'] .sx-acct {
+  --bg: #000000;
+  --panel: #121212;
+  --raise: #1a1a1a;
+  --raise2: #242424;
+  --line: #2a2a2a;
+  --line2: #3a3a3a;
+  --tx: #f1f1f1;
+  --dim: #9a9a9a;
+  --dimmer: #6b6b6b;
+  --accent: #e0a94a;
+  --accent-tx: #17120a;
+  --accent-hover: #ebb758;
+  --link: #38bdf8;
+  --ok: #4ade80;
+  --danger: #e5615e;
+
+  /* Keeps the tab strip's own scrollbar and the native form controls dark. */
+  color-scheme: dark;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-acct--embedded {
+  box-shadow: none;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-acct-locale__menu {
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-acct-pill--ok {
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.12);
+}
+
+/* The active tab underline is the text colour in light theme; on dark, gold
+   reads as the selection marker the rest of the app already uses. */
+#sx-app-root[data-dashboard-theme='dark'] .sx-acct__tab[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .sx-acct__head,
+  .sx-acct__body {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .sx-acct__tabs {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .sx-acct__grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -15,7 +15,11 @@ import {
   chartBarsPerReplayStep,
   usesMinuteBarSkipReplay,
 } from '../chart/replayDecouple'
-import { readDefaultChartInterval, readDefaultStrategyId } from '../home/dashboardUserPrefs'
+import {
+  readDefaultChartInterval,
+  readDefaultCommission,
+  readDefaultStrategyId,
+} from '../home/dashboardUserPrefs'
 import { readFullSessionTicks, writeFullSessionTicks } from '../chart/chartTickPrefs'
 import { createTradingChart } from '../chart/tradingChart'
 import { DEFAULT_MAX_CHART_TICKS } from '../data/marketTickClient'
@@ -180,7 +184,7 @@ import type { BacktestResult, StrategyDefinition } from '../backtest/BacktestTyp
 import { runBacktest, numberTrades } from '../backtest/BacktestEngine'
 import { createPineEditorDock } from './pineEditorDock'
 import {
-  defaultBacktestSlippage,
+  resolveBacktestSlippage,
   tradeMarkersUpToTime,
 } from '../backtest/backtestChartUi'
 import {
@@ -6278,8 +6282,8 @@ export function mountChartWorkspace(
       try {
         const result = runBacktest(bars, activeStrategy, {
           initialCapital: initialCash,
-          commission: 2,
-          slippage: defaultBacktestSlippage(currentChartSymbol),
+          commission: readDefaultCommission(),
+          slippage: resolveBacktestSlippage(currentChartSymbol),
           startBarIndex: replayStartBar,
           onProgress: (pct) => {
             getBacktestLaunchButtons().forEach((b) => {

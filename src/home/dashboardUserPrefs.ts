@@ -9,10 +9,77 @@ const LS_DEFAULT_BALANCE = 'suplexity-default-session-balance'
 const LS_CONFIRM_CLOSE = 'suplexity-confirm-close-trade'
 
 const LS_AVATAR = 'suplexity-user-avatar'
+const LS_COMMISSION = 'suplexity-default-commission'
+const LS_SLIPPAGE_MODE = 'suplexity-slippage-mode'
+const LS_SLIPPAGE_FIXED = 'suplexity-slippage-fixed'
 
 export const DEFAULT_DISPLAY_NAME = 'Alpha_Trader'
 export const DEFAULT_SESSION_BALANCE = 100000
 export const MAX_AVATAR_DATA_URL_CHARS = 350_000
+export const DEFAULT_COMMISSION = 2
+
+/**
+ * 'auto' asks the backtest engine for a per-symbol slippage estimate; 'fixed'
+ * applies the same price-unit offset to every symbol.
+ */
+export type SlippageMode = 'auto' | 'fixed'
+
+export function readDefaultCommission(): number {
+  try {
+    const n = Number(localStorage.getItem(LS_COMMISSION))
+    if (Number.isFinite(n) && n >= 0 && n <= 1000) return n
+  } catch {
+    /* noop */
+  }
+  return DEFAULT_COMMISSION
+}
+
+export function writeDefaultCommission(value: number): void {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 0 || n > 1000) return
+  try {
+    localStorage.setItem(LS_COMMISSION, String(n))
+  } catch {
+    /* noop */
+  }
+}
+
+export function readSlippageMode(): SlippageMode {
+  try {
+    if (localStorage.getItem(LS_SLIPPAGE_MODE) === 'fixed') return 'fixed'
+  } catch {
+    /* noop */
+  }
+  return 'auto'
+}
+
+export function writeSlippageMode(mode: SlippageMode): void {
+  try {
+    localStorage.setItem(LS_SLIPPAGE_MODE, mode === 'fixed' ? 'fixed' : 'auto')
+  } catch {
+    /* noop */
+  }
+}
+
+export function readFixedSlippage(): number {
+  try {
+    const n = Number(localStorage.getItem(LS_SLIPPAGE_FIXED))
+    if (Number.isFinite(n) && n >= 0 && n <= 100) return n
+  } catch {
+    /* noop */
+  }
+  return 0.01
+}
+
+export function writeFixedSlippage(value: number): void {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 0 || n > 100) return
+  try {
+    localStorage.setItem(LS_SLIPPAGE_FIXED, String(n))
+  } catch {
+    /* noop */
+  }
+}
 
 export function readUserAvatar(): string | null {
   try {

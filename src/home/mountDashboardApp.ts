@@ -578,11 +578,11 @@ import { confirmDialog } from '../views/confirmDialog'
 import { mountChartWorkspace } from '../views/chartWorkspace'
 import { resolveStrategy } from '../strategy/strategyCatalog'
 import { mountStrategyPage } from '../views/mountStrategyPage'
-import { mountSettingsPage } from '../views/mountSettingsPage'
+import { mountAccountPage } from '../views/mountAccountPage'
 import { mountSubscriptionPage } from '../views/mountSubscriptionPage'
 import { mountBillingPage } from '../views/mountBillingPage'
 import { buildAnalyticsPageHtml, initAnalyticsPage, type SxaTrade } from './dashboardAnalyticsPage'
-import { mountProfilePage, type ProfileSessionStats } from '../views/mountProfilePage'
+import type { ProfileSessionStats } from '../views/mountAccountPage'
 import { postTelemetryEvent } from '../telemetry/telemetryApi'
 import { DASH_LOCALES, dashLocaleMenuLabel, isDashLocaleCode } from './dashboardLocales'
 import { readDisplayName, readUserAvatar } from './dashboardUserPrefs'
@@ -652,7 +652,7 @@ const TESTING_TABS = ['dashboard', 'sessions', 'trades', 'analytics'] as const
 type TestingTab = (typeof TESTING_TABS)[number]
 
 /** Sidebar entries — the four testing tabs plus the standalone pages. */
-type DashNavKey = TestingTab | 'strategy' | 'subscription' | 'billing' | 'settings' | 'profile'
+type DashNavKey = TestingTab | 'strategy' | 'subscription' | 'billing' | 'settings'
 
 const PERF_RANGE_VALUES = ['week', 'month', 'lifetime'] as const
 
@@ -1362,8 +1362,7 @@ const DASH_NAV_LABELS: Record<DashNavKey, string> = {
   strategy: 'Strategy',
   subscription: 'Subscription',
   billing: 'Billing',
-  settings: 'Settings',
-  profile: 'Profile',
+  settings: 'Profile Settings',
 }
 
 const DASH_GRID_ICON_SVG = `<svg class="sx-dash-side__ico sx-dash-side__ico--grid" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -1412,10 +1411,9 @@ function buildDashSidebarHtml(): string {
           ${sideLinkHtml('strategy', 'fa-solid fa-bolt', 'data-action="strategy"')}
           ${sideLinkHtml('subscription', 'fa-regular fa-credit-card', 'data-action="subscription"')}
           ${sideLinkHtml('billing', 'fa-regular fa-file-lines', 'data-action="billing"')}
-          ${sideLinkHtml('settings', 'fa-solid fa-gear', 'data-action="settings"')}
 
           <p class="sx-dash-side__section">Account pages</p>
-          ${sideLinkHtml('profile', 'fa-regular fa-user', 'data-action="profile"')}
+          ${sideLinkHtml('settings', 'fa-solid fa-gear', 'data-action="settings"')}
           <button type="button" class="sx-dash-side__link" data-nav="logout">
             <i class="fa-solid fa-arrow-right-from-bracket sx-dash-side__ico" aria-hidden="true"></i>
             <span>Sign out</span>
@@ -1910,7 +1908,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   </aside>
 
   <div id="view-chart" hidden class="hidden fixed inset-0 z-[160] flex min-h-0 w-full flex-col bg-zinc-950"></div>
-  <div id="view-profile" hidden class="hidden fixed inset-0 z-[150] flex min-h-0 w-full flex-col overflow-hidden bg-[#0a0612]"></div>
   <div id="view-stocks" class="hidden min-h-0 min-w-0 flex-1"></div>
 </div>
 `,
@@ -1924,7 +1921,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   const viewStrategyPanel = root.querySelector('#sx-dash-strategy-panel') as HTMLElement
   const viewSettingsPanel = root.querySelector('#sx-dash-settings-panel') as HTMLElement
   const viewTesting = root.querySelector('[data-sx-testing]') as HTMLElement | null
-  const viewProfile = root.querySelector('#view-profile') as HTMLElement
   const viewStocks = root.querySelector('#view-stocks') as HTMLElement
   const mlPill = root.querySelector('#sx-ml-pill')
   const mlPillMobiles = root.querySelectorAll('[data-sx-ml-pill-mobile]')
@@ -2012,7 +2008,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   let disposeSettings: (() => void) | null = null
   let disposeSubscription: (() => void) | null = null
   let disposeBilling: (() => void) | null = null
-  let disposeProfile: (() => void) | null = null
   let activeSessionId: string | null = null
   let lastSessionPayload: SessionCreatedPayload | null = null
   let sessionModal: ReturnType<typeof createSessionModal>
@@ -2078,10 +2073,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       viewChart.hidden = true
       viewChart.classList.add('hidden')
     }
-    if (viewProfile) {
-      viewProfile.hidden = true
-      viewProfile.classList.add('hidden')
-    }
     if (viewStocks) viewStocks.classList.add('hidden')
   }
 
@@ -2096,7 +2087,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (crumb) crumb.textContent = DASH_NAV_LABELS[key]
   }
 
-  function setMainNavActive(action: 'dashboard' | 'subscription' | 'billing' | 'strategy' | 'settings' | 'profile') {
+  function setMainNavActive(action: 'dashboard' | 'subscription' | 'billing' | 'strategy' | 'settings') {
     setSideNavActive(action)
   }
 
@@ -2184,13 +2175,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeSubscription = null
     disposeBilling?.()
     disposeBilling = null
-    disposeProfile?.()
-    disposeProfile = null
     viewStrategyPanel?.replaceChildren()
     viewSettingsPanel?.replaceChildren()
     viewSubscriptionPanel?.replaceChildren()
     viewBillingPanel?.replaceChildren()
-    viewProfile?.replaceChildren()
     hideOverlayViews()
     if (viewChart) {
       viewChart.hidden = false
@@ -2283,11 +2271,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     clearStrategyPanel()
     clearSubscriptionPanel()
     clearBillingPanel()
-    disposeProfile?.()
-    disposeProfile = null
     viewStocks?.replaceChildren()
     viewChart?.replaceChildren()
-    viewProfile?.replaceChildren()
     hideOverlayViews()
     if (viewDash) viewDash.hidden = false
     if (viewTesting) {
@@ -2300,7 +2285,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     closeDrawer()
     if (appRoot) setAiChatOpen(appRoot, false)
     disposeSettings?.()
-    disposeSettings = mountSettingsPage(viewSettingsPanel, {
+    disposeSettings = mountAccountPage(viewSettingsPanel, {
       embedded: true,
       readLocale: readDashLocale,
       writeLocale: (code) => {
@@ -2395,11 +2380,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     clearStrategyPanel()
     clearSettingsPanel()
     clearBillingPanel()
-    disposeProfile?.()
-    disposeProfile = null
     viewStocks?.replaceChildren()
     viewChart?.replaceChildren()
-    viewProfile?.replaceChildren()
     hideOverlayViews()
     if (viewDash) viewDash.hidden = false
     if (viewTesting) {
@@ -2439,11 +2421,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     clearStrategyPanel()
     clearSettingsPanel()
     clearSubscriptionPanel()
-    disposeProfile?.()
-    disposeProfile = null
     viewStocks?.replaceChildren()
     viewChart?.replaceChildren()
-    viewProfile?.replaceChildren()
     hideOverlayViews()
     if (viewDash) viewDash.hidden = false
     if (viewTesting) {
@@ -2463,39 +2442,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     })
   }
 
-  function showProfilePage() {
-    if (!viewProfile) return
-    disposeChart?.()
-    disposeChart = null
-    disposeStocks?.()
-    disposeStocks = null
-    clearStrategyPanel()
-    clearSettingsPanel()
-    clearSubscriptionPanel()
-    clearBillingPanel()
-    viewStocks?.replaceChildren()
-    viewChart?.replaceChildren()
-    hideOverlayViews()
-    if (viewDash) viewDash.hidden = true
-    hideTradesFixedBar()
-    if (viewProfile) {
-      viewProfile.hidden = false
-      viewProfile.classList.remove('hidden')
-    }
-    closeDrawer()
-    if (appRoot) setAiChatOpen(appRoot, false)
-    disposeProfile?.()
-    disposeProfile = mountProfilePage(viewProfile, {
-      onBack: showDashboard,
-      onOpenSettings: showSettingsPage,
-      onProUpgrade: openUpgradePlansModal,
-      onDisplayNameChange: () => syncSidebarProfile(),
-      readTier: readAccountTier,
-      getSessionStats: getProfileSessionStats,
-      getAuthEmail: () => getAuthUser()?.email ?? null,
-    })
-  }
-
   function showStrategyPage() {
     if (!viewStrategyPanel) return
     disposeChart?.()
@@ -2505,11 +2451,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     clearSettingsPanel()
     clearSubscriptionPanel()
     clearBillingPanel()
-    disposeProfile?.()
-    disposeProfile = null
     viewStocks?.replaceChildren()
     viewChart?.replaceChildren()
-    viewProfile?.replaceChildren()
     hideOverlayViews()
     if (viewDash) viewDash.hidden = false
     if (viewTesting) {
@@ -2540,11 +2483,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeChart = null
     disposeStocks?.()
     disposeStocks = null
-    disposeProfile?.()
-    disposeProfile = null
     viewStocks?.replaceChildren()
     viewChart?.replaceChildren()
-    viewProfile?.replaceChildren()
     hideOverlayViews()
     showDashboardView()
     showHomeTestingSection()
@@ -5680,15 +5620,9 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     })
   })
 
-  root.querySelectorAll('[data-action="profile"]').forEach((el) => {
-    el.addEventListener('click', () => {
-      setAccountMenuOpen(false)
-      showProfilePage()
-    })
-  })
-
   root.querySelectorAll('[data-action="settings"]').forEach((el) => {
     el.addEventListener('click', () => {
+      setAccountMenuOpen(false)
       showSettingsPage()
     })
   })

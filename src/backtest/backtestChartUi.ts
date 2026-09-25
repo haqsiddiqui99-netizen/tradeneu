@@ -3,6 +3,7 @@ import type { Bar } from '../types'
 import type { BacktestResult, ExitReason, StrategyDefinition } from './BacktestTypes'
 import type { BacktestReplaySnapshot } from './backtestReplaySnapshot'
 import { runBacktest, numberTrades } from './BacktestEngine'
+import { readFixedSlippage, readSlippageMode } from '../home/dashboardUserPrefs'
 
 export type BacktestRunOptions = {
   bars: Bar[]
@@ -277,6 +278,14 @@ export function renderEquityCurve(el: HTMLElement, result: BacktestResult): void
       </div>
     </div>
   `
+}
+
+/**
+ * Slippage actually used for a backtest run: the per-symbol estimate below,
+ * unless the trader pinned a single value in Profile Settings.
+ */
+export function resolveBacktestSlippage(symbol: string): number {
+  return readSlippageMode() === 'fixed' ? readFixedSlippage() : defaultBacktestSlippage(symbol)
 }
 
 /** Rough slippage in price units for backtest fills. */
