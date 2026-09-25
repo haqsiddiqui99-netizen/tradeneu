@@ -1,6 +1,38 @@
 import { fetchMarketBarsSeries } from './marketDataClient'
 import { resolveSessionBars } from './resolveSessionBars'
 
+/** Real per-timeframe row counts from the server's local SQLite bar store for one symbol. */
+export type LocalBarCounts = Record<string, number>
+
+/**
+ * Live "how many bars do we actually have" numbers straight from the server's
+ * local store (`SELECT COUNT(*) ... GROUP BY timeframe`) — cheap (no bar
+ * payload) and always current, unlike a hardcoded per-timeframe guess.
+ * Returns null if the symbol has no local data yet or the request fails.
+ */
+export async function fetchLocalBarCounts(symbol: string): Promise<LocalBarCounts | null> {
+  const sym = symbol.trim()
+  if (!sym) return null
+  try {
+    const res = await fetch(`/api/market/local/stats?symbol=${encodeURIComponent(sym)}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    const body = (await res.json()) as { ok?: boolean; stats?: { barCounts?: Record<string, unknown> } }
+    const raw = body.ok ? body.stats?.barCounts : undefined
+    if (!raw || typeof raw !== 'object') return null
+    const counts: LocalBarCounts = {}
+    for (const [tf, n] of Object.entries(raw)) {
+      const num = Number(n)
+      if (Number.isFinite(num) && num > 0) counts[tf] = num
+    }
+    return Object.keys(counts).length ? counts : null
+  } catch {
+    return null
+  }
+}
+
 /** Fallback when no symbol is selected or coverage cannot be resolved. */
 export const APP_BAR_COVERAGE_FALLBACK_MIN = '2007-04-03'
 

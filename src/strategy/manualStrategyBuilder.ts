@@ -11,10 +11,35 @@
  * the app without id/class collisions.
  */
 import './manualStrategyBuilder.css'
+import type { Bar } from '../types'
+import { loadSessionBars } from '../data/loadSessionBars'
+import { aggregateOHLCV } from '../chart/aggregateBars'
+import { runManualStrategy, type ManualBacktestResult } from '../backtest/manualStrategyEngine'
+import { manualStrategyToDefinition } from './manualStrategyToDefinition'
+import { saveCustomStrategy } from './strategyStore'
+import { ASSET_CATALOG, RECENT_SYMBOLS } from '../assetCatalog'
+import { fetchLocalBarCounts, type LocalBarCounts } from '../data/symbolBarCoverage'
+
+// Market dropdown options: recently-used symbols first, then the rest of
+// the shared asset catalog (deduped) — so the manual builder isn't locked
+// to XAUUSD and can capture any symbol the platform already knows about.
+const SYMBOL_OPTIONS: string[] = (() => {
+  const seen = new Set<string>()
+  const ordered: string[] = []
+  ;[...RECENT_SYMBOLS, ...ASSET_CATALOG.map((a) => a.symbol)].forEach((sym) => {
+    if (!seen.has(sym)) {
+      seen.add(sym)
+      ordered.push(sym)
+    }
+  })
+  return ordered
+})()
 
 export type ManualStrategyBuilderOptions = {
   host: HTMLElement
   onBack?: () => void
+  /** Opens the chart/replay workspace for this strategy (converted to `StrategyDefinition` — see `manualStrategyToDefinition.ts`). */
+  onOpenInChart?: (strategyId: string, opts?: { runBacktest?: boolean }) => void
 }
 
 export type ManualStrategyBuilderApi = {
@@ -34,6 +59,7 @@ type Rule = { id: string; left: LeftOperand; op: string; rhs: Operand }
 type RiskField = [type: string, value: number]
 
 type Strategy = {
+  id?: string
   name: string
   dir: 'long' | 'short' | 'both'
   entryJoin: 'all' | 'any'
@@ -379,18 +405,18 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       <div class="app">
         <header class="topbar">
           ${opts.onBack ? `<button type="button" class="backLink" data-sx-back><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Strategies</button>` : ''}
-          <div class="brand"><span class="mark"></span><span>Tradeneu</span></div>
-          <span class="crumb">/</span>
           <input class="nameField" id="stratName" value="EMA 9/21 Crossover" aria-label="Strategy name">
           <span class="forked" id="forkTag" hidden>Copy — saves to your strategies</span>
           <div class="spacer"></div>
-          <button class="btn btn-ghost" id="btnChart">Open in chart</button>
-          <button class="btn" id="btnSave">Save</button>
+          <button class="btn btn-chart" id="btnChart"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> Open in chart</button>
+          <button class="btn btn-save" id="btnSave"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save</button>
         </header>
 
         <div class="context">
           <div class="ctxItem"><span>Market</span>
-            <input class="txt ticker" id="symbol" value="XAUUSD" aria-label="Symbol">
+            <select class="sel ticker" id="symbol" aria-label="Symbol">
+              ${SYMBOL_OPTIONS.map((sym) => `<option${sym === 'XAUUSD' ? ' selected' : ''}>${sym}</option>`).join('')}
+            </select>
           </div>
           <div class="ctxItem"><span>Timeframe</span>
             <select class="sel" id="tf" aria-label="Timeframe">
@@ -413,18 +439,27 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
           <div class="bars" id="barsInfo">\u2248 <b>74,800</b> bars available</div>
         </div>
 
-        <div class="main">
-
-          <aside class="rail">
-            <div class="railHead"><span>Templates</span></div>
-            <div id="tplList"></div>
-            <div class="railDiv"></div>
-            <div class="railHead"><span>Your strategies</span>
-              <button class="addLink" id="btnNew" title="Blank strategy">New</button>
+        <div class="templateBar">
+          <div class="tplBarHead">
+            <div class="tplTabs" role="tablist">
+              <button type="button" class="tplTab" id="tabTemplates" data-tab="templates" role="tab" aria-selected="true">Templates</button>
+              <button type="button" class="tplTab" id="tabMine" data-tab="mine" role="tab" aria-selected="false">Your strategies<span class="tplTabCount" id="mineCount" hidden>0</span></button>
             </div>
-            <div id="mineList"></div>
-            <p class="empty" id="mineEmpty">Nothing saved yet. Edit any template and it becomes yours.</p>
-          </aside>
+            <button class="addLink" id="btnNew" title="Blank strategy">+ New strategy</button>
+          </div>
+          <div class="tplCats" id="tplCats" role="tablist" aria-label="Filter templates by category"></div>
+          <div class="tplStrip">
+            <button type="button" class="tplNav tplNavPrev" id="tplPrev" aria-label="Show previous strategies" title="Show previous strategies">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M6.8 1L2.4 5l4.4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="tplScroll" id="tplScroll"></div>
+            <button type="button" class="tplNav tplNavNext" id="tplNext" aria-label="Show more strategies" title="Show more strategies">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M3.2 1L7.6 5l-4.4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="main">
 
           <main class="canvas">
 
@@ -545,49 +580,53 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
           </main>
 
-          <div class="readerBar">
-            <div class="readerCol sparkCol">
-              <div class="sparkWrap">
-                <div class="sHead"><span>Equity shape</span><span>illustrative — not backtest data</span></div>
-                <svg class="spark" id="sparkSvg" viewBox="0 0 300 58" preserveAspectRatio="none" aria-label="Illustrative equity shape">
-                  <defs>
-                    <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stop-color="#E0A94A" stop-opacity="0.35"/>
-                      <stop offset="100%" stop-color="#E0A94A" stop-opacity="0"/>
-                    </linearGradient>
-                  </defs>
-                  <path class="fill" id="sparkFill" fill="url(#sparkGrad)"/>
-                  <path class="line" id="sparkLine"/>
-                </svg>
-              </div>
+          <aside class="reader">
+            <div class="sparkWrap">
+              <div class="sHead"><span id="sparkHeadTitle">Equity shape</span><span id="sparkHeadNote">illustrative — not backtest data</span></div>
+              <svg class="spark" id="sparkSvg" viewBox="0 0 300 58" preserveAspectRatio="none" aria-label="Illustrative equity shape">
+                <defs>
+                  <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#E0A94A" stop-opacity="0.35"/>
+                    <stop offset="100%" stop-color="#E0A94A" stop-opacity="0"/>
+                  </linearGradient>
+                  <linearGradient id="sparkGradUp" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--long)" stop-opacity="0.32"/>
+                    <stop offset="100%" stop-color="var(--long)" stop-opacity="0"/>
+                  </linearGradient>
+                  <linearGradient id="sparkGradDown" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--short)" stop-opacity="0.32"/>
+                    <stop offset="100%" stop-color="var(--short)" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <line class="baseline" id="sparkBaseline" x1="0" y1="0" x2="300" y2="0" hidden></line>
+                <path class="fill" id="sparkFill" fill="url(#sparkGrad)"/>
+                <path class="line" id="sparkLine"/>
+                <circle class="dot" id="sparkStartDot" r="2.4" hidden></circle>
+                <circle class="dot" id="sparkEndDot" r="2.6" hidden></circle>
+              </svg>
+              <div class="sparkStats" id="sparkStats" hidden></div>
             </div>
 
-            <div class="readerCol proseCol">
-              <div class="readerHead"><h3>Plain English</h3></div>
-              <div class="prose" id="prose"></div>
-            </div>
+            <div class="readerHead"><h3>Plain English</h3></div>
+            <div class="prose" id="prose"></div>
 
-            <div class="readerCol checksCol">
-              <div class="checks" id="checks"></div>
-            </div>
+            <div class="checks" id="checks"></div>
 
-            <div class="readerCol jsonCol">
-              <div class="jsonWrap">
-                <button class="jsonToggle" id="jsonToggle" aria-expanded="false">
-                  <span>Strategy JSON</span><span id="jsonCaret">Show</span>
-                </button>
-                <pre class="json" id="json" hidden></pre>
-              </div>
+            <div class="jsonWrap">
+              <button class="jsonToggle" id="jsonToggle" aria-expanded="false">
+                <span>Strategy JSON</span><span id="jsonCaret">Show</span>
+              </button>
+              <pre class="json" id="json" hidden></pre>
             </div>
+          </aside>
+
+        </div>
+
+        <div class="actions">
+          <div class="actionsInner">
+            <button class="btn btn-primary" id="btnRun">Run backtest</button>
+            <span class="est" id="est"></span>
           </div>
-
-          <div class="actions">
-            <div class="actionsInner">
-              <button class="btn btn-primary" id="btnRun">Run backtest</button>
-              <span class="est" id="est"></span>
-            </div>
-          </div>
-
         </div>
       </div>
     </div>
@@ -595,9 +634,187 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => host.querySelector<T>('#' + id)!
 
+  const DD_CHEVRON =
+    '<svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+
+  // Dropdown menus are appended here — a top-level sibling of the
+  // .sx-manual-strat shell, not inside it — so nothing on this page (the
+  // shell itself, .rules, .posGrid, ...) can clip them with an
+  // `overflow: hidden` used for rounded corners. It carries the
+  // `sx-manual-strat` class purely so the theme CSS variables (and dark
+  // theme override, which targets `.sx-manual-strat` at any depth under
+  // `#sx-app-root`) still apply to menus rendered inside it.
+  const ddPortal = document.createElement('div')
+  ddPortal.className = 'sx-manual-strat dd-portal-root'
+  host.appendChild(ddPortal)
+
+  function closeAllDropdowns() {
+    ddPortal.querySelectorAll<HTMLElement>('.dd__menu--open').forEach((m) => m.classList.remove('dd__menu--open'))
+    host.querySelectorAll<HTMLElement>('.dd__btn[aria-expanded="true"]').forEach((b) => b.setAttribute('aria-expanded', 'false'))
+  }
+
+  // Rule-row selects (indicator / operator / kind pickers) are rebuilt
+  // from scratch on every renderRules() call, so their old <select>
+  // elements get thrown away — but the portal-hosted menus dressSelect()
+  // created for them would otherwise sit around forever. Sweep out any
+  // menu whose select is no longer in the document.
+  function purgeOrphanedDropdownMenus() {
+    ddPortal.querySelectorAll<HTMLElement>('.dd__menu').forEach((m) => {
+      const forSelect = (m as unknown as { __forSelect?: HTMLSelectElement }).__forSelect
+      if (!forSelect || !document.body.contains(forSelect)) m.remove()
+    })
+  }
+
+  // Replaces a native <select> with a custom pill-button + floating-menu
+  // widget (matching the "Total Profit/Loss" dropdown on the Analytics
+  // page), while keeping the original <select> alive-but-hidden inside it
+  // so every existing `$<HTMLSelectElement>(id).value` / `.onchange` call
+  // site elsewhere in this file keeps working untouched. Selecting a menu
+  // item sets the real select's value and fires a real 'change' event.
+  function dressSelect(select: HTMLSelectElement): HTMLElement {
+    const wrap = document.createElement('span')
+    wrap.className = 'dd'
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'dd__btn'
+    btn.setAttribute('aria-haspopup', 'listbox')
+    btn.setAttribute('aria-expanded', 'false')
+    if (select.getAttribute('aria-label')) btn.setAttribute('aria-label', select.getAttribute('aria-label')!)
+    const label = document.createElement('span')
+    label.className = 'dd__label'
+    btn.appendChild(label)
+    btn.insertAdjacentHTML('beforeend', DD_CHEVRON)
+
+    const menu = document.createElement('div')
+    menu.className = 'dd__menu'
+    menu.setAttribute('role', 'listbox')
+
+    const rebuild = () => {
+      menu.textContent = ''
+      Array.from(select.options).forEach((opt, i) => {
+        const item = document.createElement('button')
+        item.type = 'button'
+        item.className = 'dd__item' + (i === select.selectedIndex ? ' dd__item--active' : '')
+        item.setAttribute('role', 'option')
+        item.setAttribute('aria-selected', String(i === select.selectedIndex))
+        item.textContent = opt.textContent || opt.value
+        item.onclick = (e) => {
+          e.stopPropagation()
+          if (select.selectedIndex !== i) {
+            select.selectedIndex = i
+            select.dispatchEvent(new Event('change', { bubbles: true }))
+          }
+          sync()
+          close()
+        }
+        menu.appendChild(item)
+      })
+    }
+    const sync = () => {
+      const opt = select.options[select.selectedIndex]
+      label.textContent = opt ? opt.textContent || opt.value : ''
+      menu.querySelectorAll<HTMLElement>('.dd__item').forEach((el, i) => {
+        el.classList.toggle('dd__item--active', i === select.selectedIndex)
+        el.setAttribute('aria-selected', String(i === select.selectedIndex))
+      })
+    }
+    const close = () => {
+      menu.classList.remove('dd__menu--open')
+      btn.setAttribute('aria-expanded', 'false')
+    }
+    const positionMenu = () => {
+      const r = btn.getBoundingClientRect()
+      menu.style.left = r.left + 'px'
+      menu.style.top = r.bottom + 6 + 'px'
+      menu.style.minWidth = r.width + 'px'
+      // Flip above / shift left if the menu would run off the viewport —
+      // it's rendered in a top-level portal now, so nothing will clip it,
+      // but it should still stay on-screen.
+      requestAnimationFrame(() => {
+        const mr = menu.getBoundingClientRect()
+        const overflowRight = mr.right - window.innerWidth + 8
+        if (overflowRight > 0) menu.style.left = Math.max(4, r.right - mr.width) + 'px'
+        const overflowBottom = mr.bottom - window.innerHeight + 8
+        if (overflowBottom > 0) menu.style.top = Math.max(4, r.top - mr.height - 6) + 'px'
+      })
+    }
+    const open = () => {
+      closeAllDropdowns()
+      rebuild()
+      positionMenu()
+      menu.classList.add('dd__menu--open')
+      btn.setAttribute('aria-expanded', 'true')
+      // Long lists scroll within a capped height — jump straight to the
+      // active item instead of always opening scrolled to the top.
+      menu.querySelector<HTMLElement>('.dd__item--active')?.scrollIntoView({ block: 'nearest' })
+    }
+    btn.onclick = (e) => {
+      e.stopPropagation()
+      if (menu.classList.contains('dd__menu--open')) close()
+      else open()
+    }
+
+    ;(select as unknown as { __ddSync?: () => void }).__ddSync = () => {
+      rebuild()
+      sync()
+    }
+    ;(menu as unknown as { __forSelect?: HTMLSelectElement }).__forSelect = select
+
+    if (select.parentNode) select.replaceWith(wrap)
+    wrap.appendChild(btn)
+    wrap.appendChild(select)
+    ddPortal.appendChild(menu)
+    select.hidden = true
+    select.tabIndex = -1
+    rebuild()
+    sync()
+    return wrap
+  }
+
+  // Called after anything sets a dressed <select>'s .value directly
+  // (rather than through its own menu), so the visible pill label stays
+  // in sync — e.g. loading a template or a saved strategy.
+  function syncAllDropdownLabels() {
+    host.querySelectorAll<HTMLSelectElement>('select.sel').forEach((sel) => {
+      ;(sel as unknown as { __ddSync?: () => void }).__ddSync?.()
+    })
+  }
+
+  const onDocDdClick = (e: MouseEvent) => {
+    // The menu itself now lives in the portal, outside the .dd wrapper,
+    // so a click inside an open menu has to be recognised too.
+    if (!(e.target as HTMLElement).closest('.dd, .dd__menu')) closeAllDropdowns()
+  }
+  const onDocDdKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') closeAllDropdowns()
+  }
+  // Fixed-position menus don't track a scrolling ancestor, so close on
+  // scroll of the page behind them — but NOT when the scroll is the menu
+  // itself scrolling through a long option list (that has its own
+  // internal overflow-y: auto and must keep working).
+  const onDocDdScroll = (e: Event) => {
+    if ((e.target as HTMLElement | null)?.closest?.('.dd__menu')) return
+    closeAllDropdowns()
+  }
+  document.addEventListener('click', onDocDdClick)
+  document.addEventListener('keydown', onDocDdKey)
+  document.addEventListener('scroll', onDocDdScroll, true)
+
+  // Every native <select> baked into the static template above (Timeframe,
+  // Range, Sessions, Match pickers, position/risk type pickers) gets the
+  // same custom dropdown treatment as the ones built dynamically for rule
+  // rows, so *all* dropdowns on this page look and behave the same way.
+  host.querySelectorAll<HTMLSelectElement>('select.sel').forEach((sel) => dressSelect(sel))
+
   let S: Strategy = null as unknown as Strategy
   let activeTpl = 0
   let dirty = false
+  let activeTab: 'templates' | 'mine' = 'templates'
+  let activeCat: string | null = null
+  // Which saved ("Your strategies") entry, if any, is currently loaded —
+  // lets Save update that entry in place instead of piling up duplicates,
+  // and lets the library highlight the right chip even after a rename.
+  let activeMineId: string | null = null
   const mine: Strategy[] = []
 
   function loadTemplate(t: Template) {
@@ -610,7 +827,9 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       exit: t.exit.map((r) => mkRule(r[0], r[1], r[2], r[3])),
       risk: JSON.parse(JSON.stringify(t.risk)),
     }
+    activeMineId = null
     dirty = false
+    clearBacktestResult()
     syncControls()
     renderAll()
   }
@@ -626,7 +845,9 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       risk: { size: ['riskpct', 1], stop: ['atr', 1.5], tp: ['rr', 2], trail: ['none', 1] },
     }
     activeTpl = -1
+    activeMineId = null
     dirty = true
+    clearBacktestResult()
     syncControls()
     renderAll()
   }
@@ -646,9 +867,20 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     host.querySelectorAll<HTMLButtonElement>('.seg [data-dir]').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.dir === S.dir))
     })
+    syncAllDropdownLabels()
   }
 
-  function operandChip(o: LeftOperand | Extract<Operand, { kind: 'ind' }>, onChange: () => void): HTMLElement {
+  function operandChip(
+    o: LeftOperand | Extract<Operand, { kind: 'ind' }>,
+    onChange: () => void,
+    // Typing a period value only needs the derived read-outs (prose,
+    // stats, JSON, \u2026) refreshed \u2014 rebuilding the whole rule list on every
+    // keystroke (via `onChange`/`update`) destroyed and recreated this very
+    // input mid-type, so only the first digit ever registered before focus
+    // was lost. Structural edits (changing which indicator is picked, which
+    // changes how many period fields exist) still go through `onChange`.
+    onNumberChange: () => void = onChange,
+  ): HTMLElement {
     const wrap = document.createElement('span')
     wrap.className = 'chip'
     const sel = document.createElement('select')
@@ -666,14 +898,16 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       o.p = Object.fromEntries((IND[o.ind].params ?? []).map((p) => [p[0], p[1]]))
       onChange()
     }
-    wrap.appendChild(sel)
+    wrap.appendChild(dressSelect(sel))
     const ps = IND[o.ind].params ?? []
     if (ps.length) {
-      const open = document.createElement('span')
-      open.className = 'paren'
-      open.textContent = '('
-      wrap.appendChild(open)
-      ps.forEach(([key, , min, max], i) => {
+      // Periods live in their own segment of the chip, divided from the
+      // indicator name by a hairline rule — the old "( 9 )" spelling put
+      // loose parenthesis glyphs around a boxed input, which read as
+      // debris rather than as an editable field.
+      const params = document.createElement('span')
+      params.className = 'chipParams'
+      ps.forEach(([key, , min, max]) => {
         const n = document.createElement('input')
         n.type = 'number'
         n.className = 'num'
@@ -685,20 +919,11 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         n.title = key
         n.oninput = () => {
           o.p[key] = parseFloat(n.value) || 0
-          onChange()
+          onNumberChange()
         }
-        wrap.appendChild(n)
-        if (i < ps.length - 1) {
-          const c = document.createElement('span')
-          c.className = 'paren'
-          c.textContent = ','
-          wrap.appendChild(c)
-        }
+        params.appendChild(n)
       })
-      const close = document.createElement('span')
-      close.className = 'paren'
-      close.textContent = ')'
-      wrap.appendChild(close)
+      wrap.appendChild(params)
     }
     return wrap
   }
@@ -729,7 +954,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       tag.textContent = i === 0 ? 'if' : join === 'all' ? 'and' : 'or'
       row.appendChild(tag)
 
-      row.appendChild(operandChip(r.left, update))
+      row.appendChild(operandChip(r.left, update, updateKeepingRuleFocus))
 
       const opSel = document.createElement('select')
       opSel.className = 'sel'
@@ -745,7 +970,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         r.op = opSel.value
         update()
       }
-      row.appendChild(opSel)
+      row.appendChild(dressSelect(opSel))
 
       const kindSel = document.createElement('select')
       kindSel.className = 'sel'
@@ -764,10 +989,10 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
             : { kind: 'num', value: 0 }
         update()
       }
-      row.appendChild(kindSel)
+      row.appendChild(dressSelect(kindSel))
 
       if (r.rhs.kind === 'ind') {
-        row.appendChild(operandChip(r.rhs, update))
+        row.appendChild(operandChip(r.rhs, update, updateKeepingRuleFocus))
       } else {
         const n = document.createElement('input')
         n.type = 'number'
@@ -777,7 +1002,9 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         n.setAttribute('aria-label', 'Value')
         n.oninput = () => {
           ;(r.rhs as { kind: 'num'; value: number }).value = parseFloat(n.value)
-          update()
+          // Not `update()` \u2014 that rebuilds every rule row (this input
+          // included) on each keystroke and drops focus after one digit.
+          updateKeepingRuleFocus()
         }
         row.appendChild(n)
       }
@@ -861,7 +1088,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   function renderProse() {
     const p = $('prose')
-    const sym = $<HTMLInputElement>('symbol').value.toUpperCase() || 'the market'
+    const sym = $<HTMLSelectElement>('symbol').value.toUpperCase() || 'the market'
     const tf = $<HTMLSelectElement>('tf').value
     const ses = $<HTMLSelectElement>('session').value
     const e = sentence(S.entry, S.entryJoin)
@@ -897,13 +1124,49 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     p.classList.add('flash')
   }
 
-  function estimates(): { baseBars: number; est: number } {
+  // "Bars available" used to be a flat hardcoded guess per timeframe. It's
+  // now backed by a real, live count fetched from the server's local bar
+  // store for whichever symbol is selected (see refreshLiveBarCounts below);
+  // the hardcoded table only survives as a fallback while that fetch is in
+  // flight or if the symbol has no local data yet.
+  const MINUTES_PER_TF: Record<string, number> = { '1m': 1, '5m': 5, '15m': 15, '1h': 60, '4h': 240, '1D': 1440 }
+  const liveBarCountsBySymbol = new Map<string, LocalBarCounts>()
+  let liveBarCountsLoadingSymbol: string | null = null
+
+  function liveBaseBarsFor(tf: string, symbol: string): number | null {
+    const counts = liveBarCountsBySymbol.get(symbol)
+    if (!counts) return null
+    // Prefer a directly-stored timeframe count (m1/h1/d1 are persisted as
+    // their own rows); otherwise derive it from the 1-minute row count.
+    const directKey = tf === '1m' ? 'm1' : tf === '1h' ? 'h1' : tf === '1D' ? 'd1' : null
+    if (directKey && counts[directKey]) return counts[directKey]
+    const m1 = counts.m1
+    if (!m1) return null
+    const perBar = MINUTES_PER_TF[tf] ?? 15
+    return Math.max(1, Math.round(m1 / perBar))
+  }
+
+  async function refreshLiveBarCounts(symbol: string) {
+    const sym = symbol.trim().toUpperCase()
+    if (!sym || liveBarCountsBySymbol.has(sym) || liveBarCountsLoadingSymbol === sym) return
+    liveBarCountsLoadingSymbol = sym
+    const counts = await fetchLocalBarCounts(sym)
+    if (liveBarCountsLoadingSymbol === sym) liveBarCountsLoadingSymbol = null
+    if (!counts) return
+    liveBarCountsBySymbol.set(sym, counts)
+    // Only worth a re-render if the symbol fetched is still the one selected.
+    if (($<HTMLSelectElement>('symbol').value || '').toUpperCase() === sym) renderStats()
+  }
+
+  function estimates(): { baseBars: number; est: number; live: boolean } {
     const tf = $<HTMLSelectElement>('tf').value
+    const symbol = ($<HTMLSelectElement>('symbol').value || '').toUpperCase()
     const baseBarsByTf: Record<string, number> = { '1m': 740000, '5m': 148000, '15m': 74800, '1h': 18700, '4h': 4700, '1D': 790 }
-    const baseBars = baseBarsByTf[tf] ?? 74800
+    const live = liveBaseBarsFor(tf, symbol)
+    const baseBars = live ?? baseBarsByTf[tf] ?? 74800
     const dens = ({ all: 0.008, any: 0.019 }[S.entryJoin] ?? 0.008) / Math.max(1, S.entry.length * 0.6)
     const est = S.entry.length ? Math.max(0, Math.round(baseBars * dens)) : 0
-    return { baseBars, est }
+    return { baseBars, est, live: live != null }
   }
 
   function longestLookback(): number {
@@ -963,8 +1226,12 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     })
 
     $<HTMLButtonElement>('btnRun').disabled = !S.entry.length
-    const { baseBars, est } = estimates()
-    $('barsInfo').innerHTML = '\u2248 <b>' + baseBars.toLocaleString() + '</b> bars available'
+    const { baseBars, est, live } = estimates()
+    const barsInfo = $<HTMLElement>('barsInfo')
+    barsInfo.innerHTML = '\u2248 <b>' + baseBars.toLocaleString() + '</b> bars available'
+    barsInfo.title = live
+      ? 'Live count from your local market data store'
+      : 'Estimated \u2014 fetching the live count for this symbol\u2026'
     $('est').textContent = S.entry.length
       ? '\u2248 ' + est.toLocaleString() + ' trades over the selected range \u00b7 under 2s'
       : 'Add an entry condition to run'
@@ -974,7 +1241,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     if ($<HTMLElement>('json').hidden) return
     const obj = {
       name: S.name,
-      symbol: $<HTMLInputElement>('symbol').value.toUpperCase(),
+      symbol: $<HTMLSelectElement>('symbol').value.toUpperCase(),
       timeframe: $<HTMLSelectElement>('tf').value,
       range: $<HTMLSelectElement>('range').value,
       session: $<HTMLSelectElement>('session').value,
@@ -1055,6 +1322,10 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     return t.replace(/<[^>]+>/g, '')
   }
 
+  function escapeHtml(t: string): string {
+    return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  }
+
   function renderLiveLine() {
     const e = sentence(S.entry, S.entryJoin)
     const dir = S.dir === 'both' ? 'Long/short' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
@@ -1070,13 +1341,21 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const dirLabel = S.dir === 'both' ? 'Both ways' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
     const dirCls = S.dir === 'long' ? 'long' : S.dir === 'short' ? 'short' : ''
     const rr = S.risk.tp[0] === 'rr' ? S.risk.tp[1] + 'R' : '\u2014'
-    const items: [string, string, string][] = [
-      ['Direction', dirLabel, dirCls],
-      ['Entry', S.entry.length ? S.entry.length + ' \u00b7 ' + (S.entryJoin === 'all' ? 'AND' : 'OR') : 'none set', S.entry.length ? '' : 'warn'],
-      ['Exit', S.exit.length ? S.exit.length + ' \u00b7 ' + (S.exitJoin === 'all' ? 'AND' : 'OR') : 'stop/target only', ''],
-      ['Target', rr, ''],
-      ['Est. trades', est.toLocaleString(), est === 0 ? 'warn' : ''],
-    ]
+    const items: [string, string, string][] = lastResult
+      ? [
+          ['Direction', dirLabel, dirCls],
+          ['Trades', lastResult.summary.totalTrades.toLocaleString(), lastResult.summary.totalTrades === 0 ? 'warn' : ''],
+          ['Win rate', lastResult.summary.totalTrades ? lastResult.summary.winRate.toFixed(1) + '%' : '\u2014', ''],
+          ['Net P&L', (lastResult.summary.netPnl >= 0 ? '+$' : '-$') + Math.abs(lastResult.summary.netPnl).toLocaleString(undefined, { maximumFractionDigits: 0 }), lastResult.summary.netPnl < 0 ? 'short' : 'long'],
+          ['Max DD', lastResult.summary.maxDrawdownPct.toFixed(1) + '%', ''],
+        ]
+      : [
+          ['Direction', dirLabel, dirCls],
+          ['Entry', S.entry.length ? S.entry.length + ' \u00b7 ' + (S.entryJoin === 'all' ? 'AND' : 'OR') : 'none set', S.entry.length ? '' : 'warn'],
+          ['Exit', S.exit.length ? S.exit.length + ' \u00b7 ' + (S.exitJoin === 'all' ? 'AND' : 'OR') : 'stop/target only', ''],
+          ['Target', rr, ''],
+          ['Est. trades', est.toLocaleString(), est === 0 ? 'warn' : ''],
+        ]
     if (!statHost.dataset.init) {
       statHost.innerHTML = items
         .map(([label, value, cls]) => '<div class="stat"><label>' + label + '</label><div class="val ' + cls + '">' + value + '</div></div>')
@@ -1098,6 +1377,98 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     })
   }
 
+  // ─── Real backtest wiring ────────────────────────────────────────────────
+  // Holds the most recent real run against actual market bars. Cleared any
+  // time the rules, symbol, timeframe, range or session change, so the
+  // sparkline/stats never show a result for a strategy that's since been
+  // edited — see `clearBacktestResult()`.
+  let lastResult: ManualBacktestResult | null = null
+  let backtestRunSeq = 0
+
+  function clearBacktestResult() {
+    lastResult = null
+  }
+
+  const TF_STEP_SEC: Record<string, number> = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1D': 86400 }
+
+  function rangeToDates(range: string): { startDate?: string; endDate?: string } {
+    const end = new Date()
+    const endDate = end.toISOString().slice(0, 10)
+    const start = new Date(end)
+    if (range === 'Last 6 months') start.setMonth(start.getMonth() - 6)
+    else if (range === 'Last 3 years') start.setFullYear(start.getFullYear() - 3)
+    else if (range === '2019 \u2192 today') return { startDate: '2019-01-01', endDate }
+    else return {} // "Custom…" has no picker yet — fall back to the freshest available bars
+    return { startDate: start.toISOString().slice(0, 10), endDate }
+  }
+
+  function sessionToHourFilter(session: string): { fromHour: number; toHour: number } | null {
+    switch (session) {
+      case 'London + New York': return { fromHour: 7, toHour: 20 }
+      case 'London only': return { fromHour: 7, toHour: 15 }
+      case 'New York only': return { fromHour: 12, toHour: 20 }
+      case 'Asia only': return { fromHour: 23, toHour: 7 }
+      default: return null // "All hours"
+    }
+  }
+
+  async function runRealBacktest() {
+    const btn = $<HTMLButtonElement>('btnRun')
+    const est = $('est')
+    const originalLabel = btn.textContent
+    const mySeq = ++backtestRunSeq
+    btn.disabled = true
+    btn.textContent = 'Loading bars\u2026'
+    est.textContent = 'Fetching market data\u2026'
+    try {
+      const symbol = ($<HTMLSelectElement>('symbol').value || 'XAUUSD').toUpperCase()
+      const tf = $<HTMLSelectElement>('tf').value
+      const range = $<HTMLSelectElement>('range').value
+      const session = $<HTMLSelectElement>('session').value
+      const { startDate, endDate } = rangeToDates(range)
+      const resolved = await loadSessionBars(symbol, session, 6000, { startDate, endDate })
+      if (mySeq !== backtestRunSeq) return // superseded by a newer click
+      const stepSec = TF_STEP_SEC[tf] ?? 60
+      const bars: Bar[] = stepSec > 60 ? aggregateOHLCV(resolved.bars, stepSec) : resolved.bars
+      if (bars.length < 50) {
+        window.alert('Not enough bars loaded for this symbol/range to run a backtest (need at least 50).')
+        return
+      }
+      btn.textContent = 'Running\u2026'
+      const result = runManualStrategy(bars, S, {
+        initialCapital: 100_000,
+        sessionFilter: sessionToHourFilter(session),
+      })
+      if (mySeq !== backtestRunSeq) return
+      lastResult = result
+      renderSpark()
+      renderStats()
+      const s = result.summary
+      est.textContent =
+        s.totalTrades === 0
+          ? 'Ran on ' + bars.length.toLocaleString() + ' real bars \u2014 0 trades triggered'
+          : '\u2248 ' +
+            s.totalTrades.toLocaleString() +
+            ' trades \u00b7 ' +
+            s.winRate.toFixed(1) +
+            '% win rate \u00b7 ' +
+            (s.netPnl >= 0 ? '+' : '') +
+            s.returnPct.toFixed(1) +
+            '% return on ' +
+            bars.length.toLocaleString() +
+            ' real bars'
+    } catch (err) {
+      if (mySeq !== backtestRunSeq) return
+      console.error('[Tradeneu] Manual strategy backtest failed', err)
+      est.textContent = 'Could not load market data \u2014 try again'
+    } finally {
+      if (mySeq === backtestRunSeq) {
+        btn.textContent = originalLabel
+        btn.disabled = !S.entry.length
+      }
+    }
+  }
+
   function seededRand(seed: number): () => number {
     let s = seed % 2147483647
     if (s <= 0) s += 2147483646
@@ -1107,7 +1478,81 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     }
   }
 
+  const fmtMoney = (v: number): string =>
+    (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })
+  const fmtSigned = (v: number, suffix = ''): string => (v >= 0 ? '+' : '') + v.toFixed(1) + suffix
+
   function renderSpark() {
+    const titleEl = $('sparkHeadTitle')
+    const noteEl = $('sparkHeadNote')
+    const baseline = $('sparkBaseline')
+    const startDot = $('sparkStartDot')
+    const endDot = $('sparkEndDot')
+    const statsHost = $('sparkStats')
+    const lineEl = $('sparkLine')
+    const fillEl = $('sparkFill')
+
+    if (lastResult && lastResult.equity.length > 1) {
+      titleEl.textContent = 'Equity curve'
+      noteEl.textContent = 'from last backtest run'
+      const w = 300
+      const h = 58
+      const s = lastResult.summary
+      const pts = lastResult.equity.map((p) => p.equity)
+      const min = Math.min(...pts)
+      const max = Math.max(...pts)
+      const span = max - min || 1
+      const step = w / (pts.length - 1)
+      const yFor = (v: number) => h - 4 - ((v - min) / span) * (h - 8)
+      const line = pts.map((v, i) => (i === 0 ? 'M' : 'L') + (i * step).toFixed(1) + ',' + yFor(v).toFixed(1)).join(' ')
+      const fill = line + ' L' + w + ',' + h + ' L0,' + h + ' Z'
+      lineEl.setAttribute('d', line)
+      fillEl.setAttribute('d', fill)
+
+      const isProfit = s.netPnl > 0
+      const isLoss = s.netPnl < 0
+      lineEl.classList.toggle('is-profit', isProfit)
+      lineEl.classList.toggle('is-loss', isLoss)
+      fillEl.classList.toggle('is-profit', isProfit)
+      fillEl.classList.toggle('is-loss', isLoss)
+
+      // Dashed reference line at the starting equity — everything above it is net-up, below is net-down.
+      const baseY = yFor(s.initialCapital).toFixed(1)
+      baseline.setAttribute('y1', baseY)
+      baseline.setAttribute('y2', baseY)
+      baseline.hidden = false
+
+      startDot.setAttribute('cx', '0')
+      startDot.setAttribute('cy', yFor(pts[0]!).toFixed(1))
+      startDot.hidden = false
+      endDot.setAttribute('cx', String(w))
+      endDot.setAttribute('cy', yFor(pts[pts.length - 1]!).toFixed(1))
+      endDot.classList.toggle('is-profit', isProfit)
+      endDot.classList.toggle('is-loss', isLoss)
+      endDot.hidden = false
+
+      statsHost.innerHTML = [
+        ['Start', fmtMoney(s.initialCapital), ''],
+        ['End', fmtMoney(s.finalEquity), ''],
+        ['Net P&L', fmtMoney(s.netPnl) + ' (' + fmtSigned(s.returnPct, '%') + ')', isLoss ? 'short' : isProfit ? 'long' : ''],
+        ['Max DD', '-' + s.maxDrawdownPct.toFixed(1) + '%', s.maxDrawdownPct > 15 ? 'warn' : ''],
+        ['Trades', s.totalTrades.toLocaleString() + ' \u00b7 ' + s.winRate.toFixed(0) + '% won', ''],
+      ]
+        .map(([label, value, cls]) => '<div class="cell"><label>' + label + '</label><div class="v ' + cls + '">' + value + '</div></div>')
+        .join('')
+      statsHost.hidden = false
+      return
+    }
+
+    titleEl.textContent = 'Equity shape'
+    noteEl.textContent = 'illustrative \u2014 not backtest data'
+    baseline.hidden = true
+    startDot.hidden = true
+    endDot.hidden = true
+    statsHost.hidden = true
+    statsHost.innerHTML = ''
+    lineEl.classList.remove('is-profit', 'is-loss')
+    fillEl.classList.remove('is-profit', 'is-loss')
     const tp = parseFloat(String(S.risk.tp[1])) || 1
     const stop = parseFloat(String(S.risk.stop[1])) || 1
     const edge = S.entry.length * 0.35 + (S.exit.length ? 0.25 : 0) + Math.min(1.2, tp / (stop || 1)) * 0.3
@@ -1149,50 +1594,212 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   }
 
   function renderLibrary() {
-    const tplHost = $('tplList')
-    tplHost.textContent = ''
-    let lastCat: string | null = null
-    TEMPLATES.forEach((t, i) => {
-      if (t.cat !== lastCat) {
-        lastCat = t.cat
-        const h = document.createElement('div')
-        h.className = 'railSub'
-        h.textContent = CATS[t.cat] ?? t.cat
-        tplHost.appendChild(h)
+    $<HTMLButtonElement>('tabTemplates').setAttribute('aria-selected', String(activeTab === 'templates'))
+    $<HTMLButtonElement>('tabMine').setAttribute('aria-selected', String(activeTab === 'mine'))
+    const mineCount = $<HTMLElement>('mineCount')
+    mineCount.textContent = String(mine.length)
+    mineCount.hidden = mine.length === 0
+
+    const scrollHost = $('tplScroll')
+    scrollHost.textContent = ''
+    const prev = $<HTMLButtonElement>('tplPrev')
+    const next = $<HTMLButtonElement>('tplNext')
+    const refreshTemplateNav = () => {
+      const max = Math.max(0, scrollHost.scrollWidth - scrollHost.clientWidth)
+      prev.disabled = scrollHost.scrollLeft <= 2
+      next.disabled = scrollHost.scrollLeft >= max - 2
+    }
+    const scrollTemplates = (amount: number) => {
+      scrollHost.scrollBy({ left: amount, behavior: 'smooth' })
+      window.setTimeout(refreshTemplateNav, 180)
+    }
+    prev.onclick = () => scrollTemplates(-(scrollHost.clientWidth * 0.72))
+    next.onclick = () => scrollTemplates(scrollHost.clientWidth * 0.72)
+    scrollHost.onscroll = refreshTemplateNav
+
+    const catsHost = $<HTMLElement>('tplCats')
+    catsHost.hidden = activeTab !== 'templates'
+
+    if (activeTab === 'templates') {
+      // Category quick-filter pills — a clearer, clickable way to jump to a
+      // category than the old inline dividers buried inside the scroll strip.
+      catsHost.textContent = ''
+      const counts: Record<string, number> = {}
+      TEMPLATES.forEach((t) => {
+        counts[t.cat] = (counts[t.cat] ?? 0) + 1
+      })
+      const allPill = document.createElement('button')
+      allPill.type = 'button'
+      allPill.className = 'tplCat'
+      allPill.setAttribute('aria-selected', String(activeCat === null))
+      allPill.innerHTML = '<span>All</span><em>' + TEMPLATES.length + '</em>'
+      allPill.onclick = () => {
+        activeCat = null
+        scrollHost.scrollLeft = 0
+        renderLibrary()
       }
-      const b = document.createElement('button')
-      b.className = 'tpl'
-      b.setAttribute('aria-current', String(i === activeTpl && !dirty))
-      b.innerHTML = '<b>' + t.name + '</b><em>' + t.meta + '</em>'
-      b.onclick = () => {
-        activeTpl = i
-        $<HTMLElement>('forkTag').hidden = true
-        loadTemplate(t)
-      }
-      tplHost.appendChild(b)
-    })
-    const mineHost = $('mineList')
-    mineHost.textContent = ''
+      catsHost.appendChild(allPill)
+      Object.keys(CATS).forEach((catKey) => {
+        if (!counts[catKey]) return
+        const pill = document.createElement('button')
+        pill.type = 'button'
+        pill.className = 'tplCat'
+        pill.setAttribute('aria-selected', String(activeCat === catKey))
+        pill.innerHTML = '<span>' + CATS[catKey] + '</span><em>' + counts[catKey] + '</em>'
+        pill.onclick = () => {
+          activeCat = catKey
+          scrollHost.scrollLeft = 0
+          renderLibrary()
+        }
+        catsHost.appendChild(pill)
+      })
+
+      TEMPLATES.forEach((t, i) => {
+        if (activeCat !== null && t.cat !== activeCat) return
+        const b = document.createElement('button')
+        b.className = 'tplChip'
+        b.setAttribute('aria-current', String(i === activeTpl && !dirty))
+        b.innerHTML = '<b>' + t.name + '</b><em>' + t.meta + '</em>'
+        b.onclick = () => {
+          activeTpl = i
+          $<HTMLElement>('forkTag').hidden = true
+          loadTemplate(t)
+        }
+        scrollHost.appendChild(b)
+      })
+      requestAnimationFrame(refreshTemplateNav)
+      return
+    }
+
+    if (!mine.length) {
+      const empty = document.createElement('p')
+      empty.className = 'tplEmpty'
+      empty.textContent = 'Nothing saved yet. Edit any template and hit Save — it becomes yours.'
+      scrollHost.appendChild(empty)
+      requestAnimationFrame(refreshTemplateNav)
+      return
+    }
     mine.forEach((m) => {
-      const b = document.createElement('button')
-      b.className = 'tpl'
-      b.innerHTML = '<b>' + m.name + '</b><em>saved</em>'
-      b.onclick = () => {
+      if (!m.id) m.id = uid()
+      // A plain <div role="button"> rather than a real <button> here —
+      // it needs to host the rename/delete icon buttons inside it, and
+      // browsers auto-close a <button> as soon as a nested <button> is
+      // parsed, which would break the whole-chip click target.
+      const b = document.createElement('div')
+      b.className = 'tplChip tplChipMine'
+      b.setAttribute('role', 'button')
+      b.tabIndex = 0
+      b.setAttribute('aria-current', String(activeMineId === m.id))
+      b.innerHTML =
+        '<div class="tplChipMineHead">' +
+        '<b>' + escapeHtml(m.name) + '</b>' +
+        '<span class="tplChipMineActions" data-actions>' +
+        '<button type="button" class="tplChipIcon" data-act="rename" title="Rename strategy" aria-label="Rename ' +
+        escapeHtml(m.name) +
+        '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>' +
+        '<button type="button" class="tplChipIcon tplChipIconDanger" data-act="delete" title="Delete strategy" aria-label="Delete ' +
+        escapeHtml(m.name) +
+        '"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>' +
+        '</span>' +
+        '</div><em>saved</em>'
+
+      const load = () => {
         S = JSON.parse(JSON.stringify(m))
         activeTpl = -1
-        dirty = true
+        activeMineId = m.id ?? null
+        dirty = false
+        clearBacktestResult()
         $<HTMLElement>('forkTag').hidden = true
         syncControls()
         renderAll()
       }
-      mineHost.appendChild(b)
+      b.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('[data-act], [data-mine-editing]')) return
+        load()
+      })
+      b.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && !(e.target as HTMLElement).closest('[data-act], [data-mine-editing]')) {
+          e.preventDefault()
+          load()
+        }
+      })
+
+      // Rename inline (turns the name into a text field) instead of
+      // window.prompt — Electron/embedded webviews commonly swallow
+      // synchronous JS dialogs, so a prompt() here can silently no-op.
+      b.querySelector<HTMLButtonElement>('[data-act="rename"]')!.onclick = (e) => {
+        e.stopPropagation()
+        const head = b.querySelector<HTMLElement>('.tplChipMineHead')!
+        const nameEl = head.querySelector('b')!
+        const input = document.createElement('input')
+        input.type = 'text'
+        input.className = 'tplChipMineRenameInput'
+        input.value = m.name
+        input.setAttribute('data-mine-editing', '1')
+        input.setAttribute('aria-label', 'Strategy name')
+        nameEl.replaceWith(input)
+        input.focus()
+        input.select()
+        let done = false
+        const commit = (save: boolean) => {
+          if (done) return
+          done = true
+          const next = input.value.trim()
+          if (save && next && next !== m.name) {
+            m.name = next
+            if (activeMineId === m.id) {
+              S.name = m.name
+              $<HTMLInputElement>('stratName').value = S.name
+              renderJson()
+            }
+          }
+          renderLibrary()
+        }
+        input.addEventListener('keydown', (ev) => {
+          ev.stopPropagation()
+          if (ev.key === 'Enter') commit(true)
+          else if (ev.key === 'Escape') commit(false)
+        })
+        input.addEventListener('blur', () => commit(true))
+        input.addEventListener('click', (ev) => ev.stopPropagation())
+      }
+
+      // Delete with an inline two-step confirm (swap the actions for a
+      // "Delete this?" / confirm / cancel row) instead of window.confirm,
+      // for the same reason — no native dialog can pop up here.
+      b.querySelector<HTMLButtonElement>('[data-act="delete"]')!.onclick = (e) => {
+        e.stopPropagation()
+        const actions = b.querySelector<HTMLElement>('[data-actions]')!
+        actions.innerHTML =
+          '<span class="tplChipMineConfirm">Delete?</span>' +
+          '<button type="button" class="tplChipIcon" data-mine-editing="1" data-act="cancel-delete" title="Cancel" aria-label="Cancel delete"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>' +
+          '<button type="button" class="tplChipIcon tplChipIconDanger" data-mine-editing="1" data-act="confirm-delete" title="Confirm delete" aria-label="Confirm delete"><i class="fa-solid fa-check" aria-hidden="true"></i></button>'
+        actions.querySelector<HTMLButtonElement>('[data-act="cancel-delete"]')!.onclick = (ev) => {
+          ev.stopPropagation()
+          renderLibrary()
+        }
+        actions.querySelector<HTMLButtonElement>('[data-act="confirm-delete"]')!.onclick = (ev) => {
+          ev.stopPropagation()
+          const idx = mine.findIndex((x) => x.id === m.id)
+          if (idx >= 0) mine.splice(idx, 1)
+          if (activeMineId === m.id) {
+            activeMineId = null
+            blank()
+            return
+          }
+          renderLibrary()
+        }
+      }
+
+      scrollHost.appendChild(b)
     })
-    $<HTMLElement>('mineEmpty').hidden = mine.length > 0
+    requestAnimationFrame(refreshTemplateNav)
   }
 
   function renderAll() {
     renderRules('entry')
     renderRules('exit')
+    purgeOrphanedDropdownMenus()
     renderProse()
     renderChecks()
     renderHints()
@@ -1204,7 +1811,26 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   }
   function update() {
     markDirty()
+    clearBacktestResult()
     renderAll()
+  }
+  // Same as `update()` but skips `renderRules()` \u2014 for edits made by typing
+  // into a number input that is *inside* the rule rows themselves. Calling
+  // the full `update()` there would tear down and rebuild that very input
+  // (and every other rule row) on each keystroke, kicking focus out after
+  // the first character typed.
+  function updateKeepingRuleFocus() {
+    markDirty()
+    clearBacktestResult()
+    purgeOrphanedDropdownMenus()
+    renderProse()
+    renderChecks()
+    renderHints()
+    renderJson()
+    renderLibrary()
+    renderStats()
+    renderSpark()
+    renderLiveLine()
   }
 
   $<HTMLInputElement>('stratName').oninput = (e) => {
@@ -1215,11 +1841,14 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   }
   ;['symbol', 'tf', 'range', 'session'].forEach((id) => {
     $(id).addEventListener('input', () => {
+      clearBacktestResult()
       renderProse()
       renderChecks()
       renderHints()
       renderJson()
       renderStats()
+      renderSpark()
+      if (id === 'symbol') void refreshLiveBarCounts($<HTMLSelectElement>('symbol').value)
     })
   })
   $<HTMLSelectElement>('entryJoin').onchange = (e) => {
@@ -1264,6 +1893,13 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     }
   })
   $<HTMLButtonElement>('btnNew').onclick = blank
+
+  host.querySelectorAll<HTMLButtonElement>('.tplTab').forEach((tab) => {
+    tab.onclick = () => {
+      activeTab = tab.dataset.tab as 'templates' | 'mine'
+      renderLibrary()
+    }
+  })
   $<HTMLButtonElement>('jsonToggle').onclick = () => {
     const j = $<HTMLElement>('json')
     const open = j.hidden
@@ -1273,31 +1909,62 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     renderJson()
   }
   $<HTMLButtonElement>('btnSave').onclick = () => {
-    mine.push(JSON.parse(JSON.stringify(S)))
-    dirty = true
+    // If a saved strategy is already loaded, Save updates it in place
+    // instead of piling up a new "Untitled strategy" copy every time.
+    const existingIdx = activeMineId ? mine.findIndex((m) => m.id === activeMineId) : -1
+    const copy: Strategy = JSON.parse(JSON.stringify(S))
+    copy.id = activeMineId ?? uid()
+    if (existingIdx >= 0) {
+      mine[existingIdx] = copy
+    } else {
+      mine.push(copy)
+    }
+    activeMineId = copy.id
+    activeTpl = -1
+    dirty = false
     $<HTMLElement>('forkTag').hidden = true
     renderLibrary()
   }
   $<HTMLButtonElement>('btnRun').onclick = () => {
-    const b = $<HTMLButtonElement>('btnRun')
-    const t = b.textContent
-    b.textContent = 'Running\u2026'
-    b.disabled = true
-    setTimeout(() => {
-      b.textContent = t
-      b.disabled = false
-      $('est').textContent = 'Prototype \u2014 wire this to BacktestEngine.ts'
-    }, 900)
+    void runRealBacktest()
   }
   $<HTMLButtonElement>('btnChart').onclick = () => {
-    $('est').textContent = 'Prototype \u2014 opens the replay chart'
+    if (!opts.onOpenInChart) {
+      $('est').textContent = 'Opening in chart isn\u2019t available here.'
+      return
+    }
+    if (!S.entry.length) {
+      window.alert('Add at least one entry condition before opening this strategy in the chart.')
+      return
+    }
+    // The chart page's replay/backtest engine (BacktestEngine.ts) uses a
+    // different, fixed-period indicator model than this builder's own
+    // arbitrary-period rules — convert on a best-effort basis and surface
+    // anything that had to be approximated or dropped before switching
+    // views. See manualStrategyToDefinition.ts for the full mapping.
+    const { definition, warnings } = manualStrategyToDefinition(S)
+    if (warnings.length) {
+      const proceed = window.confirm(
+        'The chart\u2019s backtest engine can\u2019t represent this strategy exactly. It will approximate:\n\n\u2022 ' +
+          warnings.join('\n\u2022 ') +
+          '\n\nOpen in chart anyway?',
+      )
+      if (!proceed) return
+    }
+    const saved = saveCustomStrategy(definition)
+    opts.onOpenInChart(saved.id, { runBacktest: true })
   }
   host.querySelector('[data-sx-back]')?.addEventListener('click', () => opts.onBack?.())
 
   loadTemplate(TEMPLATES[0]!)
+  void refreshLiveBarCounts($<HTMLSelectElement>('symbol').value)
 
   return {
     dispose: () => {
+      document.removeEventListener('click', onDocDdClick)
+      document.removeEventListener('keydown', onDocDdKey)
+      document.removeEventListener('scroll', onDocDdScroll, true)
+      ddPortal.remove()
       host.replaceChildren()
     },
   }

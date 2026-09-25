@@ -1703,11 +1703,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                   <button type="button" class="sxt-session-dd__btn" data-sxt-session-dd-btn>
                     <span data-sxt-session-dd-label>All sessions</span>
                     <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-                  </button>
+                    </button>
                   <div class="sxt-session-dd__menu" data-sxt-session-dd-menu>
                     <button type="button" class="sxt-session-dd__item sxt-session-dd__item--active" data-sxt-session-dd-value="">All sessions</button>
-                  </div>
                     </div>
+                  </div>
                 <div class="sxt-search-box">
                   <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                   <input type="search" data-sx-trades-search placeholder="Search trades" autocomplete="off" />

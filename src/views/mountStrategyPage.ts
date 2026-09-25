@@ -123,7 +123,11 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
     manualView.hidden = false
     builderView.hidden = true
     if (!manualBuilder) {
-      manualBuilder = mountManualStrategyBuilder({ host: manualHost, onBack: showIntake })
+      manualBuilder = mountManualStrategyBuilder({
+        host: manualHost,
+        onBack: showIntake,
+        onOpenInChart: opts?.onOpenInChart,
+      })
     }
   }
 

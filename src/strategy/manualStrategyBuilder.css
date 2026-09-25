@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
-
 /**
  * src/strategy/manualStrategyBuilder.css
  *
@@ -17,15 +15,18 @@
   --line: #e2e8f0;
   --line2: #cbd5e1;
   --tx: #0f172a;
-  --dim: #64748b;
-  --dimmer: #94a3b8;
+  /* Secondary text is a dark grey rather than the washed-out light greys
+     this design shipped with — labels, hints and muted values all read
+     clearly against the light panels. */
+  --dim: #475569;
+  --dimmer: #64748b;
   --gold: #b7791f;
   --gold-soft: rgba(183, 121, 31, 0.12);
   --long: #15803d;
   --short: #dc2626;
   --warn: #b45309;
-  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --sans: 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
   color-scheme: light;
   display: block;
   height: 100%;
@@ -39,17 +40,22 @@
   -webkit-font-smoothing: antialiased;
 }
 
-/* Dark theme — matches #sx-app-root[data-dashboard-theme='dark']. */
+/* Dark theme — matches #sx-app-root[data-dashboard-theme='dark'], which is
+   flat black (see .sx-dash / .sx-dash__mesh in dashboardTheme.css) with no
+   blue/green tint. The previous values here were navy-tinted slate
+   (#0f151c, #151d26, \u2026), which visibly clashed with the sidebar's true
+   black next to it — this page's --bg now matches the sidebar exactly,
+   and every other surface is a neutral (no hue) grey stepped up from it. */
 #sx-app-root[data-dashboard-theme='dark'] .sx-manual-strat {
-  --bg: #0f151c;
-  --panel: #151d26;
-  --raise: #1d2733;
-  --raise2: #232f3d;
-  --line: #26333f;
-  --line2: #33434f;
-  --tx: #e4eaf0;
-  --dim: #8a9aab;
-  --dimmer: #5f7080;
+  --bg: #000000;
+  --panel: #121212;
+  --raise: #1a1a1a;
+  --raise2: #242424;
+  --line: #2a2a2a;
+  --line2: #3a3a3a;
+  --tx: #f1f1f1;
+  --dim: #9a9a9a;
+  --dimmer: #6b6b6b;
   --gold: #e0a94a;
   --gold-soft: rgba(224, 169, 74, 0.13);
   --long: #3fbf8f;
@@ -121,24 +127,8 @@
 .sx-manual-strat .backLink:hover {
   color: var(--tx);
 }
-.sx-manual-strat .brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.sx-manual-strat .brand .mark {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  background: var(--gold);
-  box-shadow: inset 0 0 0 3px var(--panel);
-}
-.sx-manual-strat .crumb {
-  color: var(--dimmer);
-  margin: 0 2px;
-}
+/* No app wordmark in this header — the strategy name is the header, and
+   with the brand/crumb gone it gets the room that used to belong to them. */
 .sx-manual-strat .nameField {
   background: transparent;
   border: 1px solid transparent;
@@ -148,7 +138,8 @@
   font-size: 15px;
   letter-spacing: -0.01em;
   min-width: 170px;
-  max-width: 34vw;
+  max-width: 60vw;
+  flex: 0 1 480px;
 }
 .sx-manual-strat .nameField:hover {
   border-color: var(--line2);
@@ -207,6 +198,34 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* Header actions: "Open in chart" and "Save" now share one clear, solid
+   dark-grey button treatment (with an icon each) instead of one being an
+   outline/ghost button and the other a plain default — matching pill
+   buttons so both read as equally clickable, deliberate actions. */
+.sx-manual-strat .btn-chart,
+.sx-manual-strat .btn-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  background: #6b7280;
+  border: 1px solid #6b7280;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+.sx-manual-strat .btn-chart i,
+.sx-manual-strat .btn-save i {
+  font-size: 12px;
+  color: #ffffff;
+}
+.sx-manual-strat .btn-chart:hover,
+.sx-manual-strat .btn-save:hover {
+  background: #4b5563;
+  border-color: #4b5563;
+}
 .sx-manual-strat .sel,
 .sx-manual-strat .num,
 .sx-manual-strat .txt {
@@ -216,15 +235,25 @@
   padding: 6px 9px;
   font-size: 13.5px;
 }
+/* A single, crisp chevron (rather than the old faint two-line arrow) so
+   every .sel reads unmistakably as "click me, I open a menu". */
 .sx-manual-strat .sel {
   appearance: none;
-  padding-right: 26px;
+  padding-right: 28px;
   cursor: pointer;
-  background-image: linear-gradient(45deg, transparent 50%, var(--dim) 50%),
-    linear-gradient(135deg, var(--dim) 50%, transparent 50%);
-  background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
-  background-size: 5px 5px, 5px 5px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%2364748b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-position: calc(100% - 10px) center;
+  background-size: 9px 6px;
   background-repeat: no-repeat;
+}
+.sx-manual-strat .sel:hover {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%230f172a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}
+#sx-app-root[data-dashboard-theme='dark'] .sx-manual-strat .sel {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%238a9aab' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}
+#sx-app-root[data-dashboard-theme='dark'] .sx-manual-strat .sel:hover {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%23e4eaf0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
 }
 .sx-manual-strat .sel:hover,
 .sx-manual-strat .num:hover,
@@ -272,164 +301,404 @@
 }
 
 /* ---------- context bar ---------- */
+/* Each field is still its own clearly-bounded "card" (border + background)
+   so Market / Timeframe / Range / Sessions read as distinct settings, but
+   the label and value sit side by side within the card (not stacked on
+   two lines) so the whole bar takes up less vertical space. */
 .sx-manual-strat .context {
   display: flex;
+  /* Label + value now sit side by side inside each card, so a card needs
+     more horizontal room than the old stacked layout — items are allowed
+     to wrap onto a second line on narrow widths instead of being forced
+     onto one row and overlapping/garbling their text. */
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 14px;
-  padding: 9px 20px;
+  /* Clear breathing room between Market / Timeframe / Range / Sessions —
+     8px read as cramped, almost touching. */
+  gap: 22px;
+  padding: 8px 20px;
   border-bottom: 1px solid var(--line);
   background: var(--bg);
 }
+/* The label is plain text and the *value* is the encapsulated control —
+   a bordered pill — so each dropdown reads unmistakably as something you
+   can click. (Boxing the card as well would nest a border inside a
+   border, which just looks heavy.) */
 .sx-manual-strat .ctxItem {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  /* Each field hugs its own content: a fixed width left dead space in the
+     short ones (Market / Timeframe) and pushed the long one (Sessions)
+     past its own edge. The consistent label \u2192 value distance comes from
+     the `gap` above, which is identical in every field. */
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .sx-manual-strat .ctxItem span {
-  font-size: 12px;
-  color: var(--dimmer);
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 530;
+  color: var(--dim);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 .sx-manual-strat .ctxItem .sel,
 .sx-manual-strat .ctxItem .txt {
-  padding: 5px 9px;
+  padding: 0;
+  min-width: 0;
+  /* Same size as the label (span) above — label and value must match. */
   font-size: 13px;
+  font-weight: 600;
+  color: var(--tx);
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.sx-manual-strat .ctxItem .sel {
+  padding-right: 18px;
+  background-position: calc(100% - 1px) center;
+}
+.sx-manual-strat .ctxItem .sel:hover,
+.sx-manual-strat .ctxItem .txt:hover {
+  border-color: transparent;
 }
 .sx-manual-strat .ticker {
   font-family: var(--mono);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.02em;
-  width: 104px;
+  width: 96px;
+  text-transform: uppercase;
+}
+/* Market is now a dressed <select> (see dressSelect()) — the original
+   .ticker <select> stays hidden in the DOM, so its font/weight/case must
+   be re-applied to the visible dd__btn that replaces it. */
+.sx-manual-strat .ctxItem .dd:has(#symbol) .dd__btn {
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 .sx-manual-strat .bars {
   margin-left: auto;
+  align-self: center;
+  flex: 0 1 auto;
+  min-width: 0;
   font-family: var(--mono);
   font-size: 12px;
   color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sx-manual-strat .bars b {
   color: var(--tx);
-  font-weight: 500;
+  font-weight: 600;
 }
 
-/* ---------- body grid ---------- */
+/* ---------- template bar (full-width, above everything) ---------- */
+.sx-manual-strat .templateBar {
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  padding: 10px 22px 12px;
+  flex: 0 0 auto;
+}
+.sx-manual-strat .tplBarHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.sx-manual-strat .tplTabs {
+  display: flex;
+  gap: 4px;
+}
+.sx-manual-strat .tplTab {
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 11px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dim);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sx-manual-strat .tplTab:hover {
+  background: var(--raise);
+  color: var(--tx);
+}
+.sx-manual-strat .tplTab[aria-selected='true'] {
+  background: var(--raise2);
+  color: var(--tx);
+}
+.sx-manual-strat .tplTabCount {
+  background: var(--gold-soft);
+  color: var(--gold);
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  font-family: var(--mono);
+}
+.sx-manual-strat .tplScroll {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+/* The strip is the positioning context for the two nav arrows, which float
+   *over* the strategy chips rather than sitting beside them — that way the
+   chips get the full width of the strip and start hard against the left
+   edge instead of being indented by a button. */
+.sx-manual-strat .tplStrip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.sx-manual-strat .tplNav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line2);
+  border-radius: 50%;
+  /* Opaque, with a shadow, so the arrow stays legible over whatever chip
+     happens to be underneath it. */
+  background: var(--panel);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+  color: var(--tx);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease;
+}
+.sx-manual-strat .tplNavPrev {
+  left: 0;
+}
+.sx-manual-strat .tplNavNext {
+  right: 0;
+}
+.sx-manual-strat .tplNav:hover:not(:disabled) {
+  background: var(--raise2);
+  color: var(--tx);
+  border-color: var(--dimmer);
+}
+/* Fully out of the way at either end of the list, so the first/last chip
+   is never covered by an arrow that does nothing. */
+.sx-manual-strat .tplNav:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+.sx-manual-strat .tplNav svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 1.8;
+  transition: transform 0.12s ease;
+}
+.sx-manual-strat .tplNavPrev:hover:not(:disabled) svg {
+  transform: translateX(-1px);
+}
+.sx-manual-strat .tplNavNext:hover:not(:disabled) svg {
+  transform: translateX(1px);
+}
+.sx-manual-strat .tplChip {
+  flex: 0 0 auto;
+  width: 168px;
+  text-align: left;
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 11px;
+  cursor: pointer;
+}
+.sx-manual-strat .tplChip:hover {
+  background: var(--raise2);
+  border-color: var(--line2);
+}
+.sx-manual-strat .tplChip[aria-current='true'] {
+  background: var(--gold-soft);
+  border-color: var(--gold);
+}
+.sx-manual-strat .tplChip b {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.3;
+  white-space: normal;
+}
+.sx-manual-strat .tplChip em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 4px;
+  font-family: var(--mono);
+}
+/* category quick-filter pills — clearer, clickable way to jump to a
+   category than small inline dividers buried in the scroll strip. */
+.sx-manual-strat .tplCats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.sx-manual-strat .tplCats[hidden] {
+  display: none;
+}
+.sx-manual-strat .tplCat {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 4px 5px 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--dim);
+  cursor: pointer;
+}
+.sx-manual-strat .tplCat:hover {
+  border-color: var(--line2);
+  color: var(--tx);
+}
+.sx-manual-strat .tplCat[aria-selected='true'] {
+  background: var(--gold-soft);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.sx-manual-strat .tplCat em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--dim);
+  background: var(--raise);
+  border-radius: 99px;
+  padding: 1px 6px;
+  line-height: 1.5;
+}
+.sx-manual-strat .tplCat[aria-selected='true'] em {
+  color: var(--gold);
+  background: var(--panel);
+}
+/* "Your strategies" chips need inline rename/delete affordances. The
+   chip itself is a <div role="button">, not a real <button>, because
+   nesting a <button> inside a <button> gets auto-flattened by the HTML
+   parser and breaks the click target. */
+.sx-manual-strat .tplChipMine {
+  width: 176px;
+}
+.sx-manual-strat .tplChipMineHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+.sx-manual-strat .tplChipMineHead b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sx-manual-strat .tplChipMineActions {
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+  opacity: 0.65;
+}
+.sx-manual-strat .tplChipMine:hover .tplChipMineActions,
+.sx-manual-strat .tplChipMine:focus-within .tplChipMineActions,
+.sx-manual-strat .tplChipMineActions:has([data-act='confirm-delete']) {
+  opacity: 1;
+}
+.sx-manual-strat .tplChipIcon {
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+  cursor: pointer;
+  padding: 0;
+  font-size: 10.5px;
+}
+.sx-manual-strat .tplChipIcon:hover {
+  background: var(--raise2);
+  color: var(--tx);
+}
+.sx-manual-strat .tplChipIconDanger:hover {
+  background: var(--gold-soft);
+  color: var(--short);
+}
+.sx-manual-strat .tplChipMineRenameInput {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--gold);
+  border-radius: 5px;
+  padding: 1px 5px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--tx);
+}
+.sx-manual-strat .tplChipMineConfirm {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--short);
+  white-space: nowrap;
+}
+
+.sx-manual-strat .tplEmpty {
+  margin: 0;
+  padding: 10px 4px;
+  font-size: 12.5px;
+  color: var(--dim);
+  line-height: 1.45;
+}
+
+/* ---------- body: indicators/rules canvas on top, reader (equity shape,
+   plain English, checks, JSON) stacked full-width as the LAST section
+   before the Run backtest bar ---------- */
 .sx-manual-strat .main {
-  display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
 }
-.sx-manual-strat .rail {
-  border-right: 1px solid var(--line);
-  background: var(--panel);
-  padding: 14px 10px;
-  overflow-y: auto;
-}
 .sx-manual-strat .canvas {
-  padding: 18px 22px 24px;
-  overflow-y: auto;
+  padding: 18px 22px 8px;
   min-width: 0;
 }
-
-/* full-width horizontal reader bar (equity shape, plain English, checks, JSON) */
-.sx-manual-strat .readerBar {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: stretch;
-  flex-wrap: wrap;
-  gap: 0;
+.sx-manual-strat .reader {
   border-top: 1px solid var(--line);
   background: var(--panel);
-}
-.sx-manual-strat .readerCol {
-  padding: 14px 18px;
-  border-right: 1px solid var(--line);
-  min-width: 0;
-}
-.sx-manual-strat .readerCol:last-child {
-  border-right: 0;
-}
-.sx-manual-strat .sparkCol {
-  flex: 1 1 210px;
-  min-width: 170px;
-}
-.sx-manual-strat .proseCol {
-  flex: 2.2 1 320px;
-  min-width: 220px;
-}
-.sx-manual-strat .checksCol {
-  flex: 1.6 1 260px;
-  min-width: 200px;
-  overflow-y: auto;
-  max-height: 220px;
-}
-.sx-manual-strat .jsonCol {
-  flex: 1 1 220px;
-  min-width: 190px;
-}
-
-/* ---------- rail ---------- */
-.sx-manual-strat .railHead {
-  font-size: 12px;
-  color: var(--dimmer);
-  font-weight: 600;
-  padding: 0 8px 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.sx-manual-strat .tpl {
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  padding: 8px 10px;
-  cursor: pointer;
-  margin-bottom: 2px;
-}
-.sx-manual-strat .tpl:hover {
-  background: var(--raise);
-}
-.sx-manual-strat .tpl[aria-current='true'] {
-  background: var(--raise);
-  border-color: var(--line2);
-}
-.sx-manual-strat .tpl b {
-  display: block;
-  font-weight: 500;
-  font-size: 13.5px;
-}
-.sx-manual-strat .tpl em {
-  display: block;
-  font-style: normal;
-  font-size: 11.5px;
-  color: var(--dimmer);
-  margin-top: 2px;
-  font-family: var(--mono);
-}
-.sx-manual-strat .railDiv {
-  height: 1px;
-  background: var(--line);
-  margin: 14px 4px;
-}
-.sx-manual-strat .railSub {
-  font-size: 10.5px;
-  color: var(--dimmer);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 10px 8px 4px;
-}
-.sx-manual-strat .railSub:first-child {
-  padding-top: 2px;
-}
-.sx-manual-strat .empty {
-  padding: 8px 10px;
-  font-size: 12.5px;
-  color: var(--dimmer);
-  line-height: 1.45;
+  padding: 18px 22px 22px;
+  margin-top: 10px;
 }
 
 /* ---------- stat strip ---------- */
@@ -446,12 +715,16 @@
 .sx-manual-strat .stat {
   background: var(--panel);
   padding: 8px 13px;
-  transition: background 0.25s;
+  /* No `transition: background` here — it fired on every CSS-variable swap,
+     including a light/dark theme toggle, fading the panel color over
+     0.25s while the rest of the page switched instantly. The intentional
+     "a value just changed" flash below (`.pulse`) uses a keyframe
+     `animation`, not a `transition`, so it's unaffected by this removal. */
 }
 .sx-manual-strat .stat label {
   display: block;
   font-size: 10.5px;
-  color: var(--dimmer);
+  color: var(--dim);
   margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -530,7 +803,7 @@
 }
 .sx-manual-strat .sparkWrap .sHead span:last-child {
   font-size: 10.5px;
-  color: var(--dimmer);
+  color: var(--dim);
 }
 .sx-manual-strat svg.spark {
   width: 100%;
@@ -547,6 +820,72 @@
 }
 .sx-manual-strat .spark .fill {
   opacity: 0.55;
+}
+.sx-manual-strat .spark .line.is-profit {
+  stroke: var(--long);
+}
+.sx-manual-strat .spark .fill.is-profit {
+  fill: url(#sparkGradUp);
+}
+.sx-manual-strat .spark .line.is-loss {
+  stroke: var(--short);
+}
+.sx-manual-strat .spark .fill.is-loss {
+  fill: url(#sparkGradDown);
+}
+.sx-manual-strat .spark .baseline {
+  stroke: var(--line2);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.8;
+}
+.sx-manual-strat .spark .dot {
+  fill: var(--panel);
+  stroke: var(--gold);
+  stroke-width: 1.4;
+}
+.sx-manual-strat .spark .dot.is-profit {
+  stroke: var(--long);
+}
+.sx-manual-strat .spark .dot.is-loss {
+  stroke: var(--short);
+}
+.sx-manual-strat .sparkStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+.sx-manual-strat .sparkStats .cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 84px;
+  flex: 1 1 84px;
+}
+.sx-manual-strat .sparkStats .cell label {
+  font-size: 10px;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.sx-manual-strat .sparkStats .cell .v {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sx-manual-strat .sparkStats .cell .v.long {
+  color: var(--long);
+}
+.sx-manual-strat .sparkStats .cell .v.short {
+  color: var(--short);
+}
+.sx-manual-strat .sparkStats .cell .v.warn {
+  color: var(--warn);
 }
 
 /* ---------- blocks ---------- */
@@ -576,7 +915,7 @@
 .sx-manual-strat .blockHead p {
   margin: 0;
   font-size: 12.5px;
-  color: var(--dimmer);
+  color: var(--dim);
 }
 .sx-manual-strat .joinPick {
   margin-left: auto;
@@ -606,14 +945,13 @@
 .sx-manual-strat .joinTag {
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--dimmer);
+  color: var(--dim);
   width: 26px;
   flex: 0 0 26px;
   text-align: right;
 }
 .sx-manual-strat .joinTag.first {
-  color: var(--dimmer);
-  opacity: 0.55;
+  color: var(--dim);
 }
 .sx-manual-strat .chip {
   display: inline-flex;
@@ -626,21 +964,44 @@
 }
 .sx-manual-strat .chip .sel {
   border: 0;
-  background: transparent;
-  padding: 4px 24px 4px 7px;
-  font-weight: 500;
+  background-color: transparent;
+  padding: 4px 22px 4px 7px;
+  border-radius: 5px;
+  font-weight: 600;
+}
+.sx-manual-strat .chip .sel:hover {
+  background-color: var(--raise2);
+}
+/* Period fields: one tidy segment, split off from the indicator name by a
+   hairline instead of wrapped in loose "( )" glyphs. */
+.sx-manual-strat .chip .chipParams {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  align-self: stretch;
+  padding: 0 3px 0 5px;
+  margin-left: 2px;
+  border-left: 1px solid var(--line2);
 }
 .sx-manual-strat .chip .num {
-  border: 0;
-  background: var(--raise2);
-  width: 44px;
-  padding: 4px 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  /* Wide enough for two digits *and* the native up/down spinner without
+     either one getting clipped. */
+  width: 50px;
+  padding: 3px 2px 3px 6px;
   border-radius: 5px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--tx);
 }
-.sx-manual-strat .chip .paren {
-  color: var(--dimmer);
-  font-family: var(--mono);
-  font-size: 12px;
+.sx-manual-strat .chip .num:hover {
+  background: var(--raise2);
+}
+.sx-manual-strat .chip .num:focus {
+  background: var(--panel);
+  border-color: var(--gold);
+  outline: none;
 }
 .sx-manual-strat .chip:focus-within {
   border-color: var(--gold);
@@ -653,12 +1014,19 @@
   margin-left: auto;
   background: transparent;
   border: 0;
-  color: var(--dimmer);
+  color: var(--dim);
   cursor: pointer;
-  padding: 5px 7px;
-  border-radius: 6px;
+  /* A bigger, easier-to-hit target — the old 15px glyph in a tight 5/7px
+     padding box read as a stray fleck, not a clickable "remove" button. */
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 7px;
   line-height: 1;
-  font-size: 15px;
+  font-size: 20px;
 }
 .sx-manual-strat .del:hover {
   background: var(--raise);
@@ -701,7 +1069,7 @@
 .sx-manual-strat .field label {
   display: block;
   font-size: 12px;
-  color: var(--dimmer);
+  color: var(--dim);
   margin-bottom: 5px;
 }
 .sx-manual-strat .field .row {
@@ -716,7 +1084,7 @@
 .sx-manual-strat .field .hint {
   margin-top: 5px;
   font-size: 11.5px;
-  color: var(--dimmer);
+  color: var(--dim);
   font-family: var(--mono);
 }
 
@@ -735,8 +1103,7 @@
 }
 .sx-manual-strat .prose {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  flex-direction: column;
   border-left: 2px solid var(--gold);
   padding: 2px 0 2px 14px;
   font-size: 14.5px;
@@ -745,12 +1112,12 @@
 }
 .sx-manual-strat .prose p {
   margin: 0;
-  padding: 3px 16px 3px 0;
-  border-right: 1px solid var(--line2);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line2);
 }
 .sx-manual-strat .prose p:last-child {
-  padding-right: 0;
-  border-right: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 .sx-manual-strat .prose .v {
   font-family: var(--mono);
@@ -776,7 +1143,7 @@
 }
 
 .sx-manual-strat .checks {
-  margin-top: 0;
+  margin-top: 20px;
 }
 .sx-manual-strat .check {
   display: flex;
@@ -809,7 +1176,7 @@
 }
 
 .sx-manual-strat .jsonWrap {
-  margin-top: 0;
+  margin-top: 20px;
 }
 .sx-manual-strat .jsonToggle {
   width: 100%;
@@ -857,11 +1224,11 @@
   gap: 12px;
   padding: 12px 24px;
   background: linear-gradient(to top, var(--bg) 62%, rgba(15, 21, 28, 0));
-  grid-column: 2;
+  flex: 0 0 auto;
 }
 .sx-manual-strat .actions .est {
   font-size: 12.5px;
-  color: var(--dimmer);
+  color: var(--dim);
   font-family: var(--mono);
 }
 .sx-manual-strat .actionsInner {
@@ -875,68 +1242,227 @@
   padding: 10px 12px;
 }
 
+/* ---------- custom dropdown (replaces native <select> everywhere on this
+   page) — a pill button with a chevron that opens a floating menu card,
+   matching the "Total Profit/Loss" style dropdown used on the Analytics
+   page, so every clickable dropdown on this page reads the same way. ---------- */
+.sx-manual-strat .dd {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.sx-manual-strat .dd__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--tx);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+.sx-manual-strat .dd__btn:hover {
+  background: var(--raise2);
+  border-color: var(--dimmer);
+}
+.sx-manual-strat .dd__btn[aria-expanded='true'] {
+  border-color: var(--gold);
+}
+.sx-manual-strat .dd__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sx-manual-strat .dd__btn svg {
+  flex: 0 0 auto;
+  color: var(--dim);
+}
+/* Menus are rendered through a top-level portal (see dressSelect() in the
+   .ts file) instead of as a normal-flow child of the button, so they are
+   never clipped by an ancestor's `overflow: hidden` — several containers
+   on this page (.rules, .posGrid, and the app shell itself) use that to
+   get clean rounded corners, which would otherwise crop the menu. Position
+   is computed and applied inline (position: fixed) by JS at open time;
+   this rule only supplies the appearance. */
+.sx-manual-strat .dd__menu {
+  display: none;
+  position: fixed;
+  min-width: 170px;
+  width: max-content;
+  max-width: 260px;
+  /* Long lists (e.g. the ~28 indicator choices) must scroll within a
+     capped height instead of spilling the whole way down the page. */
+  max-height: min(50vh, 320px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+  padding: 6px;
+  z-index: 9999;
+}
+.sx-manual-strat .dd__menu::-webkit-scrollbar {
+  width: 7px;
+}
+.sx-manual-strat .dd__menu::-webkit-scrollbar-thumb {
+  background: var(--line2);
+  border-radius: 99px;
+}
+.sx-manual-strat .dd__menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sx-manual-strat .dd__menu.dd__menu--open {
+  display: block;
+}
+/* The portal root itself must never inherit the app shell's height /
+   overflow / rounded-corner clipping — it only exists to carry this
+   page's CSS variables (for theming) down to the menus it hosts. */
+.sx-manual-strat.dd-portal-root {
+  position: fixed;
+  inset: 0;
+  width: 0;
+  height: 0;
+  min-height: 0;
+  margin: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+  pointer-events: none;
+}
+.sx-manual-strat.dd-portal-root .dd__menu {
+  pointer-events: auto;
+}
+.sx-manual-strat .dd__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tx);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sx-manual-strat .dd__item:hover {
+  background: var(--raise2);
+}
+.sx-manual-strat .dd__item--active {
+  background: var(--raise2);
+  font-weight: 600;
+  color: var(--gold);
+}
+/* Compact variant for dropdowns embedded inside chips / inline rows
+   (condition rule chips, "Match" pickers) where a full-height pill would
+   be too bulky. */
+.sx-manual-strat .chip .dd__btn,
+.sx-manual-strat .joinPick .dd__btn {
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+}
+.sx-manual-strat .chip .dd {
+  min-width: 0;
+}
+.sx-manual-strat .rule .dd__btn {
+  height: 30px;
+  font-size: 13px;
+}
+.sx-manual-strat .field .dd {
+  flex: 1;
+  min-width: 0;
+}
+.sx-manual-strat .ctxItem .dd {
+  align-self: center;
+  /* Sized by its own text, never stretched to fill the card — stretching
+     is what left the empty gap between the value and the card's edge. */
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+}
+/* The encapsulated control: a bordered pill holding the value + chevron. */
+.sx-manual-strat .ctxItem .dd__btn {
+  height: 30px;
+  width: auto;
+  gap: 10px;
+  padding: 0 10px;
+  border: 1px solid var(--line2);
+  border-radius: 7px;
+  background: var(--panel);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--tx);
+}
+.sx-manual-strat .ctxItem .dd__btn:hover {
+  background: var(--raise);
+  border-color: var(--dimmer);
+}
+.sx-manual-strat .ctxItem .dd__btn[aria-expanded='true'] {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+}
+/* Must clip *inside* the card if the row ever runs short of room —
+   `overflow: visible` let "London + New York" render past the border. */
+.sx-manual-strat .ctxItem .dd__label {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Chevron was near-invisible (thin, very light grey) against the card
+   background — bump its size/weight/contrast so each field reads clearly
+   as "click me, I open a menu". */
+.sx-manual-strat .ctxItem .dd__btn svg {
+  width: 12px;
+  height: 9px;
+  color: var(--dim);
+  stroke-width: 2.4;
+}
+.sx-manual-strat .ctxItem .dd__btn:hover svg,
+.sx-manual-strat .ctxItem .dd__btn[aria-expanded='true'] svg {
+  color: var(--gold);
+  opacity: 1;
+}
+
 /* ---------- responsive ---------- */
 @media (max-width: 1040px) {
-  .sx-manual-strat .readerCol {
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .sx-manual-strat .readerBar {
-    flex-direction: column;
-  }
-  .sx-manual-strat .sparkCol,
-  .sx-manual-strat .proseCol,
-  .sx-manual-strat .checksCol,
-  .sx-manual-strat .jsonCol {
-    flex: 1 1 auto;
-  }
-  .sx-manual-strat .checksCol {
-    max-height: none;
-  }
-  .sx-manual-strat .actions {
-    grid-column: 1 / -1;
-  }
   .sx-manual-strat .posGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .sx-manual-strat .tplChip {
+    width: 148px;
+  }
 }
 @media (max-width: 760px) {
-  .sx-manual-strat .main {
-    grid-template-columns: 1fr;
-  }
   .sx-manual-strat .posGrid {
     grid-template-columns: 1fr;
   }
-  .sx-manual-strat .rail {
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    padding: 10px;
-  }
-  .sx-manual-strat .railHead,
-  .sx-manual-strat .railDiv,
-  .sx-manual-strat .empty,
-  .sx-manual-strat .railSub {
-    display: none;
-  }
-  .sx-manual-strat .tpl {
-    width: auto;
-    flex: 0 0 auto;
-    white-space: nowrap;
-    border-color: var(--line);
-  }
   .sx-manual-strat .canvas {
-    padding: 18px 14px 100px;
+    padding: 18px 14px 24px;
+  }
+  .sx-manual-strat .reader {
+    padding: 14px;
+  }
+  .sx-manual-strat .templateBar {
+    padding: 10px 14px 12px;
   }
   .sx-manual-strat .topbar {
     padding: 0 12px;
     gap: 8px;
-  }
-  .sx-manual-strat .brand span:last-child,
-  .sx-manual-strat .crumb {
-    display: none;
   }
   .sx-manual-strat .nameField {
     max-width: none;
@@ -947,21 +1473,5 @@
   }
   .sx-manual-strat .joinTag {
     display: none;
-  }
-  .sx-manual-strat .readerCol {
-    padding: 12px 14px;
-  }
-  .sx-manual-strat .prose {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .sx-manual-strat .prose p {
-    padding: 3px 0 10px;
-    border-right: 0;
-    border-bottom: 1px solid var(--line2);
-  }
-  .sx-manual-strat .prose p:last-child {
-    border-bottom: 0;
-    padding-bottom: 0;
   }
 }
