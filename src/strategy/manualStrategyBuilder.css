@@ -562,8 +562,42 @@
   font-style: normal;
   font-size: 11px;
   color: var(--dim);
-  margin-top: 4px;
   font-family: var(--mono);
+}
+/* Bottom row of a chip: the meta text on the left, an "Edit" affordance
+   on the right that fades in on hover/focus/selection. Clicking it does
+   the same thing as clicking anywhere else on the chip — it's a visual
+   cue, not a separate action — so it's a <span>, not a nested <button>. */
+.sx-manual-strat .tplChipFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 4px;
+}
+.sx-manual-strat .tplChipFoot em {
+  margin-top: 0;
+}
+.sx-manual-strat .tplChipEdit {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--gold);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.sx-manual-strat .tplChipEdit i {
+  font-size: 9px;
+}
+.sx-manual-strat .tplChip:hover .tplChipEdit,
+.sx-manual-strat .tplChip:focus-visible .tplChipEdit,
+.sx-manual-strat .tplChipMine:focus-within .tplChipEdit,
+.sx-manual-strat .tplChip[aria-current='true'] .tplChipEdit {
+  opacity: 1;
 }
 /* category quick-filter pills — clearer, clickable way to jump to a
    category than small inline dividers buried in the scroll strip. */

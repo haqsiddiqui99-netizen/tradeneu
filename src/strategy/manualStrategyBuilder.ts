@@ -1669,7 +1669,10 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         const b = document.createElement('button')
         b.className = 'tplChip'
         b.setAttribute('aria-current', String(i === activeTpl && !dirty))
-        b.innerHTML = '<b>' + t.name + '</b><em>' + t.meta + '</em>'
+        b.innerHTML =
+          '<b>' + t.name + '</b>' +
+          '<div class="tplChipFoot"><em>' + t.meta + '</em>' +
+          '<span class="tplChipEdit"><i class="fa-solid fa-pen" aria-hidden="true"></i>Edit</span></div>'
         b.onclick = () => {
           activeTpl = i
           $<HTMLElement>('forkTag').hidden = true
@@ -1711,7 +1714,9 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         escapeHtml(m.name) +
         '"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>' +
         '</span>' +
-        '</div><em>saved</em>'
+        '</div>' +
+        '<div class="tplChipFoot"><em>saved</em>' +
+        '<span class="tplChipEdit"><i class="fa-solid fa-pen" aria-hidden="true"></i>Edit</span></div>'
 
       const load = () => {
         S = JSON.parse(JSON.stringify(m))
