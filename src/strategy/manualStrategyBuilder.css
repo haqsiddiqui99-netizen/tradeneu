@@ -116,6 +116,8 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  flex: 0 0 auto;
+  white-space: nowrap;
   background: transparent;
   border: 0;
   color: var(--dim);
@@ -149,7 +151,10 @@
   height: 38px;
   padding: 0 4px 0 9px;
   max-width: 65vw;
-  flex: 0 0 auto;
+  /* Shrinkable: a long name must give way to the header actions rather than
+     shoving "Open in chart" / "Save" off the edge of the window. */
+  flex: 0 1 auto;
+  min-width: 112px;
 }
 .sx-manual-strat .nameFieldWrap:hover {
   border-color: var(--tx);
@@ -218,9 +223,14 @@
   padding: 3px 8px;
   border-radius: 99px;
   white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sx-manual-strat .spacer {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 /* ---------- controls ---------- */
@@ -270,6 +280,8 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
+  flex: 0 0 auto;
+  white-space: nowrap;
   /* Same fixed height as .nameFieldWrap (not just similar padding) so the
      name field's outline and these buttons line up exactly along the header.
      These buttons also carry daisyUI's global ".btn" class (for its base
