@@ -197,6 +197,15 @@
   grid-column: 1 / -1;
 }
 
+/* Stacks a card and whatever belongs directly under it in the same grid
+   column, so the save bar sits against the shorter card rather than being
+   pushed below the tallest one. */
+.sx-acct__col {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
 .sx-acct-card__head {
   margin-bottom: 14px;
 }
@@ -451,14 +460,13 @@
   color: var(--tx);
 }
 
-/* One save action for the whole tab, sitting below both cards. */
+/* One save action for the whole tab. */
 .sx-acct-savebar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
-  margin-top: 16px;
 }
 
 .sx-acct-savebar__actions {
@@ -889,10 +897,12 @@
   --tx: #f1f1f1;
   --dim: #9a9a9a;
   --dimmer: #6b6b6b;
-  --accent: #3a3a3a;
-  --accent-tx: #f1f1f1;
-  --accent-hover: #4a4a4a;
-  --meter: #8a8a8a;
+  /* Same grey the sidebar uses for the active nav item, so the primary action
+     here reads as part of the same system. */
+  --accent: #6b7280;
+  --accent-tx: #ffffff;
+  --accent-hover: #7c8391;
+  --meter: #6b7280;
   --link: #38bdf8;
   --ok: #4ade80;
   --danger: #e5615e;
@@ -901,14 +911,11 @@
   color-scheme: dark;
 }
 
-/* A grey primary button can't rely on fill alone to read as the main action,
-   so it keeps a border the secondary buttons don't have. */
+/* Matches the lift the sidebar gives its active item. */
 #sx-app-root[data-dashboard-theme='dark'] .sx-acct-btn--primary {
-  border-color: #545454;
-}
-
-#sx-app-root[data-dashboard-theme='dark'] .sx-acct-btn--primary:hover {
-  border-color: #666666;
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-acct--embedded {

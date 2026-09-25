@@ -283,12 +283,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
         <p class="sx-acct__eyebrow">Account center</p>
         <h1 class="sx-acct__title">Profile Settings<span class="sx-acct__email">${escapeHtml(email)}</span></h1>
       </div>
-      <div class="sx-acct__head-actions">
-        ${opts.showAdminLink && opts.adminHref ? `<a class="sx-acct-btn" href="${escapeAttr(opts.adminHref)}">Admin</a>` : ''}
-        <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-manage-plan>
-          ${tier === 'free' ? 'Upgrade Plan' : 'Manage Plan'}
-        </button>
-      </div>
+      ${opts.showAdminLink && opts.adminHref ? `<div class="sx-acct__head-actions"><a class="sx-acct-btn" href="${escapeAttr(opts.adminHref)}">Admin</a></div>` : ''}
     </header>
 
     <nav class="sx-acct__tabs" role="tablist" aria-label="Profile settings sections">
@@ -340,39 +335,41 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
             </div>
           </div>
 
-          <div class="sx-acct-card">
-            <div class="sx-acct-card__head">
-              <h2 class="sx-acct-card__title">Regional</h2>
-              <p class="sx-acct-card__lead">Applied across every chart, session, and replay clock.</p>
-            </div>
-            <div class="sx-acct-fields">
-              <div class="sx-acct-field">
-                <label class="sx-acct-label" for="sx-acct-timezone">Timezone</label>
-                <select id="sx-acct-timezone" class="sx-acct-select" data-sx-acct-timezone>
-                  ${SETTINGS_TIMEZONE_OPTIONS.map((z) => `<option value="${z.id}">${escapeHtml(z.label)}</option>`).join('')}
-                </select>
-                <p class="sx-acct-hint">Used for session date labels and replay clocks.</p>
+          <div class="sx-acct__col">
+            <div class="sx-acct-card">
+              <div class="sx-acct-card__head">
+                <h2 class="sx-acct-card__title">Regional</h2>
+                <p class="sx-acct-card__lead">Applied across every chart, session, and replay clock.</p>
               </div>
-              <div class="sx-acct-field">
-                <span class="sx-acct-label" id="sx-acct-locale-label">Language</span>
-                <div class="sx-acct-locale" data-sx-acct-locale-picker>
-                  <button type="button" class="sx-acct-locale__trigger" id="sx-acct-locale-trigger" aria-labelledby="sx-acct-locale-label" aria-haspopup="listbox" aria-expanded="false">
-                    <span data-sx-acct-locale-value>English (EN)</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-                  </button>
-                  <div class="sx-acct-locale__menu" id="sx-acct-locale-menu" hidden role="listbox" aria-labelledby="sx-acct-locale-label"></div>
+              <div class="sx-acct-fields">
+                <div class="sx-acct-field">
+                  <label class="sx-acct-label" for="sx-acct-timezone">Timezone</label>
+                  <select id="sx-acct-timezone" class="sx-acct-select" data-sx-acct-timezone>
+                    ${SETTINGS_TIMEZONE_OPTIONS.map((z) => `<option value="${z.id}">${escapeHtml(z.label)}</option>`).join('')}
+                  </select>
+                  <p class="sx-acct-hint">Used for session date labels and replay clocks.</p>
                 </div>
-                <p class="sx-acct-hint">Language shown in the header.</p>
+                <div class="sx-acct-field">
+                  <span class="sx-acct-label" id="sx-acct-locale-label">Language</span>
+                  <div class="sx-acct-locale" data-sx-acct-locale-picker>
+                    <button type="button" class="sx-acct-locale__trigger" id="sx-acct-locale-trigger" aria-labelledby="sx-acct-locale-label" aria-haspopup="listbox" aria-expanded="false">
+                      <span data-sx-acct-locale-value>English (EN)</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    <div class="sx-acct-locale__menu" id="sx-acct-locale-menu" hidden role="listbox" aria-labelledby="sx-acct-locale-label"></div>
+                  </div>
+                  <p class="sx-acct-hint">Language shown in the header.</p>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div class="sx-acct-savebar">
-          <p class="sx-acct-saved" data-sx-acct-account-saved aria-live="polite"></p>
-          <div class="sx-acct-savebar__actions">
-            ${isGuest ? `<a class="sx-acct-btn" href="${resolveAppPath('login')}">Create account</a>` : ''}
-            <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-save-account>Save changes</button>
+            <div class="sx-acct-savebar">
+              <p class="sx-acct-saved" data-sx-acct-account-saved aria-live="polite"></p>
+              <div class="sx-acct-savebar__actions">
+                ${isGuest ? `<a class="sx-acct-btn" href="${resolveAppPath('login')}">Create account</a>` : ''}
+                <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-save-account>Save changes</button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
