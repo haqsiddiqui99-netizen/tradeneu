@@ -1445,3 +1445,202 @@ body.sx-checkout-open {
     border-radius: 1.15rem 1.15rem 0.5rem 0.5rem;
   }
 }
+
+/* ——— Dark theme ———
+   Everything above is hardcoded light, so on a dark dashboard this page
+   stayed white next to a black sidebar. Palette matches the Strategy page
+   and the manual builder (#000 page, #121212 panels, #1a1a1a raised,
+   #2a2a2a lines, #f1f1f1 text, #9a9a9a muted, gold primary). */
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page {
+  background: #000000;
+  color: #f1f1f1;
+  /* The comparison tables scroll horizontally, and their native scrollbar
+     renders light-on-light without this. */
+  color-scheme: dark;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page--embedded {
+  border-color: #2a2a2a;
+  background: #000000;
+  box-shadow: none;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page__head,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page--embedded .sx-sub-page__head {
+  border-bottom-color: #2a2a2a;
+  background: #121212;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page__head-copy {
+  border-left-color: #2a2a2a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page__status,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-table__feature,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-table th[scope='row'],
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub__ok,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub__inf {
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page__status-price,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page__subtitle,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__unit,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__billed,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__desc,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub__val,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-table th,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-table td {
+  color: #9a9a9a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page__back {
+  border-color: #3a3a3a;
+  background: #1a1a1a;
+  color: #e5e5e5;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page__back i {
+  color: #9a9a9a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page__back:hover {
+  border-color: #4a4a4a;
+  background: #242424;
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-page__back:hover i {
+  color: #f1f1f1;
+}
+
+/* Billing cycle switch: the track darkens and the active pill lifts above
+   it, the reverse of the light theme where the pill is the lighter chip. */
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-cycle {
+  background: #1a1a1a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-cycle__btn {
+  color: #9a9a9a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-cycle__btn--active {
+  background: #3a3a3a;
+  color: #f1f1f1;
+  box-shadow: none;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage__btn {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage__btn--open {
+  background: rgba(56, 189, 248, 0.2);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage__menu,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage-panel__card {
+  border-color: #2a2a2a;
+  background: #121212;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage__item {
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage__item i,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage__item em,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage-panel__hint,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage-empty {
+  color: #9a9a9a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage__item:hover {
+  background: #1a1a1a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage__item--danger i {
+  color: #e5615e;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage-panel__bar {
+  border-bottom-color: #2a2a2a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage-panel__close,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-field input {
+  border-color: #3a3a3a;
+  background: #1a1a1a;
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage-panel__lead,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-field {
+  color: #e5e5e5;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-manage-empty {
+  border-color: #3a3a3a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card {
+  border-color: #2a2a2a;
+  background: #121212;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__badge {
+  background: rgba(56, 189, 248, 0.16);
+  color: #38bdf8;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__tax {
+  color: #38bdf8;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__was,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__was-amount,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub__no,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-accordion__chev {
+  color: #6b6b6b;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__features,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__features--inf li::before {
+  color: #d4d4d4;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__cta {
+  border-color: #3a3a3a;
+  background: #1a1a1a;
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__cta:hover:not(:disabled) {
+  background: #242424;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__cta--primary {
+  border-color: transparent;
+  background: #e0a94a;
+  color: #17120a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-card__cta--primary:hover:not(:disabled) {
+  background: #ebb758;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-accordion {
+  border-color: #2a2a2a;
+  background: #121212;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-table thead th {
+  color: #c4c4c4;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-table th,
+#sx-app-root[data-dashboard-theme='dark'] .sx-sub-table td {
+  border-top-color: #2a2a2a;
+}

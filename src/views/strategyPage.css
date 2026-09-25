@@ -521,6 +521,8 @@
   background: #000000;
   color: #f1f1f1;
   box-shadow: none;
+  /* Keeps native scrollbars and form controls inside the page dark. */
+  color-scheme: dark;
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-strat-page--embedded .sx-strat-page__head,
