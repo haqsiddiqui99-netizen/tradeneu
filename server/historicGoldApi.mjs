@@ -407,13 +407,21 @@ app.get('/api/market/ticks', async (req, res) => {
 })
 
 app.get('/api/market/local/stats', (req, res) => {
+  res.setHeader('Cache-Control', 'private, max-age=30')
   try {
     const symbol = String(req.query.symbol || 'XAUUSD').trim().toUpperCase()
+    const timeframesRaw = firstQueryString(req.query, 'timeframes')
+    const onlyTimeframes = timeframesRaw
+      ? timeframesRaw
+          .split(',')
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean)
+      : null
     res.json({
       ok: true,
       enabled: marketLocalEnabled(),
       dbPath: marketDbPath(),
-      stats: getLocalStoreStats(symbol),
+      stats: getLocalStoreStats(symbol, onlyTimeframes),
     })
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e?.message || e) })

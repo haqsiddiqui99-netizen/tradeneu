@@ -10,13 +10,17 @@ export type LocalBarCounts = Record<string, number>
  * payload) and always current, unlike a hardcoded per-timeframe guess.
  * Returns null if the symbol has no local data yet or the request fails.
  */
-export async function fetchLocalBarCounts(symbol: string): Promise<LocalBarCounts | null> {
+export async function fetchLocalBarCounts(
+  symbol: string,
+  onlyTimeframes: string[] = ['m1', 'h1', 'd1'],
+): Promise<LocalBarCounts | null> {
   const sym = symbol.trim()
   if (!sym) return null
   try {
-    const res = await fetch(`/api/market/local/stats?symbol=${encodeURIComponent(sym)}`, {
+    const params = new URLSearchParams({ symbol: sym })
+    if (onlyTimeframes.length) params.set('timeframes', onlyTimeframes.join(','))
+    const res = await fetch(`/api/market/local/stats?${params.toString()}`, {
       credentials: 'same-origin',
-      cache: 'no-store',
     })
     if (!res.ok) return null
     const body = (await res.json()) as { ok?: boolean; stats?: { barCounts?: Record<string, unknown> } }

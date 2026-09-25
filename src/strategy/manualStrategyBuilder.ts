@@ -436,7 +436,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
               <option>London only</option><option>New York only</option><option>Asia only</option>
             </select>
           </div>
-          <div class="bars" id="barsInfo">\u2248 <b>74,800</b> bars available</div>
+          <div class="bars" id="barsInfo">Checking bar coverage\u2026</div>
         </div>
 
         <div class="templateBar">
@@ -1152,21 +1152,25 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     liveBarCountsLoadingSymbol = sym
     const counts = await fetchLocalBarCounts(sym)
     if (liveBarCountsLoadingSymbol === sym) liveBarCountsLoadingSymbol = null
-    if (!counts) return
-    liveBarCountsBySymbol.set(sym, counts)
+    // Cache an empty object (not just skip) on failure/no-data too, so the UI
+    // can tell "still loading" (no entry yet) apart from "checked, nothing
+    // there" (empty entry) instead of silently retrying forever.
+    liveBarCountsBySymbol.set(sym, counts ?? {})
     // Only worth a re-render if the symbol fetched is still the one selected.
     if (($<HTMLSelectElement>('symbol').value || '').toUpperCase() === sym) renderStats()
   }
 
-  function estimates(): { baseBars: number; est: number; live: boolean } {
+  function estimates(): { baseBars: number; est: number; state: 'live' | 'estimated' | 'loading' } {
     const tf = $<HTMLSelectElement>('tf').value
     const symbol = ($<HTMLSelectElement>('symbol').value || '').toUpperCase()
     const baseBarsByTf: Record<string, number> = { '1m': 740000, '5m': 148000, '15m': 74800, '1h': 18700, '4h': 4700, '1D': 790 }
     const live = liveBaseBarsFor(tf, symbol)
+    const checked = liveBarCountsBySymbol.has(symbol)
+    const state: 'live' | 'estimated' | 'loading' = live != null ? 'live' : checked ? 'estimated' : 'loading'
     const baseBars = live ?? baseBarsByTf[tf] ?? 74800
     const dens = ({ all: 0.008, any: 0.019 }[S.entryJoin] ?? 0.008) / Math.max(1, S.entry.length * 0.6)
     const est = S.entry.length ? Math.max(0, Math.round(baseBars * dens)) : 0
-    return { baseBars, est, live: live != null }
+    return { baseBars, est, state }
   }
 
   function longestLookback(): number {
@@ -1226,12 +1230,18 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     })
 
     $<HTMLButtonElement>('btnRun').disabled = !S.entry.length
-    const { baseBars, est, live } = estimates()
+    const { baseBars, est, state } = estimates()
     const barsInfo = $<HTMLElement>('barsInfo')
-    barsInfo.innerHTML = '\u2248 <b>' + baseBars.toLocaleString() + '</b> bars available'
-    barsInfo.title = live
-      ? 'Live count from your local market data store'
-      : 'Estimated \u2014 fetching the live count for this symbol\u2026'
+    if (state === 'loading') {
+      barsInfo.innerHTML = 'Checking bar coverage\u2026'
+      barsInfo.title = 'Fetching the live bar count for this symbol from your local market data store\u2026'
+    } else {
+      barsInfo.innerHTML = '\u2248 <b>' + baseBars.toLocaleString() + '</b> bars available'
+      barsInfo.title =
+        state === 'live'
+          ? 'Live count from your local market data store'
+          : 'Estimated \u2014 no local data found for this symbol yet'
+    }
     $('est').textContent = S.entry.length
       ? '\u2248 ' + est.toLocaleString() + ' trades over the selected range \u00b7 under 2s'
       : 'Add an entry condition to run'

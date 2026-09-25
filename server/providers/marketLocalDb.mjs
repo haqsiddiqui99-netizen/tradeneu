@@ -535,22 +535,54 @@ export function localChunkSatisfied(symbol, kind, startSec, endSec) {
   return countLocalBarsInRange(symbol, tf, startSec, endSec) >= minBarsPerChunk(tf)
 }
 
-/** @param {string} symbol */
-export function getLocalStoreStats(symbol) {
+/** Short-lived cache: `COUNT(*)` over millions of rows across 10+ timeframes
+ * is not free (real-world: multiple seconds for a large local store) — cache
+ * the result briefly so a UI polling this on every symbol change stays fast
+ * without ever having to fall back to a stale hardcoded guess. */
+const STATS_CACHE_TTL_MS = 60_000
+/** @type {Map<string, { at: number; data: ReturnType<typeof computeLocalStoreStats> }>} */
+const statsCache = new Map()
+
+/**
+ * @param {string} symbol
+ * @param {string[] | null} [onlyTimeframes] Restrict which bar timeframes are
+ *   counted (and skip the ticks COUNT/range entirely) — the manual strategy
+ *   builder's "bars available" indicator only ever needs m1/h1/d1, so asking
+ *   for just those turns ~11 sequential COUNT(*) queries into 3.
+ */
+function computeLocalStoreStats(symbol, onlyTimeframes) {
   const sym = normalizeMarketSymbol(symbol)
   if (!sqliteAvailable()) {
     return { symbol: sym, tickCount: 0, barCounts: {}, tickRangeMs: null, unavailable: true }
   }
   const db = getMarketDb()
-  const tickCount = db.prepare(`SELECT COUNT(*) AS n FROM ticks WHERE symbol = ?`).get(sym)?.n ?? 0
+  const timeframes = onlyTimeframes?.length ? onlyTimeframes.filter((tf) => BAR_TIMEFRAMES.includes(tf)) : BAR_TIMEFRAMES
   const barCounts = {}
-  for (const tf of BAR_TIMEFRAMES) {
+  for (const tf of timeframes) {
     barCounts[tf] = db.prepare(`SELECT COUNT(*) AS n FROM bars WHERE symbol = ? AND timeframe = ?`).get(sym, tf)?.n ?? 0
   }
+  if (onlyTimeframes?.length) {
+    return { symbol: sym, tickCount: null, barCounts, tickRangeMs: null }
+  }
+  const tickCount = db.prepare(`SELECT COUNT(*) AS n FROM ticks WHERE symbol = ?`).get(sym)?.n ?? 0
   const tickRange = db
     .prepare(`SELECT MIN(time_ms) AS lo, MAX(time_ms) AS hi FROM ticks WHERE symbol = ?`)
     .get(sym)
   return { symbol: sym, tickCount, barCounts, tickRangeMs: tickRange }
+}
+
+/**
+ * @param {string} symbol
+ * @param {string[] | null} [onlyTimeframes]
+ */
+export function getLocalStoreStats(symbol, onlyTimeframes) {
+  const sym = normalizeMarketSymbol(symbol)
+  const cacheKey = `${sym}|${onlyTimeframes?.length ? [...onlyTimeframes].sort().join(',') : 'all'}`
+  const hit = statsCache.get(cacheKey)
+  if (hit && Date.now() - hit.at < STATS_CACHE_TTL_MS) return hit.data
+  const data = computeLocalStoreStats(sym, onlyTimeframes)
+  statsCache.set(cacheKey, { at: Date.now(), data })
+  return data
 }
 
 export function pruneLocalRetention(symbol) {
