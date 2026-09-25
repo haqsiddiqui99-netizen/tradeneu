@@ -621,10 +621,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
               <div><dt>Status</dt><dd data-sx-acct-plan-status>${tier === 'free' ? 'No subscription' : '…'}</dd></div>
               <div><dt>Member since</dt><dd>${escapeHtml(memberSinceLabel)}</dd></div>
             </dl>
-            <div class="sx-acct-actions">
-              <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-scroll-to="plans">${tier === 'pro' ? 'Review plans' : 'Upgrade plan'}</button>
-              <button type="button" class="sx-acct-btn" data-sx-acct-manage-plan>Manage subscription</button>
-            </div>
           </div>
 
           <div class="sx-acct-card">
@@ -668,6 +664,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
                     `<button type="button" class="sx-acct-cycle__btn${c === 'monthly' ? ' is-active' : ''}" data-sx-acct-cycle="${c}">${CYCLE_LABELS[c]}</button>`,
                 ).join('')}
               </div>
+              <button type="button" class="sx-acct-btn" data-sx-acct-manage-plan>Manage subscription</button>
             </div>
 
             <div class="sx-acct-plans">
@@ -998,10 +995,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     })
   })
   applyCycle('monthly')
-
-  q('[data-sx-acct-scroll-to="plans"]')?.addEventListener('click', () => {
-    q('[data-sx-acct-plans]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  })
 
   const checkout = createCheckoutOverlay({
     onComplete: (order, method) => {
