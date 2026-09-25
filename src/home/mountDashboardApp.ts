@@ -653,7 +653,7 @@ const TESTING_TABS = ['dashboard', 'sessions', 'trades', 'analytics'] as const
 type TestingTab = (typeof TESTING_TABS)[number]
 
 /** Sidebar entries — the four testing tabs plus the standalone pages. */
-type DashNavKey = TestingTab | 'strategy' | 'subscription' | 'billing' | 'settings'
+type DashNavKey = TestingTab | 'strategy' | 'billing' | 'settings'
 
 const PERF_RANGE_VALUES = ['week', 'month', 'lifetime'] as const
 
@@ -1361,7 +1361,6 @@ const DASH_NAV_LABELS: Record<DashNavKey, string> = {
   trades: 'Trades',
   analytics: 'Analytics',
   strategy: 'Strategy',
-  subscription: 'Subscription',
   billing: 'Billing',
   settings: 'Profile Settings',
 }
@@ -1410,7 +1409,6 @@ function buildDashSidebarHtml(): string {
           ${sideLinkHtml('trades', 'fa-regular fa-file-lines', 'data-testing-tab="trades"')}
           ${sideLinkHtml('analytics', 'fa-solid fa-chart-line', 'data-testing-tab="analytics"')}
           ${sideLinkHtml('strategy', 'fa-solid fa-bolt', 'data-action="strategy"')}
-          ${sideLinkHtml('subscription', 'fa-regular fa-credit-card', 'data-action="subscription"')}
           ${sideLinkHtml('billing', 'fa-regular fa-file-lines', 'data-action="billing"')}
 
           <p class="sx-dash-side__section">Account pages</p>
@@ -1878,7 +1876,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
           <div data-sx-partners-section>${buildPartnersSectionHtml()}</div>
                 </div>
-        <div id="sx-dash-subscription-panel" class="sx-dash-subscription-panel hidden" hidden></div>
         <div id="sx-dash-billing-panel" class="sx-dash-billing-panel hidden" hidden></div>
         <div id="sx-dash-strategy-panel" class="sx-dash-strategy-panel hidden" hidden></div>
         <div id="sx-dash-settings-panel" class="sx-dash-settings-panel hidden" hidden></div>
@@ -1917,7 +1914,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   const appRoot = root.querySelector('#sx-app-root') as HTMLElement | null
   const viewDash = root.querySelector('#view-dash') as HTMLElement
   const viewChart = root.querySelector('#view-chart') as HTMLElement
-  const viewSubscriptionPanel = root.querySelector('#sx-dash-subscription-panel') as HTMLElement
   const viewBillingPanel = root.querySelector('#sx-dash-billing-panel') as HTMLElement
   const viewStrategyPanel = root.querySelector('#sx-dash-strategy-panel') as HTMLElement
   const viewSettingsPanel = root.querySelector('#sx-dash-settings-panel') as HTMLElement
@@ -2007,7 +2003,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   let disposeStocks: (() => void) | null = null
   let disposeStrategy: (() => void) | null = null
   let disposeSettings: (() => void) | null = null
-  let disposeSubscription: (() => void) | null = null
   let disposeBilling: (() => void) | null = null
   let activeSessionId: string | null = null
   let lastSessionPayload: SessionCreatedPayload | null = null
@@ -2088,18 +2083,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (crumb) crumb.textContent = DASH_NAV_LABELS[key]
   }
 
-  function setMainNavActive(action: 'dashboard' | 'subscription' | 'billing' | 'strategy' | 'settings') {
+  function setMainNavActive(action: 'dashboard' | 'billing' | 'strategy' | 'settings') {
     setSideNavActive(action)
-  }
-
-  function clearSubscriptionPanel() {
-    disposeSubscription?.()
-    disposeSubscription = null
-    viewSubscriptionPanel?.replaceChildren()
-    if (viewSubscriptionPanel) {
-      viewSubscriptionPanel.hidden = true
-      viewSubscriptionPanel.classList.add('hidden')
-    }
   }
 
   function clearBillingPanel() {
@@ -2133,7 +2118,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   }
 
   function showHomeTestingSection() {
-    clearSubscriptionPanel()
     clearBillingPanel()
     clearStrategyPanel()
     clearSettingsPanel()
@@ -2172,13 +2156,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeStrategy = null
     disposeSettings?.()
     disposeSettings = null
-    disposeSubscription?.()
-    disposeSubscription = null
     disposeBilling?.()
     disposeBilling = null
     viewStrategyPanel?.replaceChildren()
     viewSettingsPanel?.replaceChildren()
-    viewSubscriptionPanel?.replaceChildren()
     viewBillingPanel?.replaceChildren()
     hideOverlayViews()
     if (viewChart) {
@@ -2270,7 +2251,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeStocks?.()
     disposeStocks = null
     clearStrategyPanel()
-    clearSubscriptionPanel()
     clearBillingPanel()
     viewStocks?.replaceChildren()
     viewChart?.replaceChildren()
@@ -2380,47 +2360,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeUpgradeModal = closeWrapped
   }
 
-  function showSubscriptionPage() {
-    if (!viewSubscriptionPanel) return
-    disposeChart?.()
-    disposeChart = null
-    disposeStocks?.()
-    disposeStocks = null
-    clearStrategyPanel()
-    clearSettingsPanel()
-    clearBillingPanel()
-    viewStocks?.replaceChildren()
-    viewChart?.replaceChildren()
-    hideOverlayViews()
-    if (viewDash) viewDash.hidden = false
-    if (viewTesting) {
-      viewTesting.hidden = true
-      viewTesting.classList.add('hidden')
-    }
-    viewSubscriptionPanel.hidden = false
-    viewSubscriptionPanel.classList.remove('hidden')
-    setMainNavActive('subscription')
-    closeDrawer()
-    if (appRoot) setAiChatOpen(appRoot, false)
-    disposeSubscription?.()
-    disposeSubscription?.()
-    const subOpts = {
-      readTier: readAccountTier,
-      writeTier: writeAccountTier,
-      onCheckoutComplete: () => {
-        applyAccountTierUi()
-      },
-      onCheckoutDismissed: () => {
-        applyAccountTierUi()
-        if (viewSubscriptionPanel && !viewSubscriptionPanel.hidden) {
-          showSubscriptionPage()
-        }
-      },
-      embedded: true as const,
-    }
-    disposeSubscription = mountSubscriptionPage(viewSubscriptionPanel, subOpts)
-  }
-
   function showBillingPage() {
     if (!viewBillingPanel) return
     disposeChart?.()
@@ -2429,7 +2368,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeStocks = null
     clearStrategyPanel()
     clearSettingsPanel()
-    clearSubscriptionPanel()
     viewStocks?.replaceChildren()
     viewChart?.replaceChildren()
     hideOverlayViews()
@@ -2458,7 +2396,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeStocks?.()
     disposeStocks = null
     clearSettingsPanel()
-    clearSubscriptionPanel()
     clearBillingPanel()
     viewStocks?.replaceChildren()
     viewChart?.replaceChildren()
@@ -5633,12 +5570,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     el.addEventListener('click', () => {
       setAccountMenuOpen(false)
       showSettingsPage()
-    })
-  })
-
-  root.querySelectorAll('[data-action="subscription"]').forEach((el) => {
-    el.addEventListener('click', () => {
-      showSubscriptionPage()
     })
   })
 
