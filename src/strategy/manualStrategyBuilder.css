@@ -452,7 +452,7 @@
 .sx-manual-strat .ctxItem .txt:hover {
   border-color: transparent;
 }
-/* Start/end pickers for the "Custom…" range. They sit next to the Range
+/* Start/end pickers for "Custom range". They sit next to the Range
    dropdown and are styled as the same pill as .dd__btn so the row reads as
    one set of controls. */
 .sx-manual-strat .customRange[hidden] {

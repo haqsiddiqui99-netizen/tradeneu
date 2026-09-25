@@ -430,8 +430,9 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
           </div>
           <div class="ctxItem"><span>Range</span>
             <select class="sel" id="range" aria-label="Date range">
-              <option>Last 6 months</option><option selected>Last 3 years</option>
-              <option>2019 \u2192 today</option><option>Custom\u2026</option>
+              <option>Last 1 month</option><option>Last 3 months</option>
+              <option>Last 6 months</option><option selected>Last 12 months</option>
+              <option>Custom range</option>
             </select>
           </div>
           <div class="ctxItem customRange" id="customRange" hidden>
@@ -1451,28 +1452,34 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   const TF_STEP_SEC: Record<string, number> = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1D': 86400 }
 
-  const CUSTOM_RANGE = 'Custom\u2026'
-  let lastPresetRange = 'Last 3 years'
+  const CUSTOM_RANGE = 'Custom range'
+  const PRESET_RANGE_MONTHS: Record<string, number> = {
+    'Last 1 month': 1,
+    'Last 3 months': 3,
+    'Last 6 months': 6,
+    'Last 12 months': 12,
+  }
+  let lastPresetRange = 'Last 12 months'
 
   function rangeToDates(range: string): { startDate?: string; endDate?: string } {
     const end = new Date()
     const endDate = end.toISOString().slice(0, 10)
-    const start = new Date(end)
-    if (range === 'Last 6 months') start.setMonth(start.getMonth() - 6)
-    else if (range === 'Last 3 years') start.setFullYear(start.getFullYear() - 3)
-    else if (range === '2019 \u2192 today') return { startDate: '2019-01-01', endDate }
-    else if (range === CUSTOM_RANGE) {
+    if (range === CUSTOM_RANGE) {
       // Either side may be left blank, which just means "open-ended on that
       // end" rather than an invalid range.
       const from = $<HTMLInputElement>('rangeStart').value
       const to = $<HTMLInputElement>('rangeEnd').value
       if (from && to && from > to) return { startDate: to, endDate: from }
       return { startDate: from || undefined, endDate: to || undefined }
-    } else return {}
+    }
+    const months = PRESET_RANGE_MONTHS[range]
+    if (!months) return {}
+    const start = new Date(end)
+    start.setMonth(start.getMonth() - months)
     return { startDate: start.toISOString().slice(0, 10), endDate }
   }
 
-  // The two date fields only exist for "Custom…" — seed them from whichever
+  // The two date fields only exist for "Custom range" — seed them from whichever
   // preset was showing, so switching over starts from that same window
   // instead of an empty pair of inputs.
   function syncCustomRange() {
