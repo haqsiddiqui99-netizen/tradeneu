@@ -405,7 +405,10 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       <div class="app">
         <header class="topbar">
           ${opts.onBack ? `<button type="button" class="backLink" data-sx-back><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Strategies</button>` : ''}
-          <input class="nameField" id="stratName" value="EMA 9/21 Crossover" aria-label="Strategy name">
+          <div class="nameFieldWrap">
+            <input class="nameField" id="stratName" value="EMA 9/21 Crossover" aria-label="Strategy name">
+            <button type="button" class="nameFieldEdit" id="nameFieldEdit" title="Edit strategy name" aria-label="Edit strategy name"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>
+          </div>
           <span class="forked" id="forkTag" hidden>Copy — saves to your strategies</span>
           <div class="spacer"></div>
           <button class="btn btn-chart" id="btnChart"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> Open in chart</button>
@@ -1669,10 +1672,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         const b = document.createElement('button')
         b.className = 'tplChip'
         b.setAttribute('aria-current', String(i === activeTpl && !dirty))
-        b.innerHTML =
-          '<b>' + t.name + '</b>' +
-          '<div class="tplChipFoot"><em>' + t.meta + '</em>' +
-          '<span class="tplChipEdit"><i class="fa-solid fa-pen" aria-hidden="true"></i>Edit</span></div>'
+        b.innerHTML = '<b>' + t.name + '</b><em>' + t.meta + '</em>'
         b.onclick = () => {
           activeTpl = i
           $<HTMLElement>('forkTag').hidden = true
@@ -1714,9 +1714,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         escapeHtml(m.name) +
         '"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>' +
         '</span>' +
-        '</div>' +
-        '<div class="tplChipFoot"><em>saved</em>' +
-        '<span class="tplChipEdit"><i class="fa-solid fa-pen" aria-hidden="true"></i>Edit</span></div>'
+        '</div><em>saved</em>'
 
       const load = () => {
         S = JSON.parse(JSON.stringify(m))
@@ -1853,6 +1851,11 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     markDirty()
     renderJson()
     renderLibrary()
+  }
+  $<HTMLButtonElement>('nameFieldEdit').onclick = () => {
+    const input = $<HTMLInputElement>('stratName')
+    input.focus()
+    input.select()
   }
   ;['symbol', 'tf', 'range', 'session'].forEach((id) => {
     $(id).addEventListener('input', () => {

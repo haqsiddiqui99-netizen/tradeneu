@@ -128,8 +128,15 @@
   color: var(--tx);
 }
 /* No app wordmark in this header — the strategy name is the header, and
-   with the brand/crumb gone it gets the room that used to belong to them. */
-.sx-manual-strat .nameField {
+   with the brand/crumb gone it gets the room that used to belong to them.
+   The outlined box is now `.nameFieldWrap`, which hosts the borderless
+   text input plus a dedicated "Edit" pencil button, so the box (not just
+   the raw input) is the visible, clickable "edit this name" affordance
+   and can grow to fit longer strategy names. */
+.sx-manual-strat .nameFieldWrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   background: transparent;
   /* Was transparent-by-default (only gaining a border on hover), so the
      field read as plain unboxed text rather than an editable input — now
@@ -138,21 +145,53 @@
   border: 1px solid var(--dimmer);
   border-radius: 6px;
   height: 38px;
-  padding: 0 9px;
+  padding: 0 4px 0 9px;
+  min-width: 200px;
+  max-width: 65vw;
+  flex: 0 1 560px;
+}
+.sx-manual-strat .nameFieldWrap:hover {
+  border-color: var(--tx);
+}
+.sx-manual-strat .nameFieldWrap:focus-within {
+  border-color: var(--gold);
+  background: var(--raise);
+}
+.sx-manual-strat .nameField {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  height: 100%;
+  padding: 0;
   font-weight: 600;
   font-size: 15px;
   letter-spacing: -0.01em;
-  min-width: 170px;
-  max-width: 60vw;
-  flex: 0 1 480px;
-}
-.sx-manual-strat .nameField:hover {
-  border-color: var(--tx);
 }
 .sx-manual-strat .nameField:focus {
-  border-color: var(--gold);
-  background: var(--raise);
   outline: none;
+}
+.sx-manual-strat .nameFieldEdit {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+}
+.sx-manual-strat .nameFieldEdit:hover {
+  background: var(--raise2);
+  color: var(--gold);
+}
+.sx-manual-strat .nameFieldWrap:focus-within .nameFieldEdit {
+  color: var(--gold);
 }
 .sx-manual-strat .forked {
   font-size: 11.5px;
@@ -213,8 +252,8 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  /* Same fixed height as .nameField (not just similar padding) so the name
-     field's outline and these buttons line up exactly along the header.
+  /* Same fixed height as .nameFieldWrap (not just similar padding) so the
+     name field's outline and these buttons line up exactly along the header.
      These buttons also carry daisyUI's global ".btn" class (for its base
      reset), which sets `min-height: 3rem` (48px) — a `min-height` floor
      that silently wins over our `height: 38px` unless overridden here too. */
@@ -562,42 +601,8 @@
   font-style: normal;
   font-size: 11px;
   color: var(--dim);
-  font-family: var(--mono);
-}
-/* Bottom row of a chip: the meta text on the left, an "Edit" affordance
-   on the right that fades in on hover/focus/selection. Clicking it does
-   the same thing as clicking anywhere else on the chip — it's a visual
-   cue, not a separate action — so it's a <span>, not a nested <button>. */
-.sx-manual-strat .tplChipFoot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
   margin-top: 4px;
-}
-.sx-manual-strat .tplChipFoot em {
-  margin-top: 0;
-}
-.sx-manual-strat .tplChipEdit {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex: 0 0 auto;
-  font-size: 10.5px;
-  font-weight: 700;
-  font-family: inherit;
-  color: var(--gold);
-  opacity: 0;
-  transition: opacity 0.12s ease;
-}
-.sx-manual-strat .tplChipEdit i {
-  font-size: 9px;
-}
-.sx-manual-strat .tplChip:hover .tplChipEdit,
-.sx-manual-strat .tplChip:focus-visible .tplChipEdit,
-.sx-manual-strat .tplChipMine:focus-within .tplChipEdit,
-.sx-manual-strat .tplChip[aria-current='true'] .tplChipEdit {
-  opacity: 1;
+  font-family: var(--mono);
 }
 /* category quick-filter pills — clearer, clickable way to jump to a
    category than small inline dividers buried in the scroll strip. */
@@ -1511,7 +1516,7 @@
     padding: 0 12px;
     gap: 8px;
   }
-  .sx-manual-strat .nameField {
+  .sx-manual-strat .nameFieldWrap {
     max-width: none;
     flex: 1;
   }
