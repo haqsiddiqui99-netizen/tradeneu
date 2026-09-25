@@ -481,6 +481,51 @@
   color: var(--tx);
   font-weight: 600;
 }
+/* Counting rows in the local store is slow enough that it shouldn't run on
+   its own — this is the control that asks for it, and it keeps showing the
+   result afterwards so a re-check is one click away. */
+.sx-manual-strat .barsBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line2);
+  border-radius: 99px;
+  background: var(--raise);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sx-manual-strat .barsBtn:hover:not(:disabled) {
+  border-color: var(--gold);
+  color: var(--tx);
+}
+.sx-manual-strat .barsBtn:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+.sx-manual-strat .barsBtn i {
+  font-size: 10px;
+  opacity: 0.8;
+}
+.sx-manual-strat .barsBtnDone {
+  background: transparent;
+  border-color: transparent;
+}
+.sx-manual-strat .barsBtnDone:hover {
+  background: var(--raise);
+  border-color: var(--line2);
+}
+.sx-manual-strat .barsEst {
+  color: var(--dim);
+}
 
 /* ---------- template bar (full-width, above everything) ---------- */
 .sx-manual-strat .templateBar {

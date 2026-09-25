@@ -440,7 +440,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
               <option>London only</option><option>New York only</option><option>Asia only</option>
             </select>
           </div>
-          <div class="bars" id="barsInfo">Checking bar coverage\u2026</div>
+          <div class="bars" id="barsInfo"></div>
         </div>
 
         <div class="templateBar">
@@ -1141,9 +1141,10 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   // "Bars available" used to be a flat hardcoded guess per timeframe. It's
   // now backed by a real, live count fetched from the server's local bar
-  // store for whichever symbol is selected (see refreshLiveBarCounts below);
-  // the hardcoded table only survives as a fallback while that fetch is in
-  // flight or if the symbol has no local data yet.
+  // store for whichever symbol is selected — on demand, when the user presses
+  // the bar-coverage button, since counting rows is slow enough to be worth
+  // asking for rather than firing on every symbol change. The hardcoded table
+  // only survives as a fallback for the trade estimate until that count lands.
   const MINUTES_PER_TF: Record<string, number> = { '1m': 1, '5m': 5, '15m': 15, '1h': 60, '4h': 240, '1D': 1440 }
   const liveBarCountsBySymbol = new Map<string, LocalBarCounts>()
   let liveBarCountsLoadingSymbol: string | null = null
@@ -1161,10 +1162,13 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     return Math.max(1, Math.round(m1 / perBar))
   }
 
-  async function refreshLiveBarCounts(symbol: string) {
+  async function refreshLiveBarCounts(symbol: string, force = false) {
     const sym = symbol.trim().toUpperCase()
-    if (!sym || liveBarCountsBySymbol.has(sym) || liveBarCountsLoadingSymbol === sym) return
+    if (!sym || liveBarCountsLoadingSymbol === sym) return
+    if (liveBarCountsBySymbol.has(sym) && !force) return
+    if (force) liveBarCountsBySymbol.delete(sym)
     liveBarCountsLoadingSymbol = sym
+    renderStats()
     const counts = await fetchLocalBarCounts(sym)
     if (liveBarCountsLoadingSymbol === sym) liveBarCountsLoadingSymbol = null
     // Cache an empty object (not just skip) on failure/no-data too, so the UI
@@ -1175,13 +1179,14 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     if (($<HTMLSelectElement>('symbol').value || '').toUpperCase() === sym) renderStats()
   }
 
-  function estimates(): { baseBars: number; est: number; state: 'live' | 'estimated' | 'loading' } {
+  function estimates(): { baseBars: number; est: number; state: 'live' | 'estimated' | 'loading' | 'idle' } {
     const tf = $<HTMLSelectElement>('tf').value
     const symbol = ($<HTMLSelectElement>('symbol').value || '').toUpperCase()
     const baseBarsByTf: Record<string, number> = { '1m': 740000, '5m': 148000, '15m': 74800, '1h': 18700, '4h': 4700, '1D': 790 }
     const live = liveBaseBarsFor(tf, symbol)
     const checked = liveBarCountsBySymbol.has(symbol)
-    const state: 'live' | 'estimated' | 'loading' = live != null ? 'live' : checked ? 'estimated' : 'loading'
+    const state: 'live' | 'estimated' | 'loading' | 'idle' =
+      live != null ? 'live' : checked ? 'estimated' : liveBarCountsLoadingSymbol === symbol ? 'loading' : 'idle'
     const baseBars = live ?? baseBarsByTf[tf] ?? 74800
     const dens = ({ all: 0.008, any: 0.019 }[S.entryJoin] ?? 0.008) / Math.max(1, S.entry.length * 0.6)
     const est = S.entry.length ? Math.max(0, Math.round(baseBars * dens)) : 0
@@ -1248,14 +1253,27 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const { baseBars, est, state } = estimates()
     const barsInfo = $<HTMLElement>('barsInfo')
     if (state === 'loading') {
-      barsInfo.innerHTML = 'Checking bar coverage\u2026'
-      barsInfo.title = 'Fetching the live bar count for this symbol from your local market data store\u2026'
+      barsInfo.innerHTML =
+        '<button type="button" class="barsBtn" id="barsBtn" disabled><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Checking bar coverage\u2026</button>'
+    } else if (state === 'idle') {
+      barsInfo.innerHTML =
+        '<button type="button" class="barsBtn" id="barsBtn" title="Count the bars stored locally for this symbol"><i class="fa-solid fa-database" aria-hidden="true"></i> Check bar coverage</button>'
     } else {
-      barsInfo.innerHTML = '\u2248 <b>' + baseBars.toLocaleString() + '</b> bars available'
-      barsInfo.title =
+      const title =
         state === 'live'
-          ? 'Live count from your local market data store'
-          : 'Estimated \u2014 no local data found for this symbol yet'
+          ? 'Live count from your local market data store \u2014 click to re-check'
+          : 'Estimated \u2014 no local data found for this symbol yet \u2014 click to re-check'
+      barsInfo.innerHTML =
+        '<button type="button" class="barsBtn barsBtnDone" id="barsBtn" title="' +
+        title +
+        '">\u2248 <b>' +
+        baseBars.toLocaleString() +
+        '</b> bars available' +
+        (state === 'estimated' ? ' <span class="barsEst">(est.)</span>' : '') +
+        ' <i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>'
+    }
+    $<HTMLButtonElement>('barsBtn').onclick = () => {
+      void refreshLiveBarCounts($<HTMLSelectElement>('symbol').value, true)
     }
     $('est').textContent = S.entry.length
       ? '\u2248 ' + est.toLocaleString() + ' trades over the selected range \u00b7 under 2s'
@@ -1888,7 +1906,6 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       renderJson()
       renderStats()
       renderSpark()
-      if (id === 'symbol') void refreshLiveBarCounts($<HTMLSelectElement>('symbol').value)
     })
   })
   $<HTMLSelectElement>('entryJoin').onchange = (e) => {
@@ -1997,7 +2014,6 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   host.querySelector('[data-sx-back]')?.addEventListener('click', () => opts.onBack?.())
 
   loadTemplate(TEMPLATES[0]!)
-  void refreshLiveBarCounts($<HTMLSelectElement>('symbol').value)
   // First measure can land before the webfont swaps in, which would leave the
   // box sized for the fallback font's metrics.
   void document.fonts?.ready.then(() => sizeNameField())
