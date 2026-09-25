@@ -131,9 +131,14 @@
    with the brand/crumb gone it gets the room that used to belong to them. */
 .sx-manual-strat .nameField {
   background: transparent;
-  border: 1px solid transparent;
+  /* Was transparent-by-default (only gaining a border on hover), so the
+     field read as plain unboxed text rather than an editable input — now
+     it carries a clearly visible outline at rest, matching the header
+     action buttons' height so the whole header lines up. */
+  border: 1px solid var(--dimmer);
   border-radius: 6px;
-  padding: 5px 9px;
+  height: 38px;
+  padding: 0 9px;
   font-weight: 600;
   font-size: 15px;
   letter-spacing: -0.01em;
@@ -142,7 +147,7 @@
   flex: 0 1 480px;
 }
 .sx-manual-strat .nameField:hover {
-  border-color: var(--line2);
+  border-color: var(--tx);
 }
 .sx-manual-strat .nameField:focus {
   border-color: var(--gold);
@@ -206,8 +211,12 @@
 .sx-manual-strat .btn-save {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
-  padding: 8px 16px;
+  /* Same fixed height as .nameField (not just similar padding) so the name
+     field's outline and these buttons line up exactly along the header. */
+  height: 38px;
+  padding: 0 16px;
   border-radius: 8px;
   font-size: 13.5px;
   font-weight: 600;
