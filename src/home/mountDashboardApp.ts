@@ -3103,6 +3103,21 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     return `${sign}$${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
+  // Formats a $ axis tick, scaling to "k" only when the tick spacing (stepAbs)
+  // is wide enough that whole-dollar amounts would be unreadable. Blindly
+  // dividing by 1000 and rounding (the old behaviour) collapsed every tick
+  // onto "$0k" whenever the axis bound was small — e.g. the Trades sparkline
+  // with no trades yet, whose \u00b1$2 bound all rounded to 0k. Positive values
+  // get an explicit "+" to match the "\u2212" negative ticks already carry.
+  function sxFormatMoneyTick(raw: number, stepAbs: number): string {
+    const sign = raw < 0 ? '\u2212' : raw > 0 ? '+' : ''
+    const abs = Math.abs(raw)
+    const step = Math.abs(stepAbs) || abs || 1
+    if (step < 1000) return `${sign}$${Math.round(abs).toLocaleString()}`
+    const decimals = step % 1000 === 0 ? 0 : step < 10000 ? 2 : 1
+    return `${sign}$${(abs / 1000).toFixed(decimals)}k`
+  }
+
   function sxBuildJournalEntry(key: string): TradeJournalDialogEntry | null {
     const sep = key.lastIndexOf(':')
     if (sep < 0) return null
@@ -3349,7 +3364,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                 padding: 2,
                 callback: (v) => {
                   const n = typeof v === 'number' ? v : Number(v)
-                  return `$${Math.round(n / 1000)}k`
+                  return sxFormatMoneyTick(n, bound)
                 },
               },
               grid: { color: gridColor },

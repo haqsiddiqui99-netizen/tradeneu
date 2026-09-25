@@ -1472,6 +1472,18 @@ export function initAnalyticsPage(
     const cumulativePnl = data.map((v) => v - startingBalance)
     const closedPnl = cumulativePnl.map((v, i) => (i > 0 ? v - cumulativePnl[i - 1]! : v))
 
+    // With no trades yet (or a flat balance across the whole period), every point sits on
+    // the exact same value — left to its own devices Chart.js auto-scales a near-zero span
+    // into a cramped axis with sub-$1 steps, which then round-trip through the whole-dollar
+    // label formatter as a run of duplicate "$0"/"$1" ticks. Give it the same explicit
+    // "nice ±band around the flat value" fallback the other empty-state charts use instead.
+    const dataMin = data.length ? Math.min(...data) : 0
+    const dataMax = data.length ? Math.max(...data) : 0
+    const isFlat = dataMax - dataMin < 1e-9
+    const flatBand = isFlat ? Math.max(1, niceStep(Math.abs(dataMin) * 0.1)) : 0
+    const yMin = isFlat ? dataMin - flatBand : undefined
+    const yMax = isFlat ? dataMax + flatBand : undefined
+
     function fmtTooltipNum(v: number): string {
       return `${v < 0 ? '-' : ''}${Math.abs(v).toFixed(2)}`
     }
@@ -1542,12 +1554,15 @@ export function initAnalyticsPage(
         },
         scales: {
           y: {
+            min: yMin,
+            max: yMax,
             afterFit: (scale) => {
               scale.width += 4
             },
             ticks: {
               font: { family: 'IBM Plex Mono', size: 10.5 },
               color: axisColor,
+              stepSize: isFlat ? flatBand : undefined,
               callback: (v, _idx, ticks) => {
                 const stepAbs = ticks.length > 1 ? Math.abs(Number(ticks[1]!.value) - Number(ticks[0]!.value)) : 0
                 return sxaAxisMoneyLabel(Number(v), stepAbs)
@@ -2141,7 +2156,10 @@ export function initAnalyticsPage(
   // near-$100k balance range with a ~$450 spread showed "$100k" for every tick.
   function sxaAxisMoneyLabel(raw: number, stepAbs: number): string {
     const v = Number(raw)
-    const sign = v < 0 ? '-' : ''
+    // Zero stays unsigned; everything above it gets an explicit "+" to match
+    // the "-" that negative ticks already carry, instead of positive values
+    // looking unsigned/default while negative ones are visibly marked.
+    const sign = v < 0 ? '-' : v > 0 ? '+' : ''
     const abs = Math.abs(v)
     const step = Math.abs(stepAbs) || abs || 1
     if (step < 1000) {
