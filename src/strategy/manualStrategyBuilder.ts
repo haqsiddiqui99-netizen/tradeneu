@@ -1168,7 +1168,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     if (liveBarCountsBySymbol.has(sym) && !force) return
     if (force) liveBarCountsBySymbol.delete(sym)
     liveBarCountsLoadingSymbol = sym
-    renderStats()
+    renderBarsInfo()
     const counts = await fetchLocalBarCounts(sym)
     if (liveBarCountsLoadingSymbol === sym) liveBarCountsLoadingSymbol = null
     // Cache an empty object (not just skip) on failure/no-data too, so the UI
@@ -1176,7 +1176,9 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     // there" (empty entry) instead of silently retrying forever.
     liveBarCountsBySymbol.set(sym, counts ?? {})
     // Only worth a re-render if the symbol fetched is still the one selected.
-    if (($<HTMLSelectElement>('symbol').value || '').toUpperCase() === sym) renderStats()
+    // renderChecks repaints the button and the trade estimate that rides on
+    // the same count.
+    if (($<HTMLSelectElement>('symbol').value || '').toUpperCase() === sym) renderChecks()
   }
 
   function estimates(): { baseBars: number; est: number; state: 'live' | 'estimated' | 'loading' | 'idle' } {
@@ -1191,6 +1193,36 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const dens = ({ all: 0.008, any: 0.019 }[S.entryJoin] ?? 0.008) / Math.max(1, S.entry.length * 0.6)
     const est = S.entry.length ? Math.max(0, Math.round(baseBars * dens)) : 0
     return { baseBars, est, state }
+  }
+
+  // Kept separate from renderChecks so the fetch can repaint just this
+  // control as it moves through idle -> fetching -> counted.
+  function renderBarsInfo() {
+    const { baseBars, state } = estimates()
+    const barsInfo = $<HTMLElement>('barsInfo')
+    if (state === 'loading') {
+      barsInfo.innerHTML =
+        '<button type="button" class="barsBtn" id="barsBtn" disabled><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Fetching bar coverage\u2026</button>'
+    } else if (state === 'idle') {
+      barsInfo.innerHTML =
+        '<button type="button" class="barsBtn" id="barsBtn" title="Count the bars stored locally for this symbol"><i class="fa-solid fa-database" aria-hidden="true"></i> Check bar coverage</button>'
+    } else {
+      const title =
+        state === 'live'
+          ? 'Live count from your local market data store \u2014 click to re-check'
+          : 'Estimated \u2014 no local data found for this symbol yet \u2014 click to re-check'
+      barsInfo.innerHTML =
+        '<button type="button" class="barsBtn barsBtnDone" id="barsBtn" title="' +
+        title +
+        '">\u2248 <b>' +
+        baseBars.toLocaleString() +
+        '</b> bars available' +
+        (state === 'estimated' ? ' <span class="barsEst">(est.)</span>' : '') +
+        ' <i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>'
+    }
+    $<HTMLButtonElement>('barsBtn').onclick = () => {
+      void refreshLiveBarCounts($<HTMLSelectElement>('symbol').value, true)
+    }
   }
 
   function longestLookback(): number {
@@ -1250,31 +1282,8 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     })
 
     $<HTMLButtonElement>('btnRun').disabled = !S.entry.length
-    const { baseBars, est, state } = estimates()
-    const barsInfo = $<HTMLElement>('barsInfo')
-    if (state === 'loading') {
-      barsInfo.innerHTML =
-        '<button type="button" class="barsBtn" id="barsBtn" disabled><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Checking bar coverage\u2026</button>'
-    } else if (state === 'idle') {
-      barsInfo.innerHTML =
-        '<button type="button" class="barsBtn" id="barsBtn" title="Count the bars stored locally for this symbol"><i class="fa-solid fa-database" aria-hidden="true"></i> Check bar coverage</button>'
-    } else {
-      const title =
-        state === 'live'
-          ? 'Live count from your local market data store \u2014 click to re-check'
-          : 'Estimated \u2014 no local data found for this symbol yet \u2014 click to re-check'
-      barsInfo.innerHTML =
-        '<button type="button" class="barsBtn barsBtnDone" id="barsBtn" title="' +
-        title +
-        '">\u2248 <b>' +
-        baseBars.toLocaleString() +
-        '</b> bars available' +
-        (state === 'estimated' ? ' <span class="barsEst">(est.)</span>' : '') +
-        ' <i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>'
-    }
-    $<HTMLButtonElement>('barsBtn').onclick = () => {
-      void refreshLiveBarCounts($<HTMLSelectElement>('symbol').value, true)
-    }
+    const { est } = estimates()
+    renderBarsInfo()
     $('est').textContent = S.entry.length
       ? '\u2248 ' + est.toLocaleString() + ' trades over the selected range \u00b7 under 2s'
       : 'Add an entry condition to run'
