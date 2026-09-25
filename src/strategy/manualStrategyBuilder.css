@@ -25,7 +25,10 @@
   --long: #15803d;
   --short: #dc2626;
   --warn: #b45309;
-  --sans: 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /* Same stack the dashboard sidebar uses, so this page reads as part of the
+     app rather than as a separate tool. --mono is now only for the JSON
+     preview, where column alignment is the point. */
+  --sans: 'Segoe UI Variable', 'Segoe UI', Inter, -apple-system, Roboto, sans-serif;
   --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
   color-scheme: light;
   display: block;
@@ -351,7 +354,7 @@
 .sx-manual-strat .num {
   width: 60px;
   text-align: right;
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 13px;
 }
 .sx-manual-strat .seg {
@@ -450,7 +453,7 @@
   border-color: transparent;
 }
 .sx-manual-strat .ticker {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-weight: 700;
   letter-spacing: 0.02em;
   width: 96px;
@@ -460,7 +463,7 @@
    .ticker <select> stays hidden in the DOM, so its font/weight/case must
    be re-applied to the visible dd__btn that replaces it. */
 .sx-manual-strat .ctxItem .dd:has(#symbol) .dd__btn {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -470,7 +473,7 @@
   align-self: center;
   flex: 0 1 auto;
   min-width: 0;
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
   color: var(--dim);
   white-space: nowrap;
@@ -496,7 +499,7 @@
   border-radius: 99px;
   background: var(--raise);
   color: var(--dim);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
@@ -572,7 +575,7 @@
   font-size: 10.5px;
   font-weight: 700;
   padding: 1px 6px;
-  font-family: var(--mono);
+  font-family: var(--sans);
 }
 .sx-manual-strat .tplScroll {
   display: flex;
@@ -677,7 +680,7 @@
   font-size: 11px;
   color: var(--dim);
   margin-top: 4px;
-  font-family: var(--mono);
+  font-family: var(--sans);
 }
 /* category quick-filter pills — clearer, clickable way to jump to a
    category than small inline dividers buried in the scroll strip. */
@@ -715,7 +718,7 @@
 }
 .sx-manual-strat .tplCat em {
   font-style: normal;
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 10px;
   font-weight: 700;
   color: var(--dim);
@@ -857,7 +860,7 @@
   letter-spacing: 0.06em;
 }
 .sx-manual-strat .stat .val {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 15px;
   font-weight: 600;
   color: var(--tx);
@@ -1000,7 +1003,7 @@
   white-space: nowrap;
 }
 .sx-manual-strat .sparkStats .cell .v {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -1027,7 +1030,7 @@
   flex-wrap: wrap;
 }
 .sx-manual-strat .kw {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.09em;
@@ -1070,7 +1073,7 @@
   border-top: 1px solid var(--line);
 }
 .sx-manual-strat .joinTag {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
   color: var(--dim);
   width: 26px;
@@ -1212,7 +1215,7 @@
   margin-top: 5px;
   font-size: 11.5px;
   color: var(--dim);
-  font-family: var(--mono);
+  font-family: var(--sans);
 }
 
 /* ---------- reader ---------- */
@@ -1247,7 +1250,7 @@
   border-bottom: 0;
 }
 .sx-manual-strat .prose .v {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 14px;
   color: var(--gold);
 }
@@ -1356,7 +1359,7 @@
 .sx-manual-strat .actions .est {
   font-size: 12.5px;
   color: var(--dim);
-  font-family: var(--mono);
+  font-family: var(--sans);
 }
 .sx-manual-strat .actionsInner {
   display: flex;
