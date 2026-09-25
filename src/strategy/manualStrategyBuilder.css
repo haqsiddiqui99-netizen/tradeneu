@@ -214,8 +214,12 @@
   justify-content: center;
   gap: 7px;
   /* Same fixed height as .nameField (not just similar padding) so the name
-     field's outline and these buttons line up exactly along the header. */
+     field's outline and these buttons line up exactly along the header.
+     These buttons also carry daisyUI's global ".btn" class (for its base
+     reset), which sets `min-height: 3rem` (48px) — a `min-height` floor
+     that silently wins over our `height: 38px` unless overridden here too. */
   height: 38px;
+  min-height: 38px;
   padding: 0 16px;
   border-radius: 8px;
   font-size: 13.5px;
