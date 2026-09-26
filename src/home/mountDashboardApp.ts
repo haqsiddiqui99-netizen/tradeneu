@@ -649,6 +649,22 @@ const SX_TRADES_COLUMNS: SxTradeColumnDef[] = [
   { id: 'fees', label: 'Fees' },
 ]
 
+// Columns shown before the trader touches the column picker. These mirror the
+// chart workspace's Closed Positions table so the same trade reads the same way
+// in both places; everything else stays opt-in via the Column filter.
+const SX_TRADES_DEFAULT_COLUMNS = new Set([
+  'side',
+  'entryChart',
+  'exitDate',
+  'entryPrice',
+  'size',
+  'stopLoss',
+  'takeProfit',
+  'exitPrice',
+  'returnUsd',
+  'returnR',
+])
+
 const TESTING_TABS = ['dashboard', 'sessions', 'trades', 'analytics'] as const
 type TestingTab = (typeof TESTING_TABS)[number]
 
@@ -2766,8 +2782,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   const sxTradesSelected = new Set<string>()
 
   function sxDefaultHiddenTradesColumns(): Set<string> {
-    // No column is selected by default — the user opts in to the columns they want to see.
-    return new Set(SX_TRADES_COLUMNS.filter((c) => !c.locked).map((c) => c.id))
+    return new Set(
+      SX_TRADES_COLUMNS.filter((c) => !c.locked && !SX_TRADES_DEFAULT_COLUMNS.has(c.id)).map(
+        (c) => c.id,
+      ),
+    )
   }
 
   function sxReadTradesHiddenColumns(): Set<string> {
@@ -2777,7 +2796,15 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       const arr = JSON.parse(raw)
       if (Array.isArray(arr)) {
         const lockedIds = new Set(SX_TRADES_COLUMNS.filter((c) => c.locked).map((c) => c.id))
-        return new Set(arr.filter((id): id is string => typeof id === 'string' && !lockedIds.has(id)))
+        const stored = new Set(
+          arr.filter((id): id is string => typeof id === 'string' && !lockedIds.has(id)),
+        )
+        // An earlier build defaulted to hiding every data column, which left the
+        // table showing nothing but Action/Asset/Trade #. That state was never a
+        // deliberate choice, so fall through to the new defaults instead.
+        const toggleable = SX_TRADES_COLUMNS.filter((c) => !c.locked)
+        if (stored.size >= toggleable.length) return sxDefaultHiddenTradesColumns()
+        return stored
       }
     } catch {
       /* ignore */
