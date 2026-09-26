@@ -121,14 +121,17 @@ function sxEquitySegmentColor(values: (number | null)[], ctx: { p0DataIndex: num
 
 function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<typeof computeEquityCurveSeries>) {
   const rawCumulative = equity.hasData ? equity.cumulative : new Array(12).fill(0)
-  // Don't plot (or flat-line) months that are still in the future relative to
-  // "now" — the running total naturally stays flat past the last real data
-  // point, which made the line render straight through Oct/Nov/Dec even
-  // though no data exists yet for those months. Cut the series off after the
-  // current month so the chart only shows months that have actually passed.
+  // Only plot months the trader actually traded in. The cumulative total
+  // naturally stays flat before the first trade and after the last one, which
+  // used to draw dots straight across every remaining month of the year and
+  // read as though trades had happened there. One zero-anchor month is kept
+  // ahead of the first trade so the opening move renders as a line, not a
+  // lone dot.
+  const first = equity.firstActivityIndex
+  const last = equity.lastActivityIndex
   const cumulative: (number | null)[] =
-    equity.currentMonthIndex >= 0
-      ? rawCumulative.map((v, i) => (i <= equity.currentMonthIndex ? v : null))
+    equity.hasData && first >= 0
+      ? rawCumulative.map((v, i) => (i >= Math.max(0, first - 1) && i <= last ? v : null))
       : rawCumulative
   const plottedValues = cumulative.filter((v): v is number => v != null)
   const maxVal = Math.max(0, ...plottedValues, 1)

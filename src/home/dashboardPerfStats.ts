@@ -340,6 +340,21 @@ function bucketMonthly(events: PnlEvent[], now = new Date()): number[] {
   return buckets
 }
 
+/**
+ * Which months actually contain trades, counted separately from the P&L
+ * buckets so a break-even month still registers as activity rather than
+ * looking identical to a month with no trading at all.
+ */
+function bucketMonthlyCounts(events: PnlEvent[], now = new Date()): number[] {
+  const counts = new Array<number>(12).fill(0)
+  for (const e of events) {
+    const d = new Date(e.ts)
+    if (d.getFullYear() !== now.getFullYear()) continue
+    counts[d.getMonth()] = (counts[d.getMonth()] ?? 0) + 1
+  }
+  return counts
+}
+
 function resolveChartEvents(
   sessions: StoredSession[],
   mode: DashboardPerfMode,
@@ -594,7 +609,9 @@ export type EquityCurveSeries = {
   labels: string[]
   monthLabels: string[]
   cumulative: number[]
-  currentMonthIndex: number
+  /** Month index of the first/last trade, or -1 when there are none. */
+  firstActivityIndex: number
+  lastActivityIndex: number
   hasData: boolean
 }
 
@@ -613,8 +630,8 @@ export function computeEquityCurveSeries(
 
   let year = nowDate.getFullYear()
   let monthly = bucketMonthly(events, nowDate)
-  const hasThisYear = monthly.some((v) => Math.abs(v) > 1e-9)
-  if (!hasThisYear && events.length > 0) {
+  let counts = bucketMonthlyCounts(events, nowDate)
+  if (!counts.some((c) => c > 0) && events.length > 0) {
     let latest = events[0]!
     for (const e of events) {
       if (e.ts > latest.ts) latest = e
@@ -622,6 +639,7 @@ export function computeEquityCurveSeries(
     const latestDate = new Date(latest.ts)
     year = latestDate.getFullYear()
     monthly = bucketMonthly(events, latestDate)
+    counts = bucketMonthlyCounts(events, latestDate)
   }
 
   const cumulative: number[] = []
@@ -635,7 +653,8 @@ export function computeEquityCurveSeries(
     labels: MONTH_SHORT.map((m) => m[0]!),
     monthLabels: MONTH_SHORT.map((m) => `${m} ${year}`),
     cumulative,
-    currentMonthIndex: year === nowDate.getFullYear() ? nowDate.getMonth() : -1,
+    firstActivityIndex: counts.findIndex((c) => c > 0),
+    lastActivityIndex: counts.reduce((last, c, i) => (c > 0 ? i : last), -1),
     hasData: events.length > 0,
   }
 }
