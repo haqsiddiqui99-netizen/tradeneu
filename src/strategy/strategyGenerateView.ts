@@ -37,6 +37,32 @@ const STYLE_OPTIONS = [
   { value: 'scalping', label: 'Scalping' },
 ]
 
+const DIRECTION_OPTIONS = [
+  { value: 'both', label: 'Long and short' },
+  { value: 'long', label: 'Long only' },
+  { value: 'short', label: 'Short only' },
+]
+
+const SESSION_OPTIONS = [
+  { value: 'any', label: 'Any time' },
+  { value: 'london', label: 'London open' },
+  { value: 'new-york', label: 'New York open' },
+  { value: 'overlap', label: 'London/NY overlap' },
+  { value: 'asia', label: 'Asian session' },
+]
+
+const STOP_OPTIONS = [
+  { value: 'atr', label: 'ATR multiple' },
+  { value: 'percent', label: 'Fixed percentage' },
+  { value: 'swing', label: 'Beyond recent swing' },
+]
+
+const TARGET_OPTIONS = [
+  { value: 'rr', label: 'Risk/reward ratio' },
+  { value: 'percent', label: 'Fixed percentage' },
+  { value: 'signal', label: 'Exit on opposite signal' },
+]
+
 function optionsHtml(items: { value: string; label: string }[]): string {
   return [
     '<option value="">Select\u2026</option>',
@@ -65,21 +91,54 @@ function html(): string {
             <input type="text" data-sx-gen-timeframe placeholder="e.g. 15m, 1H, Daily" />
           </label>
           <label class="sx-strat-gen__field">
-            <span class="sx-strat-gen__label">Risk tolerance</span>
-            <select data-sx-gen-risk>${optionsHtml(RISK_OPTIONS)}</select>
+            <span class="sx-strat-gen__label">Session</span>
+            <select data-sx-gen-session>${optionsHtml(SESSION_OPTIONS)}</select>
           </label>
+
           <label class="sx-strat-gen__field">
             <span class="sx-strat-gen__label">Trading style</span>
             <select data-sx-gen-style>${optionsHtml(STYLE_OPTIONS)}</select>
           </label>
-        </div>
+          <label class="sx-strat-gen__field">
+            <span class="sx-strat-gen__label">Direction</span>
+            <select data-sx-gen-direction>${optionsHtml(DIRECTION_OPTIONS)}</select>
+          </label>
+          <label class="sx-strat-gen__field">
+            <span class="sx-strat-gen__label">Indicators to favour</span>
+            <input type="text" data-sx-gen-indicators placeholder="e.g. EMA 50, RSI, ATR" />
+          </label>
 
-        <textarea
-          class="sx-strat-gen__notes"
-          data-sx-gen-notes
-          rows="4"
-          placeholder="Anything else? (optional)"
-        ></textarea>
+          <label class="sx-strat-gen__field">
+            <span class="sx-strat-gen__label">Risk tolerance</span>
+            <select data-sx-gen-risk>${optionsHtml(RISK_OPTIONS)}</select>
+          </label>
+          <label class="sx-strat-gen__field">
+            <span class="sx-strat-gen__label">Risk per trade</span>
+            <input type="text" data-sx-gen-riskpct placeholder="e.g. 1%" />
+          </label>
+          <label class="sx-strat-gen__field">
+            <span class="sx-strat-gen__label">Max open trades</span>
+            <input type="text" data-sx-gen-maxtrades placeholder="e.g. 1" />
+          </label>
+
+          <label class="sx-strat-gen__field">
+            <span class="sx-strat-gen__label">Stop loss</span>
+            <select data-sx-gen-stop>${optionsHtml(STOP_OPTIONS)}</select>
+          </label>
+          <label class="sx-strat-gen__field">
+            <span class="sx-strat-gen__label">Take profit</span>
+            <select data-sx-gen-target>${optionsHtml(TARGET_OPTIONS)}</select>
+          </label>
+          <label class="sx-strat-gen__field sx-strat-gen__field--wide">
+            <span class="sx-strat-gen__label">Anything else?</span>
+            <textarea
+              class="sx-strat-gen__notes"
+              data-sx-gen-notes
+              rows="2"
+              placeholder="Optional — how you actually trade it"
+            ></textarea>
+          </label>
+        </div>
 
         <div class="sx-strat-obj__error" data-sx-gen-error hidden role="alert"></div>
 
@@ -108,7 +167,19 @@ export function mountStrategyGenerateView(
   const timeframeEl = q<HTMLInputElement>('[data-sx-gen-timeframe]')
   const riskEl = q<HTMLSelectElement>('[data-sx-gen-risk]')
   const styleEl = q<HTMLSelectElement>('[data-sx-gen-style]')
+  const sessionEl = q<HTMLSelectElement>('[data-sx-gen-session]')
+  const directionEl = q<HTMLSelectElement>('[data-sx-gen-direction]')
+  const indicatorsEl = q<HTMLInputElement>('[data-sx-gen-indicators]')
+  const riskPctEl = q<HTMLInputElement>('[data-sx-gen-riskpct]')
+  const maxTradesEl = q<HTMLInputElement>('[data-sx-gen-maxtrades]')
+  const stopEl = q<HTMLSelectElement>('[data-sx-gen-stop]')
+  const targetEl = q<HTMLSelectElement>('[data-sx-gen-target]')
   const notesEl = q<HTMLTextAreaElement>('[data-sx-gen-notes]')
+
+  /** Selects carry value codes; the AI reads better with the visible wording. */
+  function labelOf(el: HTMLSelectElement): string {
+    return el.value ? el.options[el.selectedIndex]?.text ?? '' : ''
+  }
 
   function showError(msg: string) {
     errorEl.textContent = msg
@@ -121,18 +192,27 @@ export function mountStrategyGenerateView(
   }
 
   async function submit() {
-    const market = marketEl.value.trim()
-    const timeframe = timeframeEl.value.trim()
-    const riskTolerance = riskEl.value
-    const style = styleEl.value
-    const notes = notesEl.value.trim()
-    if (!market && !timeframe && !riskTolerance && !style && !notes) {
+    const input = {
+      market: marketEl.value.trim(),
+      timeframe: timeframeEl.value.trim(),
+      riskTolerance: riskEl.value,
+      style: styleEl.value,
+      session: labelOf(sessionEl),
+      direction: directionEl.value,
+      indicators: indicatorsEl.value.trim(),
+      riskPerTrade: riskPctEl.value.trim(),
+      maxOpenTrades: maxTradesEl.value.trim(),
+      stopStyle: labelOf(stopEl),
+      targetStyle: labelOf(targetEl),
+      notes: notesEl.value.trim(),
+    }
+    if (!Object.values(input).some(Boolean)) {
       showError('Tell us a little about the strategy you want first.')
       return
     }
     showError('')
     showBuilding(true)
-    const result = await generateStrategy({ market, timeframe, riskTolerance, style, notes })
+    const result = await generateStrategy(input)
     if (!result.ok) {
       showBuilding(false)
       showError(describeStrategyAiError(result.error))

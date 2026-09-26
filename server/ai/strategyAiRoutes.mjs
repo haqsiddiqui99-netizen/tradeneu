@@ -191,28 +191,46 @@ export function mountStrategyAiRoutes(app) {
       return
     }
 
-    const market = String(req.body?.market || '').trim().slice(0, 100)
-    const timeframe = String(req.body?.timeframe || '').trim().slice(0, 50)
-    const riskTolerance = String(req.body?.riskTolerance || '').trim().slice(0, 50)
-    const style = String(req.body?.style || '').trim().slice(0, 100)
-    const notes = String(req.body?.notes || '').trim().slice(0, 2000)
+    const field = (key, max) => String(req.body?.[key] || '').trim().slice(0, max)
+    const market = field('market', 100)
+    const timeframe = field('timeframe', 50)
+    const riskTolerance = field('riskTolerance', 50)
+    const style = field('style', 100)
+    const session = field('session', 60)
+    const direction = field('direction', 20)
+    const indicators = field('indicators', 200)
+    const riskPerTrade = field('riskPerTrade', 20)
+    const maxOpenTrades = field('maxOpenTrades', 10)
+    const stopStyle = field('stopStyle', 60)
+    const targetStyle = field('targetStyle', 60)
+    const notes = field('notes', 2000)
 
-    if (!market && !timeframe && !riskTolerance && !style && !notes) {
+    const profile = [
+      market ? `Market / instrument: ${market}` : null,
+      timeframe ? `Timeframe: ${timeframe}` : null,
+      session ? `Preferred session (set sessionFilter in UTC hours to match): ${session}` : null,
+      style ? `Preferred trading style: ${style}` : null,
+      direction ? `Trade direction: ${direction}` : null,
+      indicators ? `Indicators the trader wants used where sensible: ${indicators}` : null,
+      riskTolerance ? `Risk tolerance: ${riskTolerance}` : null,
+      riskPerTrade ? `Risk per trade (use fixed_risk position sizing): ${riskPerTrade}` : null,
+      maxOpenTrades ? `Max open trades: ${maxOpenTrades}` : null,
+      stopStyle ? `Stop loss approach: ${stopStyle}` : null,
+      targetStyle ? `Take profit approach: ${targetStyle}` : null,
+      notes ? `Additional notes from the trader: ${notes}` : null,
+    ].filter(Boolean)
+
+    if (!profile.length) {
       res.status(400).json({ ok: false, error: 'input_required' })
       return
     }
 
     try {
       const userPrompt = [
-        'Design a brand-new strategy for this trader profile — pick a coherent, testable rule set that fits it well:',
-        market ? `Market / instrument: ${market}` : null,
-        timeframe ? `Timeframe: ${timeframe}` : null,
-        riskTolerance ? `Risk tolerance: ${riskTolerance}` : null,
-        style ? `Preferred trading style: ${style}` : null,
-        notes ? `Additional notes from the trader: ${notes}` : null,
-      ]
-        .filter(Boolean)
-        .join('\n')
+        'Design a brand-new strategy for this trader profile — pick a coherent, testable rule set that fits it well.',
+        'Honour every preference below that maps onto the schema; fill in anything they left blank with a sensible default.',
+        ...profile,
+      ].join('\n')
       const content = await callOpenAi(userPrompt)
       res.json({ ok: true, strategyJson: content })
     } catch (err) {

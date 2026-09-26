@@ -16,6 +16,13 @@ export type StrategyAiGenerateInput = {
   timeframe?: string
   riskTolerance?: string
   style?: string
+  session?: string
+  direction?: string
+  indicators?: string
+  riskPerTrade?: string
+  maxOpenTrades?: string
+  stopStyle?: string
+  targetStyle?: string
   notes?: string
 }
 
