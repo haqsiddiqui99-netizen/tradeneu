@@ -2417,7 +2417,9 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     disposeBilling = mountBillingPage(viewBillingPanel, {
       readTier: readAccountTier,
       getAuthUser: () => getAuthUser(),
-      onOpenSubscription: openUpgradePlansModal,
+      // "Manage plan" should land on the same Subscription tab the top-bar
+      // Upgrade button opens, not a separate plans modal.
+      onOpenSubscription: () => showSettingsPage('subscription'),
     })
   }
 
