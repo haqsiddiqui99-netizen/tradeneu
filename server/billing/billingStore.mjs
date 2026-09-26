@@ -6,6 +6,7 @@ import { BILLING_CYCLES, PAID_PLANS, planLabel, planMrr, periodEndMs } from './p
 const BILLING_DIR = 'billing'
 const SUBSCRIPTIONS_FILE = 'subscriptions.json'
 const TRANSACTIONS_FILE = 'transactions.jsonl'
+const ADDRESSES_FILE = 'addresses.json'
 const MAX_TX_READ_BYTES = 512 * 1024
 
 function billingDir(dataDir) {
@@ -18,6 +19,10 @@ function subscriptionsPath(dataDir) {
 
 function transactionsPath(dataDir) {
   return path.join(billingDir(dataDir), TRANSACTIONS_FILE)
+}
+
+function addressesPath(dataDir) {
+  return path.join(billingDir(dataDir), ADDRESSES_FILE)
 }
 
 function newId(prefix) {
@@ -50,6 +55,18 @@ export function readSubscriptionsMap(dataDir) {
 /** @param {string} dataDir @param {Record<string, object>} map */
 function writeSubscriptionsMap(dataDir, map) {
   writeJsonFile(subscriptionsPath(dataDir), map)
+}
+
+/** @param {string} dataDir */
+function readAddressesMap(dataDir) {
+  const raw = readJsonFile(addressesPath(dataDir), {})
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  return raw
+}
+
+/** @param {string} dataDir @param {Record<string, object>} map */
+function writeAddressesMap(dataDir, map) {
+  writeJsonFile(addressesPath(dataDir), map)
 }
 
 /** @param {string} dataDir @param {{ limit?: number, since?: number }} opts */
@@ -94,13 +111,126 @@ export function readBillingForEmail(dataDir, email) {
   const key = String(email || '')
     .trim()
     .toLowerCase()
-  if (!key) return { subscription: null, transactions: [] }
+  if (!key) return { subscription: null, transactions: [], address: null }
 
   const subscription = readSubscriptionsMap(dataDir)[key] ?? null
   const transactions = readTransactions(dataDir, { limit: 200 }).filter(
     (row) => String(row?.email || '').trim().toLowerCase() === key,
   )
-  return { subscription, transactions }
+  const address = readAddressesMap(dataDir)[key] ?? null
+  return { subscription, transactions, address }
+}
+
+/**
+ * Switches an existing paid subscription to a different billing cycle. Starts
+ * a fresh period from now rather than prorating, which keeps the demo billing
+ * model honest — there is no recurring-charge engine behind this to prorate
+ * against.
+ * @param {string} dataDir @param {string} email @param {string} cycle
+ */
+export function changeSubscriptionCycle(dataDir, email, cycle) {
+  const key = String(email || '').trim().toLowerCase()
+  if (!key) return { ok: false, error: 'missing_email' }
+  if (!BILLING_CYCLES.has(cycle)) return { ok: false, error: 'invalid_cycle' }
+
+  const subs = readSubscriptionsMap(dataDir)
+  const sub = subs[key]
+  if (!sub || !PAID_PLANS.has(sub.plan)) return { ok: false, error: 'no_subscription' }
+  if (sub.status !== 'active') return { ok: false, error: 'not_active' }
+
+  const now = Date.now()
+  subs[key] = {
+    ...sub,
+    cycle,
+    mrr: planMrr(sub.plan, cycle),
+    currentPeriodEnd: periodEndMs(cycle, now),
+    updatedAt: now,
+  }
+  writeSubscriptionsMap(dataDir, subs)
+  return { ok: true, subscription: subs[key] }
+}
+
+/** @param {string} dataDir @param {string} email */
+export function pauseSubscription(dataDir, email) {
+  const key = String(email || '').trim().toLowerCase()
+  if (!key) return { ok: false, error: 'missing_email' }
+
+  const subs = readSubscriptionsMap(dataDir)
+  const sub = subs[key]
+  if (!sub || !PAID_PLANS.has(sub.plan)) return { ok: false, error: 'no_subscription' }
+  if (sub.status === 'paused') return { ok: false, error: 'already_paused' }
+  if (sub.status === 'canceled') return { ok: false, error: 'canceled' }
+
+  const now = Date.now()
+  subs[key] = { ...sub, status: 'paused', pausedAt: now, updatedAt: now }
+  writeSubscriptionsMap(dataDir, subs)
+  return { ok: true, subscription: subs[key] }
+}
+
+/** @param {string} dataDir @param {string} email */
+export function resumeSubscription(dataDir, email) {
+  const key = String(email || '').trim().toLowerCase()
+  if (!key) return { ok: false, error: 'missing_email' }
+
+  const subs = readSubscriptionsMap(dataDir)
+  const sub = subs[key]
+  if (!sub || !PAID_PLANS.has(sub.plan)) return { ok: false, error: 'no_subscription' }
+  if (sub.status !== 'paused') return { ok: false, error: 'not_paused' }
+
+  const now = Date.now()
+  subs[key] = {
+    ...sub,
+    status: 'active',
+    pausedAt: null,
+    currentPeriodEnd: periodEndMs(sub.cycle, now),
+    updatedAt: now,
+  }
+  writeSubscriptionsMap(dataDir, subs)
+  return { ok: true, subscription: subs[key] }
+}
+
+/** @param {string} dataDir @param {string} email */
+export function cancelSubscription(dataDir, email) {
+  const key = String(email || '').trim().toLowerCase()
+  if (!key) return { ok: false, error: 'missing_email' }
+
+  const subs = readSubscriptionsMap(dataDir)
+  const sub = subs[key]
+  if (!sub || !PAID_PLANS.has(sub.plan)) return { ok: false, error: 'no_subscription' }
+  if (sub.status === 'canceled') return { ok: false, error: 'already_canceled' }
+
+  const now = Date.now()
+  subs[key] = { ...sub, status: 'canceled', canceledAt: now, updatedAt: now }
+  writeSubscriptionsMap(dataDir, subs)
+  return { ok: true, subscription: subs[key] }
+}
+
+/**
+ * @param {string} dataDir @param {string} email
+ * @param {{ fullName?: string, line1?: string, line2?: string, city?: string, region?: string, postalCode?: string, country?: string }} address
+ */
+export function saveBillingAddress(dataDir, email, address) {
+  const key = String(email || '').trim().toLowerCase()
+  if (!key) return { ok: false, error: 'missing_email' }
+
+  const clean = {
+    fullName: String(address?.fullName || '').trim().slice(0, 120),
+    line1: String(address?.line1 || '').trim().slice(0, 160),
+    line2: String(address?.line2 || '').trim().slice(0, 160),
+    city: String(address?.city || '').trim().slice(0, 100),
+    region: String(address?.region || '').trim().slice(0, 100),
+    postalCode: String(address?.postalCode || '').trim().slice(0, 20),
+    country: String(address?.country || '').trim().slice(0, 100),
+    updatedAt: Date.now(),
+  }
+  if (!clean.fullName || !clean.line1 || !clean.city || !clean.postalCode || !clean.country) {
+    return { ok: false, error: 'incomplete_address' }
+  }
+
+  const addresses = readAddressesMap(dataDir)
+  addresses[key] = clean
+  writeAddressesMap(dataDir, addresses)
+  return { ok: true, address: clean }
 }
 
 /**

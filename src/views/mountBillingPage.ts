@@ -323,7 +323,7 @@ function openInvoice(tx: BillingTransaction, address: BillingAddress | null): vo
 
 export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOptions): () => void {
   let active = true
-  let billing: MyBilling = { subscription: null, transactions: [] }
+  let billing: MyBilling = { subscription: null, transactions: [], address: null }
   const auth = opts.getAuthUser()
   const email = auth?.email?.trim() || 'guest@tradeneu.local'
   let address = readAddress(email)

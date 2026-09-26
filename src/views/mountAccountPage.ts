@@ -1,7 +1,17 @@
 import './accountPage.css'
 import { defaultBacktestSlippage } from '../backtest/backtestChartUi'
 import { resolveAppPath } from '../appPaths'
-import { fetchMyBilling, recordCheckoutComplete, type MyBilling } from '../billing/billingApi'
+import {
+  cancelBillingSubscription,
+  changeBillingCycle,
+  fetchMyBilling,
+  pauseBillingSubscription,
+  recordCheckoutComplete,
+  resumeBillingSubscription,
+  saveBillingAddress,
+  type BillingAddress,
+  type MyBilling,
+} from '../billing/billingApi'
 import {
   BILLING_CYCLES,
   CYCLE_LABELS,
@@ -683,8 +693,8 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
                     <span><strong>Billing &amp; shipping address</strong><em>Update your contact details</em></span>
                   </button>
                   <button type="button" role="menuitem" class="sx-acct-manage__item" data-sx-acct-manage-item="pause">
-                    <i class="fa-solid fa-pause" aria-hidden="true"></i>
-                    <span><strong>Pause subscription</strong><em>Temporarily stop billing</em></span>
+                    <i class="fa-solid fa-pause" aria-hidden="true" data-sx-acct-manage-pause-ico></i>
+                    <span><strong data-sx-acct-manage-pause-title>Pause subscription</strong><em data-sx-acct-manage-pause-sub>Temporarily stop billing</em></span>
                   </button>
                   <button type="button" role="menuitem" class="sx-acct-manage__item sx-acct-manage__item--danger" data-sx-acct-manage-item="cancel">
                     <i class="fa-regular fa-circle-xmark" aria-hidden="true"></i>
@@ -692,6 +702,16 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
                   </button>
                 </div>
               </div>
+            </div>
+
+            <div class="sx-acct-manage-panel" data-sx-acct-manage-panel hidden>
+              <div class="sx-acct-manage-panel__bar">
+                <h3 class="sx-acct-manage-panel__title" data-sx-acct-manage-panel-title>Manage Subscription</h3>
+                <button type="button" class="sx-acct-manage-panel__close" data-sx-acct-manage-panel-close aria-label="Close">
+                  <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div class="sx-acct-manage-panel__body" data-sx-acct-manage-panel-body></div>
             </div>
 
             <div class="sx-acct-plans">
@@ -1047,23 +1067,33 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     }
   })
 
+  const managePanel = q<HTMLElement>('[data-sx-acct-manage-panel]')
+  const managePanelTitle = q<HTMLElement>('[data-sx-acct-manage-panel-title]')
+  const managePanelBody = q<HTMLElement>('[data-sx-acct-manage-panel-body]')
+
+  function closeManagePanel() {
+    if (managePanel) managePanel.hidden = true
+  }
+
+  function openManagePanel(title: string, html: string) {
+    if (!managePanel || !managePanelTitle || !managePanelBody) return
+    managePanelTitle.textContent = title
+    managePanelBody.innerHTML = html
+    managePanel.hidden = false
+    managePanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+
+  q('[data-sx-acct-manage-panel-close]')?.addEventListener('click', closeManagePanel)
+
   manageMenu?.querySelectorAll<HTMLButtonElement>('[data-sx-acct-manage-item]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const kind = btn.getAttribute('data-sx-acct-manage-item')
       closeManageMenu()
-      if (kind === 'billing') {
-        q('[data-sx-acct-plans]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      } else if (kind === 'history') {
-        q('[data-sx-acct-billing-card]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      } else if (kind === 'address') {
-        window.alert('Address saved locally for now. Payment provider sync coming soon.')
-      } else if (kind === 'pause') {
-        window.alert('Pause request noted. Live pause will connect when billing is enabled.')
-      } else if (kind === 'cancel') {
-        if (window.confirm('Cancel renewals? You keep access until the end of the current period.')) {
-          window.alert('Cancel request noted. Live cancellation will connect when billing is enabled.')
-        }
-      }
+      if (kind === 'billing') openBillingCyclePanel()
+      else if (kind === 'history') q('[data-sx-acct-billing-card]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      else if (kind === 'address') openAddressPanel()
+      else if (kind === 'pause') openPausePanel()
+      else if (kind === 'cancel') openCancelPanel()
     })
   })
 
@@ -1091,6 +1121,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
 
   const billingHost = q<HTMLElement>('[data-sx-acct-billing]')
   let billingRequested = false
+  let latestBilling: MyBilling | null = null
 
   function setPlanStat(field: string, text: string) {
     const el = q<HTMLElement>(`[data-sx-acct-plan-${field}]`)
@@ -1098,11 +1129,24 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
   }
 
   function applyBilling(data: MyBilling | null) {
+    latestBilling = data
     const sub = data?.subscription ?? null
     const noSub = tier === 'free' ? 'No subscription' : 'Not recorded'
     setPlanStat('cycle', sub ? CYCLE_LABELS[sub.cycle] : tier === 'free' ? '—' : 'Monthly')
     setPlanStat('renews', sub ? formatDate(sub.currentPeriodEnd) : '—')
     setPlanStat('status', sub ? sub.status.charAt(0).toUpperCase() + sub.status.slice(1) : noSub)
+
+    // The Pause menu item doubles as Resume once a subscription is actually
+    // paused, so the entry point to get out of the state is the same one
+    // that got you into it.
+    const paused = sub?.status === 'paused'
+    const pauseTitle = q<HTMLElement>('[data-sx-acct-manage-pause-title]')
+    const pauseSub = q<HTMLElement>('[data-sx-acct-manage-pause-sub]')
+    const pauseIco = q<HTMLElement>('[data-sx-acct-manage-pause-ico]')
+    if (pauseTitle) pauseTitle.textContent = paused ? 'Resume subscription' : 'Pause subscription'
+    if (pauseSub) pauseSub.textContent = paused ? 'Restart billing and access' : 'Temporarily stop billing'
+    if (pauseIco) pauseIco.className = paused ? 'fa-solid fa-play' : 'fa-solid fa-pause'
+
     if (!billingHost) return
 
     const summary = sub
@@ -1153,8 +1197,8 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     billingHost.innerHTML = `${summary}${history}`
   }
 
-  async function loadBilling() {
-    if (billingRequested) return
+  async function loadBilling(force = false) {
+    if (billingRequested && !force) return
     billingRequested = true
     if (isGuest) {
       setPlanStat('cycle', '—')
@@ -1170,6 +1214,215 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
       return
     }
     applyBilling(await fetchMyBilling())
+  }
+
+  async function refreshBilling() {
+    billingRequested = false
+    await loadBilling(true)
+  }
+
+  /* ——— Manage Subscription panels: billing cycle, address, pause/resume,
+     cancel. Each renders into the shared panel and wires its own controls
+     right after, since innerHTML swaps discard any previous listeners. ——— */
+  function upgradeHintPanel(title: string): string {
+    return `<p class="sx-acct-hint">You're on the Basic plan, so there's nothing to manage yet.</p>
+      <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-panel-scroll-plans>${escapeHtml(title)}</button>`
+  }
+
+  function wirePanelScrollToPlans() {
+    managePanelBody?.querySelector('[data-sx-acct-panel-scroll-plans]')?.addEventListener('click', () => {
+      closeManagePanel()
+      q('[data-sx-acct-plans]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
+  function openBillingCyclePanel() {
+    const sub = latestBilling?.subscription ?? null
+    if (!sub || sub.status !== 'active') {
+      openManagePanel('Billing option', upgradeHintPanel('View plans'))
+      wirePanelScrollToPlans()
+      return
+    }
+    const others = BILLING_CYCLES.filter((c) => c !== sub.cycle)
+    const html = `
+      <p class="sx-acct-manage-panel__lead">You're on the ${escapeHtml(CYCLE_LABELS[sub.cycle])} cycle for ${escapeHtml(PLAN_NAMES[sub.plan])}. Switching starts a fresh period today.</p>
+      <div class="sx-acct-manage-panel__actions">
+        ${others
+          .map(
+            (c) =>
+              `<button type="button" class="sx-acct-btn" data-sx-acct-panel-cycle="${c}">Switch to ${escapeHtml(CYCLE_LABELS[c])}</button>`,
+          )
+          .join('')}
+      </div>
+      <p class="sx-acct-manage-panel__status" data-sx-acct-panel-msg></p>`
+    openManagePanel('Billing option', html)
+    const msg = managePanelBody?.querySelector<HTMLElement>('[data-sx-acct-panel-msg]')
+    managePanelBody?.querySelectorAll<HTMLButtonElement>('[data-sx-acct-panel-cycle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const next = btn.getAttribute('data-sx-acct-panel-cycle')
+        if (!isBillingCycle(next)) return
+        btn.disabled = true
+        if (msg) msg.textContent = 'Updating…'
+        void changeBillingCycle(next).then((result) => {
+          if (!result.ok) {
+            btn.disabled = false
+            if (msg) msg.textContent = 'Could not update your billing cycle. Try again.'
+            return
+          }
+          applyCycle(next)
+          void refreshBilling().then(() => openBillingCyclePanel())
+        })
+      })
+    })
+  }
+
+  function openAddressPanel() {
+    if (isGuest) {
+      openManagePanel('Billing & shipping address', '<p class="sx-acct-hint">Create an account to save a billing address.</p>')
+      return
+    }
+    const addr = latestBilling?.address
+    const field = (label: string, key: keyof BillingAddress, value: string, required = true) =>
+      `<label class="sx-acct-manage-panel__field">${escapeHtml(label)}<input type="text" data-sx-acct-panel-addr="${key}" value="${escapeAttr(value)}" ${required ? 'required' : ''} /></label>`
+    const html = `
+      ${field('Full name', 'fullName', addr?.fullName ?? '')}
+      ${field('Address line 1', 'line1', addr?.line1 ?? '')}
+      ${field('Address line 2', 'line2', addr?.line2 ?? '', false)}
+      <div class="sx-acct-manage-panel__row">
+        ${field('City', 'city', addr?.city ?? '')}
+        ${field('State / region', 'region', addr?.region ?? '', false)}
+      </div>
+      <div class="sx-acct-manage-panel__row">
+        ${field('Postal code', 'postalCode', addr?.postalCode ?? '')}
+        ${field('Country', 'country', addr?.country ?? '')}
+      </div>
+      <p class="sx-acct-manage-panel__status" data-sx-acct-panel-msg></p>
+      <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-panel-save-address>Save address</button>`
+    openManagePanel('Billing & shipping address', html)
+    const msg = managePanelBody?.querySelector<HTMLElement>('[data-sx-acct-panel-msg]')
+    managePanelBody?.querySelector('[data-sx-acct-panel-save-address]')?.addEventListener('click', () => {
+      const read = (key: keyof BillingAddress) =>
+        managePanelBody?.querySelector<HTMLInputElement>(`[data-sx-acct-panel-addr="${key}"]`)?.value.trim() ?? ''
+      const payload = {
+        fullName: read('fullName'),
+        line1: read('line1'),
+        line2: read('line2'),
+        city: read('city'),
+        region: read('region'),
+        postalCode: read('postalCode'),
+        country: read('country'),
+      }
+      if (!payload.fullName || !payload.line1 || !payload.city || !payload.postalCode || !payload.country) {
+        if (msg) msg.textContent = 'Fill in name, address, city, postal code, and country.'
+        return
+      }
+      if (msg) msg.textContent = 'Saving…'
+      void saveBillingAddress(payload).then((result) => {
+        if (!result.ok) {
+          if (msg) msg.textContent = 'Could not save your address. Try again.'
+          return
+        }
+        if (latestBilling) latestBilling = { ...latestBilling, address: result.address }
+        if (msg) msg.textContent = 'Address saved.'
+      })
+    })
+  }
+
+  function openPausePanel() {
+    const sub = latestBilling?.subscription ?? null
+    if (sub?.status === 'paused') {
+      const html = `
+        <p class="sx-acct-manage-panel__lead">${escapeHtml(PLAN_NAMES[sub.plan])} is paused. Resume to restore your sessions, indicators, and retention.</p>
+        <p class="sx-acct-manage-panel__status" data-sx-acct-panel-msg></p>
+        <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-panel-resume>Resume subscription</button>`
+      openManagePanel('Resume subscription', html)
+      const msg = managePanelBody?.querySelector<HTMLElement>('[data-sx-acct-panel-msg]')
+      managePanelBody?.querySelector<HTMLButtonElement>('[data-sx-acct-panel-resume]')?.addEventListener('click', (e) => {
+        const btn = e.currentTarget as HTMLButtonElement
+        btn.disabled = true
+        if (msg) msg.textContent = 'Resuming…'
+        void resumeBillingSubscription().then((result) => {
+          if (!result.ok) {
+            btn.disabled = false
+            if (msg) msg.textContent = 'Could not resume. Try again.'
+            return
+          }
+          opts.writeTier?.(result.subscription.plan)
+          void refreshBilling().then(() => {
+            closeManagePanel()
+            opts.onTierChange?.(result.subscription.plan)
+          })
+        })
+      })
+      return
+    }
+    if (!sub || sub.status !== 'active') {
+      openManagePanel('Pause subscription', upgradeHintPanel('View plans'))
+      wirePanelScrollToPlans()
+      return
+    }
+    const html = `
+      <p class="sx-acct-manage-panel__lead">Pause ${escapeHtml(PLAN_NAMES[sub.plan])}. You'll drop to the Basic plan until you resume — nothing here schedules a real recurring charge to stop.</p>
+      <p class="sx-acct-manage-panel__status" data-sx-acct-panel-msg></p>
+      <button type="button" class="sx-acct-btn" data-sx-acct-panel-pause>Pause for now</button>`
+    openManagePanel('Pause subscription', html)
+    const msg = managePanelBody?.querySelector<HTMLElement>('[data-sx-acct-panel-msg]')
+    managePanelBody?.querySelector<HTMLButtonElement>('[data-sx-acct-panel-pause]')?.addEventListener('click', (e) => {
+      const btn = e.currentTarget as HTMLButtonElement
+      btn.disabled = true
+      if (msg) msg.textContent = 'Pausing…'
+      void pauseBillingSubscription().then((result) => {
+        if (!result.ok) {
+          btn.disabled = false
+          if (msg) msg.textContent = 'Could not pause. Try again.'
+          return
+        }
+        opts.writeTier?.('free')
+        void refreshBilling().then(() => {
+          closeManagePanel()
+          opts.onTierChange?.('free')
+        })
+      })
+    })
+  }
+
+  function openCancelPanel() {
+    const sub = latestBilling?.subscription ?? null
+    if (sub?.status === 'canceled') {
+      openManagePanel(
+        'Cancel subscription',
+        `<p class="sx-acct-hint">Your ${escapeHtml(PLAN_NAMES[sub.plan])} subscription was already canceled${sub.canceledAt ? ` on ${escapeHtml(formatDate(sub.canceledAt))}` : ''}.</p>`,
+      )
+      return
+    }
+    if (!sub) {
+      openManagePanel('Cancel subscription', upgradeHintPanel('View plans'))
+      wirePanelScrollToPlans()
+      return
+    }
+    const html = `
+      <p class="sx-acct-manage-panel__lead">Cancel ${escapeHtml(PLAN_NAMES[sub.plan])}? You'll move to the Basic plan right away.</p>
+      <p class="sx-acct-manage-panel__status" data-sx-acct-panel-msg></p>
+      <button type="button" class="sx-acct-btn sx-acct-btn--danger" data-sx-acct-panel-cancel>Cancel subscription</button>`
+    openManagePanel('Cancel subscription', html)
+    const msg = managePanelBody?.querySelector<HTMLElement>('[data-sx-acct-panel-msg]')
+    managePanelBody?.querySelector<HTMLButtonElement>('[data-sx-acct-panel-cancel]')?.addEventListener('click', (e) => {
+      const btn = e.currentTarget as HTMLButtonElement
+      btn.disabled = true
+      if (msg) msg.textContent = 'Canceling…'
+      void cancelBillingSubscription().then((result) => {
+        if (!result.ok) {
+          btn.disabled = false
+          if (msg) msg.textContent = 'Could not cancel. Try again.'
+          return
+        }
+        opts.writeTier?.('free')
+        void refreshBilling().then(() => {
+          closeManagePanel()
+          opts.onTierChange?.('free')
+        })
+      })
+    })
   }
 
   /* ——— Avatar ——— */
