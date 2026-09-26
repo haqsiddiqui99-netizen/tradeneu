@@ -1426,29 +1426,30 @@ function buildDashSidebarHtml(): string {
   return `
       <aside class="sx-dash-side" aria-label="Dashboard sections">
         <div class="sx-dash-side__account">
-          <div class="sx-dash-account-static">
-            <span class="sx-dash-account-static__greet">Hi <span data-sx-account-label>Guest</span>,</span>
-            <span class="sx-dash-account-static__plan">
-              You're on <strong data-sx-account-plan>Basic</strong> Plan
-        </span>
-          </div>
+          <span class="sx-dash-account-btn__icon sx-dash-side__avatar" data-sx-account-avatar>
+            <i class="fa-solid fa-user" data-sx-account-avatar-fallback aria-hidden="true"></i>
+          </span>
+          <span class="sx-dash-account-btn__plan sx-dash-side__plan" data-sx-account-plan>Basic</span>
+          <span class="sx-dash-side__username" data-sx-account-label>Guest</span>
         </div>
 
         <nav class="sx-dash-side__nav">
           ${sideLinkHtml('dashboard', 'fa-solid fa-table-cells-large', 'data-action="dashboard" data-testing-tab="dashboard"', true, DASH_GRID_ICON_SVG)}
-          ${sideLinkHtml('sessions', 'fa-solid fa-list-ul', 'data-testing-tab="sessions"')}
-          ${sideLinkHtml('trades', 'fa-regular fa-file-lines', 'data-testing-tab="trades"')}
+          ${sideLinkHtml('sessions', 'fa-solid fa-layer-group', 'data-testing-tab="sessions"')}
+          ${sideLinkHtml('trades', 'fa-solid fa-right-left', 'data-testing-tab="trades"')}
           ${sideLinkHtml('analytics', 'fa-solid fa-chart-line', 'data-testing-tab="analytics"')}
-          ${sideLinkHtml('strategy', 'fa-solid fa-bolt', 'data-action="strategy"')}
-          ${sideLinkHtml('billing', 'fa-regular fa-file-lines', 'data-action="billing"')}
+          ${sideLinkHtml('strategy', 'fa-solid fa-compass', 'data-action="strategy"')}
+          ${sideLinkHtml('billing', 'fa-solid fa-credit-card', 'data-action="billing"')}
+        </nav>
 
+        <div class="sx-dash-side__foot">
           <p class="sx-dash-side__section">Account pages</p>
           ${sideLinkHtml('settings', 'fa-solid fa-gear', 'data-action="settings"')}
           <button type="button" class="sx-dash-side__link" data-nav="logout">
             <i class="fa-solid fa-arrow-right-from-bracket sx-dash-side__ico" aria-hidden="true"></i>
             <span>Sign out</span>
           </button>
-        </nav>
+        </div>
       </aside>`
 }
 
