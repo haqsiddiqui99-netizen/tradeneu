@@ -4243,12 +4243,15 @@ a.sx-dash-account__item {
   box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.45);
 }
 
+/* Matches the avatar icon, the resume-session play button and the TN logo
+   mark, so the one navy accent reads as "this app's brand color" everywhere
+   it shows up instead of the active tab using an unrelated grey. */
 .sx-dash-side__link--active,
 .sx-dash-side__link--active:hover {
   position: relative;
   overflow: hidden;
   border-radius: 0.5rem;
-  background: #6b7280;
+  background: linear-gradient(145deg, #334155, #1e293b);
   color: #ffffff;
   box-shadow:
     0 6px 16px rgba(0, 0, 0, 0.3),
@@ -5021,7 +5024,9 @@ a.sx-dash-account__item {
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-side__link--active,
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-side__link--active:hover {
-  background: #6b7280;
+  /* Same navy as the light theme: the avatar icon and TN mark don't flip for
+     dark mode either, so the active tab shouldn't need to. */
+  background: linear-gradient(145deg, #334155, #1e293b);
   color: #ffffff;
   box-shadow:
     0 6px 16px rgba(0, 0, 0, 0.5),
@@ -9611,7 +9616,9 @@ a.sx-dash-account__item {
    nav item instead: the same fixed grey fill, so "selected" reads the same
    way everywhere on the dashboard rather than tracking a flipped token. */
 #sx-app-root[data-dashboard-theme='dark'] .sxa-tab-nav__btn--active {
-  background: #6b7280;
+  /* Same navy as the sidebar's active nav item, so "selected" reads
+     identically wherever it shows up on the dashboard. */
+  background: linear-gradient(145deg, #334155, #1e293b);
   color: #ffffff;
   border: none;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
