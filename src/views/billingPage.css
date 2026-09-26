@@ -95,9 +95,11 @@
   justify-content: space-between;
   overflow: hidden;
   padding: 1.2rem;
+  /* Same navy as the sidebar's active nav item, so the app's one accent color
+     reads consistently instead of this card carrying its own near-black tone. */
   background:
     radial-gradient(circle at 88% 12%, rgba(255, 255, 255, 0.13), transparent 25%),
-    linear-gradient(140deg, #30333b, #1b1d24);
+    linear-gradient(140deg, #334155, #1e293b);
   color: #fff;
 }
 
@@ -232,7 +234,7 @@
   justify-content: center;
   margin-bottom: 1.2rem;
   border-radius: 0.65rem;
-  background: linear-gradient(145deg, #30333b, #17191f);
+  background: linear-gradient(145deg, #334155, #1e293b);
   color: #fff;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.2);
   font-size: 1.15rem;
@@ -592,8 +594,9 @@
 }
 
 .sx-billing__btn--dark {
-  border-color: #172033;
-  background: #172033;
+  /* Same navy as the sidebar's active nav item. */
+  border-color: #1e293b;
+  background: linear-gradient(145deg, #334155, #1e293b);
   color: #fff;
 }
 

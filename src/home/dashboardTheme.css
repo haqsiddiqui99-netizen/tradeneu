@@ -8237,7 +8237,8 @@ a.sx-dash-account__item {
   padding: 5px 12px;
   border: none;
   border-radius: 6px;
-  background: #1a1a1a;
+  /* Same navy as the sidebar's active nav item. */
+  background: linear-gradient(145deg, #334155, #1e293b);
   color: #fff;
   font-size: 12.5px;
   font-weight: 600;
@@ -8247,7 +8248,7 @@ a.sx-dash-account__item {
 }
 
 .sxa-breakeven-box__submit:hover {
-  background: #333;
+  background: linear-gradient(145deg, #3d4a5f, #263142);
 }
 
 @media (max-width: 900px) {
@@ -9602,12 +9603,15 @@ a.sx-dash-account__item {
    Pin them to the same neutral grey as the sidebar's active nav item instead,
    which stays legible in both themes rather than tracking the flipped token. */
 #sx-app-root[data-dashboard-theme='dark'] .sxa-export-btn {
-  background: #6b7280;
-  border-color: #6b7280;
+  /* Same navy as the sidebar's active nav item — this covers the CSV export
+     button, the performance-calendar prev/next arrows, and the Monte Carlo
+     "Reset values" button, which all share this class. */
+  background: linear-gradient(145deg, #334155, #1e293b);
+  border-color: #1e293b;
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sxa-month-cell--ytd {
-  background: #6b7280;
+  background: linear-gradient(145deg, #334155, #1e293b);
 }
 
 /* The active tab pill inherits --sxa-surface, which is only a shade or two
