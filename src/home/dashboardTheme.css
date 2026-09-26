@@ -9586,3 +9586,18 @@ a.sx-dash-account__item {
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
+/* .sxa-export-btn and .sxa-month-cell--ytd pair a hardcoded white label with
+   var(--sxa-ink-950) as their background. That variable is meant for text and
+   flips to a near-white value in dark mode, which left both white-on-white —
+   the calendar's prev/next arrows and the YTD column effectively vanished.
+   Pin them to the same neutral grey as the sidebar's active nav item instead,
+   which stays legible in both themes rather than tracking the flipped token. */
+#sx-app-root[data-dashboard-theme='dark'] .sxa-export-btn {
+  background: #6b7280;
+  border-color: #6b7280;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sxa-month-cell--ytd {
+  background: #6b7280;
+}
+
