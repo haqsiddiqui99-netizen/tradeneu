@@ -5624,7 +5624,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
   root.querySelectorAll('[data-action="pro-upgrade"]').forEach((el) => {
     el.addEventListener('click', () => {
-      openUpgradePlansModal()
+      // Land on Profile Settings → Subscription rather than popping the plans
+      // modal straight over whatever page the trader was on — that tab already
+      // shows the current plan, entitlements, and its own upgrade CTA.
+      showSettingsPage('subscription')
     })
   })
 }
