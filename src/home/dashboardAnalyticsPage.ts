@@ -2889,6 +2889,7 @@ export function initAnalyticsPage(
     const scenarios = activeChips.map((c) => ({ chip: c, ...computeRRScenario(trades, c.value, c.isCurrent) }))
 
     destroyChart('rrMulti')
+    const axisColor = sxaAxisLabelColor(root)
     const canvas = root.querySelector<HTMLCanvasElement>('[data-sxa-rr-multi-canvas]')
     if (canvas) {
       const maxLen = Math.max(1, ...scenarios.map((s) => s.cumRSeries.length))
@@ -2896,6 +2897,7 @@ export function initAnalyticsPage(
       for (let i = 1; i < maxLen; i++) labels.push(i)
       charts.rrMulti = new Chart(canvas, {
         type: 'line',
+        plugins: [sxAxisLinePlugin],
         data: {
           labels,
           datasets: scenarios.map((s) => ({
@@ -2911,8 +2913,21 @@ export function initAnalyticsPage(
           responsive: true,
           plugins: { legend: { display: false } },
           scales: {
-            y: { ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS }, grid: { color: GRID }, border: { display: false } },
-            x: { ticks: { font: { size: 10 }, color: AXIS, maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+            y: {
+              ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: axisColor },
+              // The zero line doubles as the chart's x-axis, so it stays solid; every
+              // other horizontal gridline is dotted for less visual noise. Chart.js
+              // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+              // `drawTicks` is off so no tick stubs poke out to the left of the
+              // y-axis line into the label gutter.
+              grid: {
+                color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+                lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+                drawTicks: false,
+              },
+              border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
+            },
+            x: { ticks: { font: { size: 10 }, color: axisColor, maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
           },
         },
       })
@@ -3052,6 +3067,7 @@ export function initAnalyticsPage(
     const scenarios = activeChips.map((c) => ({ chip: c, ...computeSlScenario(trades, c.value, c.isCurrent) }))
 
     destroyChart('slMulti')
+    const axisColor = sxaAxisLabelColor(root)
     const canvas = root.querySelector<HTMLCanvasElement>('[data-sxa-sl-multi-canvas]')
     if (canvas) {
       const maxLen = Math.max(1, ...scenarios.map((s) => s.cumRSeries.length))
@@ -3059,6 +3075,7 @@ export function initAnalyticsPage(
       for (let i = 1; i < maxLen; i++) labels.push(i)
       charts.slMulti = new Chart(canvas, {
         type: 'line',
+        plugins: [sxAxisLinePlugin],
         data: {
           labels,
           datasets: scenarios.map((s) => ({
@@ -3074,8 +3091,21 @@ export function initAnalyticsPage(
           responsive: true,
           plugins: { legend: { display: false } },
           scales: {
-            y: { ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: AXIS }, grid: { color: GRID }, border: { display: false } },
-            x: { ticks: { font: { size: 10 }, color: AXIS, maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+            y: {
+              ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: axisColor },
+              // The zero line doubles as the chart's x-axis, so it stays solid; every
+              // other horizontal gridline is dotted for less visual noise. Chart.js
+              // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+              // `drawTicks` is off so no tick stubs poke out to the left of the
+              // y-axis line into the label gutter.
+              grid: {
+                color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+                lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+                drawTicks: false,
+              },
+              border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
+            },
+            x: { ticks: { font: { size: 10 }, color: axisColor, maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
           },
         },
       })
