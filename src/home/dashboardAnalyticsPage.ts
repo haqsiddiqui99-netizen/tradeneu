@@ -2690,6 +2690,7 @@ export function initAnalyticsPage(
     const avgMaxLossStreak = sumMaxLossStreak / nSim
 
     destroyChart('mc')
+    const axisColor = sxaAxisLabelColor(root)
     const canvas = root.querySelector<HTMLCanvasElement>('[data-sxa-mc-canvas]')
     const tooltipPanel = root.querySelector<HTMLElement>('[data-sxa-mc-tooltip]')
     if (tooltipPanel && !tooltipPanel.dataset.hoverBound) {
@@ -2758,6 +2759,7 @@ export function initAnalyticsPage(
       }
       charts.mc = new Chart(canvas, {
         type: 'line',
+        plugins: [sxAxisLinePlugin],
         data: { labels, datasets },
         options: {
           responsive: true,
@@ -2770,16 +2772,25 @@ export function initAnalyticsPage(
               },
               ticks: {
                 font: { family: 'IBM Plex Mono', size: 10.5 },
-                color: AXIS,
+                color: axisColor,
                 callback: (v, _idx, ticks) => {
                   const stepAbs = ticks.length > 1 ? Math.abs(Number(ticks[1]!.value) - Number(ticks[0]!.value)) : 0
                   return sxaAxisMoneyLabel(Number(v), stepAbs)
                 },
               },
-              grid: { color: GRID },
-              border: { display: false },
+              // The zero line doubles as the chart's x-axis, so it stays solid; every
+              // other horizontal gridline is dotted for less visual noise. Chart.js
+              // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+              // `drawTicks` is off so no tick stubs poke out to the left of the
+              // y-axis line into the label gutter.
+              grid: {
+                color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+                lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+                drawTicks: false,
+              },
+              border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
             },
-            x: { ticks: { font: { size: 10 }, color: AXIS }, grid: { display: false }, border: { display: false } },
+            x: { ticks: { font: { size: 10 }, color: axisColor }, grid: { display: false }, border: { display: false } },
           },
         },
       })
