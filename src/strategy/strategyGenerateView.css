@@ -1,0 +1,126 @@
+/* "I need a strategy" form. Shares the page shell in strategyObjectifyView.css;
+   this file only adds the form fields, which follow the dashboard theme. */
+
+.sx-strat-gen__title {
+  margin: 0 0 0.5rem;
+  color: #0f172a;
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.sx-strat-gen__sub {
+  margin: 0 0 2rem;
+  color: #64748b;
+  font-size: 0.98rem;
+}
+
+.sx-strat-gen__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.1rem 1.4rem;
+  margin-bottom: 1.2rem;
+}
+
+@media (max-width: 680px) {
+  .sx-strat-gen__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sx-strat-gen__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.sx-strat-gen__label {
+  color: #0f172a;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.sx-strat-gen__field input,
+.sx-strat-gen__field select,
+.sx-strat-gen__notes {
+  width: 100%;
+  padding: 0.72rem 0.9rem;
+  border: 1px solid #dfe3ec;
+  border-radius: 0.6rem;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.93rem;
+}
+
+.sx-strat-gen__notes {
+  display: block;
+  margin-bottom: 1.2rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.sx-strat-gen__field input:focus,
+.sx-strat-gen__field select:focus,
+.sx-strat-gen__notes:focus {
+  border-color: #93c5fd;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.25);
+}
+
+.sx-strat-gen__field input::placeholder,
+.sx-strat-gen__notes::placeholder {
+  color: #9aa4b5;
+}
+
+.sx-strat-gen__submit {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border: none;
+  border-radius: 0.65rem;
+  background: linear-gradient(135deg, #2f7de1, #7c5cf0);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.sx-strat-gen__submit:hover {
+  filter: brightness(1.07);
+}
+
+/* Dark dashboard theme. */
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__title,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__label {
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__sub {
+  color: #9a9a9a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__field input,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__field select,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__notes {
+  border-color: #2a2a2a;
+  background: #121212;
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__field input:focus,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__field select:focus,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__notes:focus {
+  border-color: #e0a94a;
+  box-shadow: 0 0 0 3px rgba(224, 169, 74, 0.2);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__field input::placeholder,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__notes::placeholder {
+  color: #6f6f6f;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-gen__submit {
+  background: #e0a94a;
+  color: #121212;
+}

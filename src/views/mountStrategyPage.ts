@@ -19,6 +19,10 @@ import {
   mountStrategyObjectifyView,
   type StrategyObjectifyViewApi,
 } from '../strategy/strategyObjectifyView'
+import {
+  mountStrategyGenerateView,
+  type StrategyGenerateViewApi,
+} from '../strategy/strategyGenerateView'
 import { mountManualStrategyBuilder, type ManualStrategyBuilderApi } from '../strategy/manualStrategyBuilder'
 
 export type MountStrategyPageOptions = {
@@ -73,6 +77,10 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
       <div data-sx-strat-objectify-host></div>
     </div>
 
+    <div class="sx-strat-page__objectify-view" data-sx-strat-view="generate" hidden>
+      <div data-sx-strat-generate-host></div>
+    </div>
+
     <div class="sx-strat-page__builder-view" data-sx-strat-view="builder" hidden>
       <header class="sx-strat-page__head">
         <div class="sx-strat-page__head-left">
@@ -116,21 +124,38 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
   const builderView = shell.querySelector('[data-sx-strat-view="builder"]') as HTMLElement
   const objectifyView = shell.querySelector('[data-sx-strat-view="objectify"]') as HTMLElement
   const objectifyHost = shell.querySelector('[data-sx-strat-objectify-host]') as HTMLElement
+  const generateView = shell.querySelector('[data-sx-strat-view="generate"]') as HTMLElement
+  const generateHost = shell.querySelector('[data-sx-strat-generate-host]') as HTMLElement
   let manualBuilder: ManualStrategyBuilderApi | null = null
   let objectifyViewApi: StrategyObjectifyViewApi | null = null
+  let generateViewApi: StrategyGenerateViewApi | null = null
+
+  const VIEWS = {
+    intake: intakeView,
+    manual: manualView,
+    builder: builderView,
+    objectify: objectifyView,
+    generate: generateView,
+  }
+
+  function setView(name: keyof typeof VIEWS) {
+    for (const [key, el] of Object.entries(VIEWS)) el.hidden = key !== name
+  }
+
+  /** Hands an AI-drafted strategy to the rule editor for the trader to confirm. */
+  function acceptStrategy(strategy: StrategyDefinition) {
+    builder.loadStrategy(strategy)
+    selectedId = strategy.id
+    paintList()
+    showBuilder()
+  }
 
   function showIntake() {
-    intakeView.hidden = false
-    manualView.hidden = true
-    builderView.hidden = true
-    objectifyView.hidden = true
+    setView('intake')
   }
 
   function showManual() {
-    intakeView.hidden = true
-    manualView.hidden = false
-    builderView.hidden = true
-    objectifyView.hidden = true
+    setView('manual')
     if (!manualBuilder) {
       manualBuilder = mountManualStrategyBuilder({
         host: manualHost,
@@ -141,27 +166,27 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
   }
 
   function showBuilder() {
-    intakeView.hidden = true
-    manualView.hidden = true
-    builderView.hidden = false
-    objectifyView.hidden = true
+    setView('builder')
   }
 
   function showObjectify() {
-    intakeView.hidden = true
-    manualView.hidden = true
-    builderView.hidden = true
-    objectifyView.hidden = false
+    setView('objectify')
     if (!objectifyViewApi) {
       objectifyViewApi = mountStrategyObjectifyView({
         host: objectifyHost,
         onBack: showIntake,
-        onStrategyReady: (strategy) => {
-          builder.loadStrategy(strategy)
-          selectedId = strategy.id
-          paintList()
-          showBuilder()
-        },
+        onStrategyReady: acceptStrategy,
+      })
+    }
+  }
+
+  function showGenerate() {
+    setView('generate')
+    if (!generateViewApi) {
+      generateViewApi = mountStrategyGenerateView({
+        host: generateHost,
+        onBack: showIntake,
+        onStrategyReady: acceptStrategy,
       })
     }
   }
@@ -177,16 +202,7 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
         showObjectify()
         return
       }
-      if (pick === 'need') {
-        openStrategyAiModal({
-          onStrategyReady: (strategy) => {
-            builder.loadStrategy(strategy)
-            selectedId = strategy.id
-            paintList()
-            showBuilder()
-          },
-        })
-      }
+      if (pick === 'need') showGenerate()
     })
   })
 
@@ -318,6 +334,7 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
     builder.dispose()
     manualBuilder?.dispose()
     objectifyViewApi?.dispose()
+    generateViewApi?.dispose()
     root.replaceChildren()
   }
 }
