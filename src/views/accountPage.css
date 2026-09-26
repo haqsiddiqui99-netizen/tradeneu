@@ -716,7 +716,9 @@
 
 .sx-acct-table thead th {
   border-top: 0;
-  font-size: 11px;
+  /* Bumped up from 11px — Feature/Basic Plan/Ultra Plan/Premium Plan are
+     column headers for the whole comparison table, not fine print. */
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1132,8 +1134,11 @@
   justify-content: space-between;
   gap: 10px;
   padding: 12px 2px;
-  font-size: 13px;
-  font-weight: 600;
+  /* Bumped up from 13px/600 — "Backtesting/Analytics/AI/Journal Features" are
+     section headers for the tables underneath, not body text. */
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   list-style: none;
   cursor: pointer;
 }

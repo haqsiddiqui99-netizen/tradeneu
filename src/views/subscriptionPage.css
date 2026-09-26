@@ -746,8 +746,11 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 1.15rem;
-  font-size: 1rem;
-  font-weight: 700;
+  /* Bumped up from 1rem/700 — at body-text size these accordion titles read
+     as just another row instead of section headers. */
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   cursor: pointer;
   user-select: none;
 }
@@ -788,7 +791,9 @@
 
 .sx-sub-table thead th {
   border-top: none;
-  font-size: 0.75rem;
+  /* Bumped up from 0.75rem — Feature/Basic Plan/Ultra Plan/Premium Plan are
+     column headers for the whole comparison table, not fine print. */
+  font-size: 0.95rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -801,6 +806,10 @@
   color: #0f172a;
   font-weight: 600;
   width: 34%;
+}
+
+.sx-sub-table thead .sx-sub-table__feature {
+  font-size: 0.95rem;
 }
 
 .sx-sub__ok,
