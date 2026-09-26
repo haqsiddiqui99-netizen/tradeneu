@@ -1,0 +1,364 @@
+/* "I have a strategy" intake screen. Light by default to match the embedded
+   dashboard shell; the dark overrides at the bottom mirror strategyPage.css. */
+
+.sx-strat-obj {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 1.1rem 1.5rem 2rem;
+  background: linear-gradient(180deg, #fff 0%, #f7f8fd 55%, #eef1fb 100%);
+}
+
+.sx-strat-obj__back {
+  align-self: flex-start;
+  padding: 0.25rem 0;
+  border: none;
+  background: none;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sx-strat-obj__back:hover {
+  color: #475569;
+}
+
+.sx-strat-obj__back i {
+  margin-right: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.sx-strat-obj__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding-top: 2.2rem;
+}
+
+.sx-strat-obj__lead {
+  display: flex;
+  gap: 0.65rem;
+  margin: 0 0 1.9rem;
+  color: #1e293b;
+  font-size: 1.02rem;
+  line-height: 1.55;
+}
+
+.sx-strat-obj__lead-icon {
+  flex: none;
+  padding-top: 0.15rem;
+  color: #6aa9f4;
+  font-size: 1.05rem;
+}
+
+.sx-strat-obj__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  padding-left: 2.1rem;
+}
+
+.sx-strat-obj__choice {
+  display: flex;
+  align-items: stretch;
+  min-width: 17rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sx-strat-obj__choice:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.sx-strat-obj__choice-icon {
+  display: grid;
+  place-items: center;
+  width: 3.4rem;
+  border-right: 1px solid #e2e8f0;
+  border-radius: 0.6rem 0 0 0.6rem;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.95rem;
+}
+
+.sx-strat-obj__choice-label {
+  display: flex;
+  align-items: center;
+  padding: 0.95rem 1.4rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+/* Pushes the composer toward the bottom the way a chat surface sits. */
+.sx-strat-obj__spacer {
+  flex: 1;
+  min-height: 2.5rem;
+}
+
+.sx-strat-obj__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.sx-strat-obj__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.7rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.8rem;
+}
+
+.sx-strat-obj__file-name {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.sx-strat-obj__file-size {
+  color: #94a3b8;
+}
+
+.sx-strat-obj__file-remove {
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: none;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.sx-strat-obj__file-remove:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.sx-strat-obj__error {
+  margin-bottom: 0.65rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #fecaca;
+  border-radius: 0.5rem;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+
+.sx-strat-obj__composer {
+  border: 1px solid #dfe3ec;
+  border-radius: 0.75rem;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.15s ease;
+}
+
+.sx-strat-obj__composer.is-drop {
+  border-color: #60a5fa;
+}
+
+.sx-strat-obj__textarea {
+  display: block;
+  width: 100%;
+  min-height: 5.6rem;
+  padding: 1rem 1.1rem 0.4rem;
+  border: none;
+  background: none;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.sx-strat-obj__textarea:focus {
+  outline: none;
+}
+
+.sx-strat-obj__textarea::placeholder {
+  color: #9aa4b5;
+}
+
+.sx-strat-obj__composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem 0.75rem 0.9rem;
+}
+
+.sx-strat-obj__attach {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: none;
+  border-radius: 0.45rem;
+  background: none;
+  color: #64748b;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.sx-strat-obj__attach:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.sx-strat-obj__count {
+  flex: 1;
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+
+.sx-strat-obj__count.is-over {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.sx-strat-obj__send {
+  display: grid;
+  place-items: center;
+  width: 2.3rem;
+  height: 2.1rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: #6aa9f4;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.sx-strat-obj__send:hover:not(:disabled) {
+  background: #4b93ef;
+}
+
+.sx-strat-obj__send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sx-strat-obj.is-busy .sx-strat-obj__send i {
+  animation: sx-strat-obj-pulse 1s ease-in-out infinite;
+}
+
+@keyframes sx-strat-obj-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.sx-strat-obj__hint {
+  margin: 0.8rem 0 0;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.sx-strat-obj__file-input {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .sx-strat-obj__choices {
+    padding-left: 0;
+  }
+
+  .sx-strat-obj__choice {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+}
+
+/* Dark dashboard theme — palette matches strategyPage.css / manualStrategyBuilder.css. */
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj {
+  background: #000;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__lead {
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__lead-icon {
+  color: #e0a94a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__choice {
+  border-color: #2a2a2a;
+  background: #121212;
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__choice:hover {
+  border-color: #3a3a3a;
+  box-shadow: none;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__choice-icon {
+  border-right-color: #2a2a2a;
+  background: #1a1a1a;
+  color: #9a9a9a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__composer,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__file {
+  border-color: #2a2a2a;
+  background: #121212;
+  box-shadow: none;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__textarea,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__file-name {
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__textarea::placeholder,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__count,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__hint,
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__file-size {
+  color: #7a7a7a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__attach:hover {
+  background: #1f1f1f;
+  color: #f1f1f1;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__file-remove {
+  background: #1f1f1f;
+  color: #9a9a9a;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__send {
+  background: #e0a94a;
+  color: #121212;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__send:hover:not(:disabled) {
+  background: #d19a3b;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-strat-obj__error {
+  border-color: #4c1d1d;
+  background: #1f1212;
+  color: #f87171;
+}

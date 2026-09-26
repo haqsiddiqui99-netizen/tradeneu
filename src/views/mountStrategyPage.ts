@@ -15,6 +15,10 @@ import {
 import { listCustomStrategies, saveCustomStrategy } from '../strategy/strategyStore'
 import { mountStrategyBuilder } from '../strategy/strategyBuilderUi'
 import { openStrategyAiModal } from '../strategy/strategyAiModal'
+import {
+  mountStrategyObjectifyView,
+  type StrategyObjectifyViewApi,
+} from '../strategy/strategyObjectifyView'
 import { mountManualStrategyBuilder, type ManualStrategyBuilderApi } from '../strategy/manualStrategyBuilder'
 
 export type MountStrategyPageOptions = {
@@ -65,6 +69,10 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
       <div data-sx-strat-manual-host></div>
     </div>
 
+    <div class="sx-strat-page__objectify-view" data-sx-strat-view="objectify" hidden>
+      <div data-sx-strat-objectify-host></div>
+    </div>
+
     <div class="sx-strat-page__builder-view" data-sx-strat-view="builder" hidden>
       <header class="sx-strat-page__head">
         <div class="sx-strat-page__head-left">
@@ -106,18 +114,23 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
   const manualView = shell.querySelector('[data-sx-strat-view="manual"]') as HTMLElement
   const manualHost = shell.querySelector('[data-sx-strat-manual-host]') as HTMLElement
   const builderView = shell.querySelector('[data-sx-strat-view="builder"]') as HTMLElement
+  const objectifyView = shell.querySelector('[data-sx-strat-view="objectify"]') as HTMLElement
+  const objectifyHost = shell.querySelector('[data-sx-strat-objectify-host]') as HTMLElement
   let manualBuilder: ManualStrategyBuilderApi | null = null
+  let objectifyViewApi: StrategyObjectifyViewApi | null = null
 
   function showIntake() {
     intakeView.hidden = false
     manualView.hidden = true
     builderView.hidden = true
+    objectifyView.hidden = true
   }
 
   function showManual() {
     intakeView.hidden = true
     manualView.hidden = false
     builderView.hidden = true
+    objectifyView.hidden = true
     if (!manualBuilder) {
       manualBuilder = mountManualStrategyBuilder({
         host: manualHost,
@@ -131,6 +144,26 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
     intakeView.hidden = true
     manualView.hidden = true
     builderView.hidden = false
+    objectifyView.hidden = true
+  }
+
+  function showObjectify() {
+    intakeView.hidden = true
+    manualView.hidden = true
+    builderView.hidden = true
+    objectifyView.hidden = false
+    if (!objectifyViewApi) {
+      objectifyViewApi = mountStrategyObjectifyView({
+        host: objectifyHost,
+        onBack: showIntake,
+        onStrategyReady: (strategy) => {
+          builder.loadStrategy(strategy)
+          selectedId = strategy.id
+          paintList()
+          showBuilder()
+        },
+      })
+    }
   }
 
   intakeView.querySelectorAll<HTMLButtonElement>('[data-sx-strat-intake-pick]').forEach((btn) => {
@@ -140,7 +173,11 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
         showManual()
         return
       }
-      if (pick === 'have' || pick === 'need') {
+      if (pick === 'have') {
+        showObjectify()
+        return
+      }
+      if (pick === 'need') {
         openStrategyAiModal({
           onStrategyReady: (strategy) => {
             builder.loadStrategy(strategy)
@@ -280,6 +317,7 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
     customEl.removeEventListener('click', onListClick)
     builder.dispose()
     manualBuilder?.dispose()
+    objectifyViewApi?.dispose()
     root.replaceChildren()
   }
 }

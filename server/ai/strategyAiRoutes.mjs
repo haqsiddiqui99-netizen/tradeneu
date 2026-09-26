@@ -159,7 +159,8 @@ export function mountStrategyAiRoutes(app) {
       res.status(400).json({ ok: false, error: 'description_required' })
       return
     }
-    if (description.length > 4000) {
+    // Matches the composer's counter in src/strategy/strategyObjectifyView.ts.
+    if (description.length > 10000) {
       res.status(400).json({ ok: false, error: 'description_too_long' })
       return
     }
