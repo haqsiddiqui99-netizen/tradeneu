@@ -300,6 +300,80 @@
   background: rgba(242, 54, 69, 0.97);
 }
 
+/* Trade-event card: check badge on the left, title + detail stacked beside it. */
+.rw-chart-toast--card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 42px 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  background: rgba(13, 14, 17, 0.97);
+  text-align: left;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.42);
+}
+
+.rw-chart-toast__badge {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.rw-chart-toast--fill .rw-chart-toast__badge {
+  background: rgba(8, 153, 129, 0.22);
+  color: #26c99e;
+}
+
+.rw-chart-toast__content {
+  min-width: 0;
+}
+
+.rw-chart-toast--card .rw-chart-toast__title {
+  margin: 0;
+  padding: 0;
+  color: #fff;
+  font: 700 14px/1.3 var(--rw-font, sans-serif);
+}
+
+.rw-chart-toast--card .rw-chart-toast__msg {
+  padding: 0;
+  color: rgba(255, 255, 255, 0.58);
+  font: 600 13px/1.4 var(--rw-font, sans-serif);
+}
+
+.rw-chart-toast__symbol {
+  display: inline-block;
+  margin: 6px 0 4px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+  font: 700 13px/1.3 var(--rw-font, sans-serif);
+}
+
+.rw-chart-toast__side--long {
+  color: #26a69a;
+}
+
+.rw-chart-toast__side--short {
+  color: #f23645;
+}
+
+.rw-chart-toast--card .rw-chart-toast__close {
+  top: 50%;
+  right: 12px;
+  width: 20px;
+  height: 20px;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.45);
+  font: 400 17px/20px var(--rw-font, sans-serif);
+}
+
 .rw-chart-toast__title {
   margin-bottom: 2px;
   padding-right: 4px;

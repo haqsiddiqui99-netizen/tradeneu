@@ -1182,11 +1182,7 @@ export function mountChartWorkspace(
     }, 700)
   }
 
-  function showReplayToast(
-    message: string,
-    tone: 'success' | 'error' = 'success',
-    align: 'right' | 'left' = 'right',
-  ) {
+  function ensureChartToast(): HTMLElement {
     let toast = chartHost.querySelector('[data-rw-chart-toast]') as HTMLElement | null
     if (!toast) {
       toast = document.createElement('div')
@@ -1196,29 +1192,23 @@ export function mountChartWorkspace(
       toast.setAttribute('aria-live', 'polite')
       chartHost.appendChild(toast)
     }
-    clearReplayToastTimers()
-    toast.className = `rw-chart-toast rw-chart-toast--${tone}${align === 'left' ? ' rw-chart-toast--left' : ''}`
-    toast.replaceChildren()
-    if (tone === 'error') {
-      const close = document.createElement('button')
-      close.type = 'button'
-      close.className = 'rw-chart-toast__close'
-      close.setAttribute('aria-label', 'Dismiss')
-      close.textContent = '×'
-      close.addEventListener('click', (event) => {
-        event.stopPropagation()
-        hideReplayToast(toast!, false)
-      })
-      const title = document.createElement('div')
-      title.className = 'rw-chart-toast__title'
-      title.textContent = 'Order Error'
-      const body = document.createElement('div')
-      body.className = 'rw-chart-toast__msg'
-      body.textContent = message
-      toast.append(close, title, body)
-    } else {
-      toast.textContent = message
-    }
+    return toast
+  }
+
+  function chartToastCloseButton(toast: HTMLElement): HTMLButtonElement {
+    const close = document.createElement('button')
+    close.type = 'button'
+    close.className = 'rw-chart-toast__close'
+    close.setAttribute('aria-label', 'Dismiss')
+    close.textContent = '×'
+    close.addEventListener('click', (event) => {
+      event.stopPropagation()
+      hideReplayToast(toast, false)
+    })
+    return close
+  }
+
+  function revealChartToast(toast: HTMLElement, holdMs: number) {
     toast.classList.add('rw-chart-toast--enter')
     toast.hidden = false
     // Force layout so removing the class animates the slide-up instead of snapping.
@@ -1226,8 +1216,106 @@ export function mountChartWorkspace(
     toast.classList.remove('rw-chart-toast--enter')
     replayToastTimer = window.setTimeout(() => {
       replayToastTimer = null
-      hideReplayToast(toast!, true)
-    }, tone === 'error' ? 3800 : 2800)
+      hideReplayToast(toast, true)
+    }, holdMs)
+  }
+
+  function showReplayToast(
+    message: string,
+    tone: 'success' | 'error' = 'success',
+    align: 'right' | 'left' = 'right',
+  ) {
+    const toast = ensureChartToast()
+    clearReplayToastTimers()
+    toast.className = `rw-chart-toast rw-chart-toast--${tone}${align === 'left' ? ' rw-chart-toast--left' : ''}`
+    toast.replaceChildren()
+    if (tone === 'error') {
+      const title = document.createElement('div')
+      title.className = 'rw-chart-toast__title'
+      title.textContent = 'Order Error'
+      const body = document.createElement('div')
+      body.className = 'rw-chart-toast__msg'
+      body.textContent = message
+      toast.append(chartToastCloseButton(toast), title, body)
+    } else {
+      toast.textContent = message
+    }
+    revealChartToast(toast, tone === 'error' ? 3800 : 2800)
+  }
+
+  /**
+   * Trade events use a card layout (check badge, title, detail line) so fills and
+   * bracket edits read as confirmations rather than plain status text.
+   */
+  function showChartCardToast(spec: {
+    title: string
+    detail?: (HTMLElement | string)[]
+    symbol?: string
+    tone?: 'fill' | 'update'
+  }) {
+    const toast = ensureChartToast()
+    clearReplayToastTimers()
+    toast.className = `rw-chart-toast rw-chart-toast--card rw-chart-toast--${spec.tone ?? 'update'}`
+    toast.replaceChildren()
+
+    const badge = document.createElement('span')
+    badge.className = 'rw-chart-toast__badge'
+    badge.setAttribute('aria-hidden', 'true')
+    badge.innerHTML =
+      '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.5l3.1 3.1 6.5-6.9" /></svg>'
+
+    const content = document.createElement('div')
+    content.className = 'rw-chart-toast__content'
+    const title = document.createElement('div')
+    title.className = 'rw-chart-toast__title'
+    title.textContent = spec.title
+    content.append(title)
+    if (spec.symbol) {
+      const pill = document.createElement('span')
+      pill.className = 'rw-chart-toast__symbol'
+      pill.textContent = spec.symbol
+      content.append(pill)
+    }
+    if (spec.detail?.length) {
+      const msg = document.createElement('div')
+      msg.className = 'rw-chart-toast__msg'
+      msg.append(...spec.detail)
+      content.append(msg)
+    }
+
+    toast.append(badge, content, chartToastCloseButton(toast))
+    revealChartToast(toast, 3200)
+  }
+
+  /** Market fills report side, size and price the way the broker ticket would. */
+  function showMarketFillToast(
+    direction: 'long' | 'short',
+    qty: number,
+    price: number,
+    symbol: string,
+  ) {
+    const side = document.createElement('strong')
+    side.className = `rw-chart-toast__side rw-chart-toast__side--${direction}`
+    side.textContent = direction === 'long' ? 'Buy' : 'Sell'
+    showChartCardToast({
+      tone: 'fill',
+      title: 'Market order executed on',
+      symbol: formatDisplaySymbol(symbol),
+      detail: [side, ` ${Number(qty.toFixed(2))} at ${formatSessionPrice(price)}`],
+    })
+  }
+
+  /** Bracket edits distinguish a first-time level from a move, and always name the price. */
+  function showExitLevelToast(
+    kind: 'take_profit' | 'stop_loss',
+    isNew: boolean,
+    price: number,
+  ) {
+    const label = kind === 'take_profit' ? 'Take profit' : 'Stop loss'
+    showChartCardToast({
+      title: isNew ? 'Order Added' : 'Position Updated',
+      detail: [`${label} ${isNew ? 'added at' : 'moved to'} ${formatSessionPrice(price)}!`],
+    })
   }
 
   /** Failures belong in the chart footer toast; the header banner stays for informational notices. */
@@ -5845,10 +5933,7 @@ export function mountChartWorkspace(
       else replayAccount.setStopLoss(id, next)
       schedulePersistReplay()
       syncTradingUi(lastBar(replay.slice()))
-      const label = kind === 'take_profit' ? 'Take Profit' : 'Stop Loss'
-      showReplayToast(
-        `${label} ${isNew ? 'Added' : 'Updated'} @ ${formatSessionPrice(next)}`,
-      )
+      showExitLevelToast(kind, isNew, next)
       return true
     }
 
@@ -5881,9 +5966,7 @@ export function mountChartWorkspace(
       if (!applied) return false
       schedulePersistReplay()
       syncTradingUi(lastBar(replay.slice()))
-      showReplayToast(
-        `${kind === 'take_profit' ? 'Take Profit' : 'Stop Loss'} ${isNew ? 'Added' : 'Updated'} @ ${formatSessionPrice(next)}`,
-      )
+      showExitLevelToast(kind, isNew, next)
       return true
     }
 
@@ -9137,6 +9220,7 @@ export function mountChartWorkspace(
       applyCurrentScalperProtection(opened)
       schedulePersistReplay()
       syncTradingUi(b)
+      showMarketFillToast('long', qty, fill, currentChartSymbol)
       // Re-layout after TV price scale settles so the entry line locks to the candle.
       requestAnimationFrame(() => {
         if (!state.disposed) syncPositionOverlay(true)
@@ -9172,6 +9256,7 @@ export function mountChartWorkspace(
       applyCurrentScalperProtection(opened)
       schedulePersistReplay()
       syncTradingUi(b)
+      showMarketFillToast('short', qty, fill, currentChartSymbol)
       requestAnimationFrame(() => {
         if (!state.disposed) syncPositionOverlay(true)
       })
