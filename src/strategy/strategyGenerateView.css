@@ -3,13 +3,26 @@
 
 /* The whole form is meant to fit one screen without scrolling, so the shell
    padding is trimmed and the fields sit on a three-column grid. */
+.sx-strat-gen.sx-strat-obj {
+  padding-bottom: 1rem;
+}
+
 .sx-strat-gen .sx-strat-obj__body {
   max-width: 54rem;
-  padding-top: 1.1rem;
+  padding-top: 1rem;
+}
+
+/* Title and blurb share one line so the submit button stays above the fold. */
+.sx-strat-gen__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.8rem;
+  margin-bottom: 0.9rem;
 }
 
 .sx-strat-gen__title {
-  margin: 0 0 0.2rem;
+  margin: 0;
   color: #0f172a;
   font-size: 1.35rem;
   font-weight: 800;
@@ -17,7 +30,7 @@
 }
 
 .sx-strat-gen__sub {
-  margin: 0 0 1.1rem;
+  margin: 0;
   color: #64748b;
   font-size: 0.85rem;
 }

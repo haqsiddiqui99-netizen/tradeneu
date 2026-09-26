@@ -78,8 +78,10 @@ function html(): string {
       </button>
 
       <div class="sx-strat-obj__body" data-sx-gen-form>
-        <h2 class="sx-strat-gen__title">I need a strategy</h2>
-        <p class="sx-strat-gen__sub">Tell us a bit about yourself and we\u2019ll design one to start with.</p>
+        <div class="sx-strat-gen__head">
+          <h2 class="sx-strat-gen__title">I need a strategy</h2>
+          <p class="sx-strat-gen__sub">Tell us a bit about yourself and we\u2019ll design one to start with.</p>
+        </div>
 
         <div class="sx-strat-gen__grid">
           <label class="sx-strat-gen__field">
