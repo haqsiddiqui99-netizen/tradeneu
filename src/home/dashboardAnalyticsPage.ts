@@ -188,6 +188,17 @@ function sxaAxisLabelColor(root: HTMLElement): string {
   return v || AXIS
 }
 
+// Same trick as sxaAxisLabelColor, but for hairline/gridline strokes. Reads
+// `--sxa-line` (`#e7e9ee` light / `rgba(255,255,255,0.1)` dark) so Chart.js
+// canvases — which can't see CSS like DOM elements can — pick up the same
+// faint divider color the rest of the Analytics page uses, instead of a
+// hardcoded light-mode grey that all but disappears on a dark card.
+function sxaLineColor(root: HTMLElement): string {
+  const host = root.querySelector('.sxa-analytics') ?? root
+  const v = getComputedStyle(host).getPropertyValue('--sxa-line').trim()
+  return v || GRID
+}
+
 // Chart.js v4 doesn't support dashing the actual y-axis gridlines out of the box (only the
 // axis border / tick marks). This tiny plugin draws them manually so we can render dotted
 // horizontal gridlines while leaving Chart.js's own grid disabled (y.grid.display: false).
@@ -2093,6 +2104,8 @@ export function initAnalyticsPage(
       return fmtMoney(v)
     }
 
+    const radarLineColor = sxaLineColor(root)
+    const radarLabelColor = sxaAxisLabelColor(root)
     for (const [label, fn, color] of metrics) {
       const key = 'radar' + label.replace(/\s/g, '')
       destroyChart(key)
@@ -2118,10 +2131,10 @@ export function initAnalyticsPage(
           },
           scales: {
             r: {
-              grid: { color: '#eee' },
-              angleLines: { color: '#eee' },
+              grid: { color: radarLineColor },
+              angleLines: { color: radarLineColor },
               ticks: { display: false },
-              pointLabels: { font: { size: 9.5 }, color: '#6b7280' },
+              pointLabels: { font: { size: 9.5 }, color: radarLabelColor },
             },
           },
         },

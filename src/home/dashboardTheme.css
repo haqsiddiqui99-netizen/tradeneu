@@ -9601,3 +9601,15 @@ a.sx-dash-account__item {
   background: #6b7280;
 }
 
+/* The active tab pill inherits --sxa-surface, which is only a shade or two
+   lighter than the tab bar's own translucent backdrop — too close in dark
+   mode to read as clearly "selected" at a glance. Match the sidebar's active
+   nav item instead: the same fixed grey fill, so "selected" reads the same
+   way everywhere on the dashboard rather than tracking a flipped token. */
+#sx-app-root[data-dashboard-theme='dark'] .sxa-tab-nav__btn--active {
+  background: #6b7280;
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
