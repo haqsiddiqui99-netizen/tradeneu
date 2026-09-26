@@ -18,6 +18,7 @@ import {
   Filler,
   type ChartConfiguration,
 } from 'chart.js'
+import { sxAxisLinePlugin } from './dashboardChartAxis'
 import { fetchMarketBarsSeries } from '../data/marketDataClient'
 
 Chart.register(
@@ -2208,6 +2209,7 @@ export function initAnalyticsPage(
     // so the label spells out the whole span to avoid implying trades only land on the hour.
     charts.timeBar = new Chart(canvas, {
       type: timeChartType,
+      plugins: [sxAxisLinePlugin],
       data: {
         labels: Array.from({ length: 24 }, (_, h) => `${h}:00-${h}:59`),
         datasets: [timeChartType === 'bar' ? barDataset : lineDataset],
@@ -2238,9 +2240,12 @@ export function initAnalyticsPage(
             // The zero line doubles as the chart's x-axis (bars grow up/down from it), so
             // it stays solid; every other horizontal gridline is dotted for less visual noise.
             // Chart.js draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+            // `drawTicks` is off so no tick stubs poke out to the left of the
+            // y-axis line into the label gutter.
             grid: {
               color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
               lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+              drawTicks: false,
             },
             border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
           },
@@ -2282,6 +2287,7 @@ export function initAnalyticsPage(
     }
     charts.dayBar = new Chart(canvas, {
       type: dayChartType,
+      plugins: [sxAxisLinePlugin],
       data: { labels: days, datasets: [dayChartType === 'bar' ? dayBarDataset : dayLineDataset] },
       options: {
         responsive: true,
@@ -2309,9 +2315,12 @@ export function initAnalyticsPage(
             // The zero line doubles as the chart's x-axis (bars grow up/down from it), so
             // it stays solid; every other horizontal gridline is dotted for less visual noise.
             // Chart.js draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+            // `drawTicks` is off so no tick stubs poke out to the left of the
+            // y-axis line into the label gutter.
             grid: {
               color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
               lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+              drawTicks: false,
             },
             border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
           },

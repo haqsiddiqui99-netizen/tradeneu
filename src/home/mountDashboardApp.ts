@@ -18,6 +18,7 @@ import {
   type TooltipPositionerFunction,
   type Plugin,
 } from 'chart.js'
+import { sxAxisLinePlugin } from './dashboardChartAxis'
 
 declare module 'chart.js' {
   interface TooltipPositionerMap {
@@ -120,18 +121,18 @@ function sxEquitySegmentColor(values: (number | null)[], ctx: { p0DataIndex: num
 }
 
 function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<typeof computeEquityCurveSeries>) {
-  const rawCumulative = equity.hasData ? equity.cumulative : new Array(12).fill(0)
   // Only plot months the trader actually traded in. The cumulative total
   // naturally stays flat before the first trade and after the last one, so
   // plotting the full year drew dots across months that had no activity and
-  // read as though trades had happened there — including a $0 point sitting
-  // on the zero line. A single trading month is therefore a single dot.
+  // read as though trades had happened there — including $0 points sitting on
+  // the zero line. A single trading month is therefore a single dot, and no
+  // trades at all leaves bare axes rather than a flat $0 line across the year.
   const first = equity.firstActivityIndex
   const last = equity.lastActivityIndex
-  const cumulative: (number | null)[] =
-    equity.hasData && first >= 0
-      ? rawCumulative.map((v, i) => (i >= first && i <= last ? v : null))
-      : rawCumulative
+  const inRange = equity.hasData && first >= 0
+  const cumulative: (number | null)[] = equity.cumulative.map((v, i) =>
+    inRange && i >= first && i <= last ? v : null,
+  )
   const plottedValues = cumulative.filter((v): v is number => v != null)
   const maxVal = Math.max(0, ...plottedValues, 1)
   const minVal = Math.min(0, ...plottedValues, 0)
@@ -156,6 +157,7 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
     if (parent) parent.style.position = 'relative'
     const config: ChartConfiguration<'line'> = {
       type: 'line',
+      plugins: [sxAxisLinePlugin],
       data: {
         labels: equity.labels,
         datasets: [
@@ -192,9 +194,12 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
             // The zero line doubles as the chart's x-axis, so it stays solid; every
             // other horizontal gridline is dotted for less visual noise. Chart.js
             // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+            // `drawTicks` is off so no tick stubs poke out to the left of the
+            // y-axis line into the label gutter.
             grid: {
               color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
               lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+              drawTicks: false,
             },
             border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
           },
@@ -281,6 +286,7 @@ function syncActivityBarChart(
   if (!chart) {
     const config: ChartConfiguration<'bar'> = {
       type: 'bar',
+      plugins: [sxAxisLinePlugin],
       data: {
         labels,
         datasets: [
@@ -323,9 +329,12 @@ function syncActivityBarChart(
             // The zero line doubles as the chart's x-axis, so it stays solid; every
             // other horizontal gridline is dotted for less visual noise. Chart.js
             // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+            // `drawTicks` is off so no tick stubs poke out to the left of the
+            // y-axis line into the label gutter.
             grid: {
               color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
               lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+              drawTicks: false,
             },
             border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
           },
@@ -476,6 +485,7 @@ function syncWinRateBarChart(canvas: HTMLCanvasElement, points: { label: string;
   if (!chart) {
     const config: ChartConfiguration<'bar'> = {
       type: 'bar',
+      plugins: [sxAxisLinePlugin],
       data: {
         labels,
         datasets: [
@@ -509,9 +519,12 @@ function syncWinRateBarChart(canvas: HTMLCanvasElement, points: { label: string;
             // The zero line doubles as the chart's x-axis, so it stays solid; every
             // other horizontal gridline is dotted for less visual noise. Chart.js
             // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
+            // `drawTicks` is off so no tick stubs poke out to the left of the
+            // y-axis line into the label gutter.
             grid: {
               color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
               lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+              drawTicks: false,
             },
             border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
           },
