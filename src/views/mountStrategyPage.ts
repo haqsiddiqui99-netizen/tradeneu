@@ -24,6 +24,7 @@ import {
   type StrategyGenerateViewApi,
 } from '../strategy/strategyGenerateView'
 import { mountManualStrategyBuilder, type ManualStrategyBuilderApi } from '../strategy/manualStrategyBuilder'
+import { onLocaleChange, te } from '../i18n'
 
 export type MountStrategyPageOptions = {
   onBack?: () => void
@@ -40,30 +41,30 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
   shell.innerHTML = `
     <div class="sx-strat-page__intake" data-sx-strat-view="intake">
       <header class="sx-strat-page__intake-head">
-        ${opts?.onBack ? `<button type="button" class="sx-strat-page__back" data-sx-strat-back aria-label="Back to dashboard"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>Dashboard</span></button>` : ''}
-        <h1 class="sx-strat-page__intake-title">Strategies</h1>
+        ${opts?.onBack ? `<button type="button" class="sx-strat-page__back" data-sx-strat-back aria-label="${te('strategy.backToDashboard')}" data-i18n-aria-label="strategy.backToDashboard"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span data-i18n="nav.dashboard">${te('nav.dashboard')}</span></button>` : ''}
+        <h1 class="sx-strat-page__intake-title" data-i18n="strategy.title">${te('strategy.title')}</h1>
       </header>
       <div class="sx-strat-page__intake-hero">
-        <h2 class="sx-strat-page__intake-hero-title">Let\u2019s build your strategy</h2>
-        <p class="sx-strat-page__intake-hero-subtitle">Where are you starting from?</p>
+        <h2 class="sx-strat-page__intake-hero-title" data-i18n="strategy.intake.heroTitle">${te('strategy.intake.heroTitle')}</h2>
+        <p class="sx-strat-page__intake-hero-subtitle" data-i18n="strategy.intake.heroSubtitle">${te('strategy.intake.heroSubtitle')}</p>
         <div class="sx-strat-page__intake-cards">
           <button type="button" class="sx-strat-page__intake-card" data-sx-strat-intake-pick="have">
             <span class="sx-strat-page__intake-card-icon sx-strat-page__intake-card-icon--blue"><i class="fa-regular fa-file-lines" aria-hidden="true"></i></span>
-            <span class="sx-strat-page__intake-card-title">I have a strategy</span>
-            <span class="sx-strat-page__intake-card-link sx-strat-page__intake-card-link--blue">Make it more objective</span>
-            <span class="sx-strat-page__intake-card-desc">Got rules already? Good. I\u2019ll scan them, spot the gaps, and make every fuzzy idea into a clear, testable condition.</span>
+            <span class="sx-strat-page__intake-card-title" data-i18n="strategy.intake.have.title">${te('strategy.intake.have.title')}</span>
+            <span class="sx-strat-page__intake-card-link sx-strat-page__intake-card-link--blue" data-i18n="strategy.intake.have.link">${te('strategy.intake.have.link')}</span>
+            <span class="sx-strat-page__intake-card-desc" data-i18n="strategy.intake.have.desc">${te('strategy.intake.have.desc')}</span>
           </button>
           <button type="button" class="sx-strat-page__intake-card" data-sx-strat-intake-pick="need">
             <span class="sx-strat-page__intake-card-icon sx-strat-page__intake-card-icon--violet"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></span>
-            <span class="sx-strat-page__intake-card-title">I need a strategy</span>
-            <span class="sx-strat-page__intake-card-link sx-strat-page__intake-card-link--violet">Start from scratch</span>
-            <span class="sx-strat-page__intake-card-desc">Tell us a bit about yourself and we\u2019ll hand you a proven strategy to start with.</span>
+            <span class="sx-strat-page__intake-card-title" data-i18n="strategy.intake.need.title">${te('strategy.intake.need.title')}</span>
+            <span class="sx-strat-page__intake-card-link sx-strat-page__intake-card-link--violet" data-i18n="strategy.intake.need.link">${te('strategy.intake.need.link')}</span>
+            <span class="sx-strat-page__intake-card-desc" data-i18n="strategy.intake.need.desc">${te('strategy.intake.need.desc')}</span>
           </button>
           <button type="button" class="sx-strat-page__intake-card" data-sx-strat-intake-pick="builtin">
             <span class="sx-strat-page__intake-card-icon sx-strat-page__intake-card-icon--green"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></span>
-            <span class="sx-strat-page__intake-card-title">I want in-built strategy</span>
-            <span class="sx-strat-page__intake-card-link sx-strat-page__intake-card-link--green">Browse templates</span>
-            <span class="sx-strat-page__intake-card-desc">Pick from ready-made templates \u2014 EMA Crossover, RSI Mean Reversion, and more \u2014 then customize and backtest right away.</span>
+            <span class="sx-strat-page__intake-card-title" data-i18n="strategy.intake.builtin.title">${te('strategy.intake.builtin.title')}</span>
+            <span class="sx-strat-page__intake-card-link sx-strat-page__intake-card-link--green" data-i18n="strategy.intake.builtin.link">${te('strategy.intake.builtin.link')}</span>
+            <span class="sx-strat-page__intake-card-desc" data-i18n="strategy.intake.builtin.desc">${te('strategy.intake.builtin.desc')}</span>
           </button>
         </div>
       </div>
@@ -84,29 +85,29 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
     <div class="sx-strat-page__builder-view" data-sx-strat-view="builder" hidden>
       <header class="sx-strat-page__head">
         <div class="sx-strat-page__head-left">
-          <button type="button" class="sx-strat-page__back" data-sx-strat-to-intake aria-label="Back to strategies"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>Strategies</span></button>
+          <button type="button" class="sx-strat-page__back" data-sx-strat-to-intake aria-label="${te('strategy.backToStrategies')}" data-i18n-aria-label="strategy.backToStrategies"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span data-i18n="strategy.title">${te('strategy.title')}</span></button>
           <div>
-            <h1 class="sx-strat-page__title">Strategy builder</h1>
-            <p class="sx-strat-page__subtitle">Create rule-based strategies for backtest and bar replay.</p>
+            <h1 class="sx-strat-page__title" data-i18n="strategy.builderTitle">${te('strategy.builderTitle')}</h1>
+            <p class="sx-strat-page__subtitle" data-i18n="strategy.builderSubtitle">${te('strategy.builderSubtitle')}</p>
           </div>
         </div>
         <div class="sx-strat-page__head-actions">
-          <button type="button" class="sx-strat-page__btn sx-strat-page__btn--primary" data-sx-strat-new>+ New strategy</button>
-          <button type="button" class="sx-strat-page__btn sx-strat-page__btn--ai" data-sx-strat-ai><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> AI Strategy Builder</button>
-          <button type="button" class="sx-strat-page__btn" data-sx-strat-run-backtest disabled>Run backtest</button>
-          <button type="button" class="sx-strat-page__btn" data-sx-strat-open-chart disabled>Open in chart</button>
+          <button type="button" class="sx-strat-page__btn sx-strat-page__btn--primary" data-sx-strat-new data-i18n="strategy.newStrategy">${te('strategy.newStrategy')}</button>
+          <button type="button" class="sx-strat-page__btn sx-strat-page__btn--ai" data-sx-strat-ai><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> <span data-i18n="strategy.aiBuilder">${te('strategy.aiBuilder')}</span></button>
+          <button type="button" class="sx-strat-page__btn" data-sx-strat-run-backtest disabled data-i18n="strategy.runBacktest">${te('strategy.runBacktest')}</button>
+          <button type="button" class="sx-strat-page__btn" data-sx-strat-open-chart disabled data-i18n="strategy.openInChart">${te('strategy.openInChart')}</button>
         </div>
       </header>
       <div class="sx-strat-page__body">
-        <aside class="sx-strat-page__list" aria-label="Strategy library">
+        <aside class="sx-strat-page__list" aria-label="${te('strategy.libraryAria')}" data-i18n-aria-label="strategy.libraryAria">
           <div class="sx-strat-page__list-section">
-            <h2 class="sx-strat-page__list-label">Built-in templates</h2>
+            <h2 class="sx-strat-page__list-label" data-i18n="strategy.builtInTemplates">${te('strategy.builtInTemplates')}</h2>
             <div class="sx-strat-page__cards" data-sx-strat-builtin></div>
           </div>
           <div class="sx-strat-page__list-section">
-            <h2 class="sx-strat-page__list-label">My strategies</h2>
+            <h2 class="sx-strat-page__list-label" data-i18n="strategy.myStrategies">${te('strategy.myStrategies')}</h2>
             <div class="sx-strat-page__cards" data-sx-strat-custom></div>
-            <p class="sx-strat-page__empty" data-sx-strat-custom-empty hidden>No custom strategies yet. Duplicate a template or create new.</p>
+            <p class="sx-strat-page__empty" data-sx-strat-custom-empty hidden data-i18n="strategy.noCustomYet">${te('strategy.noCustomYet')}</p>
           </div>
         </aside>
         <main class="sx-strat-page__editor">
@@ -250,18 +251,19 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
 
   function paintSummary(s: StrategyDefinition) {
     summaryEl.innerHTML = `
-      <span class="sx-strat-page__tag">${isBuiltInStrategy(s.id) ? 'Template' : 'Custom'}</span>
-      <span>${s.entryConditions.length} entry · ${s.exitConditions.length} exit rules</span>
-      <span>Stop ${formatStopLabel(s.stopLoss)}</span>
-      <span>TP ${formatTargetLabel(s.takeProfit)}</span>
-      <span>Size ${formatPositionLabel(s.positionSize)}</span>
+      <span class="sx-strat-page__tag">${isBuiltInStrategy(s.id) ? te('strategy.tag.template') : te('strategy.tag.custom')}</span>
+      <span>${te('strategy.entryExitRules', { entry: s.entryConditions.length, exit: s.exitConditions.length })}</span>
+      <span>${te('strategy.stopLabel', { value: formatStopLabel(s.stopLoss) })}</span>
+      <span>${te('strategy.tpLabel', { value: formatTargetLabel(s.takeProfit) })}</span>
+      <span>${te('strategy.sizeLabel', { value: formatPositionLabel(s.positionSize) })}</span>
     `
   }
 
   function cardHtml(s: StrategyDefinition, active: boolean): string {
+    const dirKey = s.direction === 'long' ? 'strategy.direction.long' : s.direction === 'short' ? 'strategy.direction.short' : 'strategy.direction.both'
     return `<button type="button" class="sx-strat-page__card${active ? ' is-active' : ''}" data-sx-strat-id="${s.id}">
       <span class="sx-strat-page__card-name">${s.name}</span>
-      <span class="sx-strat-page__card-meta">${s.direction} · ${s.entryConditions.length} entry rules</span>
+      <span class="sx-strat-page__card-meta">${te(dirKey)} · ${te('strategy.entryRulesCount', { count: s.entryConditions.length })}</span>
     </button>`
   }
 
@@ -328,7 +330,15 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
   paintList()
   paintSummary(builder.getStrategy())
 
+  // The strategy cards and the summary strip are built from JS strings rather than
+  // `data-i18n` markup, so they need an explicit repaint when the language changes.
+  const offLocale = onLocaleChange(() => {
+    paintList()
+    paintSummary(builder.getStrategy())
+  })
+
   return () => {
+    offLocale()
     builtinEl.removeEventListener('click', onListClick)
     customEl.removeEventListener('click', onListClick)
     builder.dispose()

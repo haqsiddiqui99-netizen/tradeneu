@@ -7,6 +7,7 @@ import {
   type MyBilling,
 } from '../billing/billingApi'
 import type { AccountTier } from './mountSubscriptionPage'
+import { onLocaleChange, t as translate, te } from '../i18n'
 
 type BillingAddress = {
   name: string
@@ -63,9 +64,9 @@ function date(value: number | null | undefined, long = false): string {
 }
 
 function planName(tier: AccountTier): string {
-  if (tier === 'pro') return 'Premium Plan'
-  if (tier === 'intermediate') return 'Ultra Plan'
-  return 'Basic Plan'
+  if (tier === 'pro') return translate('billing.plan.premium')
+  if (tier === 'intermediate') return translate('billing.plan.ultra')
+  return translate('billing.plan.basic')
 }
 
 function readAddress(email: string): BillingAddress | null {
@@ -142,7 +143,7 @@ function cardRows(cards: SavedCard[]): string {
   if (!cards.length) {
     return `<div class="sx-billing__empty sx-billing__empty--compact">
       <span class="sx-billing__empty-icon"><i class="fa-regular fa-credit-card" aria-hidden="true"></i></span>
-      <div><strong>No saved cards yet</strong><p>Add a card for your own reference — stored on this device only.</p></div>
+      <div><strong>${te('billing.noSavedCards')}</strong><p>${te('billing.noSavedCardsSub')}</p></div>
     </div>`
   }
   return cards
@@ -236,7 +237,7 @@ function invoiceRows(transactions: BillingTransaction[]): string {
   if (!transactions.length) {
     return `<div class="sx-billing__empty sx-billing__empty--compact">
       <span class="sx-billing__empty-icon"><i class="fa-regular fa-file-lines" aria-hidden="true"></i></span>
-      <div><strong>No invoices yet</strong><p>Completed checkouts will appear here.</p></div>
+      <div><strong>${te('billing.noInvoicesYet')}</strong><p>${te('billing.noInvoicesSub')}</p></div>
     </div>`
   }
   return transactions
@@ -332,14 +333,14 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
   root.innerHTML = `<section class="sx-billing" aria-labelledby="sx-billing-title">
     <header class="sx-billing__head">
       <div>
-        <h1 id="sx-billing-title">Billing</h1>
-        <p>Manage your plan, billing details, invoices, and payment history.</p>
+        <h1 id="sx-billing-title" data-i18n="billing.title">${te('billing.title')}</h1>
+        <p data-i18n="billing.subtitle">${te('billing.subtitle')}</p>
       </div>
       <button type="button" class="sx-billing__btn sx-billing__btn--dark" data-billing-action="upgrade">
-        <i class="fa-solid fa-crown" aria-hidden="true"></i> Manage plan
+        <i class="fa-solid fa-crown" aria-hidden="true"></i> <span data-i18n="billing.managePlan">${te('billing.managePlan')}</span>
       </button>
     </header>
-    <div class="sx-billing__loading" data-billing-loading><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Loading billing details…</div>
+    <div class="sx-billing__loading" data-billing-loading><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> <span data-i18n="billing.loading">${te('billing.loading')}</span></div>
     <div class="sx-billing__content" data-billing-content hidden></div>
   </section>`
 
@@ -377,28 +378,28 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
 
       <article class="sx-billing-summary">
         <span class="sx-billing-summary__icon"><i class="fa-solid fa-building-columns" aria-hidden="true"></i></span>
-        <span class="sx-billing-summary__eyebrow">Plan cost</span>
+        <span class="sx-billing-summary__eyebrow" data-i18n="billing.planCost">${te('billing.planCost')}</span>
         <h3>${sub?.mrr ? money(sub.mrr) : escapeHtml(planName(tier))}</h3>
-        <p>${sub?.mrr ? `Billed ${escapeHtml(cycle.toLowerCase())}` : tier === 'free' ? 'Free forever' : 'No active billing'}</p>
+        <p>${sub?.mrr ? translate('billing.billedCycle', { cycle: cycle.toLowerCase() }) : tier === 'free' ? te('billing.freeForever') : te('billing.noActiveBilling')}</p>
       </article>
 
       <article class="sx-billing-summary">
         <span class="sx-billing-summary__icon"><i class="${methodIcon(latest?.method)}" aria-hidden="true"></i></span>
-        <span class="sx-billing-summary__eyebrow">Payment method</span>
-        <h3>${latest ? escapeHtml(methodLabel(latest.method)) : 'Not added'}</h3>
-        <p>${latest ? `${money(latest.total)} \u00b7 ${date(latest.ts)}` : 'A payment method appears after checkout.'}</p>
+        <span class="sx-billing-summary__eyebrow" data-i18n="billing.paymentMethod">${te('billing.paymentMethod')}</span>
+        <h3>${latest ? escapeHtml(methodLabel(latest.method)) : te('billing.notAdded')}</h3>
+        <p>${latest ? `${money(latest.total)} \u00b7 ${date(latest.ts)}` : te('billing.paymentMethodHint')}</p>
       </article>
 
       <aside class="sx-billing-invoices">
-        <header><h2>Invoices</h2><button type="button" data-billing-action="view-all">View all</button></header>
+        <header><h2 data-i18n="billing.invoices">${te('billing.invoices')}</h2><button type="button" data-billing-action="view-all" data-i18n="billing.viewAll">${te('billing.viewAll')}</button></header>
         <div>${invoiceRows(billing.transactions)}</div>
       </aside>
 
       <section class="sx-billing-card sx-billing-card--payment">
         <header class="sx-billing-card__head">
-          <div><h2>Payment Method</h2><p>Saved cards for your own reference \u2014 kept on this device only.</p></div>
+          <div><h2 data-i18n="billing.paymentMethodCard">${te('billing.paymentMethodCard')}</h2><p data-i18n="billing.paymentMethodCardSub">${te('billing.paymentMethodCardSub')}</p></div>
           <button type="button" class="sx-billing__btn sx-billing__btn--dark" data-billing-action="add-card">
-            <i class="fa-solid fa-plus" aria-hidden="true"></i> Add New Card
+            <i class="fa-solid fa-plus" aria-hidden="true"></i> <span data-i18n="billing.addNewCard">${te('billing.addNewCard')}</span>
           </button>
         </header>
         <div class="sx-billing-cards" data-billing-cards>${cardRows(cards)}</div>
@@ -521,8 +522,13 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
     render()
   })
 
+  // Header markup is static once the panel mounts, so re-render on locale
+  // switch to pick up strings baked into `render()` via translate()/te().
+  const unsubLocale = onLocaleChange(() => render())
+
   return () => {
     active = false
+    unsubLocale()
     root.removeEventListener('click', onClick)
     root.removeEventListener('submit', onSubmit as EventListener)
     root.replaceChildren()

@@ -39,6 +39,7 @@ import {
 import type { AuthUser } from '../auth/authSession'
 import { GUEST_AUTH_EMAIL } from '../auth/authSession'
 import { dashLocaleMenuLabel } from '../home/dashboardLocales'
+import { te, type MessageKey } from '../i18n'
 import {
   readConfirmCloseTrade,
   readDefaultChartInterval,
@@ -96,6 +97,8 @@ export type MountAccountPageOptions = {
   onBack?: () => void
   embedded?: boolean
   initialTab?: AccountTabKey
+  /** Fired when the user picks a tab, so the host can mirror it in the URL. */
+  onTabChange?: (tab: AccountTabKey) => void
   readLocale: () => string
   writeLocale: (code: string) => void
   localeOptions: ReadonlyArray<{ code: string; name: string }>
@@ -116,15 +119,15 @@ export type MountAccountPageOptions = {
   adminHref?: string
 }
 
-const TABS: ReadonlyArray<{ key: AccountTabKey; label: string; icon: string }> = [
-  { key: 'account', label: 'Account', icon: 'fa-regular fa-user' },
-  { key: 'security', label: 'Security', icon: 'fa-solid fa-shield-halved' },
-  { key: 'devices', label: 'Devices', icon: 'fa-solid fa-desktop' },
-  { key: 'subscription', label: 'Subscription', icon: 'fa-regular fa-credit-card' },
-  { key: 'backtesting', label: 'Backtesting', icon: 'fa-solid fa-chart-simple' },
-  { key: 'costs', label: 'Spreads & Commissions', icon: 'fa-solid fa-percent' },
-  { key: 'usage', label: 'Usage', icon: 'fa-solid fa-gauge-high' },
-  { key: 'deleted', label: 'Deleted Sessions', icon: 'fa-regular fa-trash-can' },
+const TABS: ReadonlyArray<{ key: AccountTabKey; labelKey: MessageKey; icon: string }> = [
+  { key: 'account', labelKey: 'acct.tab.account', icon: 'fa-regular fa-user' },
+  { key: 'security', labelKey: 'acct.tab.security', icon: 'fa-solid fa-shield-halved' },
+  { key: 'devices', labelKey: 'acct.tab.devices', icon: 'fa-solid fa-desktop' },
+  { key: 'subscription', labelKey: 'acct.tab.subscription', icon: 'fa-regular fa-credit-card' },
+  { key: 'backtesting', labelKey: 'acct.tab.backtesting', icon: 'fa-solid fa-chart-simple' },
+  { key: 'costs', labelKey: 'acct.tab.costs', icon: 'fa-solid fa-percent' },
+  { key: 'usage', labelKey: 'acct.tab.usage', icon: 'fa-solid fa-gauge-high' },
+  { key: 'deleted', labelKey: 'acct.tab.deleted', icon: 'fa-regular fa-trash-can' },
 ]
 
 const DEVICE_ICONS: Record<AuthDevice['kind'], string> = {
@@ -333,7 +336,16 @@ function avatarMarkup(initials: string, avatarUrl: string | null): string {
   return `<span data-sx-acct-avatar-fallback>${escapeHtml(initials)}</span>`
 }
 
-export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOptions): () => void {
+export type AccountPageHandle = {
+  dispose: () => void
+  /**
+   * Switch tabs from the host (Back/Forward, deep link) without firing
+   * `onTabChange`, so restoring a URL cannot push a new history entry.
+   */
+  showTab: (tab: AccountTabKey) => void
+}
+
+export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOptions): AccountPageHandle {
   root.replaceChildren()
 
   const tier = opts.readTier?.() ?? 'free'
@@ -383,26 +395,26 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
   shell.className = opts.embedded ? 'sx-acct sx-acct--embedded' : 'sx-acct'
   shell.innerHTML = `
     <header class="sx-acct__head">
-      ${opts.onBack ? `<button type="button" class="sx-acct__back" data-sx-acct-back aria-label="Back to dashboard"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>Dashboard</span></button>` : ''}
+      ${opts.onBack ? `<button type="button" class="sx-acct__back" data-sx-acct-back aria-label="${te('acct.backAria')}" data-i18n-aria-label="acct.backAria"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span data-i18n="acct.back">${te('acct.back')}</span></button>` : ''}
       <div class="sx-acct__head-copy">
-        <p class="sx-acct__eyebrow">Account center</p>
-        <h1 class="sx-acct__title">Profile Settings<span class="sx-acct__email">${escapeHtml(email)}</span></h1>
+        <p class="sx-acct__eyebrow" data-i18n="acct.eyebrow">${te('acct.eyebrow')}</p>
+        <h1 class="sx-acct__title"><span data-i18n="acct.title">${te('acct.title')}</span><span class="sx-acct__email">${escapeHtml(email)}</span></h1>
       </div>
       ${opts.showAdminLink && opts.adminHref ? `<div class="sx-acct__head-actions"><a class="sx-acct-btn" href="${escapeAttr(opts.adminHref)}">Admin</a></div>` : ''}
     </header>
 
-    <nav class="sx-acct__tabs" role="tablist" aria-label="Profile settings sections">
+    <nav class="sx-acct__tabs" role="tablist" aria-label="${te('acct.tabsAria')}" data-i18n-aria-label="acct.tabsAria">
       ${TABS.map(
-        (t) => `<button
+        (tab) => `<button
         type="button"
         class="sx-acct__tab"
         role="tab"
-        id="sx-acct-tab-${t.key}"
-        aria-controls="sx-acct-panel-${t.key}"
+        id="sx-acct-tab-${tab.key}"
+        aria-controls="sx-acct-panel-${tab.key}"
         aria-selected="false"
         tabindex="-1"
-        data-sx-acct-tab="${t.key}"
-      ><i class="${t.icon}" aria-hidden="true"></i>${t.label}</button>`,
+        data-sx-acct-tab="${tab.key}"
+      ><i class="${tab.icon}" aria-hidden="true"></i><span data-i18n="${tab.labelKey}">${te(tab.labelKey)}</span></button>`,
       ).join('')}
     </nav>
 
@@ -412,8 +424,8 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct__col">
             <div class="sx-acct-card">
               <div class="sx-acct-card__head">
-                <h2 class="sx-acct-card__title">Profile</h2>
-                <p class="sx-acct-card__lead">How you appear inside Tradeneu.</p>
+                <h2 class="sx-acct-card__title" data-i18n="acct.profile.title">${te('acct.profile.title')}</h2>
+                <p class="sx-acct-card__lead" data-i18n="acct.profile.subtitle">${te('acct.profile.subtitle')}</p>
               </div>
               <div class="sx-acct-identity">
                 <div class="sx-acct-avatar-wrap">
@@ -422,21 +434,21 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
                 </div>
                 <div class="sx-acct-identity__copy">
                   <p class="sx-acct-identity__name" data-sx-acct-name-display>${escapeHtml(displayName)}</p>
-                  <p class="sx-acct-identity__meta">${isGuest ? 'Guest mode · stored in this browser only' : 'Signed in'}</p>
+                  <p class="sx-acct-identity__meta" data-i18n="${isGuest ? 'acct.profile.guestNote' : 'acct.signedIn'}">${isGuest ? te('acct.profile.guestNote') : te('acct.signedIn')}</p>
                   <button type="button" class="sx-acct-linkbtn" data-sx-acct-dp-remove ${avatarUrl ? '' : 'hidden'}>Remove photo</button>
                 </div>
               </div>
               <input type="file" accept="image/png,image/jpeg,image/webp" hidden data-sx-acct-dp-file />
               <div class="sx-acct-fields">
                 <div class="sx-acct-field">
-                  <label class="sx-acct-label" for="sx-acct-displayname">Display name</label>
+                  <label class="sx-acct-label" for="sx-acct-displayname" data-i18n="acct.profile.displayName">${te('acct.profile.displayName')}</label>
                   <input id="sx-acct-displayname" class="sx-acct-input" type="text" maxlength="48" value="${escapeAttr(displayName)}" autocomplete="nickname" data-sx-acct-username />
-                  <p class="sx-acct-hint">Shown in the sidebar and on your sessions.</p>
+                  <p class="sx-acct-hint" data-i18n="acct.profile.displayNameHint">${te('acct.profile.displayNameHint')}</p>
                 </div>
                 <div class="sx-acct-field">
-                  <label class="sx-acct-label" for="sx-acct-handle">Username</label>
-                  <input id="sx-acct-handle" class="sx-acct-input" type="text" maxlength="32" spellcheck="false" autocapitalize="none" autocomplete="username" placeholder="${isGuest ? 'Create an account to claim one' : 'Loading…'}" ${isGuest ? 'disabled' : ''} data-sx-acct-handle />
-                  <p class="sx-acct-hint" data-sx-acct-handle-hint>${isGuest ? 'Guest mode has no username.' : 'Lowercase letters, numbers, and hyphens. You can sign in with this instead of your email.'}</p>
+                  <label class="sx-acct-label" for="sx-acct-handle" data-i18n="acct.profile.username">${te('acct.profile.username')}</label>
+                  <input id="sx-acct-handle" class="sx-acct-input" type="text" maxlength="32" spellcheck="false" autocapitalize="none" autocomplete="username" placeholder="${isGuest ? te('acct.profile.claimUsername') : te('acct.loading')}" data-i18n-placeholder="${isGuest ? 'acct.profile.claimUsername' : 'acct.loading'}" ${isGuest ? 'disabled' : ''} data-sx-acct-handle />
+                  <p class="sx-acct-hint" data-sx-acct-handle-hint data-i18n="${isGuest ? 'acct.profile.usernameHintGuest' : 'acct.profile.usernameHintRules'}">${isGuest ? te('acct.profile.usernameHintGuest') : te('acct.profile.usernameHintRules')}</p>
                 </div>
               </div>
             </div>
@@ -484,19 +496,19 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct__col">
             <div class="sx-acct-card">
               <div class="sx-acct-card__head">
-                <h2 class="sx-acct-card__title">Regional</h2>
-                <p class="sx-acct-card__lead">Applied across every chart, session, and replay clock.</p>
+                <h2 class="sx-acct-card__title" data-i18n="acct.regional.title">${te('acct.regional.title')}</h2>
+                <p class="sx-acct-card__lead" data-i18n="acct.regional.subtitle">${te('acct.regional.subtitle')}</p>
               </div>
               <div class="sx-acct-fields">
                 <div class="sx-acct-field">
-                  <label class="sx-acct-label" for="sx-acct-timezone">Timezone</label>
+                  <label class="sx-acct-label" for="sx-acct-timezone" data-i18n="acct.regional.timezone">${te('acct.regional.timezone')}</label>
                   <select id="sx-acct-timezone" class="sx-acct-select" data-sx-acct-timezone>
                     ${SETTINGS_TIMEZONE_OPTIONS.map((z) => `<option value="${z.id}">${escapeHtml(z.label)}</option>`).join('')}
                   </select>
-                  <p class="sx-acct-hint">Used for session date labels and replay clocks.</p>
+                  <p class="sx-acct-hint" data-i18n="acct.regional.timezoneHint">${te('acct.regional.timezoneHint')}</p>
                 </div>
                 <div class="sx-acct-field">
-                  <span class="sx-acct-label" id="sx-acct-locale-label">Language</span>
+                  <span class="sx-acct-label" id="sx-acct-locale-label" data-i18n="acct.regional.language">${te('acct.regional.language')}</span>
                   <div class="sx-acct-locale" data-sx-acct-locale-picker>
                     <button type="button" class="sx-acct-locale__trigger" id="sx-acct-locale-trigger" aria-labelledby="sx-acct-locale-label" aria-haspopup="listbox" aria-expanded="false">
                       <span data-sx-acct-locale-value>English (EN)</span>
@@ -504,7 +516,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
                     </button>
                     <div class="sx-acct-locale__menu" id="sx-acct-locale-menu" hidden role="listbox" aria-labelledby="sx-acct-locale-label"></div>
                   </div>
-                  <p class="sx-acct-hint">Language shown in the header.</p>
+                  <p class="sx-acct-hint" data-i18n="acct.regional.languageHint">${te('acct.regional.languageHint')}</p>
                 </div>
               </div>
             </div>
@@ -512,8 +524,8 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
             <div class="sx-acct-savebar">
               <p class="sx-acct-saved" data-sx-acct-account-saved aria-live="polite"></p>
               <div class="sx-acct-savebar__actions">
-                ${isGuest ? `<a class="sx-acct-btn" href="${resolveAppPath('login')}">Create account</a>` : ''}
-                <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-save-account>Save changes</button>
+                ${isGuest ? `<a class="sx-acct-btn" href="${resolveAppPath('login')}" data-i18n="acct.createAccount">${te('acct.createAccount')}</a>` : ''}
+                <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-save-account data-i18n="acct.saveChanges">${te('acct.saveChanges')}</button>
               </div>
             </div>
           </div>
@@ -965,14 +977,20 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     if (key === 'deleted') renderDeleted()
   }
 
+  /** Tab picked by the user — unlike `selectTab`, this reports back to the host. */
+  function goToTab(key: AccountTabKey, focus = false) {
+    selectTab(key, focus)
+    opts.onTabChange?.(key)
+  }
+
   tabButtons.forEach((btn) => {
-    btn.addEventListener('click', () => selectTab(btn.dataset.sxAcctTab as AccountTabKey))
+    btn.addEventListener('click', () => goToTab(btn.dataset.sxAcctTab as AccountTabKey))
     btn.addEventListener('keydown', (e) => {
       if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
       e.preventDefault()
       const i = tabButtons.indexOf(btn)
       const next = (i + (e.key === 'ArrowRight' ? 1 : tabButtons.length - 1)) % tabButtons.length
-      selectTab(tabButtons[next]!.dataset.sxAcctTab as AccountTabKey, true)
+      goToTab(tabButtons[next]!.dataset.sxAcctTab as AccountTabKey, true)
     })
   })
 
@@ -1910,11 +1928,16 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
   // Last, so the panel renderers it may kick off are all defined by now.
   selectTab(opts.initialTab && TABS.some((t) => t.key === opts.initialTab) ? opts.initialTab : 'account')
 
-  return () => {
-    savedTimers.forEach((t) => clearTimeout(t))
-    savedTimers.clear()
-    checkout.dispose()
-    document.removeEventListener('click', onDocumentClick)
-    document.removeEventListener('click', onDocumentClickManage)
+  return {
+    showTab(tab) {
+      if (TABS.some((t) => t.key === tab)) selectTab(tab)
+    },
+    dispose() {
+      savedTimers.forEach((t) => clearTimeout(t))
+      savedTimers.clear()
+      checkout.dispose()
+      document.removeEventListener('click', onDocumentClick)
+      document.removeEventListener('click', onDocumentClickManage)
+    },
   }
 }

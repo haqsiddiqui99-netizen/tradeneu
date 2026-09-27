@@ -1,8 +1,8 @@
 import type { IndicatorKey, StrategyCondition, StrategyDefinition } from '../backtest/BacktestTypes'
 import { isBuiltInStrategy } from './strategyCatalog'
 import {
-  INDICATOR_OPTIONS,
-  OPERATOR_OPTIONS,
+  getIndicatorOptions,
+  getOperatorOptions,
   createBlankStrategy,
   duplicateStrategy,
   isIndicatorRhs,
@@ -11,6 +11,7 @@ import {
 } from './strategyBuilderFields'
 import { deleteCustomStrategy, saveCustomStrategy } from './strategyStore'
 import { confirmDialog } from '../views/confirmDialog'
+import { onLocaleChange, te, t, translateDom, type MessageKey } from '../i18n'
 import './strategyBuilder.css'
 
 export type StrategyBuilderOptions = {
@@ -55,70 +56,70 @@ export function mountStrategyBuilder(opts: StrategyBuilderOptions): StrategyBuil
   opts.host.innerHTML = `
     <div class="sx-strat-builder__head">
       <div class="sx-strat-builder__name-wrap">
-        <label class="sx-strat-field__lbl">Strategy name</label>
+        <label class="sx-strat-field__lbl" data-i18n="strategy.ui.strategyName">${te('strategy.ui.strategyName')}</label>
         <input type="text" class="sx-strat-input sx-strat-builder__name" data-sx-strat-name maxlength="80" />
       </div>
       <div class="sx-strat-builder__dir-wrap">
-        <label class="sx-strat-field__lbl">Direction</label>
+        <label class="sx-strat-field__lbl" data-i18n="strategy.ui.direction">${te('strategy.ui.direction')}</label>
         <select class="sx-strat-select" data-sx-strat-direction>
-          <option value="long">Long only</option>
-          <option value="short">Short only</option>
-          <option value="both">Long &amp; short</option>
+          <option value="long" data-i18n="strategy.ui.dir.longOnly">${te('strategy.ui.dir.longOnly')}</option>
+          <option value="short" data-i18n="strategy.ui.dir.shortOnly">${te('strategy.ui.dir.shortOnly')}</option>
+          <option value="both" data-i18n="strategy.ui.dir.longShort">${te('strategy.ui.dir.longShort')}</option>
         </select>
       </div>
     </div>
-    <p class="sx-strat-builder__readonly" data-sx-strat-readonly hidden>
-      Built-in template — duplicate to customize, or save a copy.
+    <p class="sx-strat-builder__readonly" data-sx-strat-readonly hidden data-i18n="strategy.ui.readonlyTemplate">
+      ${te('strategy.ui.readonlyTemplate')}
     </p>
-    <section class="sx-strat-section" aria-label="Entry rules">
+    <section class="sx-strat-section" data-i18n-aria-label="strategy.ui.entrySection" aria-label="${te('strategy.ui.entrySection')}">
       <div class="sx-strat-section__head">
-        <h3 class="sx-strat-section__title">Entry rules</h3>
-        <span class="sx-strat-section__hint">All must be true</span>
-        <button type="button" class="sx-strat-btn sx-strat-btn--ghost" data-sx-strat-add-entry>+ Add rule</button>
+        <h3 class="sx-strat-section__title" data-i18n="strategy.ui.entrySection">${te('strategy.ui.entrySection')}</h3>
+        <span class="sx-strat-section__hint" data-i18n="strategy.ui.allMustBeTrue">${te('strategy.ui.allMustBeTrue')}</span>
+        <button type="button" class="sx-strat-btn sx-strat-btn--ghost" data-sx-strat-add-entry data-i18n="strategy.ui.addRule">${te('strategy.ui.addRule')}</button>
       </div>
       <div class="sx-strat-rules" data-sx-strat-entry-rules></div>
     </section>
-    <section class="sx-strat-section" aria-label="Exit rules">
+    <section class="sx-strat-section" data-i18n-aria-label="strategy.ui.exitSection" aria-label="${te('strategy.ui.exitSection')}">
       <div class="sx-strat-section__head">
-        <h3 class="sx-strat-section__title">Exit rules</h3>
-        <span class="sx-strat-section__hint">All must be true</span>
-        <button type="button" class="sx-strat-btn sx-strat-btn--ghost" data-sx-strat-add-exit>+ Add rule</button>
+        <h3 class="sx-strat-section__title" data-i18n="strategy.ui.exitSection">${te('strategy.ui.exitSection')}</h3>
+        <span class="sx-strat-section__hint" data-i18n="strategy.ui.allMustBeTrue">${te('strategy.ui.allMustBeTrue')}</span>
+        <button type="button" class="sx-strat-btn sx-strat-btn--ghost" data-sx-strat-add-exit data-i18n="strategy.ui.addRule">${te('strategy.ui.addRule')}</button>
       </div>
       <div class="sx-strat-rules" data-sx-strat-exit-rules></div>
     </section>
-    <section class="sx-strat-section sx-strat-section--grid" aria-label="Risk">
-      <h3 class="sx-strat-section__title">Risk &amp; sizing</h3>
+    <section class="sx-strat-section sx-strat-section--grid" data-i18n-aria-label="strategy.ui.riskSection" aria-label="${te('strategy.ui.riskSection')}">
+      <h3 class="sx-strat-section__title" data-i18n="strategy.ui.riskSection">${te('strategy.ui.riskSection')}</h3>
       <div class="sx-strat-grid">
         <label class="sx-strat-field">
-          <span class="sx-strat-field__lbl">Stop loss</span>
+          <span class="sx-strat-field__lbl" data-i18n="strategy.ui.stopLoss">${te('strategy.ui.stopLoss')}</span>
           <div class="sx-strat-field__row">
             <select class="sx-strat-select" data-sx-strat-stop-type>
-              <option value="atr_mult">ATR multiple</option>
-              <option value="fixed_pct">Fixed %</option>
-              <option value="fixed_price">Fixed price distance</option>
+              <option value="atr_mult" data-i18n="strategy.ui.stop.atrMult">${te('strategy.ui.stop.atrMult')}</option>
+              <option value="fixed_pct" data-i18n="strategy.ui.stop.fixedPct">${te('strategy.ui.stop.fixedPct')}</option>
+              <option value="fixed_price" data-i18n="strategy.ui.stop.fixedPrice">${te('strategy.ui.stop.fixedPrice')}</option>
             </select>
             <input type="number" class="sx-strat-input sx-strat-input--num" data-sx-strat-stop-val min="0" step="0.1" />
           </div>
         </label>
         <label class="sx-strat-field">
-          <span class="sx-strat-field__lbl">Take profit</span>
+          <span class="sx-strat-field__lbl" data-i18n="strategy.ui.takeProfit">${te('strategy.ui.takeProfit')}</span>
           <div class="sx-strat-field__row">
             <select class="sx-strat-select" data-sx-strat-tp-type>
-              <option value="rr_ratio">Risk : reward</option>
-              <option value="fixed_pct">Fixed %</option>
-              <option value="fixed_price">Fixed price distance</option>
-              <option value="none">None (signal exit)</option>
+              <option value="rr_ratio" data-i18n="strategy.ui.tp.rr">${te('strategy.ui.tp.rr')}</option>
+              <option value="fixed_pct" data-i18n="strategy.ui.tp.fixedPct">${te('strategy.ui.tp.fixedPct')}</option>
+              <option value="fixed_price" data-i18n="strategy.ui.tp.fixedPrice">${te('strategy.ui.tp.fixedPrice')}</option>
+              <option value="none" data-i18n="strategy.ui.tp.none">${te('strategy.ui.tp.none')}</option>
             </select>
             <input type="number" class="sx-strat-input sx-strat-input--num" data-sx-strat-tp-val min="0" step="0.1" />
           </div>
         </label>
         <label class="sx-strat-field">
-          <span class="sx-strat-field__lbl">Position size</span>
+          <span class="sx-strat-field__lbl" data-i18n="strategy.ui.positionSize">${te('strategy.ui.positionSize')}</span>
           <div class="sx-strat-field__row">
             <select class="sx-strat-select" data-sx-strat-size-type>
-              <option value="fixed_risk">Risk % of equity</option>
-              <option value="fixed_units">Fixed units</option>
-              <option value="pct_equity">% of equity notional</option>
+              <option value="fixed_risk" data-i18n="strategy.ui.size.fixedRisk">${te('strategy.ui.size.fixedRisk')}</option>
+              <option value="fixed_units" data-i18n="strategy.ui.size.fixedUnits">${te('strategy.ui.size.fixedUnits')}</option>
+              <option value="pct_equity" data-i18n="strategy.ui.size.pctEquity">${te('strategy.ui.size.pctEquity')}</option>
             </select>
             <input type="number" class="sx-strat-input sx-strat-input--num" data-sx-strat-size-val min="0" step="0.1" />
           </div>
@@ -126,18 +127,18 @@ export function mountStrategyBuilder(opts: StrategyBuilderOptions): StrategyBuil
       </div>
     </section>
     <div class="sx-strat-builder__json-toggle">
-      <button type="button" class="sx-strat-btn sx-strat-btn--ghost" data-sx-strat-json-toggle>View JSON</button>
+      <button type="button" class="sx-strat-btn sx-strat-btn--ghost" data-sx-strat-json-toggle data-i18n="strategy.ui.viewJson">${te('strategy.ui.viewJson')}</button>
     </div>
     <div class="sx-strat-builder__json" data-sx-strat-json-wrap hidden>
-      <textarea class="sx-strat-json" data-sx-strat-json spellcheck="false" aria-label="Strategy JSON"></textarea>
-      <button type="button" class="sx-strat-btn" data-sx-strat-json-apply>Apply JSON</button>
+      <textarea class="sx-strat-json" data-sx-strat-json spellcheck="false" data-i18n-aria-label="strategy.ui.strategyJsonAria" aria-label="${te('strategy.ui.strategyJsonAria')}"></textarea>
+      <button type="button" class="sx-strat-btn" data-sx-strat-json-apply data-i18n="strategy.ui.applyJson">${te('strategy.ui.applyJson')}</button>
     </div>
     <div class="sx-strat-builder__actions">
-      <button type="button" class="sx-strat-btn sx-strat-btn--ghost" data-sx-strat-duplicate>Duplicate</button>
-      <button type="button" class="sx-strat-btn sx-strat-btn--danger" data-sx-strat-delete hidden>Delete</button>
+      <button type="button" class="sx-strat-btn sx-strat-btn--ghost" data-sx-strat-duplicate data-i18n="strategy.ui.duplicate">${te('strategy.ui.duplicate')}</button>
+      <button type="button" class="sx-strat-btn sx-strat-btn--danger" data-sx-strat-delete hidden data-i18n="strategy.ui.delete">${te('strategy.ui.delete')}</button>
       <span class="sx-strat-builder__actions-spacer"></span>
-      ${opts.onRunBacktest ? '<button type="button" class="sx-strat-btn" data-sx-strat-run-backtest>Run backtest</button>' : ''}
-      <button type="button" class="sx-strat-btn sx-strat-btn--primary" data-sx-strat-save>Save strategy</button>
+      ${opts.onRunBacktest ? `<button type="button" class="sx-strat-btn" data-sx-strat-run-backtest data-i18n="strategy.runBacktest">${te('strategy.runBacktest')}</button>` : ''}
+      <button type="button" class="sx-strat-btn sx-strat-btn--primary" data-sx-strat-save data-i18n="strategy.ui.saveStrategy">${te('strategy.ui.saveStrategy')}</button>
     </div>
   `
 
@@ -184,8 +185,15 @@ export function mountStrategyBuilder(opts: StrategyBuilderOptions): StrategyBuil
     draft[key] = rules.length ? rules : [defaultCondition()]
   }
 
+  function parseErrorMessage(err: unknown): string {
+    if (err instanceof Error && err.message.startsWith('strategy.')) {
+      return t(err.message as MessageKey)
+    }
+    return t('strategy.ui.error.invalidJson')
+  }
+
   function readDraftFromForm() {
-    draft.name = nameEl.value.trim() || 'Untitled strategy'
+    draft.name = nameEl.value.trim() || t('strategy.ui.untitled')
     draft.direction = dirEl.value as StrategyDefinition['direction']
     readRulesFromDom(entryRulesEl, 'entryConditions')
     readRulesFromDom(exitRulesEl, 'exitConditions')
@@ -215,15 +223,15 @@ export function mountStrategyBuilder(opts: StrategyBuilderOptions): StrategyBuil
     const rhsNum = typeof rule.rhs === 'number' ? rule.rhs : 0
     const rhsInd = typeof rule.rhs === 'string' ? rule.rhs : 'ema21'
     row.innerHTML = `
-      <select class="sx-strat-select" data-sx-rule-lhs>${selectOptions(INDICATOR_OPTIONS, rule.lhs)}</select>
-      <select class="sx-strat-select" data-sx-rule-op>${selectOptions(OPERATOR_OPTIONS, rule.op)}</select>
+      <select class="sx-strat-select" data-sx-rule-lhs>${selectOptions(getIndicatorOptions(), rule.lhs)}</select>
+      <select class="sx-strat-select" data-sx-rule-op>${selectOptions(getOperatorOptions(), rule.op)}</select>
       <select class="sx-strat-select sx-strat-rule__rhs-kind" data-sx-rule-rhs-kind>
-        <option value="indicator"${rhsIsInd ? ' selected' : ''}>Indicator</option>
-        <option value="number"${!rhsIsInd ? ' selected' : ''}>Number</option>
+        <option value="indicator"${rhsIsInd ? ' selected' : ''}>${te('strategy.ui.ruleRhsIndicator')}</option>
+        <option value="number"${!rhsIsInd ? ' selected' : ''}>${te('strategy.ui.ruleRhsNumber')}</option>
       </select>
-      <select class="sx-strat-select sx-strat-rule__rhs-ind" data-sx-rule-rhs-ind ${!rhsIsInd ? 'hidden' : ''}>${selectOptions(INDICATOR_OPTIONS, rhsInd)}</select>
+      <select class="sx-strat-select sx-strat-rule__rhs-ind" data-sx-rule-rhs-ind ${!rhsIsInd ? 'hidden' : ''}>${selectOptions(getIndicatorOptions(), rhsInd)}</select>
       <input type="number" class="sx-strat-input sx-strat-input--num sx-strat-rule__rhs-num" data-sx-rule-rhs-num step="any" value="${rhsNum}" ${rhsIsInd ? 'hidden' : ''} />
-      <button type="button" class="sx-strat-rule__remove" data-sx-rule-remove aria-label="Remove rule">×</button>
+      <button type="button" class="sx-strat-rule__remove" data-sx-rule-remove data-i18n-aria-label="strategy.ui.removeRuleAria" aria-label="${te('strategy.ui.removeRuleAria')}">×</button>
     `
     const opEl = row.querySelector('[data-sx-rule-op]') as HTMLSelectElement
     const rhsKindEl = row.querySelector('[data-sx-rule-rhs-kind]') as HTMLSelectElement
@@ -292,7 +300,8 @@ export function mountStrategyBuilder(opts: StrategyBuilderOptions): StrategyBuil
     else sizeValEl.value = String(draft.positionSize.pct)
 
     readonlyEl.hidden = !readonly
-    btnSave.textContent = readonly ? 'Save as custom copy' : 'Save strategy'
+    btnSave.textContent = readonly ? t('strategy.ui.saveAsCopy') : t('strategy.ui.saveStrategy')
+    btnSave.dataset.i18n = readonly ? 'strategy.ui.saveAsCopy' : 'strategy.ui.saveStrategy'
     btnDelete.hidden = readonly || !draft.id.startsWith('custom_')
     btnDuplicate.hidden = false
 
@@ -347,7 +356,7 @@ export function mountStrategyBuilder(opts: StrategyBuilderOptions): StrategyBuil
       const parsed = parseStrategyJson(jsonEl.value)
       loadStrategy(parsed)
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Invalid JSON')
+      window.alert(parseErrorMessage(err))
     }
   })
 
@@ -373,10 +382,10 @@ export function mountStrategyBuilder(opts: StrategyBuilderOptions): StrategyBuil
   btnDelete.addEventListener('click', () => {
     if (!draft.id.startsWith('custom_')) return
     void confirmDialog({
-      title: 'Delete strategy',
-      message: `Delete strategy "${draft.name}"? This cannot be undone.`,
-      confirmLabel: 'Delete',
-      cancelLabel: 'Cancel',
+      title: t('strategy.ui.deleteTitle'),
+      message: t('strategy.ui.deleteMessage', { name: draft.name }),
+      confirmLabel: t('strategy.ui.delete'),
+      cancelLabel: t('common.cancel'),
       danger: true,
     }).then((ok) => {
       if (!ok) return
@@ -386,6 +395,12 @@ export function mountStrategyBuilder(opts: StrategyBuilderOptions): StrategyBuil
     })
   })
 
+  const offLocale = onLocaleChange(() => {
+    translateDom(opts.host)
+    paintRules()
+    paintForm()
+  })
+
   paintForm()
 
   return {
@@ -393,6 +408,7 @@ export function mountStrategyBuilder(opts: StrategyBuilderOptions): StrategyBuil
     getStrategy: () => structuredClone(draft),
     isReadonly: () => readonly,
     dispose: () => {
+      offLocale()
       opts.host.replaceChildren()
     },
   }

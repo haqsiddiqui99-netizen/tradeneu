@@ -550,9 +550,12 @@ function syncWinRateBarChart(canvas: HTMLCanvasElement, points: { label: string;
 }
 import {
   appPageFromPath,
+  appViewFromPath,
   applyLocaleFromPath,
   dashCodeToLocaleTag,
   resolveAppPath,
+  resolveViewPath,
+  type AppView,
 } from '../appPaths'
 import { formatSessionModalDate } from '../data/sessionDateRange'
 import {
@@ -598,9 +601,10 @@ import { mountAccountPage } from '../views/mountAccountPage'
 import { mountSubscriptionPage } from '../views/mountSubscriptionPage'
 import { mountBillingPage } from '../views/mountBillingPage'
 import { buildAnalyticsPageHtml, initAnalyticsPage, type SxaTrade } from './dashboardAnalyticsPage'
-import type { AccountTabKey, ProfileSessionStats } from '../views/mountAccountPage'
+import type { AccountPageHandle, AccountTabKey, ProfileSessionStats } from '../views/mountAccountPage'
 import { postTelemetryEvent } from '../telemetry/telemetryApi'
 import { DASH_LOCALES, dashLocaleMenuLabel, isDashLocaleCode } from './dashboardLocales'
+import { activeLocaleTag, onLocaleChange, setLocale, tCount, te, t as translate, type MessageKey } from '../i18n'
 import { readDisplayName, readUserAvatar } from './dashboardUserPrefs'
 import {
   buildDashboardPerfChartSvg,
@@ -616,7 +620,7 @@ import {
   formatDashboardPerfMoney,
   formatDashboardWinRate,
   formatPulseDuration,
-  MONTH_SHORT,
+  monthShortLabel,
   type DashboardPerfRange,
 } from './dashboardPerfStats'
 import { openSessionSummaryDialog } from '../views/sessionSummaryDialog'
@@ -630,7 +634,7 @@ const LS_PULSE_RANGE = 'suplexity-dash-pulse-range'
 const LS_TESTING_TAB = 'suplexity-dash-testing-tab'
 const LS_TRADES_HIDDEN_COLUMNS = 'suplexity-dash-trades-hidden-columns'
 
-type SxTradeColumnDef = { id: string; label: string; locked?: boolean }
+type SxTradeColumnDef = { id: string; label: string; msgKey: MessageKey; locked?: boolean }
 
 // Total physical <th>/<td> columns rendered in the table, including the always-on
 // row-select checkbox column which is intentionally not offered in the column picker.
@@ -640,28 +644,28 @@ const SXT_JOURNAL_ICON_SVG =
   '<svg width="15" height="15" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2.5" y="1.75" width="13" height="14.5" rx="1.75" stroke="currentColor" stroke-width="1.35"/><path d="M5.75 5.75h6.5M5.75 8.75h6.5M5.75 11.75h4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>'
 
 const SX_TRADES_COLUMNS: SxTradeColumnDef[] = [
-  { id: 'action', label: 'Actions', locked: true },
-  { id: 'asset', label: 'Asset', locked: true },
-  { id: 'tradeNum', label: 'Trade #', locked: true },
-  { id: 'side', label: 'Side' },
-  { id: 'session', label: 'Session' },
-  { id: 'type', label: 'Type' },
-  { id: 'source', label: 'Source' },
-  { id: 'entryType', label: 'Entry type' },
-  { id: 'entryRealtime', label: 'Entry date (realtime)' },
-  { id: 'entryChart', label: 'Entry date (chart)' },
-  { id: 'entryPrice', label: 'Entry price' },
-  { id: 'size', label: 'Size' },
-  { id: 'stopLoss', label: 'Stop loss' },
-  { id: 'takeProfit', label: 'Take profit' },
-  { id: 'exitDate', label: 'Exit date' },
-  { id: 'exitPrice', label: 'Exit price' },
-  { id: 'returnUsd', label: 'Return ($)' },
-  { id: 'returnPct', label: 'Return (%)' },
-  { id: 'returnR', label: 'Return (R)' },
-  { id: 'rating', label: 'Rating' },
-  { id: 'grossPnl', label: 'Gross PnL' },
-  { id: 'fees', label: 'Fees' },
+  { id: 'action', label: 'Actions', msgKey: 'trades.col.action', locked: true },
+  { id: 'asset', label: 'Asset', msgKey: 'trades.col.asset', locked: true },
+  { id: 'tradeNum', label: 'Trade #', msgKey: 'trades.col.tradeNum', locked: true },
+  { id: 'side', label: 'Side', msgKey: 'trades.col.side' },
+  { id: 'session', label: 'Session', msgKey: 'trades.col.session' },
+  { id: 'type', label: 'Type', msgKey: 'trades.col.type' },
+  { id: 'source', label: 'Source', msgKey: 'trades.col.source' },
+  { id: 'entryType', label: 'Entry type', msgKey: 'trades.col.entryType' },
+  { id: 'entryRealtime', label: 'Entry date (realtime)', msgKey: 'trades.col.entryRealtime' },
+  { id: 'entryChart', label: 'Entry date (chart)', msgKey: 'trades.col.entryChart' },
+  { id: 'entryPrice', label: 'Entry price', msgKey: 'trades.col.entryPrice' },
+  { id: 'size', label: 'Size', msgKey: 'trades.col.size' },
+  { id: 'stopLoss', label: 'Stop loss', msgKey: 'trades.col.stopLoss' },
+  { id: 'takeProfit', label: 'Take profit', msgKey: 'trades.col.takeProfit' },
+  { id: 'exitDate', label: 'Exit date', msgKey: 'trades.col.exitDate' },
+  { id: 'exitPrice', label: 'Exit price', msgKey: 'trades.col.exitPrice' },
+  { id: 'returnUsd', label: 'Return ($)', msgKey: 'trades.col.returnUsd' },
+  { id: 'returnPct', label: 'Return (%)', msgKey: 'trades.col.returnPct' },
+  { id: 'returnR', label: 'Return (R)', msgKey: 'trades.col.returnR' },
+  { id: 'rating', label: 'Rating', msgKey: 'trades.col.rating' },
+  { id: 'grossPnl', label: 'Gross PnL', msgKey: 'trades.col.grossPnl' },
+  { id: 'fees', label: 'Fees', msgKey: 'trades.col.fees' },
 ]
 
 // Columns shown before the trader touches the column picker. These mirror the
@@ -701,35 +705,48 @@ type SessionFilterValue = (typeof SESSION_FILTER_VALUES)[number]
 const SESSION_SORT_VALUES = ['recent', 'updated', 'name-asc', 'name-desc', 'pnl-desc', 'pnl-asc'] as const
 type SessionSortValue = (typeof SESSION_SORT_VALUES)[number]
 
-const SESSION_FILTER_LABELS: Record<SessionFilterValue, string> = {
-  all: 'All sessions',
-  backtest: 'Backtest only',
-  prop: 'Prop firm only',
-  'prop-active': 'Prop — in progress',
-  'prop-passed': 'Prop — passed',
-  'prop-failed': 'Prop — failed',
+const SESSION_FILTER_KEYS: Record<SessionFilterValue, MessageKey> = {
+  all: 'sessionsFilter.all',
+  backtest: 'sessionsFilter.backtest',
+  prop: 'sessionsFilter.prop',
+  'prop-active': 'sessionsFilter.propActive',
+  'prop-passed': 'sessionsFilter.propPassed',
+  'prop-failed': 'sessionsFilter.propFailed',
 }
 
-const SESSION_SORT_LABELS: Record<SessionSortValue, string> = {
-  recent: 'Recently opened',
-  updated: 'Recently updated',
-  'name-asc': 'Name A → Z',
-  'name-desc': 'Name Z → A',
-  'pnl-desc': 'Best backtest P&L',
-  'pnl-asc': 'Worst backtest P&L',
+const SESSION_SORT_KEYS: Record<SessionSortValue, MessageKey> = {
+  recent: 'sessionsSort.recent',
+  updated: 'sessionsSort.updated',
+  'name-asc': 'sessionsSort.nameAsc',
+  'name-desc': 'sessionsSort.nameDesc',
+  'pnl-desc': 'sessionsSort.pnlDesc',
+  'pnl-asc': 'sessionsSort.pnlAsc',
+}
+
+/** Order kinds are stored as raw ids ('market' / 'limit' / 'stop'); labels are translated. */
+const TRADE_ENTRY_KIND_KEYS: Record<string, MessageKey> = {
+  market: 'trades.entryKind.market',
+  limit: 'trades.entryKind.limit',
+  stop: 'trades.entryKind.stop',
+}
+
+function sxEntryKindLabel(kind: string | undefined): string {
+  const id = kind ?? 'market'
+  const key = TRADE_ENTRY_KIND_KEYS[id]
+  return key ? te(key) : escapeHtml(id)
 }
 
 function buildSessionFilterPanelHtml(): string {
   return SESSION_FILTER_VALUES.map(
     (v) =>
-      `<button type="button" role="option" class="sx-dash-perf-option" data-session-filter-option="${v}">${SESSION_FILTER_LABELS[v]}</button>`,
+      `<button type="button" role="option" class="sx-dash-perf-option" data-session-filter-option="${v}" data-i18n="${SESSION_FILTER_KEYS[v]}">${te(SESSION_FILTER_KEYS[v])}</button>`,
   ).join('')
 }
 
 function buildSessionSortPanelHtml(): string {
   return SESSION_SORT_VALUES.map(
     (v) =>
-      `<button type="button" role="option" class="sx-dash-perf-option" data-session-sort-option="${v}">${SESSION_SORT_LABELS[v]}</button>`,
+      `<button type="button" role="option" class="sx-dash-perf-option" data-session-sort-option="${v}" data-i18n="${SESSION_SORT_KEYS[v]}">${te(SESSION_SORT_KEYS[v])}</button>`,
   ).join('')
 }
 
@@ -827,7 +844,7 @@ const FREE_SESSION_LIMIT = 10
 
 function formatSessionTimestamp(ms: number): string {
   try {
-    return new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    return new Date(ms).toLocaleString(activeLocaleTag(), { dateStyle: 'medium', timeStyle: 'short' })
   } catch {
     return '—'
   }
@@ -837,6 +854,43 @@ function formatDashMoney(n: number): string {
   const sign = n < 0 ? '-' : ''
   const v = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return `${sign}$${v}`
+}
+
+/**
+ * Running-P&L sparkline for the hero card. Tinted by the closing value so a
+ * losing session reads red at a glance. Baseline is pinned to 0 so a flat or
+ * single-trade series still draws something meaningful.
+ */
+function buildHeroSparkSvg(points: number[]): string {
+  if (points.length === 0) return ''
+  const width = 100
+  const height = 36
+  const series = points.length === 1 ? [0, points[0]!] : points
+  const min = Math.min(...series, 0)
+  const max = Math.max(...series, 0)
+  const span = max - min || 1
+  const stepX = width / (series.length - 1)
+  const coords = series.map((v, i) => {
+    const x = i * stepX
+    const y = height - ((v - min) / span) * height
+    return `${x.toFixed(2)},${y.toFixed(2)}`
+  })
+  const line = coords.join(' ')
+  const zeroY = height - ((0 - min) / span) * height
+  const closing = series[series.length - 1] ?? 0
+  const tone = closing < 0 ? 'is-loss' : closing > 0 ? 'is-profit' : 'is-flat'
+  const gradientId = `sx-dash-hero-spark-grad-${tone}`
+  return `<svg class="sx-dash-hero-spark ${tone}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="currentColor" stop-opacity="0.3" />
+          <stop offset="100%" stop-color="currentColor" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon class="sx-dash-hero-spark__fill" fill="url(#${gradientId})" points="0,${height} ${line} ${width},${height}" />
+      <line class="sx-dash-hero-spark__zero" x1="0" y1="${zeroY.toFixed(2)}" x2="${width}" y2="${zeroY.toFixed(2)}" />
+      <polyline class="sx-dash-hero-spark__line" points="${line}" />
+    </svg>`
 }
 
 function sessionMatchesFilter(session: StoredSession, filter: SessionFilterValue): boolean {
@@ -916,9 +970,9 @@ function lastBacktestStripHtml(session: StoredSession): string {
   return `<div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
       <span class="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1">
         <i class="fa-solid fa-flask text-[0.65rem] text-sky-400/80" aria-hidden="true"></i>
-        <span class="font-semibold text-zinc-300">Last backtest</span>
+        <span class="font-semibold text-zinc-300">${te('sessions.lastBacktest')}</span>
         <span class="${pnlTone} font-bold">${formatDashMoney(bt.netPnl)}</span>
-        <span class="text-zinc-500">${bt.totalTrades} trade${bt.totalTrades === 1 ? '' : 's'} · ${winPct}% win</span>
+        <span class="text-zinc-500">${tCount('unit.trades', bt.totalTrades, { count: bt.totalTrades })} · ${te('sessions.winPct', { pct: winPct })}</span>
       </span>
       <span class="truncate text-zinc-500" title="${escapeHtml(stratName)}">${escapeHtml(stratName)} · ${escapeHtml(ranAt)}</span>
     </div>`
@@ -933,13 +987,15 @@ function replayJournalStripHtml(session: StoredSession): string {
   const pnlTone = replay.account.realizedPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'
   const wins = closed.filter((t) => t.pnl > 0).length
   const winPct = closed.length ? ((wins / closed.length) * 100).toFixed(0) : '0'
-  const label = session.sessionType === 'prop' ? 'Paper journal' : 'Replay journal'
+  const label = session.sessionType === 'prop' ? te('sessions.paperJournal') : te('sessions.replayJournal')
+  const tradesLabel = tCount('unit.trades', closed.length, { count: closed.length })
+  const winLabel = closed.length ? ` · ${te('sessions.winPct', { pct: winPct })}` : ''
   return `<div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
       <span class="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1">
         <i class="fa-solid fa-book text-[0.65rem] text-violet-400/80" aria-hidden="true"></i>
         <span class="font-semibold text-zinc-300">${label}</span>
         <span class="${pnlTone} font-bold">${formatDashMoney(replay.account.realizedPnL)}</span>
-        <span class="text-zinc-500">${closed.length} trade${closed.length === 1 ? '' : 's'}${closed.length ? ` · ${winPct}% win` : ''}</span>
+        <span class="text-zinc-500">${tradesLabel}${winLabel}</span>
       </span>
     </div>`
 }
@@ -966,7 +1022,7 @@ function buildSessionSummaryPanelHtml(session: StoredSession): string {
   const pnlTone = pnl > 0 ? 'is-profit' : pnl < 0 ? 'is-loss' : 'is-flat'
   const strat = bt ? resolveStrategy(bt.strategyId) : null
   const stratName = strat?.name ?? bt?.strategyId ?? '—'
-  const typeLabel = session.sessionType === 'prop' ? 'Prop firm' : 'Backtesting'
+  const typeLabel = session.sessionType === 'prop' ? te('sessions.typeProp') : te('sessions.typeBacktest')
   const ranAt = bt ? formatSessionTimestamp(bt.ranAt) : '—'
   const initialBal = parseSessionBalanceNumber(session.balance)
   const initialLabel = initialBal != null ? formatDashMoney(initialBal) : escapeHtml(session.balance || '—')
@@ -980,26 +1036,26 @@ function buildSessionSummaryPanelHtml(session: StoredSession): string {
 
   const propCards =
     session.sessionType === 'prop'
-      ? `${card('Challenge', escapeHtml(propStatusLabel(session.propResult?.status)), 'sx-dash-session-summary__kpi-value--sm')}
-              ${card('Profit target', `${session.propRules?.profitTargetPct ?? 10}%`, 'sx-dash-session-summary__kpi-value--sm')}
-              ${card('Max drawdown', `${session.propRules?.maxDrawdownPct ?? 5}%`, 'sx-dash-session-summary__kpi-value--sm')}
-              ${card('Daily loss limit', `${session.propRules?.maxDailyLossPct ?? 2}%`, 'sx-dash-session-summary__kpi-value--sm')}`
+      ? `${card(te('sessions.sum.challenge'), escapeHtml(propStatusLabel(session.propResult?.status)), 'sx-dash-session-summary__kpi-value--sm')}
+              ${card(te('sessions.sum.profitTarget'), `${session.propRules?.profitTargetPct ?? 10}%`, 'sx-dash-session-summary__kpi-value--sm')}
+              ${card(te('sessions.sum.maxDrawdown'), `${session.propRules?.maxDrawdownPct ?? 5}%`, 'sx-dash-session-summary__kpi-value--sm')}
+              ${card(te('sessions.sum.dailyLossLimit'), `${session.propRules?.maxDailyLossPct ?? 2}%`, 'sx-dash-session-summary__kpi-value--sm')}`
       : ''
 
   return `<div class="sx-dash-session-row__details sx-dash-session-summary mt-3 hidden w-full" data-session-details>
-            <div class="sx-dash-session-summary__kpis" role="group" aria-label="Session summary">
-              ${card('Session name', escapeHtml(session.name), 'sx-dash-session-summary__kpi-value--sm')}
-              ${card('Created', escapeHtml(formatSessionTimestamp(session.createdAt)), 'sx-dash-session-summary__kpi-value--sm')}
-              ${card('Date range', sessionDateRangeHtml(session, true), 'sx-dash-session-summary__kpi-value--sm sx-dash-session-summary__kpi-value--multiline')}
-              ${card('Symbol', escapeHtml(session.assets))}
-              ${card('Type', typeLabel)}
-              ${card('Initial balance', initialLabel)}
-              ${card('Final balance', finalLabel, `sx-dash-session-summary__kpi-value--${pnlTone}`)}
-              ${card('Total trades', String(tradeCount))}
-              ${card('Backtest ran', escapeHtml(ranAt), 'sx-dash-session-summary__kpi-value--sm')}
-              ${card('Strategy', escapeHtml(stratName), 'sx-dash-session-summary__kpi-value--sm')}
-              ${card('Total P&amp;L', formatDashMoney(pnl), `sx-dash-session-summary__kpi-value--${pnlTone}`)}
-              ${card('Win rate', winLabel)}
+            <div class="sx-dash-session-summary__kpis" role="group" aria-label="${te('sessions.sum.aria')}">
+              ${card(te('sessions.sum.name'), escapeHtml(session.name), 'sx-dash-session-summary__kpi-value--sm')}
+              ${card(te('sessions.sum.created'), escapeHtml(formatSessionTimestamp(session.createdAt)), 'sx-dash-session-summary__kpi-value--sm')}
+              ${card(te('sessions.sum.dateRange'), sessionDateRangeHtml(session, true), 'sx-dash-session-summary__kpi-value--sm sx-dash-session-summary__kpi-value--multiline')}
+              ${card(te('sessions.sum.symbol'), escapeHtml(session.assets))}
+              ${card(te('sessions.sum.type'), typeLabel)}
+              ${card(te('sessions.sum.initialBalance'), initialLabel)}
+              ${card(te('sessions.sum.finalBalance'), finalLabel, `sx-dash-session-summary__kpi-value--${pnlTone}`)}
+              ${card(te('sessions.sum.totalTrades'), String(tradeCount))}
+              ${card(te('sessions.sum.backtestRan'), escapeHtml(ranAt), 'sx-dash-session-summary__kpi-value--sm')}
+              ${card(te('sessions.sum.strategy'), escapeHtml(stratName), 'sx-dash-session-summary__kpi-value--sm')}
+              ${card(te('sessions.sum.totalPnl'), formatDashMoney(pnl), `sx-dash-session-summary__kpi-value--${pnlTone}`)}
+              ${card(te('sessions.sum.winRate'), winLabel)}
               ${propCards}
             </div>
           </div>`
@@ -1014,7 +1070,7 @@ function sessionDateRangeParts(session: StoredSession): { start: string; end: st
 
 function sessionDateRangeHtml(session: StoredSession, multiline = false): string {
   const parts = sessionDateRangeParts(session)
-  if (!parts) return 'No date range'
+  if (!parts) return te('sessions.noDateRange')
   if (multiline) return `${escapeHtml(parts.start)} -<br>${escapeHtml(parts.end)}`
   return `${escapeHtml(parts.start)} – ${escapeHtml(parts.end)}`
 }
@@ -1025,23 +1081,23 @@ function sessionSymbolBadgeHtml(session: StoredSession): string {
 
 function sessionBadgeHtml(session: StoredSession): string {
   if (session.sessionType === 'prop') {
-    return '<span class="inline-flex items-center gap-1 rounded-full border border-violet-400/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-200"><i class="fa-solid fa-bolt text-[0.6rem]" aria-hidden="true"></i>Prop</span>'
+    return `<span class="inline-flex items-center gap-1 rounded-full border border-violet-400/30 bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-200"><i class="fa-solid fa-bolt text-[0.6rem]" aria-hidden="true"></i>${te('sessions.badge.prop')}</span>`
   }
   const created = escapeHtml(formatSessionTimestamp(session.createdAt))
-  return `<span class="sx-dash-session-created-badge inline-flex items-center gap-1 rounded-full border border-sky-300/70 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-sky-800" title="Created ${created}"><i class="fa-regular fa-calendar text-[0.6rem]" aria-hidden="true"></i>${created}</span>`
+  return `<span class="sx-dash-session-created-badge inline-flex items-center gap-1 rounded-full border border-sky-300/70 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-sky-800" title="${te('sessions.createdAt', { time: created })}"><i class="fa-regular fa-calendar text-[0.6rem]" aria-hidden="true"></i>${created}</span>`
 }
 
 function propChallengeBadgeHtml(session: StoredSession): string {
   if (session.sessionType !== 'prop') return ''
   const status = session.propResult?.status
   if (status === 'passed') {
-    return '<span class="inline-flex items-center rounded-full border border-emerald-400/35 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-200">Passed</span>'
+    return `<span class="inline-flex items-center rounded-full border border-emerald-400/35 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-200">${te('prop.status.passed')}</span>`
   }
   if (status === 'failed') {
-    return '<span class="inline-flex items-center rounded-full border border-rose-400/35 bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-200">Failed</span>'
+    return `<span class="inline-flex items-center rounded-full border border-rose-400/35 bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-200">${te('prop.status.failed')}</span>`
   }
   if (status === 'active') {
-    return '<span class="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-100">In progress</span>'
+    return `<span class="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-100">${te('prop.status.active')}</span>`
   }
   return ''
 }
@@ -1053,22 +1109,22 @@ function sessionSearchBlob(session: StoredSession): string {
 function buildSessionActionsHtml(): string {
   return `
       <div class="sx-dash-session-row__actions flex shrink-0 flex-wrap items-center justify-end gap-1 self-start sm:flex-col sm:items-end lg:flex-row">
-        <button type="button" data-action="session-delete" class="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-rose-400 transition hover:border-rose-500/25 hover:bg-rose-500/10" title="Delete" aria-label="Delete session"><i class="fa-solid fa-trash-can text-[0.8rem]" aria-hidden="true"></i></button>
-        <button type="button" data-action="session-edit" class="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-zinc-400 transition hover:border-white/10 hover:bg-white/[0.06] hover:text-zinc-200" title="Edit" aria-label="Edit session"><i class="fa-solid fa-pen text-[0.8rem]" aria-hidden="true"></i></button>
-        <button type="button" data-action="session-duplicate" class="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-zinc-400 transition hover:border-white/10 hover:bg-white/[0.06] hover:text-zinc-200" title="Duplicate" aria-label="Duplicate session"><i class="fa-regular fa-copy text-[0.8rem]" aria-hidden="true"></i></button>
-        <button type="button" data-action="session-summary" class="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-[11px] font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-200 dark:hover:bg-white/[0.1]">Summary</button>
-        <button type="button" data-action="session-expand" class="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-zinc-500 transition hover:bg-white/[0.05]" title="Expand details" aria-label="Expand details" aria-expanded="false"><i class="fa-solid fa-chevron-down text-[0.75rem] sx-dash-session-expand-ico" aria-hidden="true"></i></button>
+        <button type="button" data-action="session-delete" class="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-rose-400 transition hover:border-rose-500/25 hover:bg-rose-500/10" title="${te('sessions.action.delete')}" data-i18n-title="sessions.action.delete" aria-label="${te('sessions.action.deleteAria')}" data-i18n-aria-label="sessions.action.deleteAria"><i class="fa-solid fa-trash-can text-[0.8rem]" aria-hidden="true"></i></button>
+        <button type="button" data-action="session-edit" class="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-zinc-400 transition hover:border-white/10 hover:bg-white/[0.06] hover:text-zinc-200" title="${te('sessions.action.edit')}" data-i18n-title="sessions.action.edit" aria-label="${te('sessions.action.editAria')}" data-i18n-aria-label="sessions.action.editAria"><i class="fa-solid fa-pen text-[0.8rem]" aria-hidden="true"></i></button>
+        <button type="button" data-action="session-duplicate" class="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-zinc-400 transition hover:border-white/10 hover:bg-white/[0.06] hover:text-zinc-200" title="${te('sessions.action.duplicate')}" data-i18n-title="sessions.action.duplicate" aria-label="${te('sessions.action.duplicateAria')}" data-i18n-aria-label="sessions.action.duplicateAria"><i class="fa-regular fa-copy text-[0.8rem]" aria-hidden="true"></i></button>
+        <button type="button" data-action="session-summary" class="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-[11px] font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-200 dark:hover:bg-white/[0.1]" data-i18n="sessions.summary">${te('sessions.summary')}</button>
+        <button type="button" data-action="session-expand" class="flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-zinc-500 transition hover:bg-white/[0.05]" title="${te('sessions.action.expand')}" data-i18n-title="sessions.action.expand" aria-label="${te('sessions.action.expand')}" data-i18n-aria-label="sessions.action.expand" aria-expanded="false"><i class="fa-solid fa-chevron-down text-[0.75rem] sx-dash-session-expand-ico" aria-hidden="true"></i></button>
       </div>`
 }
 
 function buildSessionRowHtml(session: StoredSession): string {
   const lastOpened = session.lastOpenedAt
-    ? `Last opened ${formatSessionTimestamp(session.lastOpenedAt)}`
-    : `Updated ${formatSessionTimestamp(session.updatedAt)}`
+    ? translate('sessions.lastOpened', { time: formatSessionTimestamp(session.lastOpenedAt) })
+    : translate('sessions.updated', { time: formatSessionTimestamp(session.updatedAt) })
   const actions = buildSessionActionsHtml()
   return `<li class="sx-dash-session-row rounded-2xl border border-white/[0.1] bg-white/[0.04] p-4 sm:p-5" data-session-id="${escapeHtml(session.id)}" data-session-name="${escapeHtml(sessionSearchBlob(session))}">
           <div class="sx-dash-session-row__main flex flex-col gap-4 lg:flex-row lg:items-start">
-            <button type="button" data-action="resume-session" class="flex h-12 w-12 shrink-0 items-center justify-center self-start rounded-full bg-[#334155] text-white shadow-[0_8px_22px_rgba(51,65,85,0.35)] transition hover:bg-[#1E293B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60" title="Resume session" aria-label="Resume session">
+            <button type="button" data-action="resume-session" class="flex h-12 w-12 shrink-0 items-center justify-center self-start rounded-full bg-[#334155] text-white shadow-[0_8px_22px_rgba(51,65,85,0.35)] transition hover:bg-[#1E293B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60" title="${te('sessions.action.resume')}" data-i18n-title="sessions.action.resume" aria-label="${te('sessions.action.resume')}" data-i18n-aria-label="sessions.action.resume">
               <i class="fa-solid fa-play ml-0.5 text-sm" aria-hidden="true"></i>
             </button>
             <div class="min-w-0 flex-1">
@@ -1131,7 +1187,7 @@ function applyDashTheme(appRoot: HTMLElement, mode: DashboardThemeMode) {
 function syncDashFullscreenUi(appRoot: HTMLElement) {
   const fs = document.fullscreenElement != null
   appRoot.classList.toggle('sx-dash-ui-fullscreen', fs)
-  const label = fs ? 'Exit fullscreen' : 'Enter fullscreen'
+  const label = translate(fs ? 'topbar.exitFullscreen' : 'topbar.enterFullscreen')
   appRoot.querySelectorAll<HTMLButtonElement>('.sx-dash-fullscreen-btn').forEach((btn) => {
     btn.setAttribute('aria-label', label)
   })
@@ -1163,10 +1219,10 @@ function saveSessionDraft(p: SessionCreatedPayload) {
 }
 
 function buildPulseRangeHtml(): string {
-  return `<div class="sx-dash-pulse__range" role="group" aria-label="Pulse time range">
-                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="week">7d</button>
-                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="month">30d</button>
-                  <button type="button" class="sx-dash-pulse__range-btn sx-dash-pulse__range-btn--active" data-pulse-range="lifetime" aria-pressed="true">All</button>
+  return `<div class="sx-dash-pulse__range" role="group" aria-label="${te('perf.rangeAria')}" data-i18n-aria-label="perf.rangeAria">
+                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="week" data-i18n="perf.range7d">${te('perf.range7d')}</button>
+                  <button type="button" class="sx-dash-pulse__range-btn" data-pulse-range="month" data-i18n="perf.range30d">${te('perf.range30d')}</button>
+                  <button type="button" class="sx-dash-pulse__range-btn sx-dash-pulse__range-btn--active" data-pulse-range="lifetime" aria-pressed="true" data-i18n="perf.rangeAll">${te('perf.rangeAll')}</button>
                 </div>`
 }
 
@@ -1182,83 +1238,85 @@ function buildSessionPulseKpiHtml(opts?: {
     ? ''
     : `<div class="sx-dash-pulse__head">
                 <div>
-                  <h3 id="${titleId}" class="sx-dash-pulse__title">Session Pulse</h3>
-                  <p class="sx-dash-pulse__sub">Your practice desk at a glance — time, edge, and equity path.</p>
+                  <h3 id="${titleId}" class="sx-dash-pulse__title" data-i18n="pulse.title">${te('pulse.title')}</h3>
+                  <p class="sx-dash-pulse__sub" data-i18n="pulse.subtitle">${te('pulse.subtitle')}</p>
                 </div>
                 ${buildPulseRangeHtml()}
               </div>`
-  const labelAttr = opts?.bare ? 'aria-label="Key pulse metrics"' : `aria-labelledby="${titleId}"`
+  const labelAttr = opts?.bare
+    ? `aria-label="${te('kpi.groupAria')}" data-i18n-aria-label="kpi.groupAria"`
+    : `aria-labelledby="${titleId}"`
   const bareClass = opts?.bare ? ' sx-dash-pulse--bare' : ''
   return `
             <section class="sx-dash-pulse sx-dash-pulse--pro sx-dash-pulse--kpi-only${bareClass}${extraClass}" ${labelAttr} data-sx-session-pulse>
               ${head}
 
-              <div class="sx-dash-pulse__kpi" role="group" aria-label="Key pulse metrics">
+              <div class="sx-dash-pulse__kpi" role="group" aria-label="${te('kpi.groupAria')}" data-i18n-aria-label="kpi.groupAria">
                 <div class="sx-dash-pulse__kpi-item">
                   <div class="sx-dash-pulse__kpi-top">
-                    <span class="sx-dash-pulse__kpi-label">Time Invested</span>
+                    <span class="sx-dash-pulse__kpi-label" data-i18n="kpi.timeInvested">${te('kpi.timeInvested')}</span>
                     <span class="sx-dash-pulse__kpi-icon" aria-hidden="true"><i class="fa-solid fa-stopwatch"></i></span>
                   </div>
                   <p class="sx-dash-pulse__kpi-value" data-sx-pulse="practice">—</p>
                   <div class="sx-dash-pulse__kpi-foot">
-                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="practice-hint">Across sessions</p>
+                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="practice-hint">${te('kpi.timeInvestedHint')}</p>
                     <button
                       type="button"
                       class="sx-dash-pulse__kpi-info"
                       data-sx-pulse="practice-info"
-                      data-tip="Across sessions"
-                      aria-label="About time invested"
+                      data-tip="${te('kpi.timeInvestedHint')}"
+                      aria-label="${te('kpi.timeInvestedAbout')}"
                     >${DASH_KPI_INFO_ICON_SVG}</button>
                   </div>
                 </div>
                 <div class="sx-dash-pulse__kpi-item">
                   <div class="sx-dash-pulse__kpi-top">
-                    <span class="sx-dash-pulse__kpi-label">Replayed time</span>
+                    <span class="sx-dash-pulse__kpi-label" data-i18n="kpi.replayedTime">${te('kpi.replayedTime')}</span>
                     <span class="sx-dash-pulse__kpi-icon sx-dash-pulse__kpi-icon--blue" aria-hidden="true"><i class="fa-solid fa-chart-line"></i></span>
                   </div>
                   <p class="sx-dash-pulse__kpi-value" data-sx-pulse="historical">—</p>
                   <div class="sx-dash-pulse__kpi-foot">
-                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="historical-hint">Historical coverage</p>
+                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="historical-hint">${te('kpi.replayedTimeHint')}</p>
                     <button
                       type="button"
                       class="sx-dash-pulse__kpi-info"
                       data-sx-pulse="historical-info"
-                      data-tip="Historical coverage"
-                      aria-label="About replayed time"
+                      data-tip="${te('kpi.replayedTimeHint')}"
+                      aria-label="${te('kpi.replayedTimeAbout')}"
                     >${DASH_KPI_INFO_ICON_SVG}</button>
                   </div>
                 </div>
                 <div class="sx-dash-pulse__kpi-item">
                   <div class="sx-dash-pulse__kpi-top">
-                    <span class="sx-dash-pulse__kpi-label">Net P&amp;L</span>
+                    <span class="sx-dash-pulse__kpi-label" data-i18n="kpi.netPnl">${te('kpi.netPnl')}</span>
                     <span class="sx-dash-pulse__kpi-icon sx-dash-pulse__kpi-icon--green" aria-hidden="true"><i class="fa-solid fa-sack-dollar"></i></span>
                   </div>
                   <p class="sx-dash-pulse__kpi-value" data-sx-pulse="pnl">—</p>
                   <div class="sx-dash-pulse__kpi-foot">
-                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="pnl-hint">Backtest results</p>
+                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="pnl-hint">${te('kpi.netPnlHint')}</p>
                     <button
                       type="button"
                       class="sx-dash-pulse__kpi-info"
                       data-sx-pulse="pnl-info"
-                      data-tip="Backtest results"
-                      aria-label="About net P&L"
+                      data-tip="${te('kpi.netPnlHint')}"
+                      aria-label="${te('kpi.netPnlAbout')}"
                     >${DASH_KPI_INFO_ICON_SVG}</button>
                   </div>
                 </div>
                 <div class="sx-dash-pulse__kpi-item">
                   <div class="sx-dash-pulse__kpi-top">
-                    <span class="sx-dash-pulse__kpi-label">Win rate</span>
+                    <span class="sx-dash-pulse__kpi-label" data-i18n="kpi.winRate">${te('kpi.winRate')}</span>
                     <span class="sx-dash-pulse__kpi-icon sx-dash-pulse__kpi-icon--gold" aria-hidden="true"><i class="fa-solid fa-trophy"></i></span>
                   </div>
                   <p class="sx-dash-pulse__kpi-value" data-sx-pulse="winrate">—</p>
                   <div class="sx-dash-pulse__kpi-foot">
-                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="winrate-hint">Closed trade edge</p>
+                    <p class="sx-dash-pulse__kpi-meta" data-sx-pulse="winrate-hint">${te('kpi.winRateHint')}</p>
                     <button
                       type="button"
                       class="sx-dash-pulse__kpi-info"
                       data-sx-pulse="winrate-info"
-                      data-tip="Closed trade edge"
-                      aria-label="About win rate"
+                      data-tip="${te('kpi.winRateHint')}"
+                      aria-label="${te('kpi.winRateAbout')}"
                     >${DASH_KPI_INFO_ICON_SVG}</button>
                   </div>
                 </div>
@@ -1271,7 +1329,7 @@ function buildPartnersSectionHtml(): string {
             <section class="sx-dash-partners" aria-labelledby="sx-dash-partners-title">
               <div class="sx-dash-partners__head">
                 <span class="sx-dash-partners__rule" aria-hidden="true"></span>
-                <h3 id="sx-dash-partners-title" class="sx-dash-partners__title">Partners</h3>
+                <h3 id="sx-dash-partners-title" class="sx-dash-partners__title" data-i18n="partners.title">${te('partners.title')}</h3>
                 <span class="sx-dash-partners__rule sx-dash-partners__rule--end" aria-hidden="true"></span>
               </div>
               <a
@@ -1286,11 +1344,7 @@ function buildPartnersSectionHtml(): string {
                   </svg>
                   <span class="sx-dash-partners__note-name">TradingView</span>
                 </span>
-                <p class="sx-dash-partners__note-copy">
-                  Charts are powered by TradingView, a multi-functionality platform that provides in-depth
-                  information on every aspect of trading, including technical and fundamental data, news and
-                  analysis, ideas, and community discussions, and allows you to follow real-time prices
-                </p>
+                <p class="sx-dash-partners__note-copy" data-i18n="partners.copy">${te('partners.copy')}</p>
               </a>
             </section>`
 }
@@ -1302,8 +1356,8 @@ function buildRecentSessionsSectionHtml(): string {
               aria-labelledby="sx-dash-recent-sessions-title"
             >
               <div class="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <h3 id="sx-dash-recent-sessions-title" class="text-lg font-bold tracking-tight text-slate-900 dark:text-white sm:text-xl">
-                  Recent Sessions
+                <h3 id="sx-dash-recent-sessions-title" class="text-lg font-bold tracking-tight text-slate-900 dark:text-white sm:text-xl" data-i18n="sessions.recent">
+                  ${te('sessions.recent')}
                 </h3>
                 <div class="flex flex-wrap items-center gap-3">
                   <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400" data-sx-sessions-count>0 out of 2 sessions</span>
@@ -1334,7 +1388,8 @@ function buildRecentSessionsSectionHtml(): string {
                     id="sx-dash-sessions-search"
                     type="search"
                     autocomplete="off"
-                    placeholder="Search sessions"
+                    placeholder="${te('sessions.search')}"
+                    data-i18n-placeholder="sessions.search"
                     class="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-400/50 focus:outline-none focus:ring-2 focus:ring-sky-400/25 dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   />
                 </div>
@@ -1344,29 +1399,32 @@ function buildRecentSessionsSectionHtml(): string {
                       type="button"
                       data-action="sessions-filter"
                       class="flex h-10 min-w-[2.5rem] items-center justify-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 text-zinc-600 transition hover:bg-zinc-50 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-300 dark:hover:bg-white/[0.1]"
-                      title="Filter sessions"
-                      aria-label="Filter sessions"
+                      title="${te('sessions.filter')}"
+                      aria-label="${te('sessions.filter')}"
+                      data-i18n-title="sessions.filter"
+                      data-i18n-aria-label="sessions.filter"
                       aria-expanded="false"
                     >
                       <i class="fa-solid fa-filter text-[0.85rem]" aria-hidden="true"></i>
-                      <span class="sx-dash-session-filter-label hidden text-xs font-semibold sm:inline">All</span>
+                      <span class="sx-dash-session-filter-label hidden text-xs font-semibold sm:inline">${te('sessions.filterAll')}</span>
                       <i class="fa-solid fa-chevron-down sx-dash-perf-trigger__chev hidden text-[0.55rem] text-zinc-400 sm:inline" aria-hidden="true"></i>
                     </button>
-                    <div class="sx-dash-perf-panel hidden min-w-[11rem]" role="listbox" aria-label="Session filter"></div>
+                    <div class="sx-dash-perf-panel hidden min-w-[11rem]" role="listbox" aria-label="${te('sessions.filterAria')}" data-i18n-aria-label="sessions.filterAria"></div>
                   </div>
                   <div class="sx-dash-perf-dd relative" data-sx-session-dd="sort">
                     <button
                       type="button"
                       data-action="sessions-sort"
                       class="inline-flex h-10 min-w-[10.5rem] items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-200 dark:hover:bg-white/[0.1]"
-                      aria-label="Sort sessions"
+                      aria-label="${te('sessions.sortAria')}"
+                      data-i18n-aria-label="sessions.sortAria"
                       aria-expanded="false"
                     >
                       <i class="fa-solid fa-arrows-up-down text-[0.75rem] text-zinc-500 dark:text-zinc-400" aria-hidden="true"></i>
-                      <span class="sx-dash-session-sort-label truncate">Recently opened</span>
+                      <span class="sx-dash-session-sort-label truncate">${te('sessionsSort.recent')}</span>
                       <i class="fa-solid fa-chevron-down sx-dash-perf-trigger__chev text-[0.55rem] text-zinc-400" aria-hidden="true"></i>
                     </button>
-                    <div class="sx-dash-perf-panel hidden min-w-[11rem]" role="listbox" aria-label="Session sort"></div>
+                    <div class="sx-dash-perf-panel hidden min-w-[11rem]" role="listbox" aria-label="${te('sessions.sortMenuAria')}" data-i18n-aria-label="sessions.sortMenuAria"></div>
                   </div>
                 </div>
               </div>
@@ -1379,21 +1437,21 @@ function buildRecentSessionsSectionHtml(): string {
                 role="status"
               >
                 <p class="text-sm leading-snug text-slate-600">
-                  Sessions on the Beginner plan are hidden after 1 week.
-                  <span class="text-slate-500">Use the crown in the top bar to upgrade to Pro and unlock past sessions.</span>
+                  <span data-i18n="sessions.bannerLead">${te('sessions.bannerLead')}</span>
+                  <span class="text-slate-500" data-i18n="sessions.bannerSub">${te('sessions.bannerSub')}</span>
                 </p>
               </div>
             </section>`
 }
 
-const DASH_NAV_LABELS: Record<DashNavKey, string> = {
-  dashboard: 'Dashboard',
-  sessions: 'Sessions',
-  trades: 'Trades',
-  analytics: 'Analytics',
-  strategy: 'Strategy',
-  billing: 'Billing',
-  settings: 'Profile Settings',
+const DASH_NAV_KEYS: Record<DashNavKey, MessageKey> = {
+  dashboard: 'nav.dashboard',
+  sessions: 'nav.sessions',
+  trades: 'nav.trades',
+  analytics: 'nav.analytics',
+  strategy: 'nav.strategy',
+  billing: 'nav.billing',
+  settings: 'nav.settings',
 }
 
 const DASH_GRID_ICON_SVG = `<svg class="sx-dash-side__ico sx-dash-side__ico--grid" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -1418,13 +1476,13 @@ function sideLinkHtml(
               ${active ? 'aria-current="page"' : ''}
             >
               ${iconHtml ?? `<i class="${icon} sx-dash-side__ico" aria-hidden="true"></i>`}
-              <span>${DASH_NAV_LABELS[key]}</span>
+              <span data-i18n="${DASH_NAV_KEYS[key]}">${te(DASH_NAV_KEYS[key])}</span>
             </button>`
 }
 
 function buildDashSidebarHtml(): string {
   return `
-      <aside class="sx-dash-side" aria-label="Dashboard sections">
+      <aside class="sx-dash-side" aria-label="${te('nav.sectionsAria')}" data-i18n-aria-label="nav.sectionsAria">
         <div class="sx-dash-side__account">
           <span class="sx-dash-account-btn__icon sx-dash-side__avatar" data-sx-account-avatar>
             <i class="fa-solid fa-user" data-sx-account-avatar-fallback aria-hidden="true"></i>
@@ -1443,11 +1501,11 @@ function buildDashSidebarHtml(): string {
         </nav>
 
         <div class="sx-dash-side__foot">
-          <p class="sx-dash-side__section">Account pages</p>
+          <p class="sx-dash-side__section" data-i18n="nav.accountPages">${te('nav.accountPages')}</p>
           ${sideLinkHtml('settings', 'fa-solid fa-gear', 'data-action="settings"')}
           <button type="button" class="sx-dash-side__link" data-nav="logout">
             <i class="fa-solid fa-arrow-right-from-bracket sx-dash-side__ico" aria-hidden="true"></i>
-            <span>Sign out</span>
+            <span data-i18n="nav.signOut">${te('nav.signOut')}</span>
           </button>
         </div>
       </aside>`
@@ -1456,7 +1514,7 @@ function buildDashSidebarHtml(): string {
 function buildDashTopbarHtml(): string {
   return `
         <header class="sx-dash-bar" role="banner">
-          <label for="sx-nav-drawer" class="sx-dash-bar__burger" aria-label="Open menu">
+          <label for="sx-nav-drawer" class="sx-dash-bar__burger" aria-label="${te('topbar.openMenu')}" data-i18n-aria-label="topbar.openMenu">
             <i class="fa-solid fa-bars" aria-hidden="true"></i>
           </label>
 
@@ -1468,17 +1526,19 @@ function buildDashTopbarHtml(): string {
           </div>
           <span class="sr-only">Tradeneu Premium Backtesting</span>
 
-          <div class="sx-dash-bar__tools" role="toolbar" aria-label="Dashboard actions">
-            <button type="button" class="sx-dash-bar__upgrade" data-action="pro-upgrade">
-              <i class="fa-solid fa-crown" aria-hidden="true"></i>
-              <span>Upgrade</span>
-          </button>
+          <div class="sx-dash-bar__tools" role="toolbar" aria-label="${te('topbar.actionsAria')}" data-i18n-aria-label="topbar.actionsAria">
+            <span class="sx-dash-tip-wrap inline-flex">
+              <button type="button" class="sx-dash-bar__upgrade" data-action="pro-upgrade" aria-label="${te('topbar.upgrade')}" data-i18n-aria-label="topbar.upgrade">
+                <i class="fa-solid fa-crown" aria-hidden="true"></i>
+              </button>
+              <span class="sx-dash-tip" data-i18n="topbar.upgrade">${te('topbar.upgrade')}</span>
+            </span>
 
         <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" data-action="ai-chat" class="sx-dash-bar__icon" aria-label="Open AI assistant">
+              <button type="button" data-action="ai-chat" class="sx-dash-bar__icon" aria-label="${te('topbar.aiAssistantAria')}" data-i18n-aria-label="topbar.aiAssistantAria">
                 <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
           </button>
-              <span class="sx-dash-tip">AI Assistant</span>
+              <span class="sx-dash-tip" data-i18n="topbar.aiAssistant">${te('topbar.aiAssistant')}</span>
         </span>
 
             <span class="sx-dash-tip-wrap relative inline-flex">
@@ -1488,69 +1548,74 @@ function buildDashTopbarHtml(): string {
                   class="sx-dash-locale-trigger sx-dash-bar__locale"
               aria-expanded="false"
               aria-haspopup="listbox"
-              aria-label="Language"
+              aria-label="${te('topbar.language')}"
+              data-i18n-aria-label="topbar.language"
             >
               <span class="sx-dash-locale-trigger__code">EN</span>
-                  <i class="fa-solid fa-chevron-down sx-dash-locale-trigger__chev" aria-hidden="true"></i>
             </button>
-            <div class="sx-dash-locale-panel hidden" role="listbox" aria-label="Choose language"></div>
+            <div class="sx-dash-locale-panel hidden" role="listbox" aria-label="${te('topbar.chooseLanguage')}" data-i18n-aria-label="topbar.chooseLanguage"></div>
           </div>
-          <span class="sx-dash-tip">Translate</span>
+          <span class="sx-dash-tip" data-i18n="topbar.translate">${te('topbar.translate')}</span>
         </span>
 
         <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" class="sx-dash-bar__icon sx-dash-theme-icon-btn" aria-label="Switch theme">
+              <button type="button" class="sx-dash-bar__icon sx-dash-theme-icon-btn" aria-label="${te('topbar.switchTheme')}" data-i18n-aria-label="topbar.switchTheme">
                 <i class="fa-solid fa-sun sx-dash-theme-icon--when-dark" aria-hidden="true"></i>
                 <i class="fa-solid fa-moon sx-dash-theme-icon--when-light" aria-hidden="true"></i>
             </button>
-              <span class="sx-dash-tip">Change theme</span>
+              <span class="sx-dash-tip" data-i18n="topbar.changeTheme">${te('topbar.changeTheme')}</span>
           </span>
 
           <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" data-action="dash-fullscreen" class="sx-dash-bar__icon sx-dash-fullscreen-btn" aria-label="Enter fullscreen">
+              <button type="button" data-action="dash-fullscreen" class="sx-dash-bar__icon sx-dash-fullscreen-btn" aria-label="${te('topbar.enterFullscreen')}">
                 <i class="fa-solid fa-expand sx-dash-fs-icon-expand" aria-hidden="true"></i>
                 <i class="fa-solid fa-compress sx-dash-fs-icon-compress" aria-hidden="true"></i>
             </button>
-            <span class="sx-dash-tip">Fullscreen</span>
-          </span>
-
-          <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" data-action="settings" class="sx-dash-bar__icon" aria-label="Settings">
-                <i class="fa-solid fa-gear" aria-hidden="true"></i>
-            </button>
-              <span class="sx-dash-tip">Settings</span>
+            <span class="sx-dash-tip" data-i18n="topbar.fullscreen">${te('topbar.fullscreen')}</span>
           </span>
 
         </div>
         </header>`
 }
 
+/**
+ * Home hero: the "Backtesting" eyebrow, a headline that changes with whether
+ * the trader has a session to come back to, and a preview card for that last
+ * session. Copy, the resume button and the card are all filled in by
+ * `syncDashHero()`, so the static markup ships the empty state.
+ */
 function buildDashboardPageHeadHtml(): string {
   return `
-            <div class="sx-dash-page-head">
-              <div class="sx-dash-page-head__copy">
-                <h1 class="sx-dash-page-title">Backtesting</h1>
-                <p class="sx-dash-page-sub">Practice on the past, profit in the present — track sessions, tape and edge.</p>
-      </div>
-              <div class="sx-dash-page-head__actions">
-                <button type="button" data-action="backtest" class="sx-dash-cta-btn sx-dash-cta-btn--primary">
-                  <span class="sx-dash-cta-btn__icon" aria-hidden="true">+</span>
-                  <span class="sx-dash-cta-btn__text">
-                    <span class="sx-dash-cta-btn__title">Backtesting Session</span>
-                    <span class="sx-dash-cta-btn__sub">Start a session</span>
-                  </span>
-            </button>
-                <button type="button" data-action="prop" class="sx-dash-cta-btn sx-dash-cta-btn--secondary">
-                  <span class="sx-dash-cta-pro" title="Pro feature" role="img" aria-label="Pro feature">
-                    <i class="fa-solid fa-crown" aria-hidden="true"></i>
-        </span>
-                  <span class="sx-dash-cta-btn__text">
-                    <span class="sx-dash-cta-btn__title">Target Challenge</span>
-                    <span class="sx-dash-cta-btn__sub">Start a challenge</span>
-        </span>
-                </button>
-      </div>
-            </div>`
+            <section class="sx-dash-hero" data-sx-dash-hero>
+              <div class="sx-dash-hero__copy">
+                <p class="sx-dash-hero__eyebrow" data-i18n="dash.title">${te('dash.title')}</p>
+                <h1 class="sx-dash-hero__title" data-sx-hero-title>${te('dash.hero.emptyTitle')}</h1>
+                <p class="sx-dash-hero__sub" data-sx-hero-sub>${te('dash.hero.emptySub')}</p>
+                <div class="sx-dash-hero__actions">
+                  <button type="button" data-action="backtest" class="sx-dash-hero-btn sx-dash-hero-btn--primary" data-i18n="dash.hero.startSession">${te('dash.hero.startSession')}</button>
+                  <button type="button" data-action="resume-session" class="sx-dash-hero-btn sx-dash-hero-btn--ghost" data-sx-hero-resume hidden></button>
+                </div>
+              </div>
+
+              <aside class="sx-dash-hero__card" data-sx-hero-card hidden aria-label="${te('dash.hero.cardAria')}" data-i18n-aria-label="dash.hero.cardAria">
+                <div class="sx-dash-hero-card__head">
+                  <span class="sx-dash-hero-card__symbol" data-sx-hero-symbol>—</span>
+                  <span class="sx-dash-hero-card__balance" data-sx-hero-balance>—</span>
+                </div>
+                <p class="sx-dash-hero-card__meta" data-sx-hero-meta></p>
+                <div class="sx-dash-hero-card__spark" data-sx-hero-spark role="img" aria-label="${te('dash.hero.equityAria')}" data-i18n-aria-label="dash.hero.equityAria"></div>
+                <div class="sx-dash-hero-card__stats">
+                  <div class="sx-dash-hero-stat">
+                    <span class="sx-dash-hero-stat__label" data-i18n="dash.hero.netResult">${te('dash.hero.netResult')}</span>
+                    <strong class="sx-dash-hero-stat__value" data-sx-hero-net>—</strong>
+                  </div>
+                  <div class="sx-dash-hero-stat">
+                    <span class="sx-dash-hero-stat__label" data-i18n="dash.hero.winRate">${te('dash.hero.winRate')}</span>
+                    <strong class="sx-dash-hero-stat__value" data-sx-hero-win>—</strong>
+                  </div>
+                </div>
+              </aside>
+            </section>`
 }
 
 function buildDashGraphCardsHtml(): string {
@@ -1560,26 +1625,26 @@ function buildDashGraphCardsHtml(): string {
                 <article class="sx-dash-graph">
                   <div class="sx-dash-graph__head">
                     <div>
-                      <h3 class="sx-dash-graph__title">Time Invested</h3>
-                      <p class="sx-dash-graph__total"><strong data-sx-activity-total>—</strong> spent in this range</p>
+                      <h3 class="sx-dash-graph__title" data-i18n="charts.timeInvested">${te('charts.timeInvested')}</h3>
+                      <p class="sx-dash-graph__total"><strong data-sx-activity-total>—</strong> <span data-i18n="charts.spentInRange">${te('charts.spentInRange')}</span></p>
           </div>
                     <div class="sx-dash-graph__head-right">
-                      <div class="sx-dash-graph__tabs" role="tablist" aria-label="Time Invested range">
-                        <button type="button" class="sx-dash-graph__tab sx-dash-graph__tab--active" data-sx-activity-range="daily" role="tab" aria-selected="true">Daily</button>
-                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="weekly" role="tab" aria-selected="false">Weekly</button>
-                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="monthly" role="tab" aria-selected="false">Monthly</button>
-                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="yearly" role="tab" aria-selected="false">Yearly</button>
+                      <div class="sx-dash-graph__tabs" role="tablist" aria-label="${te('charts.timeInvestedRangeAria')}" data-i18n-aria-label="charts.timeInvestedRangeAria">
+                        <button type="button" class="sx-dash-graph__tab sx-dash-graph__tab--active" data-sx-activity-range="daily" role="tab" aria-selected="true" data-i18n="charts.daily">${te('charts.daily')}</button>
+                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="weekly" role="tab" aria-selected="false" data-i18n="charts.weekly">${te('charts.weekly')}</button>
+                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="monthly" role="tab" aria-selected="false" data-i18n="charts.monthly">${te('charts.monthly')}</button>
+                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="yearly" role="tab" aria-selected="false" data-i18n="charts.yearly">${te('charts.yearly')}</button>
               </div>
                 </div>
               </div>
-                  <div class="sx-dash-graph__chart sx-dash-activity-chart" role="img" aria-label="Practice hours by day">
+                  <div class="sx-dash-graph__chart sx-dash-activity-chart" role="img" aria-label="${te('charts.practiceByDayAria')}" data-i18n-aria-label="charts.practiceByDayAria">
                     <canvas data-sx-activity-chart-canvas></canvas>
             </div>
                 </article>
 
                 <article class="sx-dash-graph">
-                  <h3 class="sx-dash-graph__title">Equity Curve</h3>
-                  <div class="sx-dash-graph__chart sx-dash-equity-chart" role="img" aria-label="Equity curve by month">
+                  <h3 class="sx-dash-graph__title" data-i18n="charts.equityCurve">${te('charts.equityCurve')}</h3>
+                  <div class="sx-dash-graph__chart sx-dash-equity-chart" role="img" aria-label="${te('charts.equityAria')}" data-i18n-aria-label="charts.equityAria">
                     <canvas data-sx-equity-chart-canvas></canvas>
                   </div>
                 </article>
@@ -1588,30 +1653,34 @@ function buildDashGraphCardsHtml(): string {
               <div class="sx-dash-graph--full sx-dash-graphs-row">
                 <article class="sx-dash-graph">
                   <div class="sx-dash-graph__head">
-                    <h3 class="sx-dash-graph__title">Win Rate</h3>
+                    <h3 class="sx-dash-graph__title" data-i18n="charts.winRate">${te('charts.winRate')}</h3>
             <button
               type="button"
                       class="sx-dash-pulse__kpi-info"
-                      data-tip="Share of your closed trades that ended as wins, by month."
-                      aria-label="About win rate"
+                      data-tip="${te('charts.winRateTip')}"
+                      data-i18n-data-tip="charts.winRateTip"
+                      aria-label="${te('kpi.winRateAbout')}"
+                      data-i18n-aria-label="kpi.winRateAbout"
                     >${DASH_KPI_INFO_ICON_SVG}</button>
         </div>
-                  <div class="sx-dash-graph__chart sx-dash-winrate-chart" role="img" aria-label="Win rate by month">
+                  <div class="sx-dash-graph__chart sx-dash-winrate-chart" role="img" aria-label="${te('charts.winRateAria')}" data-i18n-aria-label="charts.winRateAria">
                     <canvas data-sx-winrate-chart-canvas></canvas>
                   </div>
                 </article>
 
                 <article class="sx-dash-graph">
                   <div class="sx-dash-graph__head">
-                    <h3 class="sx-dash-graph__title">Trades by symbol</h3>
+                    <h3 class="sx-dash-graph__title" data-i18n="charts.tradesBySymbol">${te('charts.tradesBySymbol')}</h3>
             <button
               type="button"
                       class="sx-dash-pulse__kpi-info"
-                      data-tip="Distribution of your closed trades across each symbol you've traded."
-                      aria-label="About trades by symbol"
+                      data-tip="${te('charts.tradesBySymbolTip')}"
+                      data-i18n-data-tip="charts.tradesBySymbolTip"
+                      aria-label="${te('charts.tradesBySymbolAbout')}"
+                      data-i18n-aria-label="charts.tradesBySymbolAbout"
                     >${DASH_KPI_INFO_ICON_SVG}</button>
         </div>
-                  <div class="sx-dash-graph__chart sx-dash-symbols-chart" role="img" aria-label="Trades by symbol">
+                  <div class="sx-dash-graph__chart sx-dash-symbols-chart" role="img" aria-label="${te('charts.tradesBySymbol')}" data-i18n-aria-label="charts.tradesBySymbol">
                     <canvas data-sx-symbols-chart-canvas></canvas>
                   </div>
                 </article>
@@ -1624,7 +1693,7 @@ function buildDashGraphCardsHtml(): string {
  */
 export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   document.documentElement.removeAttribute('data-theme')
-  document.title = 'Tradeneu — Dashboard'
+  document.title = `Tradeneu — ${translate('nav.dashboard')}`
   let activityChartRange: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'daily'
 
   root.replaceChildren()
@@ -1664,8 +1733,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
             <section class="sx-dash-performance" aria-labelledby="sx-dash-performance-title">
               <header class="sx-dash-performance__head">
           <div>
-                  <h2 id="sx-dash-performance-title">Performance</h2>
-                  <p>Your practice, market coverage, and trading results.</p>
+                  <h2 id="sx-dash-performance-title" data-i18n="perf.title">${te('perf.title')}</h2>
+                  <p data-i18n="perf.subtitle">${te('perf.subtitle')}</p>
           </div>
                 ${buildPulseRangeHtml()}
         </header>
@@ -1692,32 +1761,32 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
             <section class="sxt-trades" aria-labelledby="sx-dash-trades-title">
               <div class="sxt-page-head sr-only">
                 <div class="sxt-page-head__title-row">
-                  <h3 id="sx-dash-trades-title" class="sxt-h1">Trades</h3>
-                  <p class="sxt-sub">Closed trades from your replay journals across sessions.</p>
+                  <h3 id="sx-dash-trades-title" class="sxt-h1" data-i18n="trades.title">${te('trades.title')}</h3>
+                  <p class="sxt-sub" data-i18n="trades.subtitle">${te('trades.subtitle')}</p>
                 </div>
               </div>
 
               <div class="sxt-kpi-strip">
                 <div class="sxt-kpi-stack">
                   <div class="sxt-kpi sxt-kpi--stacked">
-                    <div class="sxt-kpi-label">Trades</div>
+                    <div class="sxt-kpi-label" data-i18n="trades.kpi.trades">${te('trades.kpi.trades')}</div>
                     <div class="sxt-kpi-value" data-sxt-kpi="count">0</div>
                     <div class="sxt-kpi-sub" data-sxt-kpi="count-sub">&nbsp;</div>
                   </div>
                   <div class="sxt-kpi sxt-kpi--stacked">
-                    <div class="sxt-kpi-label">Net P&amp;L</div>
+                    <div class="sxt-kpi-label" data-i18n="trades.kpi.netPnl">${te('trades.kpi.netPnl')}</div>
                     <div class="sxt-kpi-value" data-sxt-kpi="netpnl">$0.00</div>
                     <div class="sxt-kpi-sub" data-sxt-kpi="netpnl-sub">&nbsp;</div>
                   </div>
                 </div>
                 <div class="sxt-kpi-stack">
                   <div class="sxt-kpi sxt-kpi--stacked">
-                    <div class="sxt-kpi-label">Win rate</div>
+                    <div class="sxt-kpi-label" data-i18n="trades.kpi.winRate">${te('trades.kpi.winRate')}</div>
                     <div class="sxt-kpi-value" data-sxt-kpi="winrate">0%</div>
                     <div class="sxt-kpi-sub" data-sxt-kpi="winrate-sub">&nbsp;</div>
                   </div>
                   <div class="sxt-kpi sxt-kpi--stacked">
-                    <div class="sxt-kpi-label">Avg return (R)</div>
+                    <div class="sxt-kpi-label" data-i18n="trades.kpi.avgReturnR">${te('trades.kpi.avgReturnR')}</div>
                     <div class="sxt-kpi-value" data-sxt-kpi="avgr">0.00R</div>
                     <div class="sxt-kpi-sub" data-sxt-kpi="avgr-sub">&nbsp;</div>
                   </div>
@@ -1730,27 +1799,27 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
               <div class="sxt-toolbar">
                 <div class="sxt-session-dd" data-sxt-session-dd>
                   <button type="button" class="sxt-session-dd__btn" data-sxt-session-dd-btn>
-                    <span data-sxt-session-dd-label>All sessions</span>
+                    <span data-sxt-session-dd-label data-i18n="trades.allSessions">${te('trades.allSessions')}</span>
                     <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
                     </button>
                   <div class="sxt-session-dd__menu" data-sxt-session-dd-menu>
-                    <button type="button" class="sxt-session-dd__item sxt-session-dd__item--active" data-sxt-session-dd-value="">All sessions</button>
+                    <button type="button" class="sxt-session-dd__item sxt-session-dd__item--active" data-sxt-session-dd-value="" data-i18n="trades.allSessions">${te('trades.allSessions')}</button>
                     </div>
                   </div>
                 <div class="sxt-search-box">
                   <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                  <input type="search" data-sx-trades-search placeholder="Search trades" autocomplete="off" />
+                  <input type="search" data-sx-trades-search placeholder="${te('trades.search')}" data-i18n-placeholder="trades.search" autocomplete="off" />
                   </div>
                 <div class="sxt-spacer"></div>
                 <button type="button" data-sx-trades-clear-all class="hidden sxt-clear-all">
-                  Clear All
+                  <span data-i18n="trades.clearAll">${te('trades.clearAll')}</span>
                   <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
                     </button>
-                <button type="button" data-sx-trades-refresh class="sxt-icon-btn" title="Reset table columns" aria-label="Reset table columns">
+                <button type="button" data-sx-trades-refresh class="sxt-icon-btn" title="${te('trades.resetColumns')}" aria-label="${te('trades.resetColumns')}" data-i18n-title="trades.resetColumns" data-i18n-aria-label="trades.resetColumns">
                   <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
                 </button>
                 <div class="sxt-colpicker relative" data-sxt-colpicker>
-                  <button type="button" data-sx-trades-edit class="sxt-icon-btn" title="Modify columns" aria-label="Modify columns" aria-haspopup="true" aria-expanded="false">
+                  <button type="button" data-sx-trades-edit class="sxt-icon-btn" title="${te('trades.modifyColumns')}" aria-label="${te('trades.modifyColumns')}" data-i18n-title="trades.modifyColumns" data-i18n-aria-label="trades.modifyColumns" aria-haspopup="true" aria-expanded="false">
                     <i class="fa-solid fa-pen" aria-hidden="true"></i>
                   </button>
                   <span class="sr-only" data-sxt-colpicker-count>0 columns selected</span>
@@ -1767,17 +1836,17 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                     </div>
                 <div class="sxt-filterby">
                   <span class="sxt-filterby__divider" aria-hidden="true"></span>
-                  <span class="sxt-filterby__label">Filter by</span>
-                  <button type="button" class="sxt-filterby__pill sx-dash-trades-filter-tab" data-sx-trades-filter-tab="basic" role="tab" aria-selected="false">Column</button>
-                  <button type="button" class="sxt-filterby__pill sx-dash-trades-filter-tab" data-sx-trades-filter-tab="tags" role="tab" aria-selected="false">Tags</button>
-                  <button type="button" class="sxt-filterby__pill sx-dash-trades-filter-tab" data-sx-trades-filter-tab="trade" role="tab" aria-selected="false">Trade</button>
+                  <span class="sxt-filterby__label" data-i18n="trades.filterBy">${te('trades.filterBy')}</span>
+                  <button type="button" class="sxt-filterby__pill sx-dash-trades-filter-tab" data-sx-trades-filter-tab="basic" role="tab" aria-selected="false" data-i18n="trades.filterTab.column">${te('trades.filterTab.column')}</button>
+                  <button type="button" class="sxt-filterby__pill sx-dash-trades-filter-tab" data-sx-trades-filter-tab="tags" role="tab" aria-selected="false" data-i18n="trades.filterTab.tags">${te('trades.filterTab.tags')}</button>
+                  <button type="button" class="sxt-filterby__pill sx-dash-trades-filter-tab" data-sx-trades-filter-tab="trade" role="tab" aria-selected="false" data-i18n="trades.filterTab.trade">${te('trades.filterTab.trade')}</button>
                   <span class="hidden sxt-filter-count" data-sx-trades-filters-count></span>
                   </div>
                 <div class="relative">
                   <div class="sx-dash-trades-filters-backdrop hidden" data-sx-trades-filters-backdrop></div>
                   <div class="sx-dash-trades-filters-panel hidden" data-sx-trades-filters-panel role="dialog" aria-modal="true" aria-label="Filters">
                     <div class="sx-dash-trades-filters-panel__head">
-                      <span class="sx-dash-trades-filters-panel__title"><i class="fa-solid fa-filter" aria-hidden="true"></i> Filters</span>
+                      <span class="sx-dash-trades-filters-panel__title"><i class="fa-solid fa-filter" aria-hidden="true"></i> <span data-i18n="trades.filters">${te('trades.filters')}</span></span>
                       <button type="button" class="sx-dash-trades-filters-panel__close" data-sx-trades-filters-close aria-label="Close filters">
                         <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                       </button>
@@ -1785,26 +1854,26 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
                     <div class="sx-dash-trades-filters-panel__tabs" role="tablist" aria-label="Filter category">
                       <button type="button" class="sx-dash-trades-filter-tab" data-sx-trades-filter-tab="basic" role="tab" aria-selected="false">
-                        <i class="fa-solid fa-sliders" aria-hidden="true"></i> Column
+                        <i class="fa-solid fa-sliders" aria-hidden="true"></i> <span data-i18n="trades.filterTab.column">${te('trades.filterTab.column')}</span>
                   </button>
                       <button type="button" class="sx-dash-trades-filter-tab" data-sx-trades-filter-tab="tags" role="tab" aria-selected="false">
-                        <i class="fa-solid fa-tag" aria-hidden="true"></i> Tags
+                        <i class="fa-solid fa-tag" aria-hidden="true"></i> <span data-i18n="trades.filterTab.tags">${te('trades.filterTab.tags')}</span>
                       </button>
                       <button type="button" class="sx-dash-trades-filter-tab" data-sx-trades-filter-tab="trade" role="tab" aria-selected="false">
-                        <i class="fa-solid fa-book" aria-hidden="true"></i> Trade
+                        <i class="fa-solid fa-book" aria-hidden="true"></i> <span data-i18n="trades.filterTab.trade">${te('trades.filterTab.trade')}</span>
                       </button>
                     </div>
 
                     <div class="sx-dash-trades-filters-panel__search">
                       <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                      <input type="search" data-sx-trades-filters-search placeholder="Search filter" autocomplete="off" />
+                      <input type="search" data-sx-trades-filters-search placeholder="${te('trades.searchFilter')}" data-i18n-placeholder="trades.searchFilter" autocomplete="off" />
                   </div>
 
                     <div class="sx-dash-trades-filters-panel__body" data-sx-trades-filters-body></div>
 
                     <div class="sx-dash-trades-filters-panel__foot">
-                      <button type="button" class="sx-dash-trades-filters-clear" data-sx-trades-filters-clear>Clear All</button>
-                      <button type="button" class="sx-dash-trades-filters-apply" data-sx-trades-filters-apply>Apply Filters</button>
+                      <button type="button" class="sx-dash-trades-filters-clear" data-sx-trades-filters-clear data-i18n="trades.clearAll">${te('trades.clearAll')}</button>
+                      <button type="button" class="sx-dash-trades-filters-apply" data-sx-trades-filters-apply data-i18n="trades.applyFilters">${te('trades.applyFilters')}</button>
                       </div>
                     </div>
                   </div>
@@ -1815,29 +1884,29 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                   <table class="sxt-table sxt-headerclone__table" data-sx-trades-headerclone-table>
                     <thead>
                       <tr class="sxt-col-row">
-                        <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"><input type="checkbox" data-sx-trades-select-all class="sxt-row-check" aria-label="Select all trades" /></th>
-                        <th class="sxt-sticky-col sxt-col-action" data-sxt-col="action">Action</th>
-                        <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
-                        <th data-sxt-col="tradeNum">${sxSortHeaderHtml('tradeNum', 'Trade #')}</th>
-                        <th draggable="true" data-sxt-col="side">Side</th>
-                        <th draggable="true" class="sxt-group-divide" data-sxt-col="session">Session</th>
-                        <th draggable="true" data-sxt-col="type">Type</th>
-                        <th draggable="true" data-sxt-col="source">Source</th>
-                        <th draggable="true" data-sxt-col="entryType">Entry type</th>
-                        <th draggable="true" data-sxt-col="entryRealtime">${sxSortHeaderHtml('entryRealTime', 'Entry date (realtime)')}</th>
-                        <th draggable="true" data-sxt-col="entryChart">${sxSortHeaderHtml('entryTime', 'Entry date (chart)')}</th>
-                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="entryPrice">${sxSortHeaderHtml('entryPrice', 'Entry price')}</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="size">Size</th>
-                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="stopLoss">Stop loss</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="takeProfit">Take profit</th>
-                        <th draggable="true" class="sxt-group-divide" data-sxt-col="exitDate">${sxSortHeaderHtml('exitTime', 'Exit date')}</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="exitPrice">${sxSortHeaderHtml('exitPrice', 'Exit price')}</th>
-                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="returnUsd">${sxSortHeaderHtml('pnl', 'Return ($)')}</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="returnPct">Return (%)</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="returnR">Return (R)</th>
-                        <th draggable="true" data-sxt-col="rating">Rating</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="grossPnl">${sxSortHeaderHtml('pnl', 'Gross PnL')}</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="fees">Fees</th>
+                        <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"><input type="checkbox" data-sx-trades-select-all class="sxt-row-check" aria-label="${te('trades.selectAll')}" data-i18n-aria-label="trades.selectAll" /></th>
+                        <th class="sxt-sticky-col sxt-col-action" data-sxt-col="action" data-i18n="trades.col.action">${te('trades.col.action')}</th>
+                        <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset" data-i18n="trades.col.asset">${te('trades.col.asset')}</th>
+                        <th data-sxt-col="tradeNum">${sxSortHeaderHtml('tradeNum', 'trades.col.tradeNum')}</th>
+                        <th draggable="true" data-sxt-col="side" data-i18n="trades.col.side">${te('trades.col.side')}</th>
+                        <th draggable="true" class="sxt-group-divide" data-sxt-col="session" data-i18n="trades.col.session">${te('trades.col.session')}</th>
+                        <th draggable="true" data-sxt-col="type" data-i18n="trades.col.type">${te('trades.col.type')}</th>
+                        <th draggable="true" data-sxt-col="source" data-i18n="trades.col.source">${te('trades.col.source')}</th>
+                        <th draggable="true" data-sxt-col="entryType" data-i18n="trades.col.entryType">${te('trades.col.entryType')}</th>
+                        <th draggable="true" data-sxt-col="entryRealtime">${sxSortHeaderHtml('entryRealTime', 'trades.col.entryRealtime')}</th>
+                        <th draggable="true" data-sxt-col="entryChart">${sxSortHeaderHtml('entryTime', 'trades.col.entryChart')}</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="entryPrice">${sxSortHeaderHtml('entryPrice', 'trades.col.entryPrice')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="size" data-i18n="trades.col.size">${te('trades.col.size')}</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="stopLoss" data-i18n="trades.col.stopLoss">${te('trades.col.stopLoss')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="takeProfit" data-i18n="trades.col.takeProfit">${te('trades.col.takeProfit')}</th>
+                        <th draggable="true" class="sxt-group-divide" data-sxt-col="exitDate">${sxSortHeaderHtml('exitTime', 'trades.col.exitDate')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="exitPrice">${sxSortHeaderHtml('exitPrice', 'trades.col.exitPrice')}</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="returnUsd">${sxSortHeaderHtml('pnl', 'trades.col.returnUsd')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="returnPct" data-i18n="trades.col.returnPct">${te('trades.col.returnPct')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="returnR" data-i18n="trades.col.returnR">${te('trades.col.returnR')}</th>
+                        <th draggable="true" data-sxt-col="rating" data-i18n="trades.col.rating">${te('trades.col.rating')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="grossPnl">${sxSortHeaderHtml('pnl', 'trades.col.grossPnl')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="fees" data-i18n="trades.col.fees">${te('trades.col.fees')}</th>
                       </tr>
                     </thead>
                   </table>
@@ -1850,33 +1919,33 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                     <thead>
                       <tr class="sxt-col-row">
                         <th class="sxt-sticky-col sxt-col-check" data-sxt-col="check"></th>
-                        <th class="sxt-sticky-col sxt-col-action" data-sxt-col="action">Action</th>
-                        <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset">Asset</th>
-                        <th data-sxt-col="tradeNum">${sxSortHeaderHtml('tradeNum', 'Trade #')}</th>
-                        <th draggable="true" data-sxt-col="side">Side</th>
-                        <th draggable="true" class="sxt-group-divide" data-sxt-col="session">Session</th>
-                        <th draggable="true" data-sxt-col="type">Type</th>
-                        <th draggable="true" data-sxt-col="source">Source</th>
-                        <th draggable="true" data-sxt-col="entryType">Entry type</th>
-                        <th draggable="true" data-sxt-col="entryRealtime">${sxSortHeaderHtml('entryRealTime', 'Entry date (realtime)')}</th>
-                        <th draggable="true" data-sxt-col="entryChart">${sxSortHeaderHtml('entryTime', 'Entry date (chart)')}</th>
-                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="entryPrice">${sxSortHeaderHtml('entryPrice', 'Entry price')}</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="size">Size</th>
-                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="stopLoss">Stop loss</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="takeProfit">Take profit</th>
-                        <th draggable="true" class="sxt-group-divide" data-sxt-col="exitDate">${sxSortHeaderHtml('exitTime', 'Exit date')}</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="exitPrice">${sxSortHeaderHtml('exitPrice', 'Exit price')}</th>
-                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="returnUsd">${sxSortHeaderHtml('pnl', 'Return ($)')}</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="returnPct">Return (%)</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="returnR">Return (R)</th>
-                        <th draggable="true" data-sxt-col="rating">Rating</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="grossPnl">${sxSortHeaderHtml('pnl', 'Gross PnL')}</th>
-                        <th draggable="true" class="sxt-num" data-sxt-col="fees">Fees</th>
+                        <th class="sxt-sticky-col sxt-col-action" data-sxt-col="action" data-i18n="trades.col.action">${te('trades.col.action')}</th>
+                        <th class="sxt-sticky-col sxt-col-asset" data-sxt-col="asset" data-i18n="trades.col.asset">${te('trades.col.asset')}</th>
+                        <th data-sxt-col="tradeNum">${sxSortHeaderHtml('tradeNum', 'trades.col.tradeNum')}</th>
+                        <th draggable="true" data-sxt-col="side" data-i18n="trades.col.side">${te('trades.col.side')}</th>
+                        <th draggable="true" class="sxt-group-divide" data-sxt-col="session" data-i18n="trades.col.session">${te('trades.col.session')}</th>
+                        <th draggable="true" data-sxt-col="type" data-i18n="trades.col.type">${te('trades.col.type')}</th>
+                        <th draggable="true" data-sxt-col="source" data-i18n="trades.col.source">${te('trades.col.source')}</th>
+                        <th draggable="true" data-sxt-col="entryType" data-i18n="trades.col.entryType">${te('trades.col.entryType')}</th>
+                        <th draggable="true" data-sxt-col="entryRealtime">${sxSortHeaderHtml('entryRealTime', 'trades.col.entryRealtime')}</th>
+                        <th draggable="true" data-sxt-col="entryChart">${sxSortHeaderHtml('entryTime', 'trades.col.entryChart')}</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="entryPrice">${sxSortHeaderHtml('entryPrice', 'trades.col.entryPrice')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="size" data-i18n="trades.col.size">${te('trades.col.size')}</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="stopLoss" data-i18n="trades.col.stopLoss">${te('trades.col.stopLoss')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="takeProfit" data-i18n="trades.col.takeProfit">${te('trades.col.takeProfit')}</th>
+                        <th draggable="true" class="sxt-group-divide" data-sxt-col="exitDate">${sxSortHeaderHtml('exitTime', 'trades.col.exitDate')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="exitPrice">${sxSortHeaderHtml('exitPrice', 'trades.col.exitPrice')}</th>
+                        <th draggable="true" class="sxt-num sxt-group-divide" data-sxt-col="returnUsd">${sxSortHeaderHtml('pnl', 'trades.col.returnUsd')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="returnPct" data-i18n="trades.col.returnPct">${te('trades.col.returnPct')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="returnR" data-i18n="trades.col.returnR">${te('trades.col.returnR')}</th>
+                        <th draggable="true" data-sxt-col="rating" data-i18n="trades.col.rating">${te('trades.col.rating')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="grossPnl">${sxSortHeaderHtml('pnl', 'trades.col.grossPnl')}</th>
+                        <th draggable="true" class="sxt-num" data-sxt-col="fees" data-i18n="trades.col.fees">${te('trades.col.fees')}</th>
                       </tr>
                     </thead>
                     <tbody data-sx-trades-body>
                       <tr>
-                        <td colspan="23" class="sxt-empty">No closed trades yet. Resume a session and close positions to see them here.</td>
+                        <td colspan="23" class="sxt-empty" data-i18n="trades.noClosedTrades">${te('trades.noClosedTrades')}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1885,18 +1954,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                   <div class="sxt-footer-status">
                     <span data-sx-trades-footer-default>0 trades</span>
                     <span data-sx-trades-footer-selected class="hidden">
-                      <strong><span data-sx-trades-selected-count>0</span> selected</strong>
+                      <strong><span data-sx-trades-selected-count>0</span> <span data-i18n="trades.selected">${te('trades.selected')}</span></strong>
                       &nbsp;&middot;&nbsp;
-                      <button type="button" data-sx-trades-delete-selected class="sxt-link-btn">Delete</button>
+                      <button type="button" data-sx-trades-delete-selected class="sxt-link-btn" data-i18n="trades.delete">${te('trades.delete')}</button>
                       &nbsp;&middot;&nbsp;
-                      <button type="button" data-sx-trades-export-selected class="sxt-link-btn">Export selected</button>
+                      <button type="button" data-sx-trades-export-selected class="sxt-link-btn" data-i18n="trades.exportSelected">${te('trades.exportSelected')}</button>
                     </span>
                   </div>
                   <div class="sxt-page-btns" data-sx-trades-pagination></div>
                   <div class="sxt-footer-spacer">
                     <button type="button" data-sx-trades-export class="sxt-export-btn sxt-export-btn--footer">
                       <i class="fa-solid fa-download" aria-hidden="true"></i>
-                      Export
+                      <span data-i18n="trades.export">${te('trades.export')}</span>
                     </button>
               </div>
             </div>
@@ -2034,7 +2103,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   let disposeChart: (() => void) | null = null
   let disposeStocks: (() => void) | null = null
   let disposeStrategy: (() => void) | null = null
-  let disposeSettings: (() => void) | null = null
+  let accountPage: AccountPageHandle | null = null
+  let activeTestingTab: TestingTab | null = null
   let disposeBilling: (() => void) | null = null
   let activeSessionId: string | null = null
   let lastSessionPayload: SessionCreatedPayload | null = null
@@ -2043,8 +2113,9 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   function syncSidebarProfile() {
     const auth = getAuthUser()
     const isGuest = !auth?.email?.trim() || auth.email.trim() === GUEST_AUTH_EMAIL
-    const name = (readDisplayName() || auth?.name || 'Guest').trim() || 'Guest'
-    const label = isGuest ? 'Guest' : name
+    const guestName = translate('acct.guest')
+    const name = (readDisplayName() || auth?.name || guestName).trim() || guestName
+    const label = isGuest ? guestName : name
     root.querySelectorAll('[data-sx-account-label]').forEach((el) => {
       el.textContent = label
     })
@@ -2112,7 +2183,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       else btn.removeAttribute('aria-current')
     })
     const crumb = root.querySelector<HTMLElement>('[data-sx-crumb]')
-    if (crumb) crumb.textContent = DASH_NAV_LABELS[key]
+    if (crumb) {
+      crumb.setAttribute('data-i18n', DASH_NAV_KEYS[key])
+      crumb.textContent = translate(DASH_NAV_KEYS[key])
+    }
   }
 
   function setMainNavActive(action: 'dashboard' | 'billing' | 'strategy' | 'settings') {
@@ -2140,8 +2214,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   }
 
   function clearSettingsPanel() {
-    disposeSettings?.()
-    disposeSettings = null
+    accountPage?.dispose()
+    accountPage = null
     viewSettingsPanel?.replaceChildren()
     if (viewSettingsPanel) {
       viewSettingsPanel.hidden = true
@@ -2186,8 +2260,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (appRoot) setAiChatOpen(appRoot, false)
     disposeStrategy?.()
     disposeStrategy = null
-    disposeSettings?.()
-    disposeSettings = null
+    accountPage?.dispose()
+    accountPage = null
     disposeBilling?.()
     disposeBilling = null
     viewStrategyPanel?.replaceChildren()
@@ -2212,7 +2286,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       propRules: session.propRules ?? null,
       propResult: session.propResult ?? null,
       activeChartIndicators: session.activeChartIndicators ?? [],
-      onExit: showDashboard,
+      onExit: () => navigate({ view: 'testing', tab: activeTestingTab ?? 'dashboard' }),
       onSymbolChange: (symbol) => {
         if (!activeSessionId || !lastSessionPayload) return
         const s = symbol.trim().toUpperCase()
@@ -2278,6 +2352,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
   function showSettingsPage(initialTab?: AccountTabKey) {
     if (!viewSettingsPanel) return
+    // Already open: switch tabs in place so the panel keeps its state.
+    if (accountPage && !viewSettingsPanel.hidden) {
+      if (initialTab) accountPage.showTab(initialTab)
+      return
+    }
     disposeChart?.()
     disposeChart = null
     disposeStocks?.()
@@ -2297,10 +2376,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     setMainNavActive('settings')
     closeDrawer()
     if (appRoot) setAiChatOpen(appRoot, false)
-    disposeSettings?.()
-    disposeSettings = mountAccountPage(viewSettingsPanel, {
+    accountPage?.dispose()
+    accountPage = mountAccountPage(viewSettingsPanel, {
       embedded: true,
       initialTab,
+      onTabChange: (tab) => navigate({ view: 'settings', tab }),
       readLocale: readDashLocale,
       writeLocale: (code) => {
         writeDashLocale(code)
@@ -2312,7 +2392,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       onTierChange: () => {
         applyAccountTierUi()
         syncSidebarProfile()
-        if (viewSettingsPanel && !viewSettingsPanel.hidden) showSettingsPage('subscription')
+        // Remount: entitlements are baked into the panel markup at build time.
+        if (viewSettingsPanel && !viewSettingsPanel.hidden) {
+          clearSettingsPanel()
+          showSettingsPage('subscription')
+        }
       },
       getSessionStats: getProfileSessionStats,
       getAuthUser: () => getAuthUser(),
@@ -2419,7 +2503,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       getAuthUser: () => getAuthUser(),
       // "Manage plan" should land on the same Subscription tab the top-bar
       // Upgrade button opens, not a separate plans modal.
-      onOpenSubscription: () => showSettingsPage('subscription'),
+      onOpenSubscription: () => navigate({ view: 'settings', tab: 'subscription' }),
     })
   }
 
@@ -2474,6 +2558,59 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     syncRecentSessionsUi()
   }
 
+  /**
+   * Router for the dashboard shell. UI handlers call `navigate`, which writes
+   * the URL and then renders; Back/Forward and boot call `applyView` alone, so
+   * restoring a URL never pushes a new entry.
+   */
+  function navigate(view: AppView, navOpts?: { replace?: boolean }) {
+    const path = resolveViewPath(view)
+    if (path !== `${window.location.pathname}${window.location.search}`) {
+      const state = { sx: 'view', view }
+      if (navOpts?.replace) history.replaceState(state, '', path)
+      else history.pushState(state, '', path)
+    }
+    applyView(view)
+  }
+
+  function applyView(view: AppView) {
+    switch (view.view) {
+      case 'strategy':
+        showStrategyPage()
+        return
+      case 'billing':
+        showBillingPage()
+        return
+      case 'settings':
+        showSettingsPage(view.tab)
+        return
+      case 'testing': {
+        // An Analytics sub-tab change must not re-run the whole tab switch.
+        const inTesting = !!viewTesting && !viewTesting.hidden && (!viewChart || viewChart.hidden)
+        if (!(inTesting && activeTestingTab === 'analytics' && view.tab === 'analytics')) {
+          // Leaving the chart needs its teardown; otherwise just swap the tab.
+          if (viewChart && !viewChart.hidden) showDashboard()
+          else showHomeTestingSection()
+          setTestingTab(view.tab)
+        }
+        if (view.tab === 'analytics') sxAnalyticsPage?.showTab(view.analyticsTab ?? 'performance')
+        return
+      }
+      case 'chart': {
+        const id = getLastSessionId()
+        const session = id ? getSession(id) : listSessions()[0] ?? null
+        // Deep link to /chart with nothing to replay: fall back to the home tab.
+        if (!session) {
+          navigate({ view: 'testing', tab: 'dashboard' }, { replace: true })
+          return
+        }
+        if (viewChart && !viewChart.hidden && disposeChart && activeSessionId === session.id) return
+        openChartWithStoredSession(session)
+        return
+      }
+    }
+  }
+
   function syncRecentSessionsUi() {
     const list = root.querySelector('#sx-dash-session-list')
     const countEl = root.querySelector('[data-sx-sessions-count]')
@@ -2490,8 +2627,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     })
     countEl.textContent =
       tier === 'pro'
-        ? `${visible} session${visible === 1 ? '' : 's'}`
-        : `${visible} of ${limit} sessions`
+        ? tCount('unit.sessions', visible)
+        : translate('sessions.countOfLimit', { used: visible, limit })
     fillEl.style.width = `${Math.min(100, (visible / limit) * 100)}%`
     if (barEl instanceof HTMLElement) {
       barEl.setAttribute('aria-valuenow', String(visible))
@@ -2508,17 +2645,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
     if (allSessions.length === 0) {
       list.innerHTML = `<li class="sx-dash-session-row sx-dash-session-row--empty rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center dark:border-white/10 dark:bg-white/[0.02]" data-session-name="empty new session">
-          <p class="text-sm font-medium text-zinc-600 dark:text-zinc-400">No sessions yet</p>
-          <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-500">Start a backtest to see it listed here.</p>
+          <p class="text-sm font-medium text-zinc-600 dark:text-zinc-400">${te('sessions.emptyTitle')}</p>
+          <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-500">${te('sessions.emptySub')}</p>
         </li>`
     } else if (sessions.length === 0) {
       list.innerHTML = `<li class="sx-dash-session-row sx-dash-session-row--empty rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center dark:border-white/10 dark:bg-white/[0.02]" data-session-name="empty filtered">
-          <p class="text-sm font-medium text-zinc-600 dark:text-zinc-400">No sessions match your filters</p>
-          <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-500">Try clearing search or choosing a different filter.</p>
+          <p class="text-sm font-medium text-zinc-600 dark:text-zinc-400">${te('sessions.noMatchTitle')}</p>
+          <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-500">${te('sessions.noMatchSub')}</p>
         </li>`
     } else {
       list.innerHTML = sessions.map((s) => buildSessionRowHtml(s)).join('')
     }
+    syncDashHero()
     syncDashboardPerf()
     syncSessionPulse()
     syncTradesUi()
@@ -2535,6 +2673,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   }
 
   function setTestingTab(tab: TestingTab) {
+    activeTestingTab = tab
     try {
       localStorage.setItem(LS_TESTING_TAB, tab)
     } catch {
@@ -2773,9 +2912,9 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     })
   }
 
-  function sxSortHeaderHtml(key: SxTradeSortKey, label: string): string {
+  function sxSortHeaderHtml(key: SxTradeSortKey, msgKey: MessageKey): string {
     return `<button type="button" class="sxt-sort-btn" data-sx-trades-sort="${key}">
-      <span>${escapeHtml(label)}</span>
+      <span data-i18n="${msgKey}">${te(msgKey)}</span>
       <span class="sxt-sort-icon" aria-hidden="true">
         <i class="fa-solid fa-arrow-up" data-sxt-sort-arrow="up"></i>
         <i class="fa-solid fa-arrow-down" data-sxt-sort-arrow="down"></i>
@@ -2869,18 +3008,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     // Locked columns (e.g. Asset) are always shown in the table and can't be toggled,
     // so they're excluded from the picker entirely — nothing should appear pre-selected.
     const toggleableCols = SX_TRADES_COLUMNS.filter((c) => !c.locked)
-    const cols = q ? toggleableCols.filter((c) => c.label.toLowerCase().includes(q)) : toggleableCols
+    const cols = q ? toggleableCols.filter((c) => translate(c.msgKey).toLowerCase().includes(q)) : toggleableCols
     listEl.innerHTML = cols.length
       ? cols
           .map((c) => {
             const isHidden = sxTradesHiddenColumns.has(c.id)
             return `<label class="sxt-colpicker__row${isHidden ? '' : ' sxt-colpicker__row--checked'}">
                 <input type="checkbox" data-sxt-colpicker-col="${c.id}" ${isHidden ? '' : 'checked'} />
-                <span>${escapeHtml(c.label)}</span>
+                <span data-i18n="${c.msgKey}">${te(c.msgKey)}</span>
               </label>`
           })
           .join('')
-      : `<p class="sxt-colpicker__empty">No columns match your search.</p>`
+      : `<p class="sxt-colpicker__empty" data-i18n="trades.noColumnsMatch">${te('trades.noColumnsMatch')}</p>`
     sxApplyTradesColumnVisibility()
   }
 
@@ -3568,13 +3707,13 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
     if (rows.length === 0) {
       body.innerHTML = `<tr>
-        <td colspan="23" class="sxt-empty">No closed trades yet. Resume a session and close positions to see them here.</td>
+        <td colspan="23" class="sxt-empty" data-i18n="trades.noClosedTrades">${te('trades.noClosedTrades')}</td>
       </tr>`
     } else {
       body.innerHTML = pageRows
         .map((t) => {
           const isGain = t.pnl >= 0
-          const side = t.direction === 'long' ? 'Buy' : 'Sell'
+          const side = t.direction === 'long' ? te('trades.side.buy') : te('trades.side.sell')
           const sideCls = t.direction === 'long' ? 'sxt-side-buy' : 'sxt-side-sell'
           const risk = t.initialStopLoss != null ? Math.abs(t.entryPrice - t.initialStopLoss) : 0
           const reward = t.direction === 'long' ? t.exitPrice - t.entryPrice : t.entryPrice - t.exitPrice
@@ -3586,15 +3725,15 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           const highlightCls = highlighted ? ` sxt-row-chart-highlight ${t.pnl < 0 ? 'sxt-row-chart-highlight--loss' : 'sxt-row-chart-highlight--gain'}` : ''
           const hc = (id: string) => (sxTradesHiddenColumns.has(id) ? ' sxt-col-hidden' : '')
           return `<tr class="${checked ? 'sxt-row-selected' : ''}${highlightCls}" data-sx-trades-row-key="${escapeHtml(t.key)}">
-          <td class="sxt-sticky-col sxt-col-check${hc('check')}" data-sxt-col="check"><input type="checkbox" class="sxt-row-check sxt-row-select" data-sx-trades-row-select="${escapeHtml(t.key)}" ${checked ? 'checked' : ''} aria-label="Select trade" /></td>
-          <td class="sxt-sticky-col sxt-col-action${hc('action')}" data-sxt-col="action"><button type="button" class="sxt-action-btn" data-sx-trades-open-journal="${escapeHtml(t.key)}" title="Open journal" aria-label="Open journal">${SXT_JOURNAL_ICON_SVG}</button></td>
+          <td class="sxt-sticky-col sxt-col-check${hc('check')}" data-sxt-col="check"><input type="checkbox" class="sxt-row-check sxt-row-select" data-sx-trades-row-select="${escapeHtml(t.key)}" ${checked ? 'checked' : ''} aria-label="${te('trades.selectTrade')}" /></td>
+          <td class="sxt-sticky-col sxt-col-action${hc('action')}" data-sxt-col="action"><button type="button" class="sxt-action-btn" data-sx-trades-open-journal="${escapeHtml(t.key)}" title="${te('trades.openJournal')}" aria-label="${te('trades.openJournal')}">${SXT_JOURNAL_ICON_SVG}</button></td>
           <td class="sxt-sticky-col sxt-col-asset sxt-asset-cell${hc('asset')}" data-sxt-col="asset"><span class="sxt-ticker">${escapeHtml(t.asset)}</span></td>
           <td class="sxt-mono${hc('tradeNum')}" data-sxt-col="tradeNum"><span class="sxt-tradenum-pill">T${sxTradesTNumberByKey.get(t.key) ?? '\u2014'}</span></td>
           <td class="${hc('side')}" data-sxt-col="side"><span class="${sideCls}">${side}</span></td>
           <td class="sxt-group-divide${hc('session')}" data-sxt-col="session">${escapeHtml(t.sessionName)}</td>
-          <td class="${hc('type')}" data-sxt-col="type"><span class="sxt-status-pill">Closed</span></td>
-          <td class="${hc('source')}" data-sxt-col="source">Replay</td>
-          <td class="${hc('entryType')}" data-sxt-col="entryType"><span class="sxt-entry-type-pill">${escapeHtml(t.entryKind ?? 'market')}</span></td>
+          <td class="${hc('type')}" data-sxt-col="type"><span class="sxt-status-pill">${te('trades.status.closed')}</span></td>
+          <td class="${hc('source')}" data-sxt-col="source">${te('trades.source.replay')}</td>
+          <td class="${hc('entryType')}" data-sxt-col="entryType"><span class="sxt-entry-type-pill">${sxEntryKindLabel(t.entryKind)}</span></td>
           <td class="sxt-mono${hc('entryRealtime')}" data-sxt-col="entryRealtime">${sxFormatTradeDateMs(t.entryRealTime)}</td>
           <td class="sxt-mono${hc('entryChart')}" data-sxt-col="entryChart">${sxFormatTradeDate(t.entryTime)}</td>
           <td class="sxt-num sxt-mono sxt-group-divide${hc('entryPrice')}" data-sxt-col="entryPrice">${escapeHtml(String(t.entryPrice))}</td>
@@ -3651,26 +3790,38 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const worstR = rValues.length ? Math.min(...rValues) : null
 
     const assets = new Set(rows.map((r) => r.asset))
-    const assetLabel = assets.size === 0 ? '\u2014' : assets.size === 1 ? Array.from(assets)[0] : `${assets.size} assets`
+    const assetLabel =
+      assets.size === 0
+        ? '\u2014'
+        : assets.size === 1
+          ? Array.from(assets)[0]
+          : translate('trades.kpi.multipleAssets', { count: assets.size })
 
     setKpi('count', String(count))
     const countSub = root.querySelector<HTMLElement>('[data-sxt-kpi="count-sub"]')
-    if (countSub) countSub.textContent = count > 0 ? `All closed \u00b7 ${assetLabel}` : '\u00a0'
+    if (countSub) countSub.textContent = count > 0 ? translate('trades.kpi.allClosed', { asset: assetLabel! }) : '\u00a0'
 
     setKpi('netpnl', sxFormatSignedMoney(netPnl), netPnl > 0 ? 'sxt-gain' : netPnl < 0 ? 'sxt-loss' : undefined)
     const netpnlSub = root.querySelector<HTMLElement>('[data-sxt-kpi="netpnl-sub"]')
-    if (netpnlSub) netpnlSub.textContent = count > 0 ? `${wins} win${wins === 1 ? '' : 's'} \u00b7 ${losses} loss${losses === 1 ? '' : 'es'}` : '\u00a0'
+    if (netpnlSub)
+      netpnlSub.textContent =
+        count > 0
+          ? `${tCount('unit.wins', wins, { count: wins })} \u00b7 ${tCount('unit.losses', losses, { count: losses })}`
+          : '\u00a0'
 
     setKpi('winrate', `${winRate.toFixed(0)}%`)
     const winrateSub = root.querySelector<HTMLElement>('[data-sxt-kpi="winrate-sub"]')
-    if (winrateSub) winrateSub.textContent = count > 0 ? `${wins} of ${count} trades` : '\u00a0'
+    if (winrateSub) winrateSub.textContent = count > 0 ? translate('trades.kpi.ofTrades', { wins, count }) : '\u00a0'
 
     setKpi('avgr', `${avgR >= 0 ? '' : ''}${avgR.toFixed(2)}R`)
     const avgrSub = root.querySelector<HTMLElement>('[data-sxt-kpi="avgr-sub"]')
     if (avgrSub) {
       avgrSub.textContent =
         bestR != null && worstR != null
-          ? `Best ${bestR >= 0 ? '+' : ''}${bestR.toFixed(2)}R \u00b7 Worst ${worstR >= 0 ? '+' : ''}${worstR.toFixed(2)}R`
+          ? translate('trades.kpi.bestWorst', {
+              best: `${bestR >= 0 ? '+' : ''}${bestR.toFixed(2)}`,
+              worst: `${worstR >= 0 ? '+' : ''}${worstR.toFixed(2)}`,
+            })
           : '\u00a0'
     }
 
@@ -3715,11 +3866,13 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       footerSelected?.classList.add('hidden')
       if (footerDefault) {
         if (rows.length === 0 || pageRowCount === 0) {
-          footerDefault.textContent = '0 rows'
+          footerDefault.textContent = translate('trades.rowCount', { count: 0 })
         } else {
-          const rangeStart = pageStart + 1
-          const rangeEnd = pageStart + pageRowCount
-          footerDefault.textContent = `Displaying ${rangeStart}-${rangeEnd} rows of ${rows.length} row${rows.length === 1 ? '' : 's'}`
+          footerDefault.textContent = translate('trades.displayingRows', {
+            from: pageStart + 1,
+            to: pageStart + pageRowCount,
+            total: translate('trades.rowCount', { count: rows.length }),
+          })
         }
       }
     }
@@ -3820,8 +3973,14 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const host = root.querySelector<HTMLElement>('[data-sx-trades-pagination]')
     if (!host) return
 
+    const NAV_KEYS: Record<'first' | 'prev' | 'next' | 'last', MessageKey> = {
+      first: 'trades.page.first',
+      prev: 'trades.page.prev',
+      next: 'trades.page.next',
+      last: 'trades.page.last',
+    }
     const nav = (dir: 'first' | 'prev' | 'next' | 'last', label: string, disabled: boolean) =>
-      `<button type="button" class="sxt-page-nav" data-sx-trades-page-nav="${dir}" ${disabled ? 'disabled' : ''} aria-label="${dir} page">${label}</button>`
+      `<button type="button" class="sxt-page-nav" data-sx-trades-page-nav="${dir}" ${disabled ? 'disabled' : ''} aria-label="${te(NAV_KEYS[dir])}">${label}</button>`
 
     const atFirst = sxTradesPage <= 1
     const atLast = sxTradesPage >= pageCount
@@ -3854,14 +4013,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     for (const r of rows) seen.set(r.sessionId, r.sessionName)
     const current = seen.has(sxTradesFilters.sessionId) ? sxTradesFilters.sessionId : ''
     if (!seen.has(sxTradesFilters.sessionId)) sxTradesFilters.sessionId = ''
-    const options: { id: string; name: string }[] = [{ id: '', name: 'All sessions' }, ...Array.from(seen.entries()).map(([id, name]) => ({ id, name }))]
+    const allSessionsLabel = translate('trades.allSessions')
+    const options: { id: string; name: string }[] = [
+      { id: '', name: allSessionsLabel },
+      ...Array.from(seen.entries()).map(([id, name]) => ({ id, name })),
+    ]
     menu.innerHTML = options
       .map(
         (o) =>
           `<button type="button" class="sxt-session-dd__item${o.id === current ? ' sxt-session-dd__item--active' : ''}" data-sxt-session-dd-value="${escapeHtml(o.id)}">${escapeHtml(o.name)}</button>`,
       )
       .join('')
-    label.textContent = options.find((o) => o.id === current)?.name ?? 'All sessions'
+    label.textContent = options.find((o) => o.id === current)?.name ?? allSessionsLabel
   }
 
   function sxSyncTradesFiltersToggleBadge() {
@@ -3889,7 +4052,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const allRows = sxCollectTradeRows()
     const tagSet = new Set<string>()
     for (const r of allRows) for (const tag of r.tags) tagSet.add(tag)
-    return Array.from(tagSet).map((tag) => ({ label: 'Tags', value: `tag:${tag}`, itemLabel: tag }))
+    return Array.from(tagSet).map((tag) => ({
+      label: translate('trades.filterTab.tags'),
+      value: `tag:${tag}`,
+      itemLabel: tag,
+    }))
   }
 
   function sxRenderTradesTagsDropdown(kind: 'include' | 'exclude'): string {
@@ -3911,11 +4078,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const allValues = allOptions.map((o) => o.value)
     const checkedCount = allValues.filter((v) => selected.has(v)).length
     const summary = selected.size
-      ? `${selected.size} selected`
-      : 'Select tags'
+      ? translate('trades.tags.selectedCount', { count: selected.size })
+      : translate('trades.tags.selectTags')
 
     return `<div class="sxt-tagsfilter__row">
-        <span class="sxt-tagsfilter__label">${kind === 'include' ? 'Include' : 'Exclude'}</span>
+        <span class="sxt-tagsfilter__label">${kind === 'include' ? te('trades.tags.include') : te('trades.tags.exclude')}</span>
         <div class="sxt-tagsfilter__modes">
           <button type="button" class="sxt-tagsfilter__mode${mode === 'and' ? ' sxt-tagsfilter__mode--active' : ''}" data-sx-trades-tags-mode-btn="${kind}:and">AND</button>
           <button type="button" class="sxt-tagsfilter__mode${mode === 'or' ? ' sxt-tagsfilter__mode--active' : ''}" data-sx-trades-tags-mode-btn="${kind}:or">OR</button>
@@ -3934,7 +4101,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                   allValues.length && checkedCount === allValues.length ? 'checked' : ''
                 } />
                 <div class="sxt-tagsfilter__panel-searchbox">
-                  <input type="text" placeholder="Search" value="${escapeHtml(sxTradesTagsSearch[kind])}" data-sx-trades-tags-search="${kind}" />
+                  <input type="text" placeholder="${te('common.search')}" value="${escapeHtml(sxTradesTagsSearch[kind])}" data-sx-trades-tags-search="${kind}" />
                   <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                 </div>
               </div>
@@ -3955,7 +4122,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
                             .join('')}`,
                         )
                         .join('')
-                    : `<p class="sxt-tagsfilter__empty">No options available.</p>`
+                    : `<p class="sxt-tagsfilter__empty">${te('trades.filter.noOptionsAvailable')}</p>`
                 }
               </div>
             </div>`
@@ -3990,7 +4157,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
               </label>`,
                 )
                 .join('')
-            : `<p class="sx-dash-trades-accordion__empty">No options</p>`
+            : `<p class="sx-dash-trades-accordion__empty">${te('trades.filter.noOptions')}</p>`
         }
       </div>
     </div>`
@@ -4020,7 +4187,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (sxTradesFilterTab === 'tags') {
       bodyEl.innerHTML = `<div class="sxt-tagsfilter">
         ${sxRenderTradesTagsDropdown('include')}
-        <div class="sxt-tagsfilter__divider"><span>AND</span></div>
+        <div class="sxt-tagsfilter__divider"><span>${te('common.and')}</span></div>
         ${sxRenderTradesTagsDropdown('exclude')}
       </div>`
       return
@@ -4033,53 +4200,56 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         value: v,
         label: v,
       }))
-      const ratingItems = [5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: `${n} Star${n === 1 ? '' : 's'}` }))
+      const ratingItems = [5, 4, 3, 2, 1].map((n) => ({
+        value: String(n),
+        label: tCount('unit.stars', n, { count: n }),
+      }))
       bodyEl.innerHTML = [
         sxRenderTradesTextFilterSection({
           id: 'summaryQuery',
-          label: 'Summary',
-          placeholder: 'Summary contains words like...',
+          label: translate('trades.filter.summary'),
+          placeholder: translate('trades.filter.summaryPlaceholder'),
           value: sxTradesFilters.summaryQuery,
         }),
         sxRenderTradesFilterSection({
           id: 'reflectionWentWell',
-          label: 'Quick Reflection — What went well',
+          label: translate('trades.filter.wentWell'),
           items: wentWellItems,
           selected: sxTradesFilters.reflectionWentWell,
         }),
         sxRenderTradesFilterSection({
           id: 'reflectionToImprove',
-          label: 'Quick Reflection — To improve',
+          label: translate('trades.filter.toImprove'),
           items: toImproveItems,
           selected: sxTradesFilters.reflectionToImprove,
         }),
         sxRenderTradesFilterSection({
           id: 'emotions',
-          label: 'Emotions',
+          label: translate('trades.filter.emotions'),
           items: emotionItems,
           selected: sxTradesFilters.emotions,
         }),
         sxRenderTradesFilterSection({
           id: 'chartScreenshot',
-          label: 'Screenshot attached',
+          label: translate('trades.filter.screenshotAttached'),
           items: [
-            { value: 'yes', label: 'Yes' },
-            { value: 'no', label: 'No' },
+            { value: 'yes', label: translate('common.yes') },
+            { value: 'no', label: translate('common.no') },
           ],
           selected: sxTradesFilters.chartScreenshot,
         }),
         sxRenderTradesFilterSection({
           id: 'image',
-          label: 'Image attached',
+          label: translate('trades.filter.imageAttached'),
           items: [
-            { value: 'yes', label: 'Yes' },
-            { value: 'no', label: 'No' },
+            { value: 'yes', label: translate('common.yes') },
+            { value: 'no', label: translate('common.no') },
           ],
           selected: sxTradesFilters.image,
         }),
         sxRenderTradesFilterSection({
           id: 'rating',
-          label: 'Trade Rating',
+          label: translate('trades.filter.rating'),
           items: ratingItems,
           selected: sxTradesFilters.ratings,
         }),
@@ -4089,65 +4259,70 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
     const assetItems = Array.from(new Set(allRows.map((r) => r.asset))).map((a) => ({ value: a, label: a }))
     const years = Array.from(new Set(allRows.map((r) => new Date(r.entryTime * 1000).getFullYear()))).sort((a, b) => b - a)
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     const monthsPresent = Array.from(new Set(allRows.map((r) => new Date(r.entryTime * 1000).getMonth()))).sort((a, b) => a - b)
+    const monthYear = years[0] ?? new Date().getFullYear()
 
     bodyEl.innerHTML = [
       sxRenderTradesFilterSection({
         id: 'notes',
-        label: 'Notes',
+        label: translate('trades.filter.notes'),
         items: [
-          { value: 'with', label: 'With Notes' },
-          { value: 'without', label: 'Without Notes' },
+          { value: 'with', label: translate('trades.filter.withNotes') },
+          { value: 'without', label: translate('trades.filter.withoutNotes') },
         ],
         selected: sxTradesFilters.notes,
       }),
-      sxRenderTradesFilterSection({ id: 'assets', label: 'Assets', items: assetItems, selected: sxTradesFilters.assets }),
+      sxRenderTradesFilterSection({
+        id: 'assets',
+        label: translate('analytics.filter.assets'),
+        items: assetItems,
+        selected: sxTradesFilters.assets,
+      }),
       sxRenderTradesFilterSection({
         id: 'side',
-        label: 'Side',
+        label: translate('trades.col.side'),
         items: [
-          { value: 'long', label: 'Long' },
-          { value: 'short', label: 'Short' },
+          { value: 'long', label: translate('trades.filter.long') },
+          { value: 'short', label: translate('trades.filter.short') },
         ],
         selected: sxTradesFilters.sides,
       }),
       sxRenderTradesFilterSection({
         id: 'outcome',
-        label: 'Outcome',
+        label: translate('analytics.filter.outcome'),
         items: [
-          { value: 'win', label: 'Win' },
-          { value: 'loss', label: 'Lose' },
-          { value: 'breakeven', label: 'Breakeven' },
+          { value: 'win', label: translate('trades.filter.win') },
+          { value: 'loss', label: translate('trades.filter.lose') },
+          { value: 'breakeven', label: translate('trades.filter.breakeven') },
         ],
         selected: sxTradesFilters.outcomes,
       }),
       sxRenderTradesFilterSection({
         id: 'type',
-        label: 'Entry type',
+        label: translate('trades.col.entryType'),
         items: [
-          { value: 'market', label: 'Market' },
-          { value: 'limit', label: 'Limit' },
-          { value: 'stop', label: 'Stop' },
+          { value: 'market', label: translate('trades.entryKind.market') },
+          { value: 'limit', label: translate('trades.entryKind.limit') },
+          { value: 'stop', label: translate('trades.entryKind.stop') },
         ],
         selected: sxTradesFilters.types,
       }),
       sxRenderTradesDateRangeSection(),
       sxRenderTradesFilterSection({
         id: 'year',
-        label: 'Year',
+        label: translate('trades.filter.year'),
         items: years.map((y) => ({ value: String(y), label: String(y) })),
         selected: new Set(Array.from(sxTradesFilters.years).map(String)),
       }),
       sxRenderTradesFilterSection({
         id: 'month',
-        label: 'Month',
-        items: monthsPresent.map((m) => ({ value: String(m), label: monthNames[m]! })),
+        label: translate('trades.filter.month'),
+        items: monthsPresent.map((m) => ({ value: String(m), label: monthShortLabel(monthYear, m) })),
         selected: new Set(Array.from(sxTradesFilters.months).map(String)),
       }),
       sxRenderTradesFilterSection({
         id: 'hour',
-        label: 'Hour of the day',
+        label: translate('trades.filter.hourOfDay'),
         items: Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${String(h).padStart(2, '0')}:00` })),
         selected: new Set(Array.from(sxTradesFilters.hours).map(String)),
       }),
@@ -4161,15 +4336,15 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     return `<div class="sx-dash-trades-accordion${open ? ' sx-dash-trades-accordion--open' : ''}" data-sx-trades-accordion="${id}">
       <button type="button" class="sx-dash-trades-accordion__head" data-sx-trades-accordion-toggle="${id}">
         <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-        <span>Date range</span>
+        <span>${te('sessions.sum.dateRange')}</span>
         ${activeCount ? `<span class="sx-dash-trades-accordion__badge">${activeCount}</span>` : ''}
       </button>
       <div class="sx-dash-trades-accordion__body">
         <div class="sx-dash-trades-date-range">
-          <label>From
+          <label>${te('trades.filter.from')}
             <input type="date" data-sx-trades-filter-date="from" value="${escapeHtml(sxTradesFilters.dateFrom)}" />
           </label>
-          <label>To
+          <label>${te('trades.filter.to')}
             <input type="date" data-sx-trades-filter-date="to" value="${escapeHtml(sxTradesFilters.dateTo)}" />
           </label>
         </div>
@@ -4349,9 +4524,15 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
   function applyAccountTierUi() {
     const tier = readAccountTier()
-    const label = tier === 'pro' ? 'Premium Plan user' : tier === 'intermediate' ? 'Ultra Plan user' : 'Free user'
-    const planTag = tier === 'pro' ? 'Premium' : tier === 'intermediate' ? 'Ultra' : 'Basic'
-    const planNote = tier === 'pro' ? '(Full access)' : tier === 'intermediate' ? '(Upgraded)' : '(Always free)'
+    const label = translate(
+      tier === 'pro' ? 'plan.user.premium' : tier === 'intermediate' ? 'plan.user.ultra' : 'plan.user.free',
+    )
+    const planTag = translate(
+      tier === 'pro' ? 'plan.tag.premium' : tier === 'intermediate' ? 'plan.tag.ultra' : 'plan.tag.basic',
+    )
+    const planNote = translate(
+      tier === 'pro' ? 'plan.note.premium' : tier === 'intermediate' ? 'plan.note.ultra' : 'plan.note.free',
+    )
     const badge = root.querySelector('#sx-dash-plan-badge')
     if (badge) badge.textContent = label
     root.querySelectorAll<HTMLElement>('[data-sx-account-plan]').forEach((el) => {
@@ -4396,13 +4577,13 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     return 'en'
   }
 
+  /**
+   * Applies the language everywhere: `setLocale` persists it and re-translates
+   * the static markup, and the `onLocaleChange` hook below re-renders the parts
+   * of the dashboard that are built imperatively.
+   */
   function writeDashLocale(code: string) {
-    try {
-      localStorage.setItem(LS_LOCALE, code)
-    } catch {
-      /* noop */
-    }
-    document.documentElement.lang = code
+    setLocale(code)
   }
 
   function closeAllLocaleDropdowns() {
@@ -4456,10 +4637,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const filter = readSessionFilter()
     const sort = readSessionSort()
     root.querySelectorAll('.sx-dash-session-filter-label').forEach((el) => {
-      el.textContent = filter === 'all' ? 'All' : SESSION_FILTER_LABELS[filter]
+      el.textContent = translate(filter === 'all' ? 'sessions.filterAll' : SESSION_FILTER_KEYS[filter])
     })
     root.querySelectorAll('.sx-dash-session-sort-label').forEach((el) => {
-      el.textContent = SESSION_SORT_LABELS[sort]
+      el.textContent = translate(SESSION_SORT_KEYS[sort])
     })
     root.querySelectorAll<HTMLButtonElement>('[data-session-filter-option]').forEach((btn) => {
       const on = btn.getAttribute('data-session-filter-option') === filter
@@ -4471,6 +4652,106 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       btn.classList.toggle('sx-dash-perf-option--selected', on)
       btn.setAttribute('aria-selected', on ? 'true' : 'false')
     })
+  }
+
+  /**
+   * Fills the home hero from the session the trader would most likely want back:
+   * the last one they opened, falling back to the newest. With no sessions at all
+   * the resume button and preview card stay hidden and the copy switches to the
+   * first-run pitch.
+   */
+  function syncDashHero() {
+    const hero = root.querySelector<HTMLElement>('[data-sx-dash-hero]')
+    if (!hero) return
+    const titleEl = hero.querySelector<HTMLElement>('[data-sx-hero-title]')
+    const subEl = hero.querySelector<HTMLElement>('[data-sx-hero-sub]')
+    const resumeBtn = hero.querySelector<HTMLButtonElement>('[data-sx-hero-resume]')
+    const card = hero.querySelector<HTMLElement>('[data-sx-hero-card]')
+
+    const sessions = listSessions()
+    const lastId = getLastSessionId()
+    const session = (lastId ? getSession(lastId) : null) ?? sessions[0] ?? null
+
+    if (!session) {
+      if (titleEl) titleEl.textContent = translate('dash.hero.emptyTitle')
+      if (subEl) subEl.textContent = translate('dash.hero.emptySub')
+      if (resumeBtn) {
+        resumeBtn.hidden = true
+        resumeBtn.removeAttribute('data-session-id')
+      }
+      if (card) card.hidden = true
+      return
+    }
+
+    if (titleEl) titleEl.textContent = translate('dash.hero.resumeTitle')
+    if (subEl) {
+      subEl.textContent = translate('dash.hero.resumeSub', {
+        sessions: tCount('unit.sessions', sessions.length),
+      })
+    }
+    if (resumeBtn) {
+      resumeBtn.hidden = false
+      resumeBtn.setAttribute('data-session-id', session.id)
+      resumeBtn.textContent = translate('dash.hero.resumeSession', { name: session.name })
+    }
+    if (!card) return
+
+    // A session can carry two records of its results: the replay journal, which
+    // has per-trade P&L and so can draw a real curve, and a backtest snapshot,
+    // which only has totals. Whichever was written last is what the trader saw.
+    const bt = session.lastBacktest
+    const replay = session.replayState
+    const closed = replay?.account.closedTrades ?? []
+    const useReplay = closed.length > 0 && (bt == null || (replay?.savedAt ?? 0) >= bt.ranAt)
+
+    const netPnl = useReplay ? closed.reduce((sum, trade) => sum + trade.pnl, 0) : bt?.netPnl ?? 0
+    const tradeCount = useReplay ? closed.length : bt?.totalTrades ?? 0
+    let winRate = useReplay ? (closed.filter((tr) => tr.pnl > 0).length / closed.length) * 100 : null
+    if (winRate == null && bt != null && Number.isFinite(bt.winRate)) winRate = bt.winRate
+
+    const initialBalance = parseSessionBalanceNumber(session.balance)
+    const symbolEl = card.querySelector<HTMLElement>('[data-sx-hero-symbol]')
+    const balanceEl = card.querySelector<HTMLElement>('[data-sx-hero-balance]')
+    const metaEl = card.querySelector<HTMLElement>('[data-sx-hero-meta]')
+    const sparkEl = card.querySelector<HTMLElement>('[data-sx-hero-spark]')
+    const netEl = card.querySelector<HTMLElement>('[data-sx-hero-net]')
+    const winEl = card.querySelector<HTMLElement>('[data-sx-hero-win]')
+
+    card.hidden = false
+    if (symbolEl) {
+      symbolEl.textContent = translate('dash.hero.replayLabel', {
+        symbol: primarySessionSymbol(session.assets),
+      })
+    }
+    if (balanceEl) {
+      balanceEl.textContent = initialBalance != null ? formatDashMoney(initialBalance + netPnl) : '—'
+      balanceEl.classList.toggle('is-loss', netPnl < 0)
+      balanceEl.classList.toggle('is-profit', netPnl > 0)
+    }
+    if (metaEl) {
+      metaEl.textContent =
+        tradeCount > 0
+          ? translate('dash.hero.lastSession', { trades: tCount('unit.trades', tradeCount) })
+          : translate('dash.hero.lastSessionNoTrades')
+    }
+    if (sparkEl) {
+      // closedTrades is appended in close order, so a running total over it is
+      // the session's real equity curve. It starts at 0 so the first trade's
+      // move is visible. A backtest snapshot only has a total: 0 → net.
+      let running = 0
+      const curve = useReplay
+        ? [0, ...closed.map((trade) => (running += trade.pnl))]
+        : tradeCount > 0
+          ? [0, netPnl]
+          : []
+      sparkEl.innerHTML = buildHeroSparkSvg(curve)
+    }
+    if (netEl) {
+      netEl.textContent = tradeCount > 0 ? formatDashMoney(netPnl) : '—'
+      netEl.classList.toggle('is-loss', tradeCount > 0 && netPnl < 0)
+      netEl.classList.toggle('is-profit', tradeCount > 0 && netPnl > 0)
+    }
+    if (winEl) winEl.textContent = formatDashboardWinRate(winRate)
   }
 
   function syncSessionPulse() {
@@ -4487,9 +4768,12 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const practiceText = formatPulseDuration(pulse.practiceMs)
     const histText = formatPulseDuration(pulse.historicalMs)
     const practiceHintText = pulse.sessionsTouched
-      ? `${pulse.sessionsTouched} session${pulse.sessionsTouched === 1 ? '' : 's'} · Active ${formatPulseDuration(pulse.activePracticeMs)}`
-      : 'Across sessions'
-    const practiceInfoText = 'Total real-world time you spent actively practicing across your sessions in this range.'
+      ? translate('kpi.practiceHint', {
+          sessions: tCount('unit.sessions', pulse.sessionsTouched),
+          active: formatPulseDuration(pulse.activePracticeMs),
+        })
+      : translate('kpi.timeInvestedHint')
+    const practiceInfoText = translate('kpi.practiceInfo')
     // Floor the practice time to the same 1-minute granularity the "Time Invested" KPI
     // displays (formatPulseDuration never shows less than 1m). Dividing by the raw,
     // sub-minute practice duration produced wildly inflated multipliers (e.g. 378210×)
@@ -4500,22 +4784,32 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         ? Math.max(1, Math.round(pulse.historicalMs / Math.max(pulse.practiceMs, histMultiplierPracticeFloorMs)))
         : null
     const histMultiplierText = histMultiplier != null ? histMultiplier.toLocaleString(undefined) : null
-    const histHintText = histMultiplierText != null ? `${histMultiplierText}× tape vs practice` : 'Historical coverage'
+    const histHintText =
+      histMultiplierText != null
+        ? translate('kpi.replayedHint', { multiplier: histMultiplierText })
+        : translate('kpi.replayedTimeHint')
     const histInfoText =
       histMultiplierText != null
-        ? `The market history you loaded is ${histMultiplierText}× longer than the actual time you spent practicing on it.`
-        : 'Compares the historical market time you loaded against the actual time you spent practicing on it.'
+        ? translate('kpi.replayedInfoMultiplier', { multiplier: histMultiplierText })
+        : translate('kpi.replayedInfo')
     const pnlText = pnlTotals.hasData ? formatDashboardPerfMoney(pnlTotals.netPnl) : '—'
     const pnlHintText = pnlTotals.hasData
-      ? `${pnlTotals.sessionsActive} session${pnlTotals.sessionsActive === 1 ? '' : 's'} · ${pnlTotals.tradesTaken} trades`
-      : 'Backtest results'
-    const pnlInfoText = 'Net profit or loss from your backtest results across sessions in this range.'
+      ? translate('kpi.pnlHint', {
+          sessions: tCount('unit.sessions', pnlTotals.sessionsActive),
+          trades: tCount('unit.trades', pnlTotals.tradesTaken),
+        })
+      : translate('kpi.netPnlHint')
+    const pnlInfoText = translate('kpi.pnlInfo')
     const winrateText = formatDashboardWinRate(pulse.winRate)
     const winrateHintText =
       pulse.tradesTaken > 0
-        ? `${pulse.wins}W / ${pulse.losses}L on ${pulse.tradesTaken}`
-        : 'Closed trade edge'
-    const winrateInfoText = 'Share of your closed journal trades that ended as wins.'
+        ? translate('kpi.winRateHintValue', {
+            wins: pulse.wins,
+            losses: pulse.losses,
+            total: pulse.tradesTaken,
+          })
+        : translate('kpi.winRateHint')
+    const winrateInfoText = translate('kpi.winRateInfo')
 
     root.querySelectorAll<HTMLElement>('[data-sx-pulse="practice"]').forEach((el) => {
       el.textContent = practiceText
@@ -4629,7 +4923,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     > = {
       daily: pulse.practiceDays,
       weekly: pulse.practiceWeeks,
-      monthly: pulse.practiceMonths.map((m) => ({ label: MONTH_SHORT[m.month] ?? m.label, practiceMs: m.practiceMs })),
+      monthly: pulse.practiceMonths.map((m) => ({ label: monthShortLabel(m.year, m.month), practiceMs: m.practiceMs })),
       yearly: pulse.practiceYears,
     }
     const activityFloorByRange: Record<'daily' | 'weekly' | 'monthly' | 'yearly', number> = {
@@ -5213,9 +5507,13 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       if (code && isDashLocaleCode(code)) {
         writeDashLocale(code)
         syncDashLocaleUi(code)
-        const page = appPageFromPath(window.location.pathname) ?? 'dashboard'
-        const newPath = resolveAppPath(page, dashCodeToLocaleTag(code))
-        if (newPath !== window.location.pathname) {
+        // Keep the trader on the same page; only the locale segment changes.
+        const tag = dashCodeToLocaleTag(code)
+        const view = appViewFromPath(window.location.pathname, window.location.search)
+        const newPath = view
+          ? resolveViewPath(view, tag)
+          : resolveAppPath(appPageFromPath(window.location.pathname) ?? 'dashboard', tag)
+        if (newPath !== `${window.location.pathname}${window.location.search}`) {
           history.pushState({ sx: 'locale', locale: code }, '', newPath)
         }
         closeAllLocaleDropdowns()
@@ -5514,25 +5812,42 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   writeDashLocale(initialLocale)
   syncDashLocaleUi(initialLocale)
 
+  // `setLocale` has already re-translated everything carrying a `data-i18n`
+  // attribute; what is left is the text this file writes from script.
   const sxaHost = root.querySelector<HTMLElement>('[data-sxa-host]')
   const sxAnalyticsPage = sxaHost
     ? initAnalyticsPage(sxaHost, {
         getTrades: () => sxCollectAnalyticsTrades(),
         getStartingBalance: () => sxAnalyticsStartingBalance(),
+        onTabChange: (analyticsTab) => navigate({ view: 'testing', tab: 'analytics', analyticsTab }),
       })
     : null
 
+  onLocaleChange((code) => {
+    document.title = `Tradeneu — ${translate('nav.dashboard')}`
+    syncDashLocaleUi(code)
+    syncRecentSessionsUi()
+    // Chart.js labels and KPI tooltips are built from JS strings, not
+    // data-i18n markup, so the deep-dive analytics tab needs a manual re-render.
+    sxAnalyticsPage?.renderAll()
+    // Home dashboard pulse (KPIs + month/day chart labels) is also JS-built.
+    syncSessionPulse()
+    // Sidebar plan tag / note and the guest display name.
+    applyAccountTierUi()
+    syncSidebarProfile()
+    // Trades table cells and the filter panel are built from JS strings too.
+    syncTradesUi()
+    sxRenderTradesFiltersBody()
+  })
+
   syncRecentSessionsUi()
-  setTestingTab(readTestingTab())
 
   root.querySelectorAll<HTMLButtonElement>('[data-testing-tab]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const tab = btn.getAttribute('data-testing-tab')
       if (!tab || !(TESTING_TABS as readonly string[]).includes(tab)) return
       closeDrawer()
-      // Sidebar nav can be clicked while Strategy/Subscription/Settings is showing.
-      showHomeTestingSection()
-      setTestingTab(tab as TestingTab)
+      navigate({ view: 'testing', tab: tab as TestingTab })
     })
   })
 
@@ -5541,8 +5856,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const sessionSearch = root.querySelector<HTMLInputElement>('#sx-dash-sessions-search')
     if (sessionSearch) sessionSearch.value = globalSearch.value
     if (globalSearch.value.trim()) {
-      showHomeTestingSection()
-      setTestingTab('sessions')
+      navigate({ view: 'testing', tab: 'sessions' }, { replace: true })
     }
     syncRecentSessionsUi()
   })
@@ -5550,42 +5864,26 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   function onPopState() {
     const code = applyLocaleFromPath(window.location.pathname)
     if (code) syncDashLocaleUi(code)
-    const page = appPageFromPath(window.location.pathname)
-    if (page === 'chart') {
-      const id = getLastSessionId()
-      const s = id ? getSession(id) : listSessions()[0] ?? null
-      if (!s) {
-        history.replaceState(null, '', resolveAppPath('dashboard'))
-        showDashboard()
-        return
-      }
-      if (!viewChart.hidden && disposeChart && activeSessionId === s.id) return
-      openChartWithStoredSession(s)
-      return
-    }
-    if (page === 'dashboard') {
-      showDashboard()
-    }
+    const view = appViewFromPath(window.location.pathname, window.location.search)
+    if (view) applyView(view)
   }
 
   window.addEventListener('popstate', onPopState)
 
-  if (appPageFromPath(window.location.pathname) === 'chart') {
-    const id = getLastSessionId()
-    const s = id ? getSession(id) : listSessions()[0] ?? null
-    if (s) openChartWithStoredSession(s)
-    else {
-      history.replaceState(null, '', resolveAppPath('dashboard'))
-      showDashboardView()
-    }
-  } else {
-    showDashboardView()
-  }
+  // The initial view comes from the URL; a path the parser does not recognize
+  // falls back to the last tab the trader used.
+  showDashboardView()
+  navigate(
+    appViewFromPath(window.location.pathname, window.location.search) ?? {
+      view: 'testing',
+      tab: readTestingTab(),
+    },
+    { replace: true },
+  )
 
   root.querySelectorAll('[data-action="dashboard"]').forEach((el) => {
     el.addEventListener('click', () => {
-      showDashboard()
-      setTestingTab('dashboard')
+      navigate({ view: 'testing', tab: 'dashboard' })
     })
   })
 
@@ -5607,20 +5905,20 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
   root.querySelectorAll('[data-action="strategy"]').forEach((el) => {
     el.addEventListener('click', () => {
-      showStrategyPage()
+      navigate({ view: 'strategy' })
     })
   })
 
   root.querySelectorAll('[data-action="settings"]').forEach((el) => {
     el.addEventListener('click', () => {
       setAccountMenuOpen(false)
-      showSettingsPage()
+      navigate({ view: 'settings', tab: 'account' })
     })
   })
 
   root.querySelectorAll('[data-action="billing"]').forEach((el) => {
     el.addEventListener('click', () => {
-      showBillingPage()
+      navigate({ view: 'billing' })
     })
   })
 
@@ -5629,7 +5927,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       // Land on Profile Settings → Subscription rather than popping the plans
       // modal straight over whatever page the trader was on — that tab already
       // shows the current plan, entitlements, and its own upgrade CTA.
-      showSettingsPage('subscription')
+      navigate({ view: 'settings', tab: 'subscription' })
     })
   })
 }

@@ -1,23 +1,16 @@
 import type { ExitReason, StrategyCondition } from './BacktestTypes'
-import { INDICATOR_OPTIONS, OPERATOR_OPTIONS } from '../strategy/strategyBuilderFields'
-
-function indicatorLabel(key: string): string {
-  return INDICATOR_OPTIONS.find((o) => o.value === key)?.label ?? key
-}
-
-function operatorLabel(op: StrategyCondition['op']): string {
-  return OPERATOR_OPTIONS.find((o) => o.value === op)?.label ?? op
-}
+import { indicatorLabel, operatorLabel } from '../strategy/strategyBuilderFields'
+import { t } from '../i18n'
 
 export function formatStrategyCondition(c: StrategyCondition): string {
   const lhs = indicatorLabel(c.lhs)
   const op = operatorLabel(c.op)
   const rhs = typeof c.rhs === 'number' ? String(c.rhs) : indicatorLabel(c.rhs)
-  return `${lhs} ${op} ${rhs}`
+  return t('strategy.cond.pattern', { lhs, op, rhs })
 }
 
 export function formatStrategyConditions(conditions: StrategyCondition[], join = ' · '): string {
-  if (!conditions.length) return '—'
+  if (!conditions.length) return t('strategy.cond.empty')
   return conditions.map(formatStrategyCondition).join(join)
 }
 
@@ -30,17 +23,19 @@ export function formatExitReasonSignal(
 ): string {
   switch (reason) {
     case 'stop_loss':
-      return `Stop loss hit at ${stopPrice.toFixed(2)}`
+      return t('strategy.cond.stopHit', { price: stopPrice.toFixed(2) })
     case 'take_profit':
-      return targetPrice > 0 ? `Take profit hit at ${targetPrice.toFixed(2)}` : 'Take profit hit'
+      return targetPrice > 0
+        ? t('strategy.cond.tpHit', { price: targetPrice.toFixed(2) })
+        : t('strategy.cond.tpHitGeneric')
     case 'signal_exit':
-      return `Exit rules met: ${formatStrategyConditions(exitConditions)}`
+      return t('strategy.cond.signalExit', { rules: formatStrategyConditions(exitConditions) })
     case 'max_bars':
-      return `Max bars in trade (${maxBarsInTrade})`
+      return t('strategy.cond.maxBars', { count: maxBarsInTrade })
     case 'session_end':
-      return 'Closed at session end'
+      return t('strategy.cond.sessionEnd')
     case 'trailing_stop':
-      return 'Trailing stop hit'
+      return t('strategy.cond.trailingStop')
     default:
       return reason
   }

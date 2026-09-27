@@ -9,6 +9,8 @@
  * it exists purely so strategyMatch.ts can score and explain the fit.
  */
 import type { StrategyDefinition } from '../backtest/BacktestTypes'
+import type { MessageKey } from '../i18n'
+import { t } from '../i18n'
 
 export type PlaybookMarket = 'forex' | 'futures' | 'crypto' | 'stocks'
 export type PlaybookPace = 'scalp' | 'intraday' | 'swing'
@@ -18,12 +20,12 @@ export type PlaybookLevel = 'beginner' | 'intermediate' | 'advanced'
 /** Smallest daily commitment the strategy realistically needs. */
 export type PlaybookCommitment = 'under1' | '1to3' | 'full'
 
-export type PlaybookEntry = {
+type PlaybookEntryCore = {
   id: string
   name: string
-  blurb: string
+  blurbKey: MessageKey
   /** Short, plain-language rule summaries rendered as chips on the match card. */
-  tags: string[]
+  tagKeys: MessageKey[]
   markets: PlaybookMarket[]
   pace: PlaybookPace
   sessions: PlaybookSession[]
@@ -33,13 +35,40 @@ export type PlaybookEntry = {
   definition: Omit<StrategyDefinition, 'id' | 'name'>
 }
 
+export type PlaybookEntry = PlaybookEntryCore & {
+  blurb: string
+  tags: string[]
+}
+
+function definePlaybookEntry(core: PlaybookEntryCore): PlaybookEntry {
+  const entry = core as PlaybookEntry
+  Object.defineProperties(entry, {
+    blurb: {
+      get(): string {
+        return t(core.blurbKey)
+      },
+      enumerable: true,
+    },
+    tags: {
+      get(): string[] {
+        return core.tagKeys.map((key) => t(key))
+      },
+      enumerable: true,
+    },
+  })
+  return entry
+}
+
 export const STRATEGY_PLAYBOOK: PlaybookEntry[] = [
-  {
+  definePlaybookEntry({
     id: 'asia-range-break',
     name: 'Asia Range Breakout',
-    blurb:
-      'Mark the quiet Asian range, then trade the first clean push out of it. Mechanical, early, and easy to judge because the level is set before you sit down.',
-    tags: ['Asia session window', 'Breaks the overnight range', 'Volatility-scaled stop'],
+    blurbKey: 'strategy.playbook.asiaRangeBreak.blurb',
+    tagKeys: [
+      'strategy.playbook.asiaRangeBreak.tag0',
+      'strategy.playbook.asiaRangeBreak.tag1',
+      'strategy.playbook.asiaRangeBreak.tag2',
+    ],
     markets: ['forex', 'futures'],
     pace: 'scalp',
     sessions: ['asia'],
@@ -57,13 +86,16 @@ export const STRATEGY_PLAYBOOK: PlaybookEntry[] = [
       dayFilter: [1, 2, 3, 4, 5],
       maxOpenTrades: 1,
     },
-  },
-  {
+  }),
+  definePlaybookEntry({
     id: 'london-ignition',
     name: 'London Momentum Ignition',
-    blurb:
-      'The London open often sets the day\u2019s direction. Wait for the fast average to take the slow one with trend strength confirming, then ride the impulse.',
-    tags: ['EMA 9/21 cross', 'ADX trend filter', 'London session only'],
+    blurbKey: 'strategy.playbook.londonIgnition.blurb',
+    tagKeys: [
+      'strategy.playbook.londonIgnition.tag0',
+      'strategy.playbook.londonIgnition.tag1',
+      'strategy.playbook.londonIgnition.tag2',
+    ],
     markets: ['forex'],
     pace: 'intraday',
     sessions: ['london'],
@@ -84,13 +116,16 @@ export const STRATEGY_PLAYBOOK: PlaybookEntry[] = [
       dayFilter: [1, 2, 3, 4, 5],
       maxOpenTrades: 1,
     },
-  },
-  {
+  }),
+  definePlaybookEntry({
     id: 'ny-open-drive',
     name: 'New York Opening Drive',
-    blurb:
-      'Trade the directional shove off the US cash open while price holds the session mean. Short window, high attention, quick decisions.',
-    tags: ['Above VWAP', 'MACD momentum flip', 'First hours of NY'],
+    blurbKey: 'strategy.playbook.nyOpenDrive.blurb',
+    tagKeys: [
+      'strategy.playbook.nyOpenDrive.tag0',
+      'strategy.playbook.nyOpenDrive.tag1',
+      'strategy.playbook.nyOpenDrive.tag2',
+    ],
     markets: ['futures', 'stocks'],
     pace: 'scalp',
     sessions: ['newyork'],
@@ -111,13 +146,16 @@ export const STRATEGY_PLAYBOOK: PlaybookEntry[] = [
       dayFilter: [1, 2, 3, 4, 5],
       maxOpenTrades: 1,
     },
-  },
-  {
+  }),
+  definePlaybookEntry({
     id: 'vwap-fade',
     name: 'VWAP Snap-Back Fade',
-    blurb:
-      'When price stretches far below the session mean and momentum is washed out, fade the move back toward VWAP. Patient, counter-trend, tight risk.',
-    tags: ['Oversold RSI', 'Outside lower band', 'Targets the session mean'],
+    blurbKey: 'strategy.playbook.vwapFade.blurb',
+    tagKeys: [
+      'strategy.playbook.vwapFade.tag0',
+      'strategy.playbook.vwapFade.tag1',
+      'strategy.playbook.vwapFade.tag2',
+    ],
     markets: ['futures', 'stocks'],
     pace: 'scalp',
     sessions: ['overlap', 'newyork'],
@@ -138,13 +176,16 @@ export const STRATEGY_PLAYBOOK: PlaybookEntry[] = [
       maxOpenTrades: 1,
       cooldownBarsAfterLoss: 5,
     },
-  },
-  {
+  }),
+  definePlaybookEntry({
     id: 'trend-pullback-50',
     name: 'Trend Pullback to the 50',
-    blurb:
-      'Only trade with the long-term trend, and only when price comes back to the 50-period average. Few signals, but each one is easy to sit through.',
-    tags: ['Above the 200 EMA', 'Reclaims the 50 EMA', 'Wide volatility stop'],
+    blurbKey: 'strategy.playbook.trendPullback50.blurb',
+    tagKeys: [
+      'strategy.playbook.trendPullback50.tag0',
+      'strategy.playbook.trendPullback50.tag1',
+      'strategy.playbook.trendPullback50.tag2',
+    ],
     markets: ['forex', 'stocks', 'crypto'],
     pace: 'swing',
     sessions: ['any'],
@@ -163,13 +204,16 @@ export const STRATEGY_PLAYBOOK: PlaybookEntry[] = [
       positionSize: { type: 'fixed_risk', riskPct: 1 },
       maxOpenTrades: 2,
     },
-  },
-  {
+  }),
+  definePlaybookEntry({
     id: 'rsi-mean-reversion',
     name: 'RSI Mean Reversion',
-    blurb:
-      'Buy genuine exhaustion and let price revert to the middle. About as simple as a rule set gets, which makes it a good first system to study.',
-    tags: ['RSI below 30', 'Exits near the midline', 'Fixed percentage stop'],
+    blurbKey: 'strategy.playbook.rsiMeanReversion.blurb',
+    tagKeys: [
+      'strategy.playbook.rsiMeanReversion.tag0',
+      'strategy.playbook.rsiMeanReversion.tag1',
+      'strategy.playbook.rsiMeanReversion.tag2',
+    ],
     markets: ['crypto', 'stocks'],
     pace: 'swing',
     sessions: ['any'],
@@ -185,13 +229,16 @@ export const STRATEGY_PLAYBOOK: PlaybookEntry[] = [
       positionSize: { type: 'fixed_risk', riskPct: 0.5 },
       maxOpenTrades: 2,
     },
-  },
-  {
+  }),
+  definePlaybookEntry({
     id: 'squeeze-expansion',
     name: 'Squeeze Expansion',
-    blurb:
-      'Quiet, compressed ranges tend to resolve violently. Enter as the bands give way with trend strength building, and hold for a larger multiple.',
-    tags: ['Band expansion break', 'ADX rising', 'Runs for 2.5R'],
+    blurbKey: 'strategy.playbook.squeezeExpansion.blurb',
+    tagKeys: [
+      'strategy.playbook.squeezeExpansion.tag0',
+      'strategy.playbook.squeezeExpansion.tag1',
+      'strategy.playbook.squeezeExpansion.tag2',
+    ],
     markets: ['crypto', 'futures'],
     pace: 'intraday',
     sessions: ['any'],
@@ -210,13 +257,16 @@ export const STRATEGY_PLAYBOOK: PlaybookEntry[] = [
       positionSize: { type: 'fixed_risk', riskPct: 1.5 },
       maxOpenTrades: 1,
     },
-  },
-  {
+  }),
+  definePlaybookEntry({
     id: 'macd-swing-rider',
     name: 'MACD Swing Rider',
-    blurb:
-      'Catch the momentum turn in the direction of the trend and stay in until momentum rolls over. No fixed target — the exit signal does the work.',
-    tags: ['MACD signal cross', 'Above the 50 EMA', 'Exits on signal, no target'],
+    blurbKey: 'strategy.playbook.macdSwingRider.blurb',
+    tagKeys: [
+      'strategy.playbook.macdSwingRider.tag0',
+      'strategy.playbook.macdSwingRider.tag1',
+      'strategy.playbook.macdSwingRider.tag2',
+    ],
     markets: ['stocks', 'forex'],
     pace: 'swing',
     sessions: ['any'],
@@ -235,13 +285,16 @@ export const STRATEGY_PLAYBOOK: PlaybookEntry[] = [
       positionSize: { type: 'fixed_risk', riskPct: 1 },
       maxOpenTrades: 2,
     },
-  },
-  {
+  }),
+  definePlaybookEntry({
     id: 'overlap-continuation',
     name: 'Overlap Continuation',
-    blurb:
-      'The London/New York overlap is the deepest liquidity of the day. Join the established direction while price stays on the right side of the mean.',
-    tags: ['Above 21 EMA and VWAP', 'ADX confirmation', 'Overlap hours only'],
+    blurbKey: 'strategy.playbook.overlapContinuation.blurb',
+    tagKeys: [
+      'strategy.playbook.overlapContinuation.tag0',
+      'strategy.playbook.overlapContinuation.tag1',
+      'strategy.playbook.overlapContinuation.tag2',
+    ],
     markets: ['forex', 'futures'],
     pace: 'intraday',
     sessions: ['overlap'],
@@ -263,5 +316,5 @@ export const STRATEGY_PLAYBOOK: PlaybookEntry[] = [
       dayFilter: [1, 2, 3, 4, 5],
       maxOpenTrades: 1,
     },
-  },
+  }),
 ]

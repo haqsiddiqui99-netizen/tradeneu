@@ -1069,25 +1069,6 @@ a.sx-dash-account__item {
   transform: translateY(-0.02em);
 }
 
-.sx-dash-cta-pro {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 1.35rem;
-  height: 1.35rem;
-  margin-right: 0.05rem;
-  border-radius: 999px;
-  border: 1px solid #fcd34d;
-  background: #fffbeb;
-  color: #d97706;
-  line-height: 1;
-}
-
-.sx-dash-cta-pro .fa-crown {
-  font-size: 0.68rem;
-}
-
 @keyframes sx-dash-cta-ai-spin {
   from {
     transform: translate(-50%, -50%) rotate(0deg);
@@ -1104,114 +1085,57 @@ a.sx-dash-account__item {
   }
 }
 
-/* Simplified button styles - clean and modern */
-.sx-dash-cta-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.65rem;
-  width: 14rem;
-  height: 4.2rem;
-  padding: 0 1.25rem;
-  font-size: 1rem;
-  font-weight: 500;
-  border-radius: 0.5rem;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  outline: none;
-}
+/* ── Home hero buttons ───────────────────────────────────────────────────── */
 
-.sx-dash-cta-btn__icon {
+.sx-dash-hero-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  position: relative;
-  top: -0.18rem;
-  font-size: 2.3rem;
-  font-weight: 400;
-  line-height: 1;
-}
-
-.sx-dash-cta-btn__text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.18rem;
-  min-width: 0;
-  text-align: left;
-}
-
-.sx-dash-cta-btn__title {
-  font-size: 0.95rem;
+  min-height: 2.75rem;
+  padding: 0 1.15rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  font-size: 0.9375rem;
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
-.sx-dash-cta-btn__sub {
-  font-size: 0.76rem;
-  font-weight: 400;
-  color: #98a2b3;
-  line-height: 1.2;
-  white-space: nowrap;
+.sx-dash-hero-btn--primary {
+  background: #b5822a;
+  color: #ffffff;
+  border-color: #b5822a;
 }
 
-.sx-dash-cta-btn--primary {
+.sx-dash-hero-btn--primary:hover {
+  background: #9c6f22;
+  border-color: #9c6f22;
+}
+
+.sx-dash-hero-btn--ghost {
   background: #ffffff;
   color: #1a1a1a;
-  border-color: rgba(244, 67, 53, 0.42);
-  font-weight: 700;
+  border-color: rgba(15, 23, 42, 0.16);
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.sx-dash-cta-btn--primary .sx-dash-cta-btn__icon {
-  color: #f5a524;
+.sx-dash-hero-btn--ghost:hover {
+  background: #fafafa;
+  border-color: rgba(15, 23, 42, 0.28);
 }
 
-.sx-dash-cta-btn--primary:hover {
-  background: rgba(244, 67, 53, 0.06);
-  border-color: rgba(244, 67, 53, 0.6);
-}
-
-.sx-dash-cta-btn--primary:focus-visible {
-  --tw-ring-offset-width: 2px;
-  --tw-ring-offset-color: #f0f0f0;
-  --tw-ring-color: rgba(244, 67, 53, 0.6);
-  box-shadow: 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color), 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);
-}
-
-.sx-dash-cta-btn--secondary {
-  background: #ffffff;
-  color: #1a1a1a;
-  border-color: rgba(244, 67, 53, 0.42);
-  font-weight: 700;
-}
-
-.sx-dash-cta-btn--secondary .sx-dash-cta-pro {
-  width: auto;
-  height: auto;
-  margin-right: 0;
-  border: 0;
-  background: transparent;
-  color: #f5a524;
-}
-
-.sx-dash-cta-btn--secondary .sx-dash-cta-pro .fa-crown {
-  font-size: 0.9rem;
-}
-
-.sx-dash-cta-btn--secondary:hover {
-  background: rgba(244, 67, 53, 0.06);
-  border-color: rgba(244, 67, 53, 0.6);
-}
-
-.sx-dash-cta-btn--secondary:focus-visible {
-  --tw-ring-offset-width: 2px;
-  --tw-ring-offset-color: #f0f0f0;
-  --tw-ring-color: rgba(244, 67, 53, 0.6);
-  box-shadow: 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color), 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+.sx-dash-hero-btn:focus-visible {
+  box-shadow:
+    0 0 0 2px #f0f0f0,
+    0 0 0 5px rgba(181, 130, 42, 0.55);
 }
 
 .sx-dash-testing-tabs {
@@ -2158,8 +2082,16 @@ a.sx-dash-account__item {
     transform 0.15s ease;
 }
 
-.sx-dash-tip-wrap:hover .sx-dash-tip,
-.sx-dash-tip-wrap:focus-within .sx-dash-tip {
+.sx-dash-tip-wrap:hover .sx-dash-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+
+/* Keyboard focus only. Plain :focus-within left a clicked button's tip on
+   screen, so pointing at the next button showed two tips side by side. Kept in
+   its own rule so browsers without :has() still get the hover tip above. */
+.sx-dash-tip-wrap:has(:focus-visible) .sx-dash-tip {
   opacity: 1;
   visibility: visible;
   transform: translate(-50%, 0);
@@ -2182,12 +2114,8 @@ a.sx-dash-account__item {
   z-index: 130;
 }
 
-.sx-dash-locale-trigger__chev {
-  transition: transform 0.2s ease;
-}
-
-.sx-dash-locale-dd--open .sx-dash-locale-trigger__chev {
-  transform: rotate(180deg);
+.sx-dash-locale-trigger {
+  font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .sx-dash-locale-panel {
@@ -2195,10 +2123,16 @@ a.sx-dash-account__item {
   right: 0;
   top: calc(100% + 6px);
   z-index: 131;
-  min-width: min(17rem, calc(100vw - 2rem));
+  /* Just wide enough for the longest label ("Українська (UK)") plus the
+     scrollbar — the old 17rem left a block of dead space to the right. */
+  min-width: min(11.5rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+  /* Ten languages overflow the rail, so the list scrolls inside the panel and
+     keeps a visible track rather than an overlay scrollbar that only appears
+     once the pointer is already inside. */
   max-height: 17.5rem;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: scroll;
   padding: 0.35rem 0;
   border-radius: 10px;
   border: 1px solid rgba(15, 23, 42, 0.12);
@@ -2206,17 +2140,29 @@ a.sx-dash-account__item {
   box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.08),
     0 12px 28px rgba(0, 0, 0, 0.12);
+  font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
   scrollbar-width: thin;
-  scrollbar-color: rgba(184, 160, 106, 0.55) transparent;
+  scrollbar-color: rgba(100, 116, 139, 0.6) rgba(15, 23, 42, 0.07);
 }
 
 .sx-dash-locale-panel::-webkit-scrollbar {
-  width: 6px;
+  width: 9px;
+}
+
+.sx-dash-locale-panel::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.07);
 }
 
 .sx-dash-locale-panel::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(184, 160, 106, 0.45);
+  background-clip: content-box;
+  background-color: rgba(100, 116, 139, 0.6);
+}
+
+.sx-dash-locale-panel::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(71, 85, 105, 0.8);
 }
 
 .sx-dash-locale-option {
@@ -2226,6 +2172,7 @@ a.sx-dash-account__item {
   border: none;
   background: transparent;
   text-align: left;
+  font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
   font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.35;
@@ -4044,18 +3991,18 @@ a.sx-dash-account__item {
   flex: 1;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0.35rem 0.75rem 1.25rem;
+  padding: 2.4rem 0.75rem 1.25rem;
 }
 
 @media (min-width: 640px) {
   .sx-dash-shell__scroll {
-    padding: 0.5rem 0.9rem 1.5rem;
+    padding: 2.7rem 0.9rem 1.5rem;
   }
 }
 
 @media (min-width: 1024px) {
   .sx-dash-shell__scroll {
-    padding: 0.5rem 1rem 1.75rem;
+    padding: 3rem 1rem 1.75rem;
   }
 }
 
@@ -4171,7 +4118,7 @@ a.sx-dash-account__item {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.50rem;
   margin-top: auto;
   padding-top: 0.5rem;
 }
@@ -4210,7 +4157,7 @@ a.sx-dash-account__item {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.35rem;
   margin-top: 0.75rem;
 }
 
@@ -4427,13 +4374,14 @@ a.sx-dash-account__item {
 .sx-dash-bar__upgrade {
   display: inline-flex;
   height: 2.1rem;
+  width: 2.1rem;
   flex-shrink: 0;
   align-items: center;
-  gap: 0.35rem;
+  justify-content: center;
   border: 1px solid rgba(244, 67, 53, 0.42);
   border-radius: 0.6rem;
   background: #ffffff;
-  padding: 0 0.75rem;
+  padding: 0;
   color: #e04a3f;
   font-size: 0.75rem;
   font-weight: 700;
@@ -4443,7 +4391,7 @@ a.sx-dash-account__item {
 }
 
 .sx-dash-bar__upgrade i {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   color: #f5a524;
 }
 
@@ -4524,22 +4472,18 @@ a.sx-dash-account__item {
 .sx-dash-bar__locale {
   display: inline-flex;
   height: 2.1rem;
-  min-width: 3rem;
+  width: 2.1rem;
+  flex-shrink: 0;
   align-items: center;
-  gap: 0.25rem;
+  justify-content: center;
   border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 0.6rem;
   background: #ffffff;
-  padding: 0 0.5rem 0 0.6rem;
+  padding: 0;
   color: #344054;
   font-size: 0.6875rem;
   font-weight: 700;
   cursor: pointer;
-}
-
-.sx-dash-bar__locale .sx-dash-locale-trigger__chev {
-  font-size: 0.55rem;
-  color: #98a2b3;
 }
 
 /* Brand sits dead-centre of the bar. Grid gives it its own auto-sized middle
@@ -4573,68 +4517,216 @@ a.sx-dash-account__item {
   font-size: 1.3rem;
 }
 
-/* ── Page header ─────────────────────────────────────────────────────────── */
+/* ── Home hero ───────────────────────────────────────────────────────────── */
 
-/* Title block, then the range picker and CTAs on their own row well below it,
-   which drops the KPI row a full card-height down the page. */
-.sx-dash-page-head {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.8rem;
-  margin-top: 0.4rem;
-  margin-bottom: 0.5rem;
-  padding-bottom: 0.9rem;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+/* Copy and primary actions on the left, a preview of the session the trader was
+   last in on the right. Single column until there is room for both. */
+.sx-dash-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.875rem;
+  background: #fbfbfb;
 }
 
-@media (min-width: 1024px) {
-  .sx-dash-page-head {
-    gap: 1.1rem;
-    margin-bottom: 0.8rem;
-    padding-bottom: 0.85rem;
+@media (min-width: 900px) {
+  .sx-dash-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+    align-items: center;
+    gap: 2.5rem;
+    padding: 2rem 2.25rem;
   }
 }
 
-.sx-dash-page-head__copy {
+.sx-dash-hero__copy {
   min-width: 0;
 }
 
-.sx-dash-page-title {
+.sx-dash-hero__eyebrow {
   margin: 0;
-  color: #1a1a1a;
-  font-family: 'Roboto', 'Helvetica Neue', Helvetica Neue, Arial, sans-serif;
-  font-size: 0.90rem;
+  color: #b5822a;
+  font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 0.75rem;
   font-weight: 700;
-  letter-spacing: normal;
-  line-height: 1.25;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sx-dash-hero__title {
+  margin: 0.75rem 0 0;
+  max-width: 22ch;
+  color: #101828;
+  font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.18;
 }
 
 @media (min-width: 640px) {
-  .sx-dash-page-title {
-    font-size: 1.05rem;
+  .sx-dash-hero__title {
+    font-size: 2.125rem;
   }
 
   .sx-dash-performance__head h2 {
-    font-size: 1.26rem;
+    font-size: 1.9rem;
   }
 }
 
-.sx-dash-page-sub {
-  margin: 0.6rem 0 0;
+.sx-dash-hero__sub {
+  margin: 0.9rem 0 0;
+  max-width: 34rem;
   color: #475467;
   font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 1rem;
   font-weight: 400;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
-.sx-dash-page-head__actions {
+.sx-dash-hero__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.55rem;
-  margin-left: 0.85rem;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+/* ── Home hero: last-session preview card ────────────────────────────────── */
+
+.sx-dash-hero__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.125rem 1.25rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.75rem;
+  background: #ffffff;
+}
+
+.sx-dash-hero__card[hidden] {
+  display: none;
+}
+
+.sx-dash-hero-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sx-dash-hero-card__symbol {
+  min-width: 0;
+  overflow: hidden;
+  color: #101828;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sx-dash-hero-card__balance {
+  flex-shrink: 0;
+  color: #475467;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sx-dash-hero-card__balance.is-profit {
+  color: #12805c;
+}
+
+.sx-dash-hero-card__balance.is-loss {
+  color: #d92d20;
+}
+
+.sx-dash-hero-card__meta {
+  margin: -0.35rem 0 0;
+  color: #667085;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.sx-dash-hero-card__spark {
+  height: 4.5rem;
+}
+
+.sx-dash-hero-spark {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.sx-dash-hero-spark.is-profit {
+  color: #12805c;
+}
+
+.sx-dash-hero-spark.is-loss {
+  color: #d92d20;
+}
+
+.sx-dash-hero-spark.is-flat {
+  color: #98a2b3;
+}
+
+.sx-dash-hero-spark__line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  /* Non-uniform viewBox scaling would otherwise stretch the stroke. */
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Break-even marker, so the curve reads as profit and loss rather than a shape. */
+.sx-dash-hero-spark__zero {
+  stroke: rgba(15, 23, 42, 0.16);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.sx-dash-hero-card__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.sx-dash-hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.sx-dash-hero-stat__label {
+  color: #667085;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.sx-dash-hero-stat__value {
+  color: #101828;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.sx-dash-hero-stat__value.is-profit {
+  color: #12805c;
+}
+
+.sx-dash-hero-stat__value.is-loss {
+  color: #d92d20;
 }
 
 .sx-dash-cta-session--sm {
@@ -4665,8 +4757,8 @@ a.sx-dash-account__item {
   margin: 0;
   color: #1a1a1a;
   font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 1.085rem;
-  font-weight: 700;
+  font-size: 1.7rem;
+  font-weight: 300;
   letter-spacing: -0.01em;
 }
 
@@ -5069,16 +5161,57 @@ a.sx-dash-account__item {
   color: #fafafa;
 }
 
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-page-title {
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(24, 24, 27, 0.72);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero__eyebrow {
+  color: #e0a33c;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero__title {
   color: #fafafa;
 }
 
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-page-head {
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero__sub {
+  color: #a1a1aa;
 }
 
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-page-sub {
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero__card {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(24, 24, 27, 0.92);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-card__symbol,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-stat__value {
+  color: #fafafa;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-card__balance,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-card__meta,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-stat__label {
   color: #a1a1aa;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-card__stats {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-spark__zero {
+  stroke: rgba(255, 255, 255, 0.18);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-card__balance.is-profit,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-stat__value.is-profit,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-spark.is-profit {
+  color: #3ccb7f;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-card__balance.is-loss,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-stat__value.is-loss,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-spark.is-loss {
+  color: #f97066;
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-graph {
@@ -5137,36 +5270,21 @@ a.sx-dash-account__item {
   color: #71717a;
 }
 
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-cta-btn--primary {
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-btn--ghost {
   background: rgba(39, 39, 42, 0.9);
-  border-color: rgba(244, 67, 53, 0.45);
+  border-color: rgba(255, 255, 255, 0.14);
   color: #e5e7eb;
 }
 
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-cta-btn--primary:hover {
-  background: rgba(244, 67, 53, 0.12);
-  border-color: rgba(244, 67, 53, 0.62);
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-btn--ghost:hover {
+  background: rgba(63, 63, 70, 0.9);
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-cta-btn--primary:focus-visible {
-  --tw-ring-offset-color: #0f172a;
-  --tw-ring-color: rgba(244, 67, 53, 0.6);
-}
-
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-cta-btn--secondary {
-  background: rgba(39, 39, 42, 0.9);
-  border-color: rgba(244, 67, 53, 0.45);
-  color: #e5e7eb;
-}
-
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-cta-btn--secondary:hover {
-  background: rgba(244, 67, 53, 0.12);
-  border-color: rgba(244, 67, 53, 0.62);
-}
-
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-cta-btn--secondary:focus-visible {
-  --tw-ring-offset-color: #0f172a;
-  --tw-ring-color: rgba(244, 67, 53, 0.6);
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-btn:focus-visible {
+  box-shadow:
+    0 0 0 2px #0f172a,
+    0 0 0 5px rgba(224, 163, 60, 0.6);
 }
 
 .sx-dash-trades-sort {

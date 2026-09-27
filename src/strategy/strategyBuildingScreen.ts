@@ -5,16 +5,22 @@
  * ("I have a strategy" and "I need a strategy") so the two never drift apart.
  * Styles live in strategyObjectifyView.css alongside the rest of the shell.
  */
+import { te, type MessageKey } from '../i18n'
 
-export function buildingScreenHtml(attr: string, status = 'Finalizing your strategy document'): string {
+export function buildingScreenHtml(
+  attr: string,
+  status?: string,
+  statusKey: MessageKey = 'strategy.obj.buildingStatusFinal',
+): string {
+  const statusHtml = status ?? te(statusKey)
   return `
     <div class="sx-strat-obj__building" ${attr} hidden>
       <span class="sx-strat-obj__building-icon" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
-      <h2 class="sx-strat-obj__building-title">Building your strategy</h2>
-      <p class="sx-strat-obj__building-sub">Turning your answers into an objective, testable strategy.</p>
+      <h2 class="sx-strat-obj__building-title" data-i18n="strategy.building.title">${te('strategy.building.title')}</h2>
+      <p class="sx-strat-obj__building-sub" data-i18n="strategy.building.sub">${te('strategy.building.sub')}</p>
       <p class="sx-strat-obj__building-status">
         <span class="sx-strat-obj__building-chev" aria-hidden="true"><i class="fa-solid fa-angles-right"></i></span>
-        <em>${status}</em>
+        <em>${statusHtml}</em>
         <span class="sx-strat-obj__dots" aria-hidden="true"><i></i><i></i><i></i></span>
       </p>
       <div class="sx-strat-obj__skeleton" aria-hidden="true">

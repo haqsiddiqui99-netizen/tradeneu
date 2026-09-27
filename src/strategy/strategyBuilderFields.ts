@@ -7,47 +7,66 @@ import type {
   PositionSizeConfig,
 } from '../backtest/BacktestTypes'
 import { newCustomStrategyId } from './strategyStore'
+import { t, type MessageKey } from '../i18n'
 
-export const INDICATOR_OPTIONS: { value: IndicatorKey; label: string }[] = [
-  { value: 'close', label: 'Close' },
-  { value: 'open', label: 'Open' },
-  { value: 'high', label: 'High' },
-  { value: 'low', label: 'Low' },
-  { value: 'volume', label: 'Volume' },
-  { value: 'ema9', label: 'EMA 9' },
-  { value: 'ema21', label: 'EMA 21' },
-  { value: 'ema50', label: 'EMA 50' },
-  { value: 'ema200', label: 'EMA 200' },
-  { value: 'sma9', label: 'SMA 9' },
-  { value: 'sma21', label: 'SMA 21' },
-  { value: 'sma50', label: 'SMA 50' },
-  { value: 'sma200', label: 'SMA 200' },
-  { value: 'rsi14', label: 'RSI 14' },
-  { value: 'atr14', label: 'ATR 14' },
-  { value: 'macd_line', label: 'MACD line' },
-  { value: 'macd_signal', label: 'MACD signal' },
-  { value: 'macd_hist', label: 'MACD histogram' },
-  { value: 'bb_upper', label: 'BB upper' },
-  { value: 'bb_middle', label: 'BB middle' },
-  { value: 'bb_lower', label: 'BB lower' },
-  { value: 'vwap', label: 'VWAP' },
-  { value: 'adx14', label: 'ADX 14' },
+const INDICATOR_SPECS: { value: IndicatorKey; labelKey: MessageKey }[] = [
+  { value: 'close', labelKey: 'strategy.fields.ind.close' },
+  { value: 'open', labelKey: 'strategy.fields.ind.open' },
+  { value: 'high', labelKey: 'strategy.fields.ind.high' },
+  { value: 'low', labelKey: 'strategy.fields.ind.low' },
+  { value: 'volume', labelKey: 'strategy.fields.ind.volume' },
+  { value: 'ema9', labelKey: 'strategy.fields.ind.ema9' },
+  { value: 'ema21', labelKey: 'strategy.fields.ind.ema21' },
+  { value: 'ema50', labelKey: 'strategy.fields.ind.ema50' },
+  { value: 'ema200', labelKey: 'strategy.fields.ind.ema200' },
+  { value: 'sma9', labelKey: 'strategy.fields.ind.sma9' },
+  { value: 'sma21', labelKey: 'strategy.fields.ind.sma21' },
+  { value: 'sma50', labelKey: 'strategy.fields.ind.sma50' },
+  { value: 'sma200', labelKey: 'strategy.fields.ind.sma200' },
+  { value: 'rsi14', labelKey: 'strategy.fields.ind.rsi14' },
+  { value: 'atr14', labelKey: 'strategy.fields.ind.atr14' },
+  { value: 'macd_line', labelKey: 'strategy.mb.ind.macdLine' },
+  { value: 'macd_signal', labelKey: 'strategy.mb.ind.macdSignal' },
+  { value: 'macd_hist', labelKey: 'strategy.mb.ind.macdHist' },
+  { value: 'bb_upper', labelKey: 'strategy.mb.ind.bollUpper' },
+  { value: 'bb_middle', labelKey: 'strategy.fields.ind.bbMiddle' },
+  { value: 'bb_lower', labelKey: 'strategy.mb.ind.bollLower' },
+  { value: 'vwap', labelKey: 'strategy.fields.ind.vwap' },
+  { value: 'adx14', labelKey: 'strategy.fields.ind.adx14' },
 ]
 
-export const OPERATOR_OPTIONS: { value: StrategyCondition['op']; label: string }[] = [
-  { value: 'cross_above', label: 'crosses above' },
-  { value: 'cross_below', label: 'crosses below' },
-  { value: '>', label: '>' },
-  { value: '<', label: '<' },
-  { value: '>=', label: '≥' },
-  { value: '<=', label: '≤' },
-  { value: 'equals', label: '=' },
+const OPERATOR_SPECS: { value: StrategyCondition['op']; labelKey: MessageKey }[] = [
+  { value: 'cross_above', labelKey: 'strategy.mb.op.xabove' },
+  { value: 'cross_below', labelKey: 'strategy.mb.op.xbelow' },
+  { value: '>', labelKey: 'strategy.mb.op.gt' },
+  { value: '<', labelKey: 'strategy.mb.op.lt' },
+  { value: '>=', labelKey: 'strategy.mb.op.gte' },
+  { value: '<=', labelKey: 'strategy.mb.op.lte' },
+  { value: 'equals', labelKey: 'strategy.fields.op.equals' },
 ]
+
+export function getIndicatorOptions(): { value: IndicatorKey; label: string }[] {
+  return INDICATOR_SPECS.map(({ value, labelKey }) => ({ value, label: t(labelKey) }))
+}
+
+export function getOperatorOptions(): { value: StrategyCondition['op']; label: string }[] {
+  return OPERATOR_SPECS.map(({ value, labelKey }) => ({ value, label: t(labelKey) }))
+}
+
+export function indicatorLabel(key: IndicatorKey | string): string {
+  const spec = INDICATOR_SPECS.find((o) => o.value === key)
+  return spec ? t(spec.labelKey) : key
+}
+
+export function operatorLabel(op: StrategyCondition['op']): string {
+  const spec = OPERATOR_SPECS.find((o) => o.value === op)
+  return spec ? t(spec.labelKey) : op
+}
 
 export function createBlankStrategy(): StrategyDefinition {
   return {
     id: newCustomStrategyId(),
-    name: 'My Strategy',
+    name: t('strategy.ui.defaultName'),
     direction: 'long',
     entryConditions: [{ lhs: 'ema9', op: 'cross_above', rhs: 'ema21' }],
     exitConditions: [{ lhs: 'ema9', op: 'cross_below', rhs: 'ema21' }],
@@ -61,7 +80,7 @@ export function duplicateStrategy(source: StrategyDefinition, name?: string): St
   return {
     ...structuredClone(source),
     id: newCustomStrategyId(),
-    name: name ?? `Copy of ${source.name}`,
+    name: name ?? t('strategy.ui.copyOfName', { name: source.name }),
   }
 }
 
@@ -74,15 +93,20 @@ export function rhsNeedsIndicatorOnly(op: StrategyCondition['op']): boolean {
 }
 
 export function parseStrategyJson(raw: string): StrategyDefinition {
-  const parsed: unknown = JSON.parse(raw)
-  if (!parsed || typeof parsed !== 'object') throw new Error('Invalid strategy JSON')
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('strategy.ui.error.invalidJson')
+  }
+  if (!parsed || typeof parsed !== 'object') throw new Error('strategy.ui.error.invalidStrategyJson')
   const s = parsed as StrategyDefinition
-  if (!s.name?.trim()) throw new Error('Strategy name is required')
+  if (!s.name?.trim()) throw new Error('strategy.ui.error.nameRequired')
   if (!Array.isArray(s.entryConditions) || !s.entryConditions.length) {
-    throw new Error('At least one entry condition is required')
+    throw new Error('strategy.ui.error.entryRequired')
   }
   if (!Array.isArray(s.exitConditions) || !s.exitConditions.length) {
-    throw new Error('At least one exit condition is required')
+    throw new Error('strategy.ui.error.exitRequired')
   }
   return {
     ...createBlankStrategy(),
@@ -94,34 +118,34 @@ export function parseStrategyJson(raw: string): StrategyDefinition {
 export function formatStopLabel(stop: StopMode): string {
   switch (stop.type) {
     case 'fixed_pct':
-      return `${stop.value}%`
+      return t('strategy.fields.stopPct', { pct: stop.value })
     case 'atr_mult':
-      return `${stop.value}× ATR`
+      return t('strategy.fields.stopAtr', { mult: stop.value })
     case 'fixed_price':
-      return `${stop.value} pts`
+      return t('strategy.fields.stopPts', { pts: stop.value })
   }
 }
 
 export function formatTargetLabel(tp: TargetMode): string {
   switch (tp.type) {
     case 'rr_ratio':
-      return `${tp.value}:1 R:R`
+      return t('strategy.fields.targetRr', { ratio: tp.value })
     case 'fixed_pct':
-      return `${tp.value}%`
+      return t('strategy.fields.targetPct', { pct: tp.value })
     case 'fixed_price':
-      return `${tp.value} pts`
+      return t('strategy.fields.targetPts', { pts: tp.value })
     case 'none':
-      return 'Signal exit only'
+      return t('strategy.fields.targetSignalOnly')
   }
 }
 
 export function formatPositionLabel(ps: PositionSizeConfig): string {
   switch (ps.type) {
     case 'fixed_units':
-      return `${ps.units} units`
+      return t('strategy.fields.sizeUnits', { units: ps.units })
     case 'fixed_risk':
-      return `${ps.riskPct}% risk`
+      return t('strategy.fields.sizeRiskPct', { pct: ps.riskPct })
     case 'pct_equity':
-      return `${ps.pct}% equity`
+      return t('strategy.fields.sizeEquityPct', { pct: ps.pct })
   }
 }

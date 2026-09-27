@@ -1,4 +1,5 @@
 import type { PropChallengeEval, PropChallengeStatus } from './propTypes'
+import { t } from '../i18n'
 
 function escapeHtml(s: string): string {
   return s
@@ -38,8 +39,8 @@ export function renderPropBanner(el: HTMLElement, eval_: PropChallengeEval | nul
 }
 
 export function propStatusLabel(status: PropChallengeStatus | undefined): string {
-  if (status === 'passed') return 'Passed'
-  if (status === 'failed') return 'Failed'
-  if (status === 'active') return 'In progress'
-  return 'Not started'
+  if (status === 'passed') return t('prop.status.passed')
+  if (status === 'failed') return t('prop.status.failed')
+  if (status === 'active') return t('prop.status.active')
+  return t('prop.status.notStarted')
 }

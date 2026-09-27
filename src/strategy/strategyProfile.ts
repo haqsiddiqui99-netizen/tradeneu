@@ -5,6 +5,7 @@
  * shape they produce. Kept separate from the view so the question set can be
  * reordered or extended without touching rendering logic.
  */
+import type { MessageKey } from '../i18n'
 import type { PlaybookMarket, PlaybookRisk, PlaybookSession } from './strategyPlaybook'
 
 export type ProfileExperience = 'new' | 'under2' | 'over2'
@@ -28,73 +29,73 @@ export function emptyProfile(): StrategyProfile {
 
 export type ProfileQuestion = {
   id: keyof Omit<StrategyProfile, 'custom'>
-  prompt: string
+  promptKey: MessageKey
   /** Shown under the prompt for multi-select questions. */
-  subPrompt?: string
+  subPromptKey?: MessageKey
   multi?: boolean
-  options: { value: string; label: string }[]
+  options: { value: string; labelKey: MessageKey }[]
 }
 
 export const PROFILE_QUESTIONS: ProfileQuestion[] = [
   {
     id: 'experience',
-    prompt: 'How long have you been trading?',
+    promptKey: 'strategy.profile.q.experience.prompt',
     options: [
-      { value: 'new', label: 'Just starting out' },
-      { value: 'under2', label: 'Less than 2 years' },
-      { value: 'over2', label: '2+ years' },
+      { value: 'new', labelKey: 'strategy.profile.q.experience.opt.new' },
+      { value: 'under2', labelKey: 'strategy.profile.q.experience.opt.under2' },
+      { value: 'over2', labelKey: 'strategy.profile.q.experience.opt.over2' },
     ],
   },
   {
     id: 'markets',
-    prompt: 'Which markets interest you most?',
-    subPrompt: 'Select all that apply',
+    promptKey: 'strategy.profile.q.markets.prompt',
+    subPromptKey: 'strategy.profile.q.markets.subPrompt',
     multi: true,
     options: [
-      { value: 'forex', label: 'Forex' },
-      { value: 'futures', label: 'Futures' },
-      { value: 'crypto', label: 'Crypto' },
-      { value: 'stocks', label: 'Stocks' },
+      { value: 'forex', labelKey: 'strategy.profile.q.markets.opt.forex' },
+      { value: 'futures', labelKey: 'strategy.profile.q.markets.opt.futures' },
+      { value: 'crypto', labelKey: 'strategy.profile.q.markets.opt.crypto' },
+      { value: 'stocks', labelKey: 'strategy.profile.q.markets.opt.stocks' },
     ],
   },
   {
     id: 'pace',
-    prompt: 'What pace suits you?',
+    promptKey: 'strategy.profile.q.pace.prompt',
     options: [
-      { value: 'scalp', label: 'Scalping \u2014 minutes' },
-      { value: 'intraday', label: 'Intraday \u2014 hours' },
-      { value: 'swing', label: 'Swing \u2014 days' },
+      { value: 'scalp', labelKey: 'strategy.profile.q.pace.opt.scalp' },
+      { value: 'intraday', labelKey: 'strategy.profile.q.pace.opt.intraday' },
+      { value: 'swing', labelKey: 'strategy.profile.q.pace.opt.swing' },
     ],
   },
   {
     id: 'commitment',
-    prompt: 'How much screen time can you give it daily?',
+    promptKey: 'strategy.profile.q.commitment.prompt',
     options: [
-      { value: 'under1', label: 'Under 1 hour' },
-      { value: '1to3', label: '1\u20133 hours' },
-      { value: 'full', label: 'A full session' },
+      { value: 'under1', labelKey: 'strategy.profile.q.commitment.opt.under1' },
+      { value: '1to3', labelKey: 'strategy.profile.q.commitment.opt.1to3' },
+      { value: 'full', labelKey: 'strategy.profile.q.commitment.opt.full' },
     ],
   },
   {
     id: 'sessions',
-    prompt: 'Which trading sessions do you trade?',
-    subPrompt: 'Select all that apply',
+    promptKey: 'strategy.profile.q.sessions.prompt',
+    subPromptKey: 'strategy.profile.q.sessions.subPrompt',
     multi: true,
     options: [
-      { value: 'asia', label: 'Asian session' },
-      { value: 'london', label: 'London session' },
-      { value: 'newyork', label: 'New York session' },
-      { value: 'overlap', label: 'London + New York overlap' },
-      { value: 'any', label: 'Whenever I can' },
+      { value: 'asia', labelKey: 'strategy.profile.q.sessions.opt.asia' },
+      { value: 'london', labelKey: 'strategy.profile.q.sessions.opt.london' },
+      { value: 'newyork', labelKey: 'strategy.profile.q.sessions.opt.newyork' },
+      { value: 'overlap', labelKey: 'strategy.profile.q.sessions.opt.overlap' },
+      { value: 'any', labelKey: 'strategy.profile.q.sessions.opt.any' },
     ],
   },
   {
     id: 'risk',
-    prompt: 'What\u2019s your appetite for risk?',
+    promptKey: 'strategy.profile.q.risk.prompt',
     options: [
-      { value: 'conservative', label: 'Conservative' },
-      { value: 'balanced', label: 'Balanced' },
-      { value: 'aggressive', label: 'Aggressive' },
+      { value: 'conservative', labelKey: 'strategy.profile.q.risk.opt.conservative' },
+      { value: 'balanced', labelKey: 'strategy.profile.q.risk.opt.balanced' },
+      { value: 'aggressive', labelKey: 'strategy.profile.q.risk.opt.aggressive' },
     ],
   },
 ]

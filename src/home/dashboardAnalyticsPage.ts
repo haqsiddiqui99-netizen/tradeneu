@@ -20,6 +20,8 @@ import {
 } from 'chart.js'
 import { sxAxisLinePlugin } from './dashboardChartAxis'
 import { fetchMarketBarsSeries } from '../data/marketDataClient'
+import { isAnalyticsTabSegment, type AnalyticsTabSegment } from '../appPaths'
+import { activeLocaleTag, tCount, t as translate, te, type MessageKey } from '../i18n'
 
 Chart.register(
   ArcElement,
@@ -68,24 +70,24 @@ export type SxaTrade = {
 type SxaSideVal = 'long' | 'short'
 type SxaOutcomeVal = 'wins' | 'losses' | 'breakeven'
 
-const SXA_SIDE_OPTS: { value: SxaSideVal; label: string }[] = [
-  { value: 'long', label: 'Long' },
-  { value: 'short', label: 'Short' },
+// Option `value`s are stable ids used for filter state; only the labels are
+// localized, so switching language never invalidates a selection.
+const sxaSideOpts = (): { value: SxaSideVal; label: string }[] => [
+  { value: 'long', label: translate('trades.filter.long') },
+  { value: 'short', label: translate('trades.filter.short') },
 ]
-const SXA_OUTCOME_OPTS: { value: SxaOutcomeVal; label: string }[] = [
-  { value: 'wins', label: 'Wins' },
-  { value: 'losses', label: 'Losses' },
-  { value: 'breakeven', label: 'Breakeven' },
+const sxaOutcomeOpts = (): { value: SxaOutcomeVal; label: string }[] => [
+  { value: 'wins', label: translate('analytics.outcome.wins') },
+  { value: 'losses', label: translate('analytics.outcome.losses') },
+  { value: 'breakeven', label: translate('trades.filter.breakeven') },
 ]
-const SXA_DAY_OPTS: { value: number; label: string }[] = [
-  { value: 1, label: 'Mon' },
-  { value: 2, label: 'Tue' },
-  { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' },
-  { value: 5, label: 'Fri' },
-  { value: 6, label: 'Sat' },
-  { value: 0, label: 'Sun' },
-]
+/** Weekday short names come from `Intl`, keyed by JS day number (0 = Sunday). */
+const sxaDayOpts = (): { value: number; label: string }[] =>
+  [1, 2, 3, 4, 5, 6, 0].map((value) => ({
+    value,
+    // 2024-01-07 was a Sunday, so adding the day number lands on that weekday.
+    label: new Intl.DateTimeFormat(activeLocaleTag(), { weekday: 'short' }).format(new Date(2024, 0, 7 + value)),
+  }))
 // A broad set of IANA zones with friendly city labels, ordered west→east by UTC offset —
 // matches the reference timezone picker. "UTC" itself has no offset prefix; every other
 // entry is labelled "(UTC±H) City", with the offset computed live (so it stays DST-correct).
@@ -167,8 +169,24 @@ function sxaTimezoneOffsetLabel(tz: string): string {
     return ''
   }
 }
-const SXA_TYPE_OPTS: string[] = ['All', 'Backtesting', 'Battles', 'Prop Firm']
-const SXA_STRATEGY_OPTS: string[] = ['All', 'Breakout', 'Reversal', 'Trend follow']
+const SXA_TYPE_VALUES = ['All', 'Backtesting', 'Battles', 'Prop Firm'] as const
+const SXA_TYPE_KEYS: Record<string, MessageKey> = {
+  All: 'common.all',
+  Backtesting: 'analytics.type.backtesting',
+  Battles: 'analytics.type.battles',
+  'Prop Firm': 'analytics.type.propFirm',
+}
+const SXA_STRATEGY_VALUES = ['All', 'Breakout', 'Reversal', 'Trend follow'] as const
+const SXA_STRATEGY_KEYS: Record<string, MessageKey> = {
+  All: 'common.all',
+  Breakout: 'analytics.strategy.breakout',
+  Reversal: 'analytics.strategy.reversal',
+  'Trend follow': 'analytics.strategy.trendFollow',
+}
+const sxaTypeOpts = (): { value: string; label: string }[] =>
+  SXA_TYPE_VALUES.map((value) => ({ value, label: translate(SXA_TYPE_KEYS[value]!) }))
+const sxaStrategyOpts = (): { value: string; label: string }[] =>
+  SXA_STRATEGY_VALUES.map((value) => ({ value, label: translate(SXA_STRATEGY_KEYS[value]!) }))
 
 const GAIN = '#1a9d5c'
 const LOSS = '#d6455a'
@@ -254,9 +272,29 @@ function sxaEscapeAttrTopLevel(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-function infoDot(tip: string, label?: string): string {
-  const aria = label ? `About ${label}` : 'More information'
-  return `<button type="button" class="sx-dash-pulse__kpi-info" data-tip="${sxaEscapeAttrTopLevel(tip)}" aria-label="${sxaEscapeAttrTopLevel(aria)}"><img src="/icons/kpi-info.png" alt="" aria-hidden="true" /></button>`
+/**
+ * The 12 month names in the active language, index 0 = January. Comes from `Intl`
+ * rather than the message catalog so it stays correct for every locale we ship.
+ */
+function sxaMonthNames(width: 'short' | 'long'): string[] {
+  const fmt = new Intl.DateTimeFormat(activeLocaleTag(), { month: width })
+  return Array.from({ length: 12 }, (_, m) => fmt.format(new Date(2024, m, 1)))
+}
+
+/** Sunday-first two-letter weekday headers for the date-range picker grid. */
+function sxaNarrowWeekdaysSunFirst(): string[] {
+  const fmt = new Intl.DateTimeFormat(activeLocaleTag(), { weekday: 'short' })
+  // Dec 31 2023 was a Sunday, so offsets 0..6 give Sun..Sat.
+  return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2023, 11, 31 + i)).slice(0, 2))
+}
+
+/**
+ * Info bubble next to a metric. The tooltip body is keyed so it follows the
+ * active language; `data-i18n-data-tip` lets `translateDom()` swap it in place
+ * for the parts of this page that are only rendered once, at mount.
+ */
+function infoDot(tipKey: MessageKey): string {
+  return `<button type="button" class="sx-dash-pulse__kpi-info" data-tip="${sxaEscapeAttrTopLevel(translate(tipKey))}" data-i18n-data-tip="${tipKey}" aria-label="${sxaEscapeAttrTopLevel(translate('common.moreInfo'))}" data-i18n-aria-label="common.moreInfo"><img src="/icons/kpi-info.png" alt="" aria-hidden="true" /></button>`
 }
 
 function buildFilterBarHtml(): string {
@@ -283,9 +321,9 @@ function buildFilterBarHtml(): string {
             ${timeSpinCol(which, 'mm', which === 'start' ? '00' : '59')}
           </div>`
 
-  const comboChip = (key: string, label: string, withBadge = false) => `
+  const comboChip = (key: string, label: string, withBadge = false, msgKey?: MessageKey) => `
           <div class="sxa-chip" data-sxa-mini-chip="${key}">
-            <span>${label}</span>
+            <span${msgKey ? ` data-i18n="${msgKey}"` : ''}>${label}</span>
             ${withBadge ? `<span class="sxa-count-badge" data-sxa-chip-badge="${key}" hidden>0</span>` : ''}
             <i class="fa-solid fa-chevron-down sxa-chip__chevron" aria-hidden="true"></i>
             <div class="sxa-mini-popover sxa-mini-popover--combo" data-sxa-mini-popover="${key}"></div>
@@ -295,24 +333,24 @@ function buildFilterBarHtml(): string {
       <div class="sxa-filter-bar">
         <div class="sxa-filter-top">
           <div class="sxa-filter-row sxa-filter-row--pills">
-            ${comboChip('type', 'Type')}
-            ${comboChip('assets', 'Assets', true)}
-            ${comboChip('side', 'Side', true)}
-            ${comboChip('outcome', 'Outcome', true)}
-            ${comboChip('tags', 'Tags')}
-            ${comboChip('session', 'Session', true)}
-            ${comboChip('strategy', 'Strategy')}
+            ${comboChip('type', te('analytics.filter.type'), false, 'analytics.filter.type')}
+            ${comboChip('assets', te('analytics.filter.assets'), true, 'analytics.filter.assets')}
+            ${comboChip('side', te('analytics.filter.side'), true, 'analytics.filter.side')}
+            ${comboChip('outcome', te('analytics.filter.outcome'), true, 'analytics.filter.outcome')}
+            ${comboChip('tags', te('analytics.filter.tags'), false, 'analytics.filter.tags')}
+            ${comboChip('session', te('analytics.filter.session'), true, 'analytics.filter.session')}
+            ${comboChip('strategy', te('analytics.filter.strategy'), false, 'analytics.filter.strategy')}
 
             <div class="sxa-filter-row-break" aria-hidden="true"></div>
 
-            ${comboChip('day', 'Day', true)}
+            ${comboChip('day', te('analytics.filter.day'), true, 'analytics.filter.day')}
             <div class="sxa-chip" data-sxa-mini-chip="time">
-              <span>Time</span>
+              <span data-i18n="analytics.filter.time">${te('analytics.filter.time')}</span>
               <i class="fa-solid fa-chevron-down sxa-chip__chevron" aria-hidden="true"></i>
               <div class="sxa-mini-popover sxa-mini-popover--time" data-sxa-mini-popover="time">
                 <div class="sxa-time-row">
                   <div class="sxa-time-field">
-                    <label class="sxa-time-field__label">Start</label>
+                    <label class="sxa-time-field__label" data-i18n="analytics.start">${te('analytics.start')}</label>
                     <div class="sxa-time-field__wrap" data-sxa-time-spin-toggle="start">
                       <input class="sxa-time-field__input" type="text" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="00:00" data-sxa-fp-time-start value="00:00" readonly>
                     </div>
@@ -320,7 +358,7 @@ function buildFilterBarHtml(): string {
                   </div>
                   <div class="sxa-time-row__sep">&ndash;</div>
                   <div class="sxa-time-field">
-                    <label class="sxa-time-field__label">End</label>
+                    <label class="sxa-time-field__label" data-i18n="analytics.end">${te('analytics.end')}</label>
                     <div class="sxa-time-field__wrap" data-sxa-time-spin-toggle="end">
                       <input class="sxa-time-field__input" type="text" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="23:59" data-sxa-fp-time-end value="23:59" readonly>
                     </div>
@@ -330,30 +368,30 @@ function buildFilterBarHtml(): string {
               </div>
             </div>
 
-            ${comboChip('timezone', 'Timezone')}
+            ${comboChip('timezone', te('analytics.filter.timezone'), false, 'analytics.filter.timezone')}
 
             <div class="sxa-chip" data-sxa-mini-chip="dateRange">
-              <span>Backtesting Date</span>
+              <span data-i18n="analytics.filter.backtestingDate">${te('analytics.filter.backtestingDate')}</span>
               <i class="fa-solid fa-chevron-down sxa-chip__chevron" aria-hidden="true"></i>
               <div class="sxa-mini-popover sxa-mini-popover--date" data-sxa-mini-popover="dateRange"></div>
             </div>
           </div>
 
           <div class="sxa-filter-actions">
-            <button type="button" class="sxa-apply-btn" data-sxa-filter-apply>Apply</button>
-            <button type="button" class="sxa-export-btn sxa-export-btn--icon" data-sxa-export-csv title="Export CSV" aria-label="Export CSV">
+            <button type="button" class="sxa-apply-btn" data-sxa-filter-apply data-i18n="analytics.apply">${te('analytics.apply')}</button>
+            <button type="button" class="sxa-export-btn sxa-export-btn--icon" data-sxa-export-csv title="${te('analytics.exportCsv')}" aria-label="${te('analytics.exportCsv')}" data-i18n-title="analytics.exportCsv" data-i18n-aria-label="analytics.exportCsv">
               <i class="fa-solid fa-download" aria-hidden="true"></i>
             </button>
           </div>
         </div>
 
         <div class="sxa-active-filters" data-sxa-active-filters hidden>
-          <span class="sxa-active-filters__label">Active:</span>
+          <span class="sxa-active-filters__label" data-i18n="analytics.active">${te('analytics.active')}</span>
           <div class="sxa-active-filters__pills" data-sxa-active-pills></div>
           <div class="sxa-spacer"></div>
           <div class="sxa-clear-link" data-sxa-filter-clear>
             <i class="fa-regular fa-trash-can" aria-hidden="true"></i>
-            Clear filters
+            <span data-i18n="analytics.clearFilters">${te('analytics.clearFilters')}</span>
           </div>
         </div>
       </div>`
@@ -364,13 +402,13 @@ export function buildAnalyticsPageHtml(): string {
     <div class="sxa-analytics" data-sxa-root>
       <div class="sxa-tab-nav" data-sxa-main-tabs>
         <button type="button" class="sxa-tab-nav__btn sxa-tab-nav__btn--active" data-sxa-tab="performance">
-          <i class="fa-solid fa-chart-line" aria-hidden="true"></i> Performance
+          <i class="fa-solid fa-chart-line" aria-hidden="true"></i> <span data-i18n="analytics.tab.performance">${te('analytics.tab.performance')}</span>
         </button>
         <button type="button" class="sxa-tab-nav__btn" data-sxa-tab="drawdown">
-          <i class="fa-solid fa-chart-simple" aria-hidden="true"></i> Drawdown
+          <i class="fa-solid fa-chart-simple" aria-hidden="true"></i> <span data-i18n="analytics.tab.drawdown">${te('analytics.tab.drawdown')}</span>
         </button>
         <button type="button" class="sxa-tab-nav__btn" data-sxa-tab="simulation">
-          <i class="fa-solid fa-wave-square" aria-hidden="true"></i> Simulation
+          <i class="fa-solid fa-wave-square" aria-hidden="true"></i> <span data-i18n="analytics.tab.simulation">${te('analytics.tab.simulation')}</span>
         </button>
       </div>
 
@@ -380,23 +418,23 @@ export function buildAnalyticsPageHtml(): string {
         <div class="sxa-kpi-strip" data-sxa-kpi-strip></div>
 
         <div class="sxa-section-title">
-          Profit &amp; loss over time
-          ${infoDot('Cumulative profit or loss across your trades, plotted over the selected time granularity.', 'profit and loss over time')}
+          <span data-i18n="analytics.pnlOverTime">${te('analytics.pnlOverTime')}</span>
+          ${infoDot('analytics.tip.pnlOverTime')}
           <div class="sxa-breakeven-box" style="margin-left:auto;">
             <div class="sxa-breakeven-box__label">
-              ${infoDot('Use this filter to select the RR amount for breakeven. An input of 0.1 means any result between -0.1R and 0.1R is breakeven.', 'breakeven threshold')}
-              Breakeven Threshold
+              ${infoDot('analytics.tip.breakevenThreshold')}
+              <span data-i18n="analytics.breakevenThreshold">${te('analytics.breakevenThreshold')}</span>
             </div>
             <div class="sxa-breakeven-box__row">
-              <input type="text" inputmode="decimal" class="sxa-breakeven-box__input" data-sxa-breakeven-input value="0.1" aria-label="Breakeven threshold in R" />
-              <button type="button" class="sxa-breakeven-box__submit" data-sxa-breakeven-submit>Submit</button>
+              <input type="text" inputmode="decimal" class="sxa-breakeven-box__input" data-sxa-breakeven-input value="0.1" aria-label="${te('analytics.breakevenThresholdAria')}" data-i18n-aria-label="analytics.breakevenThresholdAria" />
+              <button type="button" class="sxa-breakeven-box__submit" data-sxa-breakeven-submit data-i18n="analytics.submit">${te('analytics.submit')}</button>
             </div>
           </div>
           <div class="sxa-tab-row" data-sxa-granularity>
-            <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-g="all">All</button>
-            <button type="button" class="sxa-tab-row__btn" data-sxa-g="day">Day</button>
-            <button type="button" class="sxa-tab-row__btn" data-sxa-g="hour">1 Hour</button>
-            <button type="button" class="sxa-tab-row__btn" data-sxa-g="15min">15 Min</button>
+            <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-g="all" data-i18n="analytics.granularity.all">${te('analytics.granularity.all')}</button>
+            <button type="button" class="sxa-tab-row__btn" data-sxa-g="day" data-i18n="analytics.granularity.day">${te('analytics.granularity.day')}</button>
+            <button type="button" class="sxa-tab-row__btn" data-sxa-g="hour" data-i18n="analytics.granularity.hour1">${te('analytics.granularity.hour1')}</button>
+            <button type="button" class="sxa-tab-row__btn" data-sxa-g="15min" data-i18n="analytics.granularity.min15">${te('analytics.granularity.min15')}</button>
           </div>
         </div>
         <div class="sxa-card" style="position:relative;">
@@ -404,156 +442,156 @@ export function buildAnalyticsPageHtml(): string {
           <div class="sxa-pnl-tooltip" data-sxa-pnl-tooltip></div>
         </div>
 
-        <div class="sxa-section-title">Risk-reward</div>
+        <div class="sxa-section-title" data-i18n="analytics.riskReward">${te('analytics.riskReward')}</div>
         <div class="sxa-grid-3">
           <div class="sxa-card sxa-rr-card">
             <svg class="sxa-rr-spark" data-sxa-spark-avgrr viewBox="0 0 200 60" preserveAspectRatio="none"></svg>
             <div class="sxa-rr-row">
-              <div class="sxa-rr-item"><div class="sxa-rr-label">Average RR ${infoDot('Average Risk to reward ratio (RR) per trade. An Average RR of 2 means that for every $1 you risk you will make $2 on an average winning trade.', 'average RR')}</div><div class="sxa-rr-value" data-sxa-stat="avgrr">\u2013</div></div>
-              <div class="sxa-rr-item"><div class="sxa-rr-label">Max RR ${infoDot('Maximum Risk to reward ratio realized from all your trades. You can use the small graph at the bottom of this card to see the RR of every one of your trades.', 'max RR')}</div><div class="sxa-rr-value" data-sxa-stat="maxrr">\u2013</div></div>
+              <div class="sxa-rr-item"><div class="sxa-rr-label"><span data-i18n="analytics.averageRR">${te('analytics.averageRR')}</span> ${infoDot('analytics.tip.averageRR')}</div><div class="sxa-rr-value" data-sxa-stat="avgrr">\u2013</div></div>
+              <div class="sxa-rr-item"><div class="sxa-rr-label"><span data-i18n="analytics.maxRR">${te('analytics.maxRR')}</span> ${infoDot('analytics.tip.maxRR')}</div><div class="sxa-rr-value" data-sxa-stat="maxrr">\u2013</div></div>
             </div>
           </div>
           <div class="sxa-card">
-            <div class="sxa-rr-label">Average risk ${infoDot('Average distance between entry and initial stop loss, converted to R.', 'average risk')}</div>
+            <div class="sxa-rr-label"><span data-i18n="analytics.averageRisk">${te('analytics.averageRisk')}</span> ${infoDot('analytics.tip.averageRisk')}</div>
             <div class="sxa-rr-value" data-sxa-stat="avgrisk" style="font-size:24px;margin-top:6px;">\u2013</div>
-            <div class="sxa-hint">Average distance between entry and initial stop loss, converted to R.</div>
+            <div class="sxa-hint" data-i18n="analytics.tip.averageRisk">${te('analytics.tip.averageRisk')}</div>
           </div>
           <div class="sxa-card">
-            <div class="sxa-rr-label">Win RR vs loss RR ${infoDot('Average reward-to-risk ratio for winning trades compared to losing trades.', 'win RR vs loss RR')}</div>
+            <div class="sxa-rr-label"><span data-i18n="analytics.winRRvsLossRR">${te('analytics.winRRvsLossRR')}</span> ${infoDot('analytics.tip.winRRvsLossRR')}</div>
             <div class="sxa-rr-row" style="margin-top:6px;">
-              <div class="sxa-rr-item"><div class="sxa-rr-label">Wins</div><div class="sxa-rr-value" style="color:${GAIN};font-size:20px;" data-sxa-stat="winrr">\u2013</div></div>
-              <div class="sxa-rr-item"><div class="sxa-rr-label">Losses</div><div class="sxa-rr-value" style="color:${LOSS};font-size:20px;" data-sxa-stat="lossrr">\u2013</div></div>
+              <div class="sxa-rr-item"><div class="sxa-rr-label" data-i18n="analytics.outcome.wins">${te('analytics.outcome.wins')}</div><div class="sxa-rr-value" style="color:${GAIN};font-size:20px;" data-sxa-stat="winrr">\u2013</div></div>
+              <div class="sxa-rr-item"><div class="sxa-rr-label" data-i18n="analytics.outcome.losses">${te('analytics.outcome.losses')}</div><div class="sxa-rr-value" style="color:${LOSS};font-size:20px;" data-sxa-stat="lossrr">\u2013</div></div>
             </div>
           </div>
         </div>
 
         <div class="sxa-section-title">
-          Ideal RR
-          ${infoDot('Looks ahead up to a week after each trade opened to find the best price it reached, so you can see how much more the trade could have made if held longer.', 'ideal RR')}
+          <span data-i18n="analytics.idealRR">${te('analytics.idealRR')}</span>
+          ${infoDot('analytics.tip.idealRR')}
         </div>
         <div class="sxa-grid-3">
           <div class="sxa-card sxa-rr-card">
             <svg class="sxa-rr-spark" data-sxa-spark-idealrr viewBox="0 0 200 60" preserveAspectRatio="none"></svg>
-            <div class="sxa-rr-label">Ideal Average RR ${infoDot('The ideal RR is the max profit a trade could have given you if you held it up to a week after opening it. This statistic shows the average ideal RR for all of your trades. The more peaks you see in the small graph below, the more trades you may have taken profits too early.', 'ideal average RR')}</div>
+            <div class="sxa-rr-label"><span data-i18n="analytics.idealAverageRR">${te('analytics.idealAverageRR')}</span> ${infoDot('analytics.tip.idealAverageRR')}</div>
             <div class="sxa-kpi-value" data-sxa-stat="idealavgrr" style="font-size:24px;margin-top:6px;">\u2013</div>
           </div>
           <div class="sxa-card">
-            <div class="sxa-rr-label">Max Ideal RR ${infoDot('Maximum ideal RR you had between all your trades. We analyze your trades and the price to look up to a week ahead of your trade looking for the highest profit a trade could have given you. If you have a high max ideal RR, like 100, it means there was at least 1 trade where you may have taken profits too early and you could have profit a lot more.', 'max ideal RR')}</div>
+            <div class="sxa-rr-label"><span data-i18n="analytics.maxIdealRR">${te('analytics.maxIdealRR')}</span> ${infoDot('analytics.tip.maxIdealRR')}</div>
             <div class="sxa-kpi-value" data-sxa-stat="maxidealrr" style="font-size:24px;margin-top:6px;">\u2013</div>
           </div>
           <div class="sxa-card">
-            <div class="sxa-rr-label">Could have profit/BE ${infoDot('The number of trades that could have reached over 1.2R in profit but resulted in a loss. Typically 5-15% of total trades is reasonable; any higher suggests missed opportunities to lock in gains or reduce risk, and any lower suggests TP may be too conservative.', 'could have profit/BE')}</div>
+            <div class="sxa-rr-label"><span data-i18n="analytics.couldHaveProfit">${te('analytics.couldHaveProfit')}</span> ${infoDot('analytics.tip.couldHaveProfit')}</div>
             <div class="sxa-kpi-value" data-sxa-stat="couldhaveprofit" style="font-size:24px;margin-top:6px;">\u2013</div>
             <div class="sxa-hint" data-sxa-stat="couldhaveprofithint">&nbsp;</div>
           </div>
         </div>
 
         <div class="sxa-section-title">
-          Expectancy &amp; profit factor
-          ${infoDot('Expectancy says how much you can expect to earn on each trade overall, while profit factor says how profitable your strategy is. Use these metrics to make sure your strategy is worth it.', 'expectancy and profit factor')}
+          <span data-i18n="analytics.expectancyAndPf">${te('analytics.expectancyAndPf')}</span>
+          ${infoDot('analytics.tip.expectancyAndPf')}
         </div>
         <div class="sxa-grid-2">
           <div class="sxa-card">
-            <div class="sxa-card-head"><h3>Expectancy per trade ${infoDot('The average amount you can expect to win or lose per trade over time \u2014 based on your historical performance. It combines your win rate, average win size, loss rate, average loss size, and breakeven trades to give you a single number that reflects your edge.', 'expectancy per trade')}</h3></div>
+            <div class="sxa-card-head"><h3><span data-i18n="analytics.expectancyPerTrade">${te('analytics.expectancyPerTrade')}</span> ${infoDot('analytics.tip.expectancyPerTrade')}</h3></div>
             <div class="sxa-kpi-value" data-sxa-stat="expectancy" style="font-size:26px;">\u2013</div>
             <div class="sxa-exp-track"><div class="sxa-exp-seg-win" data-sxa-exp-win></div><div class="sxa-exp-seg-loss" data-sxa-exp-loss></div></div>
             <div class="sxa-exp-labels"><span class="sxa-win" data-sxa-exp-win-label>\u2013</span><span class="sxa-loss" data-sxa-exp-loss-label>\u2013</span></div>
           </div>
           <div class="sxa-card sxa-pf-card">
             <div>
-              <div class="sxa-card-head" style="margin-bottom:6px;"><h3>Profit factor ${infoDot('How profitable your strategy is overall. Less than 1.5 is generally considered poor performance but a value over 4 might mean the system is overfitted and not realistic. Profit Factor = Total Gross Profits / Total Gross Losses', 'profit factor')}</h3></div>
+              <div class="sxa-card-head" style="margin-bottom:6px;"><h3><span data-i18n="analytics.profitFactor">${te('analytics.profitFactor')}</span> ${infoDot('analytics.tip.profitFactor')}</h3></div>
               <div class="sxa-kpi-value" data-sxa-stat="pf" style="font-size:30px;">\u2013</div>
-              <div class="sxa-hint">Gross profit &divide; gross loss.<br>Above 1.5 is generally considered healthy.</div>
+              <div class="sxa-hint" data-i18n="analytics.profitFactorHint">${te('analytics.profitFactorHint')}</div>
             </div>
             <div class="sxa-gauge-wrap"><svg width="110" height="110" viewBox="0 0 110 110" data-sxa-pf-gauge></svg></div>
           </div>
         </div>
 
-        <div class="sxa-section-title">Winners and losers</div>
+        <div class="sxa-section-title" data-i18n="analytics.winnersAndLosers">${te('analytics.winnersAndLosers')}</div>
         <div class="sxa-grid-2">
           <div class="sxa-wl-card sxa-wl-card--win" data-sxa-winners-card></div>
           <div class="sxa-wl-card sxa-wl-card--loss" data-sxa-losers-card></div>
         </div>
         <div class="sxa-streak-strip" data-sxa-streak-strip></div>
 
-        <div class="sxa-section-title">Performance by side</div>
+        <div class="sxa-section-title" data-i18n="analytics.performanceBySide">${te('analytics.performanceBySide')}</div>
         <div class="sxa-grid-2">
           <div class="sxa-card">
-            <div class="sxa-card-head"><h3>Total trades ${infoDot('Split of your total trades between buy and sell positions.', 'total trades by side')}</h3></div>
-            <div class="sxa-donut-legend"><span><i class="sxa-dot" style="background:${GAIN}"></i>Buy</span><span><i class="sxa-dot" style="background:${BRAND}"></i>Sell</span></div>
+            <div class="sxa-card-head"><h3><span data-i18n="analytics.totalTradesBySide">${te('analytics.totalTradesBySide')}</span> ${infoDot('analytics.totalTradesBySide.tip')}</h3></div>
+            <div class="sxa-donut-legend"><span><i class="sxa-dot" style="background:${GAIN}"></i><span data-i18n="analytics.buy">${te('analytics.buy')}</span></span><span><i class="sxa-dot" style="background:${BRAND}"></i><span data-i18n="analytics.sell">${te('analytics.sell')}</span></span></div>
             <canvas data-sxa-side-total-canvas></canvas>
           </div>
           <div class="sxa-card">
-            <div class="sxa-card-head"><h3>Win rate ${infoDot('Win rate split between buy and sell positions.', 'win rate by side')}</h3></div>
-            <div class="sxa-donut-legend"><span><i class="sxa-dot" style="background:${GAIN}"></i>Buy</span><span><i class="sxa-dot" style="background:${BRAND}"></i>Sell</span></div>
+            <div class="sxa-card-head"><h3><span data-i18n="analytics.kpi.winRate">${te('analytics.kpi.winRate')}</span> ${infoDot('analytics.tip.winRateBySide')}</h3></div>
+            <div class="sxa-donut-legend"><span><i class="sxa-dot" style="background:${GAIN}"></i><span data-i18n="analytics.buy">${te('analytics.buy')}</span></span><span><i class="sxa-dot" style="background:${BRAND}"></i><span data-i18n="analytics.sell">${te('analytics.sell')}</span></span></div>
             <canvas data-sxa-side-win-canvas></canvas>
           </div>
         </div>
 
         <div class="sxa-section-title">
-          Performance by session
-          ${infoDot("Check your strategy's performance during the 3 key sessions: NY (8 a.m - 4 p.m), London (7 a.m - 2:59 p.m), Asia (9 a.m - 2:59 p.m). If performance is poor in a session, consider avoiding it", 'performance by session')}
+          <span data-i18n="analytics.performanceBySession">${te('analytics.performanceBySession')}</span>
+          ${infoDot('analytics.tip.performanceBySession')}
         </div>
         <div class="sxa-grid-4" data-sxa-session-radars></div>
 
         <div class="sxa-section-title">
-          Performance by time
-          ${infoDot('Breaks down performance by hour of day, using the metric selected on the right.', 'performance by time')}
-          <div class="sxa-chart-type-toggle" style="margin-left:auto;" data-sxa-time-chart-toggle role="group" aria-label="Chart style">
-            <button type="button" class="sxa-chart-type-toggle__btn sxa-chart-type-toggle__btn--active sx-dash-pulse__kpi-info" data-sxa-time-chart-type="bar" aria-label="Show as blocks" data-tip="Show as blocks" data-tip-variant="grey">
+          <span data-i18n="analytics.performanceByTime">${te('analytics.performanceByTime')}</span>
+          ${infoDot('analytics.tip.performanceByTime')}
+          <div class="sxa-chart-type-toggle" style="margin-left:auto;" data-sxa-time-chart-toggle role="group" aria-label="${te('analytics.chartStyle')}" data-i18n-aria-label="analytics.chartStyle">
+            <button type="button" class="sxa-chart-type-toggle__btn sxa-chart-type-toggle__btn--active sx-dash-pulse__kpi-info" data-sxa-time-chart-type="bar" aria-label="${te('analytics.showAsBlocks')}" data-i18n-aria-label="analytics.showAsBlocks" data-tip="${te('analytics.showAsBlocks')}" data-i18n-data-tip="analytics.showAsBlocks" data-tip-variant="grey">
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="8" width="3" height="6.5" rx="0.8" fill="currentColor"/><rect x="6.5" y="4" width="3" height="10.5" rx="0.8" fill="currentColor"/><rect x="11.5" y="1.5" width="3" height="13" rx="0.8" fill="currentColor"/></svg>
             </button>
-            <button type="button" class="sxa-chart-type-toggle__btn sx-dash-pulse__kpi-info" data-sxa-time-chart-type="line" aria-label="Show as line chart" data-tip="Show as line chart" data-tip-variant="grey">
+            <button type="button" class="sxa-chart-type-toggle__btn sx-dash-pulse__kpi-info" data-sxa-time-chart-type="line" aria-label="${te('analytics.showAsLine')}" data-i18n-aria-label="analytics.showAsLine" data-tip="${te('analytics.showAsLine')}" data-i18n-data-tip="analytics.showAsLine" data-tip-variant="grey">
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1.5 12.5L5.5 7.5L9 10L14.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.5" cy="7.5" r="1.2" fill="currentColor"/><circle cx="9" cy="10" r="1.2" fill="currentColor"/></svg>
             </button>
           </div>
           <div class="sxa-metric-dd" data-sxa-metric-dd="time">
             <button type="button" class="sxa-metric-dd__btn" data-sxa-metric-dd-btn>
-              <span data-sxa-metric-dd-label>Total Profit/Loss</span>
+              <span data-sxa-metric-dd-label data-i18n="analytics.metric.pnl">${te('analytics.metric.pnl')}</span>
               <svg width="10" height="7" viewBox="0 0 10 7" fill="none"><path d="M1 1.5L5 5.5L9 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
             <div class="sxa-metric-dd__menu" data-sxa-metric-dd-menu>
-              <button type="button" class="sxa-metric-dd__item sxa-metric-dd__item--active" data-sxa-metric-dd-value="pnl">Total Profit/Loss</button>
-              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="rr">Risk-Reward</button>
-              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="pct">% Profit</button>
-              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="winrate">Win Rate</button>
+              <button type="button" class="sxa-metric-dd__item sxa-metric-dd__item--active" data-sxa-metric-dd-value="pnl" data-i18n="analytics.metric.pnl">${te('analytics.metric.pnl')}</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="rr" data-i18n="analytics.metric.rr">${te('analytics.metric.rr')}</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="pct" data-i18n="analytics.metric.pct">${te('analytics.metric.pct')}</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="winrate" data-i18n="analytics.metric.winrate">${te('analytics.metric.winrate')}</button>
             </div>
           </div>
         </div>
         <div class="sxa-card" style="padding-left:8px;"><canvas data-sxa-time-bar-canvas></canvas></div>
 
         <div class="sxa-section-title">
-          Performance by day
-          ${infoDot('Breaks down performance by day of the week.', 'performance by day')}
-          <div class="sxa-chart-type-toggle" style="margin-left:auto;" data-sxa-day-chart-toggle role="group" aria-label="Chart style">
-            <button type="button" class="sxa-chart-type-toggle__btn sxa-chart-type-toggle__btn--active sx-dash-pulse__kpi-info" data-sxa-day-chart-type="bar" aria-label="Show as blocks" data-tip="Show as blocks" data-tip-variant="grey">
+          <span data-i18n="analytics.performanceByDay">${te('analytics.performanceByDay')}</span>
+          ${infoDot('analytics.tip.performanceByDay')}
+          <div class="sxa-chart-type-toggle" style="margin-left:auto;" data-sxa-day-chart-toggle role="group" aria-label="${te('analytics.chartStyle')}" data-i18n-aria-label="analytics.chartStyle">
+            <button type="button" class="sxa-chart-type-toggle__btn sxa-chart-type-toggle__btn--active sx-dash-pulse__kpi-info" data-sxa-day-chart-type="bar" aria-label="${te('analytics.showAsBlocks')}" data-i18n-aria-label="analytics.showAsBlocks" data-tip="${te('analytics.showAsBlocks')}" data-i18n-data-tip="analytics.showAsBlocks" data-tip-variant="grey">
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="8" width="3" height="6.5" rx="0.8" fill="currentColor"/><rect x="6.5" y="4" width="3" height="10.5" rx="0.8" fill="currentColor"/><rect x="11.5" y="1.5" width="3" height="13" rx="0.8" fill="currentColor"/></svg>
             </button>
-            <button type="button" class="sxa-chart-type-toggle__btn sx-dash-pulse__kpi-info" data-sxa-day-chart-type="line" aria-label="Show as line chart" data-tip="Show as line chart" data-tip-variant="grey">
+            <button type="button" class="sxa-chart-type-toggle__btn sx-dash-pulse__kpi-info" data-sxa-day-chart-type="line" aria-label="${te('analytics.showAsLine')}" data-i18n-aria-label="analytics.showAsLine" data-tip="${te('analytics.showAsLine')}" data-i18n-data-tip="analytics.showAsLine" data-tip-variant="grey">
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1.5 12.5L5.5 7.5L9 10L14.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.5" cy="7.5" r="1.2" fill="currentColor"/><circle cx="9" cy="10" r="1.2" fill="currentColor"/></svg>
             </button>
           </div>
           <div class="sxa-metric-dd" data-sxa-metric-dd="day">
             <button type="button" class="sxa-metric-dd__btn" data-sxa-metric-dd-btn>
-              <span data-sxa-metric-dd-label>Total Profit/Loss</span>
+              <span data-sxa-metric-dd-label data-i18n="analytics.metric.pnl">${te('analytics.metric.pnl')}</span>
               <svg width="10" height="7" viewBox="0 0 10 7" fill="none"><path d="M1 1.5L5 5.5L9 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
             <div class="sxa-metric-dd__menu" data-sxa-metric-dd-menu>
-              <button type="button" class="sxa-metric-dd__item sxa-metric-dd__item--active" data-sxa-metric-dd-value="pnl">Total Profit/Loss</button>
-              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="rr">Risk-Reward</button>
-              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="pct">% Profit</button>
-              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="winrate">Win Rate</button>
+              <button type="button" class="sxa-metric-dd__item sxa-metric-dd__item--active" data-sxa-metric-dd-value="pnl" data-i18n="analytics.metric.pnl">${te('analytics.metric.pnl')}</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="rr" data-i18n="analytics.metric.rr">${te('analytics.metric.rr')}</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="pct" data-i18n="analytics.metric.pct">${te('analytics.metric.pct')}</button>
+              <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="winrate" data-i18n="analytics.metric.winrate">${te('analytics.metric.winrate')}</button>
             </div>
           </div>
         </div>
         <div class="sxa-card"><canvas data-sxa-day-bar-canvas></canvas></div>
 
         <div class="sxa-section-title">
-          Performance by month
-          ${infoDot('Breaks down performance by calendar month, calculated on the balance basis selected on the right.', 'performance by month')}
+          <span data-i18n="analytics.performanceByMonth">${te('analytics.performanceByMonth')}</span>
+          ${infoDot('analytics.tip.performanceByMonth')}
           <div class="sxa-tab-row" data-sxa-month-basis style="margin-left:auto;">
-            <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-mb="initial">Initial Balance</button>
-            <button type="button" class="sxa-tab-row__btn" data-sxa-mb="current">Current Balance</button>
+            <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-mb="initial" data-i18n="analytics.initialBalance">${te('analytics.initialBalance')}</button>
+            <button type="button" class="sxa-tab-row__btn" data-sxa-mb="current" data-i18n="analytics.currentBalance">${te('analytics.currentBalance')}</button>
           </div>
         </div>
         <div class="sxa-card" style="overflow-x:auto;">
@@ -561,36 +599,36 @@ export function buildAnalyticsPageHtml(): string {
         </div>
 
         <div class="sxa-section-title">
-          Performance calendar
-          ${infoDot('Daily performance heatmap using the metric and balance basis selected on the right.', 'performance calendar')}
+          <span data-i18n="analytics.performanceCalendar">${te('analytics.performanceCalendar')}</span>
+          ${infoDot('analytics.tip.performanceCalendar')}
           <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
             <div class="sxa-metric-dd" data-sxa-metric-dd="cal">
               <button type="button" class="sxa-metric-dd__btn" data-sxa-metric-dd-btn>
-                <span data-sxa-metric-dd-label>Dollar Profit</span>
+                <span data-sxa-metric-dd-label data-i18n="analytics.metric.dollar">${te('analytics.metric.dollar')}</span>
                 <svg width="10" height="7" viewBox="0 0 10 7" fill="none"><path d="M1 1.5L5 5.5L9 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <div class="sxa-metric-dd__menu" data-sxa-metric-dd-menu>
-                <button type="button" class="sxa-metric-dd__item sxa-metric-dd__item--active" data-sxa-metric-dd-value="dollar">Dollar Profit</button>
-                <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="pct">% Profit</button>
-                <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="rr">Risk-Reward</button>
-                <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="winrate">Win Rate</button>
+                <button type="button" class="sxa-metric-dd__item sxa-metric-dd__item--active" data-sxa-metric-dd-value="dollar" data-i18n="analytics.metric.dollar">${te('analytics.metric.dollar')}</button>
+                <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="pct" data-i18n="analytics.metric.pct">${te('analytics.metric.pct')}</button>
+                <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="rr" data-i18n="analytics.metric.rr">${te('analytics.metric.rr')}</button>
+                <button type="button" class="sxa-metric-dd__item" data-sxa-metric-dd-value="winrate" data-i18n="analytics.metric.winrate">${te('analytics.metric.winrate')}</button>
               </div>
             </div>
             <div class="sxa-tab-row" data-sxa-cal-basis>
-              <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-cb="current">Current Balance</button>
-              <button type="button" class="sxa-tab-row__btn" data-sxa-cb="initial">Initial Balance</button>
+              <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-cb="current" data-i18n="analytics.currentBalance">${te('analytics.currentBalance')}</button>
+              <button type="button" class="sxa-tab-row__btn" data-sxa-cb="initial" data-i18n="analytics.initialBalance">${te('analytics.initialBalance')}</button>
             </div>
             <div class="sxa-tab-row" data-sxa-cal-view>
-              <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-cv="month">Month</button>
-              <button type="button" class="sxa-tab-row__btn" data-sxa-cv="year">Year</button>
+              <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-cv="month" data-i18n="analytics.view.month">${te('analytics.view.month')}</button>
+              <button type="button" class="sxa-tab-row__btn" data-sxa-cv="year" data-i18n="analytics.view.year">${te('analytics.view.year')}</button>
             </div>
           </div>
         </div>
         <div class="sxa-card">
           <div style="display:inline-flex; align-items:center; gap:12px; margin-bottom:16px;">
-            <button type="button" class="sxa-export-btn" data-sxa-cal-prev style="padding:6px 10px;">\u2190</button>
+            <button type="button" class="sxa-export-btn" data-sxa-cal-prev style="padding:6px 10px;" aria-label="${te('analytics.prevPeriod')}" data-i18n-aria-label="analytics.prevPeriod">\u2190</button>
             <div class="sxa-cal-label" data-sxa-cal-label style="min-width:120px; text-align:center;"></div>
-            <button type="button" class="sxa-export-btn" data-sxa-cal-next style="padding:6px 10px;">\u2192</button>
+            <button type="button" class="sxa-export-btn" data-sxa-cal-next style="padding:6px 10px;" aria-label="${te('analytics.nextPeriod')}" data-i18n-aria-label="analytics.nextPeriod">\u2192</button>
           </div>
           <div data-sxa-cal-container></div>
         </div>
@@ -598,11 +636,11 @@ export function buildAnalyticsPageHtml(): string {
 
       <div class="sxa-tab-panel" data-sxa-panel="drawdown">
         <div class="sxa-section-title">
-          Drawdown on equity
-          ${infoDot('The largest peak-to-trough loss during the session/account period. Indicates worst-case scenario the trader faced.', 'drawdown on equity')}
+          <span data-i18n="analytics.drawdownOnEquity">${te('analytics.drawdownOnEquity')}</span>
+          ${infoDot('analytics.tip.drawdownOnEquity')}
           <div style="margin-left:auto; display:flex; align-items:center; gap:14px; position:relative;">
-            <a href="#" class="sxa-how-link" data-sxa-dd-how>How this works?</a>
-            <div class="sxa-how-popover" data-sxa-dd-how-popover hidden>Each bar is one drawdown episode: the depth your equity fell from its prior peak before making a new high. "Time to recovery" averages how long (in days) it took to climb back to that peak. "Drawdown frequency" is episodes per week over the current date range.</div>
+            <a href="#" class="sxa-how-link" data-sxa-dd-how data-i18n="analytics.howThisWorks">${te('analytics.howThisWorks')}</a>
+            <div class="sxa-how-popover" data-sxa-dd-how-popover hidden data-i18n="analytics.how.drawdown">${te('analytics.how.drawdown')}</div>
             <div class="sxa-tab-row" data-sxa-dd-unit>
               <button type="button" class="sxa-tab-row__btn sxa-tab-row__btn--active" data-sxa-dd-u="pct">%</button>
               <button type="button" class="sxa-tab-row__btn" data-sxa-dd-u="dollar">$</button>
@@ -612,65 +650,65 @@ export function buildAnalyticsPageHtml(): string {
         <div class="sxa-card"><canvas data-sxa-drawdown-canvas></canvas></div>
         <div class="sxa-grid-4" data-sxa-drawdown-stats style="margin-top:14px;"></div>
 
-        <div class="sxa-section-title">Maximum Adverse Excursion ${infoDot('The biggest drop in your account from the highest point to the lowest.', 'maximum adverse excursion (MAE)')}</div>
+        <div class="sxa-section-title"><span data-i18n="analytics.mae">${te('analytics.mae')}</span> ${infoDot('analytics.tip.mae')}</div>
         <div class="sxa-card">
           <canvas data-sxa-mae-canvas></canvas>
         </div>
 
-        <div class="sxa-section-title">Drawdown on Winning Trades</div>
+        <div class="sxa-section-title" data-i18n="analytics.drawdownOnWinners">${te('analytics.drawdownOnWinners')}</div>
         <div class="sxa-grid-4" data-sxa-mae-stats style="margin-top:0;">
-          <div class="sxa-accent-card"><div class="sxa-a-label">AVG Drawdown RR ${infoDot('The average drawdown risk-reward ratio for your winning trades.', 'avg drawdown RR')}</div><div class="sxa-a-value" data-sxa-mae-avg>0.00</div></div>
-          <div class="sxa-accent-card"><div class="sxa-a-label">Min Drawdown RR ${infoDot('The minimum drawdown risk-reward ratio for your winning trades.', 'min drawdown RR')}</div><div class="sxa-a-value" data-sxa-mae-min>\u221e</div></div>
-          <div class="sxa-accent-card"><div class="sxa-a-label">Max Drawdown RR ${infoDot('The maximum drawdown risk-reward ratio for your winning trades.', 'max drawdown RR')}</div><div class="sxa-a-value" data-sxa-mae-max>\u2212\u221e</div></div>
+          <div class="sxa-accent-card"><div class="sxa-a-label"><span data-i18n="analytics.avgDrawdownRR">${te('analytics.avgDrawdownRR')}</span> ${infoDot('analytics.tip.avgDrawdownRR')}</div><div class="sxa-a-value" data-sxa-mae-avg>0.00</div></div>
+          <div class="sxa-accent-card"><div class="sxa-a-label"><span data-i18n="analytics.minDrawdownRR">${te('analytics.minDrawdownRR')}</span> ${infoDot('analytics.tip.minDrawdownRR')}</div><div class="sxa-a-value" data-sxa-mae-min>\u221e</div></div>
+          <div class="sxa-accent-card"><div class="sxa-a-label"><span data-i18n="analytics.maxDrawdownRR">${te('analytics.maxDrawdownRR')}</span> ${infoDot('analytics.tip.maxDrawdownRR')}</div><div class="sxa-a-value" data-sxa-mae-max>\u2212\u221e</div></div>
         </div>
       </div>
 
       <div class="sxa-tab-panel" data-sxa-panel="simulation">
-        <div class="sxa-section-title sxa-section-title--sim-header">Montecarlo Simulation ${infoDot('By performing Monte Carlo Simulations, you can estimate how effective your trading strategy is.', 'Montecarlo Simulation')}</div>
+        <div class="sxa-section-title sxa-section-title--sim-header"><span data-i18n="analytics.montecarlo">${te('analytics.montecarlo')}</span> ${infoDot('analytics.tip.montecarlo')}</div>
         <div class="sxa-card" style="margin-bottom:20px;">
           <div class="sxa-mc-input-grid" data-sxa-mc-input-grid></div>
           <div style="position:relative;">
             <canvas data-sxa-mc-canvas style="margin-top:18px;"></canvas>
             <div class="sxa-mc-tooltip-panel" data-sxa-mc-tooltip></div>
           </div>
-          <div class="sxa-section-title" style="font-size:14px; margin:18px 0 10px;">Simulation results</div>
+          <div class="sxa-section-title" style="font-size:14px; margin:18px 0 10px;" data-i18n="analytics.simulationResults">${te('analytics.simulationResults')}</div>
           <div class="sxa-sim-stats sxa-sim-stats--wide" data-sxa-mc-stats></div>
         </div>
 
         <div class="sxa-section-title sxa-section-title--sim-header">
-          RR Simulator
-          ${infoDot('Test different risk-reward setups to see how your trades would\u2019ve performed under new conditions \u2014 no need to re-backtest.', 'RR Simulator')}
-          <a href="#" class="sxa-how-link" data-sxa-rr-how style="margin-left:auto;">How this works?</a>
+          <span data-i18n="analytics.rrSimulator">${te('analytics.rrSimulator')}</span>
+          ${infoDot('analytics.tip.rrSimulator')}
+          <a href="#" class="sxa-how-link" data-sxa-rr-how style="margin-left:auto;" data-i18n="analytics.howThisWorks">${te('analytics.howThisWorks')}</a>
         </div>
         <div class="sxa-card">
-          <div class="sxa-heat-sub">Replays your real trades, capping every win at each target R shown, to compare exit strategies side by side.</div>
+          <div class="sxa-heat-sub" data-i18n="analytics.rrSimulatorSub">${te('analytics.rrSimulatorSub')}</div>
           <div class="sxa-rr-chip-toolbar">
             <div class="sxa-rr-chip-row" data-sxa-rr-chip-row></div>
-            <button type="button" class="sxa-run-btn" data-sxa-rr-add-new style="margin-left:auto;">+ Add new</button>
+            <button type="button" class="sxa-run-btn" data-sxa-rr-add-new style="margin-left:auto;" data-i18n="analytics.addNew">${te('analytics.addNew')}</button>
           </div>
           <canvas data-sxa-rr-multi-canvas></canvas>
           <div class="sxa-rr-best-line" data-sxa-rr-best-line></div>
-          <div class="sxa-section-title" style="font-size:15px; margin:18px 0 10px;">Results</div>
+          <div class="sxa-section-title" style="font-size:15px; margin:18px 0 10px;" data-i18n="analytics.results">${te('analytics.results')}</div>
           <div style="overflow-x:auto;">
             <table class="sxa-rr-results-table" data-sxa-rr-results-table></table>
           </div>
         </div>
 
         <div class="sxa-section-title sxa-section-title--sim-header">
-          Stop Loss Simulator
-          ${infoDot('Tests how different stop loss reductions would have affected your completed trades.', 'Stop Loss Simulator')}
-          <a href="#" class="sxa-how-link" data-sxa-sl-how style="margin-left:auto;">How this works?</a>
+          <span data-i18n="analytics.slSimulator">${te('analytics.slSimulator')}</span>
+          ${infoDot('analytics.tip.slSimulator')}
+          <a href="#" class="sxa-how-link" data-sxa-sl-how style="margin-left:auto;" data-i18n="analytics.howThisWorks">${te('analytics.howThisWorks')}</a>
         </div>
         <div class="sxa-card">
-          <div class="sxa-heat-sub">Replays your real trades with each stop loss pulled in by the % shown, using actual historical price data to see whether the tighter stop would have been hit before the trade's real exit.</div>
+          <div class="sxa-heat-sub" data-i18n="analytics.slSimulatorSub">${te('analytics.slSimulatorSub')}</div>
           <div class="sxa-rr-chip-toolbar">
             <div class="sxa-rr-chip-row" data-sxa-sl-chip-row></div>
-            <button type="button" class="sxa-run-btn" data-sxa-sl-add-new style="margin-left:auto;">+ Add new</button>
+            <button type="button" class="sxa-run-btn" data-sxa-sl-add-new style="margin-left:auto;" data-i18n="analytics.addNew">${te('analytics.addNew')}</button>
           </div>
           <canvas data-sxa-sl-multi-canvas></canvas>
           <div class="sxa-rr-best-line" data-sxa-sl-best-line></div>
           <div class="sxa-hint" data-sxa-sl-coverage-hint style="margin-top:6px;">&nbsp;</div>
-          <div class="sxa-section-title" style="font-size:15px; margin:18px 0 10px;">Results</div>
+          <div class="sxa-section-title" style="font-size:15px; margin:18px 0 10px;" data-i18n="analytics.results">${te('analytics.results')}</div>
           <div style="overflow-x:auto;">
             <table class="sxa-rr-results-table" data-sxa-sl-results-table></table>
           </div>
@@ -687,6 +725,8 @@ export function initAnalyticsPage(
   opts: {
     getTrades: () => SxaTrade[]
     getStartingBalance: () => number
+    /** Fired when the user picks an inner tab, so the host can mirror it in the URL. */
+    onTabChange?: (tab: AnalyticsTabSegment) => void
   },
 ) {
   const charts: ChartMap = {}
@@ -711,8 +751,8 @@ export function initAnalyticsPage(
     timezone: 'Etc/UTC',
     timeStart: '00:00',
     timeEnd: '23:59',
-    type: SXA_TYPE_OPTS[0]!,
-    strategy: SXA_STRATEGY_OPTS[0]!,
+    type: SXA_TYPE_VALUES[0] as string,
+    strategy: SXA_STRATEGY_VALUES[0] as string,
     // `null` = "all assets, no restriction". Unlike side/outcome/session/day, assets needs a
     // way to represent "the user explicitly unchecked everything" too (which should show zero
     // trades) — a plain empty Set can't distinguish that from "nothing restricted yet", so an
@@ -733,8 +773,8 @@ export function initAnalyticsPage(
     filters.timezone = 'Etc/UTC'
     filters.timeStart = '00:00'
     filters.timeEnd = '23:59'
-    filters.type = SXA_TYPE_OPTS[0]!
-    filters.strategy = SXA_STRATEGY_OPTS[0]!
+    filters.type = SXA_TYPE_VALUES[0]
+    filters.strategy = SXA_STRATEGY_VALUES[0]
     filters.assets = null
     filters.dateFrom = null
     filters.dateTo = null
@@ -864,13 +904,13 @@ export function initAnalyticsPage(
       const overlay = document.createElement('div')
       overlay.className = 'sxa-prompt-modal'
       overlay.innerHTML = `
-        <button type="button" class="sxa-prompt-modal__backdrop" aria-label="Close"></button>
+        <button type="button" class="sxa-prompt-modal__backdrop" aria-label="${escapeAttr(translate('common.close'))}"></button>
         <div class="sxa-prompt-modal__panel" role="dialog" aria-modal="true">
           <label class="sxa-prompt-modal__label" for="sxa-prompt-modal-input">${escapeAttr(opts.label)}</label>
           <input id="sxa-prompt-modal-input" type="number" step="any" inputmode="decimal" class="sxa-prompt-modal__input" placeholder="${escapeAttr(opts.placeholder ?? '')}" />
           <div class="sxa-prompt-modal__actions">
-            <button type="button" class="sxa-prompt-modal__btn sxa-prompt-modal__btn--primary" data-sxa-prompt-ok>OK</button>
-            <button type="button" class="sxa-prompt-modal__btn sxa-prompt-modal__btn--secondary" data-sxa-prompt-cancel>Cancel</button>
+            <button type="button" class="sxa-prompt-modal__btn sxa-prompt-modal__btn--primary" data-sxa-prompt-ok>${te('common.ok')}</button>
+            <button type="button" class="sxa-prompt-modal__btn sxa-prompt-modal__btn--secondary" data-sxa-prompt-cancel>${te('common.cancel')}</button>
           </div>
         </div>`
       // Mount inside the .sxa-analytics scope (not document.body) so the panel inherits the
@@ -932,7 +972,7 @@ export function initAnalyticsPage(
 
     const chipHtml = hasRange
       ? `<span class="sxa-mp-chip" data-sxa-date-clear>${escapeAttr(dateTo !== null ? `${sxaFmtShortDate(dateFrom!)} \u2013 ${sxaFmtShortDate(dateTo)}` : sxaFmtShortDate(dateFrom!))}<i class="fa-solid fa-xmark" aria-hidden="true"></i></span>`
-      : `<span class="sxa-mp-placeholder">Select date range</span>`
+      : `<span class="sxa-mp-placeholder">${te('analytics.selectDateRange')}</span>`
 
     const year = datePickerMonth.getFullYear()
     const month = datePickerMonth.getMonth()
@@ -971,19 +1011,19 @@ export function initAnalyticsPage(
     }
 
     panel.innerHTML = `
-      <div class="sxa-mp-title">Backtesting date filter</div>
+      <div class="sxa-mp-title">${te('analytics.backtestingDateFilter')}</div>
       <div class="sxa-mp-select sxa-mp-select--static">
         <div class="sxa-mp-select-chips">${chipHtml}</div>
         <i class="fa-regular fa-calendar" aria-hidden="true"></i>
       </div>
       <div class="sxa-cal">
         <div class="sxa-cal__nav">
-          <button type="button" class="sxa-cal__nav-btn" data-sxa-cal-prev aria-label="Previous month"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+          <button type="button" class="sxa-cal__nav-btn" data-sxa-cal-prev aria-label="${escapeAttr(translate('analytics.previousMonth'))}"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
           <div class="sxa-cal__nav-label">${escapeAttr(monthLabel)} ${year}</div>
-          <button type="button" class="sxa-cal__nav-btn" data-sxa-cal-next aria-label="Next month"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+          <button type="button" class="sxa-cal__nav-btn" data-sxa-cal-next aria-label="${escapeAttr(translate('analytics.nextMonth'))}"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
         </div>
         <div class="sxa-cal__weekdays">
-          ${['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((w) => `<span>${w}</span>`).join('')}
+          ${sxaNarrowWeekdaysSunFirst().map((w) => `<span>${w}</span>`).join('')}
         </div>
         <div class="sxa-cal__grid">
           ${cells.map(dayCellHtml).join('')}
@@ -1005,16 +1045,16 @@ export function initAnalyticsPage(
   // Two-level popover: opening a filter chip first shows just the title + readout box
   // (collapsed); clicking that readout box expands it to reveal the search box + option list.
   const comboExpanded = new Set<SxaComboKey>()
-  const SXA_COMBO_TITLE: Record<SxaComboKey, string> = {
-    assets: 'Assets',
-    tags: 'Tags',
-    type: 'Type',
-    strategy: 'Strategy',
-    timezone: 'Timezone',
-    side: 'Side',
-    outcome: 'Outcome',
-    session: 'Session',
-    day: 'Day',
+  const SXA_COMBO_TITLE_KEYS: Record<SxaComboKey, MessageKey> = {
+    assets: 'analytics.filter.assets',
+    tags: 'analytics.filter.tags',
+    type: 'analytics.filter.type',
+    strategy: 'analytics.filter.strategy',
+    timezone: 'analytics.filter.timezone',
+    side: 'analytics.filter.side',
+    outcome: 'analytics.filter.outcome',
+    session: 'analytics.filter.session',
+    day: 'analytics.filter.day',
   }
 
   // Parses/clamps whatever the user typed in a Start/End time field into a valid "HH:MM"
@@ -1034,21 +1074,21 @@ export function initAnalyticsPage(
       case 'assets':
         return distinctAssets().map((a) => ({ value: a, label: a }))
       case 'tags':
-        return ['__all__', ...distinctTags()].map((t) => ({ value: t, label: t === '__all__' ? 'All' : t }))
+        return ['__all__', ...distinctTags()].map((t) => ({ value: t, label: t === '__all__' ? translate('common.all') : t }))
       case 'type':
-        return SXA_TYPE_OPTS.map((o) => ({ value: o, label: o }))
+        return sxaTypeOpts()
       case 'strategy':
-        return SXA_STRATEGY_OPTS.map((o) => ({ value: o, label: o }))
+        return sxaStrategyOpts()
       case 'timezone':
         return SXA_TIMEZONE_ZONES.map((z) => ({ value: z.value, label: `${sxaTimezoneOffsetLabel(z.value)}${z.city}` }))
       case 'side':
-        return SXA_SIDE_OPTS
+        return sxaSideOpts()
       case 'outcome':
-        return SXA_OUTCOME_OPTS
+        return sxaOutcomeOpts()
       case 'session':
         return distinctSessions()
       case 'day':
-        return SXA_DAY_OPTS.map((o) => ({ value: String(o.value), label: o.label }))
+        return sxaDayOpts().map((o) => ({ value: String(o.value), label: o.label }))
     }
   }
 
@@ -1079,9 +1119,9 @@ export function initAnalyticsPage(
     const panel = root.querySelector<HTMLElement>(`[data-sxa-mini-popover="${key}"]`)
     if (!panel) return
     const options = comboOptionsFor(key)
-    const title = SXA_COMBO_TITLE[key]
+    const title = translate(SXA_COMBO_TITLE_KEYS[key])
     if (!options.length) {
-      panel.innerHTML = `<div class="sxa-mp-title">${escapeAttr(title)} filter</div><div class="sxa-filter-empty">No ${escapeAttr(title.toLowerCase())} yet</div>`
+      panel.innerHTML = `<div class="sxa-mp-title">${escapeAttr(translate('analytics.mp.title', { label: title }))}</div><div class="sxa-filter-empty">${escapeAttr(translate('analytics.mp.empty', { label: title }))}</div>`
       return
     }
     const selected = comboSelectedFor(key)
@@ -1098,7 +1138,7 @@ export function initAnalyticsPage(
     // to the default" rather than "nothing selected"). Multi-select groups collapse down to a
     // single "All" chip once every option is checked, instead of listing each one out.
     const chipsHtml = allChecked
-      ? `<span class="sxa-mp-chip" data-sxa-mp-chip-rm="__all__" data-sxa-mp-chip-key="${key}">All<i class="fa-solid fa-xmark" aria-hidden="true"></i></span>`
+      ? `<span class="sxa-mp-chip" data-sxa-mp-chip-rm="__all__" data-sxa-mp-chip-key="${key}">${escapeAttr(translate('common.all'))}<i class="fa-solid fa-xmark" aria-hidden="true"></i></span>`
       : chipValues.length
         ? chipValues
             .map((v) => {
@@ -1106,7 +1146,7 @@ export function initAnalyticsPage(
               return `<span class="sxa-mp-chip" data-sxa-mp-chip-rm="${escapeAttr(v)}" data-sxa-mp-chip-key="${key}">${escapeAttr(label)}<i class="fa-solid fa-xmark" aria-hidden="true"></i></span>`
             })
             .join('')
-        : `<span class="sxa-mp-placeholder">Select ${escapeAttr(title.toLowerCase())}</span>`
+        : `<span class="sxa-mp-placeholder">${escapeAttr(translate('analytics.mp.placeholder', { label: title }))}</span>`
 
     const rowHtml = (value: string, label: string, checked: boolean) =>
       selectStyle
@@ -1122,7 +1162,7 @@ export function initAnalyticsPage(
     // Level 1: title + readout box only. Level 2 (search + option list) only renders once the
     // readout box itself has been clicked — a second, nested level within the same popover.
     panel.innerHTML = `
-      <div class="sxa-mp-title">${escapeAttr(title)} filter</div>
+      <div class="sxa-mp-title">${escapeAttr(translate('analytics.mp.title', { label: title }))}</div>
       <div class="sxa-mp-select${expanded ? ' sxa-mp-select--open' : ''}" data-sxa-mp-select data-sxa-mp-key="${key}">
         <div class="sxa-mp-select-chips">${chipsHtml}</div>
         <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
@@ -1137,7 +1177,7 @@ export function initAnalyticsPage(
                </label>`
             : ''
         }
-        <input type="text" class="sxa-mp-search-input" placeholder="Search..." data-sxa-mp-search="${key}">
+        <input type="text" class="sxa-mp-search-input" placeholder="${escapeAttr(translate('common.searchEllipsis'))}" data-sxa-mp-search="${key}">
         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
       </div>
       <div class="sxa-mp-list" data-sxa-mp-list="${key}">
@@ -1206,10 +1246,10 @@ export function initAnalyticsPage(
     const options = comboOptionsFor(key)
     const currentlyAll = comboSelectedFor(key).size === options.length
     if (key === 'assets') filters.assets = currentlyAll ? new Set() : null
-    else if (key === 'side') filters.side = currentlyAll ? new Set() : new Set(SXA_SIDE_OPTS.map((o) => o.value))
-    else if (key === 'outcome') filters.outcome = currentlyAll ? new Set() : new Set(SXA_OUTCOME_OPTS.map((o) => o.value))
+    else if (key === 'side') filters.side = currentlyAll ? new Set() : new Set(sxaSideOpts().map((o) => o.value))
+    else if (key === 'outcome') filters.outcome = currentlyAll ? new Set() : new Set(sxaOutcomeOpts().map((o) => o.value))
     else if (key === 'session') filters.session = currentlyAll ? new Set() : new Set(distinctSessions().map((o) => o.value))
-    else if (key === 'day') filters.day = currentlyAll ? new Set() : new Set(SXA_DAY_OPTS.map((o) => o.value))
+    else if (key === 'day') filters.day = currentlyAll ? new Set() : new Set(sxaDayOpts().map((o) => o.value))
   }
 
   function closeAllPopovers() {
@@ -1267,12 +1307,12 @@ export function initAnalyticsPage(
       // Assets always shows its full current selection in the Active row \u2014 every asset when
       // `null` ("All"), or just the explicitly chosen subset otherwise.
       { key: 'assets', opts: distinctAssets().map((a) => ({ value: a, label: a })), selected: filters.assets === null ? new Set(distinctAssets()) : filters.assets },
-      { key: 'side', opts: SXA_SIDE_OPTS, selected: filters.side },
-      { key: 'outcome', opts: SXA_OUTCOME_OPTS, selected: filters.outcome },
+      { key: 'side', opts: sxaSideOpts(), selected: filters.side },
+      { key: 'outcome', opts: sxaOutcomeOpts(), selected: filters.outcome },
       { key: 'session', opts: distinctSessions(), selected: filters.session },
       {
         key: 'day',
-        opts: SXA_DAY_OPTS.map((o) => ({ value: String(o.value), label: o.label })),
+        opts: sxaDayOpts().map((o) => ({ value: String(o.value), label: o.label })),
         selected: new Set(Array.from(filters.day).map(String)),
       },
     ]
@@ -1294,8 +1334,14 @@ export function initAnalyticsPage(
     // active-filter summary pill (there's only ever one value in effect for these, so removing
     // it always clears the whole thing).
     const singlePills: { key: string; text: string }[] = []
-    if (filters.type && filters.type !== SXA_TYPE_OPTS[0]) singlePills.push({ key: 'type', text: filters.type })
-    if (filters.strategy && filters.strategy !== SXA_STRATEGY_OPTS[0]) singlePills.push({ key: 'strategy', text: filters.strategy })
+    if (filters.type && filters.type !== SXA_TYPE_VALUES[0]) {
+      const key = SXA_TYPE_KEYS[filters.type]
+      singlePills.push({ key: 'type', text: key ? translate(key) : filters.type })
+    }
+    if (filters.strategy && filters.strategy !== SXA_STRATEGY_VALUES[0]) {
+      const key = SXA_STRATEGY_KEYS[filters.strategy]
+      singlePills.push({ key: 'strategy', text: key ? translate(key) : filters.strategy })
+    }
     if (filters.timezone !== 'Etc/UTC') {
       const zone = SXA_TIMEZONE_ZONES.find((z) => z.value === filters.timezone)
       singlePills.push({ key: 'timezone', text: zone ? `${sxaTimezoneOffsetLabel(zone.value)}${zone.city}` : filters.timezone })
@@ -1353,8 +1399,8 @@ export function initAnalyticsPage(
     else if (group === 'outcome') filters.outcome.clear()
     else if (group === 'session') filters.session.clear()
     else if (group === 'day') filters.day.clear()
-    else if (group === 'type') filters.type = SXA_TYPE_OPTS[0]!
-    else if (group === 'strategy') filters.strategy = SXA_STRATEGY_OPTS[0]!
+    else if (group === 'type') filters.type = SXA_TYPE_VALUES[0]
+    else if (group === 'strategy') filters.strategy = SXA_STRATEGY_VALUES[0]
     else if (group === 'timezone') filters.timezone = 'Etc/UTC'
     else if (group === 'time') {
       filters.timeStart = '00:00'
@@ -1390,34 +1436,34 @@ export function initAnalyticsPage(
 
     const items: [string, string, string, string | null, string][] = [
       [
-        'Total P&L',
+        translate('analytics.kpi.totalPnl'),
         fmtMoney(totalPnl),
         totalPnl >= 0 ? 'sxa-gain' : 'sxa-loss',
         startingBalance > 0 ? `${((totalPnl / startingBalance) * 100).toFixed(2)}%` : null,
-        'Net profit or loss from your closed trades across the current filter selection.',
+        translate('analytics.kpi.totalPnl.tip'),
       ],
       [
-        'Account balance',
+        translate('analytics.kpi.accountBalance'),
         `$${balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         '',
         null,
-        'Your starting balance plus the net P&L from the trades in the current filter selection.',
+        translate('analytics.kpi.accountBalance.tip'),
       ],
       [
-        'Win rate',
+        translate('analytics.kpi.winRate'),
         `${winRate.toFixed(0)}%`,
         winRate >= 50 ? 'sxa-gain' : 'sxa-loss',
         null,
-        'Share of your filtered trades that closed as wins.',
+        translate('analytics.kpi.winRate.tip'),
       ],
-      ['Total trades', String(trades.length), '', null, 'Total number of trades in the current filter selection.'],
-      ['Avg. duration', fmtDuration(avgDurationMin), '', null, 'Average time a trade stayed open across the current filter selection.'],
+      [translate('analytics.kpi.totalTrades'), String(trades.length), '', null, translate('analytics.kpi.totalTrades.tip')],
+      [translate('analytics.kpi.avgDuration'), fmtDuration(avgDurationMin), '', null, translate('analytics.kpi.avgDuration.tip')],
       [
-        'Breakeven trades',
+        translate('analytics.kpi.breakevenTrades'),
         String(breakeven),
         '',
         null,
-        `Trades whose Return (R) fell within \u00b1${breakevenThresholdR}R of zero, based on the Breakeven Threshold setting.`,
+        translate('analytics.kpi.breakevenTrades.tip', { threshold: breakevenThresholdR }),
       ],
     ]
 
@@ -1429,7 +1475,7 @@ export function initAnalyticsPage(
         <div class="sxa-kpi">
           <div class="sxa-kpi-label">
             ${label}
-            <button type="button" class="sx-dash-pulse__kpi-info" data-tip="${escapeAttr(tip)}" aria-label="About ${escapeAttr(label)}"><img src="/icons/kpi-info.png" alt="" aria-hidden="true" /></button>
+            <button type="button" class="sx-dash-pulse__kpi-info" data-tip="${escapeAttr(tip)}" aria-label="${escapeAttr(translate('common.aboutLabel', { label }))}"><img src="/icons/kpi-info.png" alt="" aria-hidden="true" /></button>
           </div>
           <div class="sxa-kpi-value ${cls}">${value}</div>
           ${delta ? `<div class="sxa-kpi-delta">${delta}</div>` : ''}
@@ -1471,8 +1517,8 @@ export function initAnalyticsPage(
       labels = sortedKeys.map((k) => {
         const d = new Date(k)
         return currentGranularity === 'day'
-          ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: currentGranularity === '15min' ? '2-digit' : undefined })
+          ? d.toLocaleDateString(activeLocaleTag(), { month: 'short', day: 'numeric' })
+          : d.toLocaleString(activeLocaleTag(), { month: 'short', day: 'numeric', hour: 'numeric', minute: currentGranularity === '15min' ? '2-digit' : undefined })
       })
       data = sortedKeys.map((k) => buckets.get(k)!)
       pointTimesMs = sortedKeys
@@ -1518,7 +1564,7 @@ export function initAnalyticsPage(
       const timeLabel = pointTimesMs[idx] != null ? fmtTooltipTime(pointTimesMs[idx]!) : String(tooltip.dataPoints[0].label)
       tooltipPanel.innerHTML = `
         <div class="sxa-pnl-tooltip__time">${escapeAttr(timeLabel)}</div>
-        <div class="sxa-pnl-tooltip__row"><span class="sxa-dot" style="background:${BRAND}"></span>Running PnL: <b>${fmtTooltipNum(cumulativePnl[idx] ?? 0)}</b></div>
+        <div class="sxa-pnl-tooltip__row"><span class="sxa-dot" style="background:${BRAND}"></span>${te('analytics.runningPnl')}: <b>${fmtTooltipNum(cumulativePnl[idx] ?? 0)}</b></div>
         <div class="sxa-pnl-tooltip__row"><span class="sxa-dot" style="background:${BRAND}"></span>Closed PnL: <b>${fmtTooltipNum(closedPnl[idx] ?? 0)}</b></div>`
 
       const chartRect = chart.canvas.getBoundingClientRect()
@@ -1989,24 +2035,24 @@ export function initAnalyticsPage(
     const winnersHost = root.querySelector<HTMLElement>('[data-sxa-winners-card]')
     if (winnersHost) {
       winnersHost.innerHTML = `
-        <h4>Winners</h4>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Total winners ${infoDot('Total number of trades that closed as wins.', 'total winners')}</span><span class="sxa-wl-val">${wins.length}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Best win ${infoDot('Your largest single winning trade, as a percentage.', 'best win')}</span><span class="sxa-wl-val">${fmtPct(bestWinPct)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average win ${infoDot('Average size of your winning trades, as a percentage.', 'average win')}</span><span class="sxa-wl-val">${fmtPct(avgWinPct)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average duration ${infoDot('Average time a winning trade stayed open.', 'average duration of winners')}</span><span class="sxa-wl-val">${fmtDuration(avgWinDur)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Max consecutive wins ${infoDot('The longest streak of back-to-back winning trades.', 'max consecutive wins')}</span><span class="sxa-wl-val">${maxWinStreak}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Avg consecutive wins ${infoDot('Average length of your winning streaks.', 'average consecutive wins')}</span><span class="sxa-wl-val">${avgWinStreak.toFixed(1)}</span></div>`
+        <h4>${te('analytics.winners')}</h4>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.totalWinners')} ${infoDot('analytics.tip.totalWinners')}</span><span class="sxa-wl-val">${wins.length}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.bestWin')} ${infoDot('analytics.tip.bestWin')}</span><span class="sxa-wl-val">${fmtPct(bestWinPct)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.averageWin')} ${infoDot('analytics.tip.averageWin')}</span><span class="sxa-wl-val">${fmtPct(avgWinPct)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.averageDuration')} ${infoDot('analytics.tip.averageDurationWin')}</span><span class="sxa-wl-val">${fmtDuration(avgWinDur)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.maxConsecutiveWins')} ${infoDot('analytics.tip.maxConsecutiveWins')}</span><span class="sxa-wl-val">${maxWinStreak}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.avgConsecutiveWins')} ${infoDot('analytics.tip.avgConsecutiveWins')}</span><span class="sxa-wl-val">${avgWinStreak.toFixed(1)}</span></div>`
     }
     const losersHost = root.querySelector<HTMLElement>('[data-sxa-losers-card]')
     if (losersHost) {
       losersHost.innerHTML = `
-        <h4>Losers</h4>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Total losers ${infoDot('Total number of trades that closed as losses.', 'total losers')}</span><span class="sxa-wl-val">${losses.length}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Worst loss ${infoDot('Your largest single losing trade, as a percentage.', 'worst loss')}</span><span class="sxa-wl-val">${fmtPct(worstLossPct)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average loss ${infoDot('Average size of your losing trades, as a percentage.', 'average loss')}</span><span class="sxa-wl-val">${fmtPct(avgLossPct)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Average duration ${infoDot('Average time a losing trade stayed open.', 'average duration of losers')}</span><span class="sxa-wl-val">${fmtDuration(avgLossDur)}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Max consecutive losses ${infoDot('The longest streak of back-to-back losing trades.', 'max consecutive losses')}</span><span class="sxa-wl-val">${maxLossStreak}</span></div>
-        <div class="sxa-wl-row"><span class="sxa-wl-lbl">Avg consecutive losses ${infoDot('Average length of your losing streaks.', 'average consecutive losses')}</span><span class="sxa-wl-val">${avgLossStreak.toFixed(1)}</span></div>`
+        <h4>${te('analytics.losers')}</h4>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.totalLosers')} ${infoDot('analytics.tip.totalLosers')}</span><span class="sxa-wl-val">${losses.length}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.worstLoss')} ${infoDot('analytics.tip.worstLoss')}</span><span class="sxa-wl-val">${fmtPct(worstLossPct)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.averageLoss')} ${infoDot('analytics.tip.averageLoss')}</span><span class="sxa-wl-val">${fmtPct(avgLossPct)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.averageDuration')} ${infoDot('analytics.tip.averageDurationLoss')}</span><span class="sxa-wl-val">${fmtDuration(avgLossDur)}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.maxConsecutiveLosses')} ${infoDot('analytics.tip.maxConsecutiveLosses')}</span><span class="sxa-wl-val">${maxLossStreak}</span></div>
+        <div class="sxa-wl-row"><span class="sxa-wl-lbl">${te('analytics.avgConsecutiveLosses')} ${infoDot('analytics.tip.avgConsecutiveLosses')}</span><span class="sxa-wl-val">${avgLossStreak.toFixed(1)}</span></div>`
     }
 
     const streakHost = root.querySelector<HTMLElement>('[data-sxa-streak-strip]')
@@ -2014,9 +2060,9 @@ export function initAnalyticsPage(
       const buys = trades.filter((t) => t.side === 'Buy').length
       const sells = trades.filter((t) => t.side === 'Sell').length
       streakHost.innerHTML = `
-        <div class="sxa-streak-pill"><div class="sxa-sp-label">Longest win streak</div><div class="sxa-sp-value" style="color:${GAIN}">${maxWinStreak} trades</div></div>
-        <div class="sxa-streak-pill"><div class="sxa-sp-label">Longest loss streak</div><div class="sxa-sp-value" style="color:${LOSS}">${maxLossStreak} trades</div></div>
-        <div class="sxa-streak-pill"><div class="sxa-sp-label">Buy / Sell split</div><div class="sxa-sp-value">${buys} / ${sells}</div></div>`
+        <div class="sxa-streak-pill"><div class="sxa-sp-label">${te('analytics.longestWinStreak')}</div><div class="sxa-sp-value" style="color:${GAIN}">${sxaEscapeAttrTopLevel(tCount('unit.trades', maxWinStreak, { count: maxWinStreak }))}</div></div>
+        <div class="sxa-streak-pill"><div class="sxa-sp-label">${te('analytics.longestLossStreak')}</div><div class="sxa-sp-value" style="color:${LOSS}">${sxaEscapeAttrTopLevel(tCount('unit.trades', maxLossStreak, { count: maxLossStreak }))}</div></div>
+        <div class="sxa-streak-pill"><div class="sxa-sp-label">${te('analytics.buySellSplit')}</div><div class="sxa-sp-value">${buys} / ${sells}</div></div>`
     }
   }
 
@@ -2063,53 +2109,55 @@ export function initAnalyticsPage(
     // Radar point labels are looked up by session key, but "Out Of Session" is rendered
     // wrapped onto two lines (as an array) so it doesn't get clipped at the edge of the card.
     const sessionLabels: Record<string, string | string[]> = {
-      London: 'London',
-      'New York': 'New York',
-      Asia: 'Asia',
-      'Out Of Session': ['Out of', 'Session'],
+      London: translate('analytics.session.london'),
+      'New York': translate('analytics.session.newYork'),
+      Asia: translate('analytics.session.asia'),
+      'Out Of Session': [translate('analytics.session.outOf1'), translate('analytics.session.outOf2')],
     }
     const bySession: Record<string, SxaTrade[]> = {}
     for (const s of sessions) bySession[s] = trades.filter((t) => sessionForHour(new Date(t.entryTimeMs).getUTCHours()) === s)
 
-    const metrics: Array<[string, (s: string) => number, string]> = [
-      ['Win Rate', (s) => (bySession[s]!.length ? (bySession[s]!.filter((t) => t.pnl > 0).length / bySession[s]!.length) * 100 : 0), BRAND],
-      ['Total Trades', (s) => bySession[s]!.length, GAIN],
-      ['Avg RR', (s) => {
-        const rs = bySession[s]!.map((t) => t.returnR).filter((v): v is number => v != null)
-        return rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 0
-      }, AMBER],
-      ['Profit', (s) => bySession[s]!.reduce((a, t) => a + t.pnl, 0), LOSS],
+    // Radar id stays English so the value formatters and chart keys are stable; the
+    // heading and tooltip come from the message catalog.
+    const metrics: Array<{ id: string; labelKey: MessageKey; tipKey: MessageKey; calc: (s: string) => number; color: string }> = [
+      { id: 'Win Rate', labelKey: 'analytics.winRate', tipKey: 'analytics.tip.radarWinRate', calc: (s) => (bySession[s]!.length ? (bySession[s]!.filter((t) => t.pnl > 0).length / bySession[s]!.length) * 100 : 0), color: BRAND },
+      { id: 'Total Trades', labelKey: 'analytics.totalTrades', tipKey: 'analytics.tip.radarTotalTrades', calc: (s) => bySession[s]!.length, color: GAIN },
+      {
+        id: 'Avg RR',
+        labelKey: 'analytics.avgRR',
+        tipKey: 'analytics.tip.radarAvgRR',
+        calc: (s) => {
+          const rs = bySession[s]!.map((t) => t.returnR).filter((v): v is number => v != null)
+          return rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 0
+        },
+        color: AMBER,
+      },
+      { id: 'Profit', labelKey: 'analytics.profit', tipKey: 'analytics.tip.radarProfit', calc: (s) => bySession[s]!.reduce((a, t) => a + t.pnl, 0), color: LOSS },
     ]
-
-    const radarTips: Record<string, string> = {
-      'Win Rate': "Your strategy's win rate in each session",
-      'Total Trades': 'Number of trades in each session. See where you trade the most and how those sessions perform',
-      'Avg RR': 'Average Risk Reward Ratio (RR) based on each of the sessions',
-      Profit: 'The total return (%) per session',
-    }
 
     const host = root.querySelector<HTMLElement>('[data-sxa-session-radars]')
     if (!host) return
     host.innerHTML = metrics
       .map(
-        ([label]) =>
-          `<div class="sxa-card sxa-radar-card"><h4>${label} ${infoDot(radarTips[label] ?? '', label)}</h4><canvas data-sxa-radar="${label.replace(/\s/g, '')}"></canvas></div>`,
+        (m) =>
+          `<div class="sxa-card sxa-radar-card"><h4>${te(m.labelKey)} ${infoDot(m.tipKey)}</h4><canvas data-sxa-radar="${m.id.replace(/\s/g, '')}"></canvas></div>`,
       )
       .join('')
 
-    const formatRadarValue = (label: string, v: number): string => {
-      if (label === 'Win Rate') return v.toFixed(0) + '%'
-      if (label === 'Total Trades') return String(Math.round(v))
-      if (label === 'Avg RR') return v.toFixed(2) + 'R'
+    const formatRadarValue = (id: string, v: number): string => {
+      if (id === 'Win Rate') return v.toFixed(0) + '%'
+      if (id === 'Total Trades') return String(Math.round(v))
+      if (id === 'Avg RR') return v.toFixed(2) + 'R'
       return fmtMoney(v)
     }
 
     const radarLineColor = sxaLineColor(root)
     const radarLabelColor = sxaAxisLabelColor(root)
-    for (const [label, fn, color] of metrics) {
-      const key = 'radar' + label.replace(/\s/g, '')
+    for (const { id, labelKey, calc: fn, color } of metrics) {
+      const label = translate(labelKey)
+      const key = 'radar' + id.replace(/\s/g, '')
       destroyChart(key)
-      const canvas = host.querySelector<HTMLCanvasElement>(`[data-sxa-radar="${label.replace(/\s/g, '')}"]`)
+      const canvas = host.querySelector<HTMLCanvasElement>(`[data-sxa-radar="${id.replace(/\s/g, '')}"]`)
       if (!canvas) continue
       charts[key] = new Chart(canvas, {
         type: 'radar',
@@ -2124,8 +2172,12 @@ export function initAnalyticsPage(
             legend: { display: false },
             tooltip: {
               callbacks: {
-                title: (items) => sessions[items[0]?.dataIndex ?? 0] ?? '',
-                label: (i) => `${label}: ${formatRadarValue(label, Number(i.parsed.r))}`,
+                title: (items) => {
+                  const s = sessions[items[0]?.dataIndex ?? 0]
+                  const l = s ? sessionLabels[s] : undefined
+                  return Array.isArray(l) ? l.join(' ') : (l ?? s ?? '')
+                },
+                label: (i) => `${label}: ${formatRadarValue(id, Number(i.parsed.r))}`,
               },
             },
           },
@@ -2345,7 +2397,7 @@ export function initAnalyticsPage(
 
   function renderMonthGrid(trades: SxaTrade[]) {
     const startingBalance = opts.getStartingBalance()
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const monthNames = sxaMonthNames('short')
     const years = Array.from(new Set(trades.map((t) => new Date(t.entryTimeMs).getUTCFullYear()))).sort()
 
     const monthlyPnl: Record<number, (number | null)[]> = {}
@@ -2379,7 +2431,7 @@ export function initAnalyticsPage(
         : `background:rgba(214,69,90,${0.12 + intensity * 0.5}); color:${intensity > 0.4 ? '#fff' : '#a3313f'};`
     }
 
-    let html = '<thead><tr><th></th>' + monthNames.map((m) => `<th>${m}</th>`).join('') + '<th>YTD</th></tr></thead><tbody>'
+    let html = '<thead><tr><th></th>' + monthNames.map((m) => `<th>${m}</th>`).join('') + `<th>${te('analytics.ytd')}</th></tr></thead><tbody>`
     for (const y of years) {
       const ytdPnl = monthlyPnl[y]!.reduce((s: number, v) => s + (v ?? 0), 0)
       const ytdPct = startingBalance !== 0 ? (ytdPnl / startingBalance) * 100 : 0
@@ -2391,7 +2443,7 @@ export function initAnalyticsPage(
     const grandTotalPnl = trades.reduce((s, t) => s + t.pnl, 0)
     const grandTotalPct = startingBalance !== 0 ? (grandTotalPnl / startingBalance) * 100 : 0
     html +=
-      `<tr><td></td><td colspan="12" class="sxa-month-total-label">Total</td>` +
+      `<tr><td></td><td colspan="12" class="sxa-month-total-label">${te('analytics.total')}</td>` +
       `<td><div class="sxa-month-cell sxa-month-cell--ytd" style="background:${BRAND};">${(grandTotalPct >= 0 ? '+' : '') + grandTotalPct.toFixed(2)}%</div></td></tr>`
     html += '</tbody>'
 
@@ -2439,7 +2491,9 @@ export function initAnalyticsPage(
     const cellClass = mini ? 'sxa-cal-mini-cell' : 'sxa-cal-cell'
     let html = ''
     if (!mini) {
-      for (const d of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) html += `<div class="sxa-cal-dow">${d}</div>`
+      // Jan 1 2024 was a Monday, so offsets 0..6 give Mon..Sun in the active language.
+      const dowFmt = new Intl.DateTimeFormat(activeLocaleTag(), { weekday: 'short' })
+      for (let i = 0; i < 7; i++) html += `<div class="sxa-cal-dow">${dowFmt.format(new Date(2024, 0, 1 + i))}</div>`
     }
     for (let i = 0; i < startOffset; i++) html += `<div class="${cellClass} sxa-cal-cell--other"></div>`
 
@@ -2459,12 +2513,12 @@ export function initAnalyticsPage(
         const intensity = mini ? 0.85 : Math.min(Math.abs(colorVal) / (calMetric === 'dollar' ? 2000 : calMetric === 'rr' ? 2 : isWinRate ? 50 : 3), 1)
         const bg = colorVal >= 0 ? `rgba(26,157,92,${0.35 + intensity * 0.55})` : `rgba(214,69,90,${0.35 + intensity * 0.55})`
         if (mini) {
-          html += `<div class="${cellClass} sxa-cal-cell--data" style="background:${bg};" title="${val.display} \u00b7 ${val.count} trade(s)">${d}</div>`
+          html += `<div class="${cellClass} sxa-cal-cell--data" style="background:${bg};" title="${val.display} \u00b7 ${sxaEscapeAttrTopLevel(tCount('unit.trades', val.count, { count: val.count }))}">${d}</div>`
         } else {
           html += `<div class="${cellClass} sxa-cal-cell--data" style="background:${bg};">
             <div class="sxa-cd-num">${d}</div>
             <div class="sxa-cd-val">${val.display}</div>
-            <div class="sxa-cd-count">${val.count} trade${val.count > 1 ? 's' : ''}</div>
+            <div class="sxa-cd-count">${sxaEscapeAttrTopLevel(tCount('unit.trades', val.count, { count: val.count }))}</div>
           </div>`
         }
       }
@@ -2476,7 +2530,7 @@ export function initAnalyticsPage(
     const container = root.querySelector<HTMLElement>('[data-sxa-cal-container]')
     const label = root.querySelector<HTMLElement>('[data-sxa-cal-label]')
     if (!container || !label) return
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    const monthNames = sxaMonthNames('long')
 
     if (calView === 'month') {
       label.textContent = `${monthNames[calDate.getMonth()]} ${calDate.getFullYear()}`
@@ -2546,7 +2600,7 @@ export function initAnalyticsPage(
     if (canvas) {
       const labels = episodes.map((e) => {
         const d = new Date(e.peakTimeMs)
-        return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} \u2013 ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+        return `${d.toLocaleDateString(activeLocaleTag(), { month: 'short', day: 'numeric' })} \u2013 ${d.toLocaleTimeString(activeLocaleTag(), { hour: 'numeric', minute: '2-digit' })}`
       })
       const values = episodes.map((e) => -(ddUnit === 'pct' ? e.depthPct : e.depthDollar))
       const ctx = canvas.getContext('2d')
@@ -2597,10 +2651,10 @@ export function initAnalyticsPage(
     const statsHost = root.querySelector<HTMLElement>('[data-sxa-drawdown-stats]')
     if (statsHost) {
       statsHost.innerHTML = `
-        <div class="sxa-accent-card"><div class="sxa-a-label">Max drawdown ${infoDot('The biggest drop in your account, measured from its highest point (peak) down to its lowest point (trough), before it goes back up again.', 'max drawdown')}</div><div class="sxa-a-value">-${maxDD.toFixed(2)}%</div></div>
-        <div class="sxa-accent-card"><div class="sxa-a-label">Avg drawdown on equity ${infoDot('On average, how much your account goes down during losing periods.', 'average drawdown on equity')}</div><div class="sxa-a-value">-${avgDD.toFixed(2)}%</div></div>
-        <div class="sxa-accent-card"><div class="sxa-a-label">Time to recovery (days) ${infoDot('Average number of days it takes to recover from a drawdown.', 'time to recovery')}</div><div class="sxa-a-value">${avgRecoveryDays.toFixed(1)}</div></div>
-        <div class="sxa-accent-card"><div class="sxa-a-label">Drawdown frequency ${infoDot('How many times your account has gone into a drawdown.', 'drawdown frequency')}</div><div class="sxa-a-value">${frequencyPerWeek.toFixed(1)}<span class="sxa-a-unit">/wk</span></div></div>`
+        <div class="sxa-accent-card"><div class="sxa-a-label">${te('analytics.maxDrawdown')} ${infoDot('analytics.tip.maxDrawdown')}</div><div class="sxa-a-value">-${maxDD.toFixed(2)}%</div></div>
+        <div class="sxa-accent-card"><div class="sxa-a-label">${te('analytics.avgDrawdownEquity')} ${infoDot('analytics.tip.avgDrawdownEquity')}</div><div class="sxa-a-value">-${avgDD.toFixed(2)}%</div></div>
+        <div class="sxa-accent-card"><div class="sxa-a-label">${te('analytics.timeToRecovery')} ${infoDot('analytics.tip.timeToRecovery')}</div><div class="sxa-a-value">${avgRecoveryDays.toFixed(1)}</div></div>
+        <div class="sxa-accent-card"><div class="sxa-a-label">${te('analytics.drawdownFrequency')} ${infoDot('analytics.tip.drawdownFrequency')}</div><div class="sxa-a-value">${frequencyPerWeek.toFixed(1)}<span class="sxa-a-unit">/${te('analytics.unitWeek')}</span></div></div>`
     }
   }
 
@@ -2620,8 +2674,8 @@ export function initAnalyticsPage(
       <div class="sxa-mc-num">
         <input type="number" ${attr} value="${value}" ${extraAttrs}>
         <div class="sxa-mc-num__stepper">
-          <button type="button" class="sxa-mc-num__btn" data-sxa-mc-num-step="${attr}:1" aria-label="Increase"><i class="fa-solid fa-chevron-up" aria-hidden="true"></i></button>
-          <button type="button" class="sxa-mc-num__btn" data-sxa-mc-num-step="${attr}:-1" aria-label="Decrease"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
+          <button type="button" class="sxa-mc-num__btn" data-sxa-mc-num-step="${attr}:1" aria-label="${te('analytics.increase')}"><i class="fa-solid fa-chevron-up" aria-hidden="true"></i></button>
+          <button type="button" class="sxa-mc-num__btn" data-sxa-mc-num-step="${attr}:-1" aria-label="${te('analytics.decrease')}"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
         </div>
       </div>`
 
@@ -2631,14 +2685,14 @@ export function initAnalyticsPage(
     const host = root.querySelector<HTMLElement>('[data-sxa-mc-input-grid]')
     if (!host) return
     host.innerHTML = `
-      <div class="sxa-mc-field sxa-mc-field--nsim"><label>N. Simulations</label>${mcNumField('data-sxa-mc-nsim', 10, 'min="1" max="50" step="1"')}</div>
-      <div class="sxa-mc-field"><label>Trades per sim</label>${mcNumField('data-sxa-mc-trades', 200, 'min="10" max="1000" step="10"')}</div>
-      <div class="sxa-mc-field"><label>Start balance $</label>${mcNumField('data-sxa-mc-start', startingBalance, 'step="1000"')}</div>
-      <div class="sxa-mc-field"><label>Avg Gain</label>${mcNumField('data-sxa-mc-gain', d.avgGain.toFixed(2), 'step="1"')}</div>
-      <div class="sxa-mc-field"><label>Avg Loss</label>${mcNumField('data-sxa-mc-loss', d.avgLoss.toFixed(2), 'step="1"')}</div>
-      <div class="sxa-mc-field"><label>Win rate %</label>${mcNumField('data-sxa-mc-winrate', d.winRate.toFixed(2), 'step="0.1" min="0" max="100"')}</div>
-      <button type="button" class="sxa-export-btn" data-sxa-mc-reset>Reset values</button>
-      <button type="button" class="sxa-run-btn" data-sxa-mc-run>Start simulation</button>`
+      <div class="sxa-mc-field sxa-mc-field--nsim"><label>${te('analytics.mc.nSimulations')}</label>${mcNumField('data-sxa-mc-nsim', 10, 'min="1" max="50" step="1"')}</div>
+      <div class="sxa-mc-field"><label>${te('analytics.mc.tradesPerSim')}</label>${mcNumField('data-sxa-mc-trades', 200, 'min="10" max="1000" step="10"')}</div>
+      <div class="sxa-mc-field"><label>${te('analytics.mc.startBalance')}</label>${mcNumField('data-sxa-mc-start', startingBalance, 'step="1000"')}</div>
+      <div class="sxa-mc-field"><label>${te('analytics.mc.avgGain')}</label>${mcNumField('data-sxa-mc-gain', d.avgGain.toFixed(2), 'step="1"')}</div>
+      <div class="sxa-mc-field"><label>${te('analytics.mc.avgLoss')}</label>${mcNumField('data-sxa-mc-loss', d.avgLoss.toFixed(2), 'step="1"')}</div>
+      <div class="sxa-mc-field"><label>${te('analytics.mc.winRatePct')}</label>${mcNumField('data-sxa-mc-winrate', d.winRate.toFixed(2), 'step="0.1" min="0" max="100"')}</div>
+      <button type="button" class="sxa-export-btn" data-sxa-mc-reset>${te('analytics.mc.resetValues')}</button>
+      <button type="button" class="sxa-run-btn" data-sxa-mc-run>${te('analytics.mc.startSimulation')}</button>`
   }
 
   function runMonteCarloFromInputs() {
@@ -2747,12 +2801,12 @@ export function initAnalyticsPage(
             const color = MC_PALETTE[dsIndex % MC_PALETTE.length]
             return `<div class="sxa-mc-tip-row">
               <span class="sxa-dot" style="background:${color}"></span>
-              <span class="sxa-mc-tip-lbl">Simulation ${dsIndex + 1}:</span>
+              <span class="sxa-mc-tip-lbl">${te('analytics.mc.simulationN', { n: dsIndex + 1 })}</span>
               <span class="sxa-mc-tip-val">$${Number(p.parsed.y).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>`
           })
           .join('')
-        tooltipPanel.innerHTML = `<div class="sxa-mc-tip-index">Trade ${tooltip.dataPoints[0].label}</div>${rows}`
+        tooltipPanel.innerHTML = `<div class="sxa-mc-tip-index">${te('analytics.mc.tradeN', { n: tooltip.dataPoints[0].label })}</div>${rows}`
         tooltipPanel.classList.add('sxa-mc-tooltip-panel--visible')
 
         // Follow the cursor: sit beside the hovered point, flipping to the opposite side
@@ -2812,14 +2866,14 @@ export function initAnalyticsPage(
     const statsHost = root.querySelector<HTMLElement>('[data-sxa-mc-stats]')
     if (statsHost) {
       statsHost.innerHTML = `
-        <div class="sxa-sim-stat"><div class="sxa-s-label">Average balance</div><div class="sxa-s-value">$${avgFinal.toLocaleString('en-US', { maximumFractionDigits: 2 })}</div></div>
-        <div class="sxa-sim-stat"><div class="sxa-s-label">Max balance</div><div class="sxa-s-value" style="color:${GAIN}">$${maxFinal.toLocaleString('en-US', { maximumFractionDigits: 2 })}</div></div>
-        <div class="sxa-sim-stat"><div class="sxa-s-label">Min balance</div><div class="sxa-s-value" style="color:${LOSS}">$${minFinal.toLocaleString('en-US', { maximumFractionDigits: 2 })}</div></div>
-        <div class="sxa-sim-stat"><div class="sxa-s-label">Average profit factor</div><div class="sxa-s-value">${avgProfitFactor.toFixed(2)}</div></div>
-        <div class="sxa-sim-stat"><div class="sxa-s-label">Max consecutive wins</div><div class="sxa-s-value" style="color:${GAIN}">${avgMaxWinStreak.toFixed(0)}</div></div>
-        <div class="sxa-sim-stat"><div class="sxa-s-label">Max consecutive losses</div><div class="sxa-s-value" style="color:${LOSS}">${avgMaxLossStreak.toFixed(0)}</div></div>
-        <div class="sxa-sim-stat"><div class="sxa-s-label">Total wins</div><div class="sxa-s-value" style="color:${GAIN}">${totalWins.toLocaleString()}</div></div>
-        <div class="sxa-sim-stat"><div class="sxa-s-label">Total losses</div><div class="sxa-s-value" style="color:${LOSS}">${totalLosses.toLocaleString()}</div></div>`
+        <div class="sxa-sim-stat"><div class="sxa-s-label">${te('analytics.mc.averageBalance')}</div><div class="sxa-s-value">$${avgFinal.toLocaleString(activeLocaleTag(), { maximumFractionDigits: 2 })}</div></div>
+        <div class="sxa-sim-stat"><div class="sxa-s-label">${te('analytics.mc.maxBalance')}</div><div class="sxa-s-value" style="color:${GAIN}">$${maxFinal.toLocaleString(activeLocaleTag(), { maximumFractionDigits: 2 })}</div></div>
+        <div class="sxa-sim-stat"><div class="sxa-s-label">${te('analytics.mc.minBalance')}</div><div class="sxa-s-value" style="color:${LOSS}">$${minFinal.toLocaleString(activeLocaleTag(), { maximumFractionDigits: 2 })}</div></div>
+        <div class="sxa-sim-stat"><div class="sxa-s-label">${te('analytics.mc.avgProfitFactor')}</div><div class="sxa-s-value">${avgProfitFactor.toFixed(2)}</div></div>
+        <div class="sxa-sim-stat"><div class="sxa-s-label">${te('analytics.maxConsecutiveWins')}</div><div class="sxa-s-value" style="color:${GAIN}">${avgMaxWinStreak.toFixed(0)}</div></div>
+        <div class="sxa-sim-stat"><div class="sxa-s-label">${te('analytics.maxConsecutiveLosses')}</div><div class="sxa-s-value" style="color:${LOSS}">${avgMaxLossStreak.toFixed(0)}</div></div>
+        <div class="sxa-sim-stat"><div class="sxa-s-label">${te('analytics.mc.totalWins')}</div><div class="sxa-s-value" style="color:${GAIN}">${totalWins.toLocaleString(activeLocaleTag())}</div></div>
+        <div class="sxa-sim-stat"><div class="sxa-s-label">${te('analytics.mc.totalLosses')}</div><div class="sxa-s-value" style="color:${LOSS}">${totalLosses.toLocaleString(activeLocaleTag())}</div></div>`
     }
   }
 
@@ -2957,7 +3011,7 @@ export function initAnalyticsPage(
       .map(
         (s) => `
       <tr class="${s.chip.isCurrent ? 'sxa-current-row' : ''}">
-        <td><div class="sxa-rr-row-label"><span class="sxa-dot" style="background:${s.chip.color}"></span>${fmtRR(s.chip.value)}${s.chip.isCurrent ? ' <span class="sxa-rr-row-current">(Current RR)</span>' : ''}</div></td>
+        <td><div class="sxa-rr-row-label"><span class="sxa-dot" style="background:${s.chip.color}"></span>${fmtRR(s.chip.value)}${s.chip.isCurrent ? ` <span class="sxa-rr-row-current">${te('analytics.currentRR')}</span>` : ''}</div></td>
         <td>${cell(s.winRate, s.winRate === bestWinRate, (v) => v.toFixed(0) + '%')}</td>
         <td>${cell(s.profit, s.profit === bestProfit, (v) => fmtPlain(v))}</td>
         <td>${cell(s.profitFactor, s.profitFactor === bestPF, (v) => (isFinite(v) ? v.toFixed(2) : '\u221e'))}</td>
@@ -2969,7 +3023,7 @@ export function initAnalyticsPage(
     const table = root.querySelector<HTMLElement>('[data-sxa-rr-results-table]')
     if (table) {
       table.innerHTML = `
-        <thead><tr><th>Avg R</th><th>Win Rate</th><th>Profit</th><th>Profit Factor</th><th>Avg Drawdown</th></tr></thead>
+        <thead><tr><th>${te('analytics.avgR')}</th><th>${te('analytics.winRate')}</th><th>${te('analytics.profit')}</th><th>${te('analytics.profitFactor')}</th><th>${te('analytics.avgDrawdown')}</th></tr></thead>
         <tbody>${rows}</tbody>`
     }
 
@@ -2978,7 +3032,7 @@ export function initAnalyticsPage(
       const presetScenarios = scenarios.filter((s) => !s.chip.isCurrent)
       if (presetScenarios.length) {
         const best = presetScenarios.reduce((a, b) => (isFinite(b.profitFactor) && b.profitFactor > a.profitFactor ? b : a))
-        bestLine.innerHTML = `Based on your analytics the RR of <strong style="color:${best.chip.color}">${best.chip.value.toFixed(1)}</strong> gives you the best results overall`
+        bestLine.innerHTML = translate('analytics.bestRRLine', { value: `<strong style="color:${best.chip.color}">${best.chip.value.toFixed(1)}</strong>` })
       } else {
         bestLine.textContent = ''
       }
@@ -3135,7 +3189,7 @@ export function initAnalyticsPage(
       .map(
         (s) => `
       <tr class="${s.chip.isCurrent ? 'sxa-current-row' : ''}">
-        <td><div class="sxa-rr-row-label"><span class="sxa-dot" style="background:${s.chip.color}"></span>${s.chip.isCurrent ? 'Current <span class="sxa-rr-row-current">(no change)</span>' : `\u2212${s.chip.value.toFixed(0)}% stop`}</div></td>
+        <td><div class="sxa-rr-row-label"><span class="sxa-dot" style="background:${s.chip.color}"></span>${s.chip.isCurrent ? `${te('analytics.current')} <span class="sxa-rr-row-current">${te('analytics.noChange')}</span>` : te('analytics.stopReducedBy', { pct: s.chip.value.toFixed(0) })}</div></td>
         <td>${cell(s.winRate, s.winRate === bestWinRate, (v) => v.toFixed(0) + '%')}</td>
         <td>${cell(s.profit, s.profit === bestProfit, (v) => fmtPlain(v))}</td>
         <td>${cell(s.profitFactor, s.profitFactor === bestPF, (v) => (isFinite(v) ? v.toFixed(2) : '\u221e'))}</td>
@@ -3147,7 +3201,7 @@ export function initAnalyticsPage(
     const table = root.querySelector<HTMLElement>('[data-sxa-sl-results-table]')
     if (table) {
       table.innerHTML = `
-        <thead><tr><th>Stop reduction</th><th>Win Rate</th><th>Profit</th><th>Profit Factor</th><th>Avg Drawdown</th></tr></thead>
+        <thead><tr><th>${te('analytics.stopReduction')}</th><th>${te('analytics.winRate')}</th><th>${te('analytics.profit')}</th><th>${te('analytics.profitFactor')}</th><th>${te('analytics.avgDrawdown')}</th></tr></thead>
         <tbody>${rows}</tbody>`
     }
 
@@ -3158,7 +3212,7 @@ export function initAnalyticsPage(
         const best = presetScenarios.reduce((a, b) => (isFinite(b.profitFactor) && b.profitFactor > a.profitFactor ? b : a))
         bestLine.innerHTML = best.chip.value === 0
           ? ''
-          : `Based on your analytics, reducing your stop loss by <strong style="color:${best.chip.color}">${best.chip.value.toFixed(0)}%</strong> gives you the best results overall`
+          : translate('analytics.bestStopLine', { value: `<strong style="color:${best.chip.color}">${best.chip.value.toFixed(0)}%</strong>` })
       } else {
         bestLine.textContent = ''
       }
@@ -3167,7 +3221,7 @@ export function initAnalyticsPage(
     const hint = root.querySelector<HTMLElement>('[data-sxa-sl-coverage-hint]')
     if (hint) {
       const withPrice = trades.filter((t) => maeRCache.get(t.id) != null).length
-      hint.textContent = trades.length ? `${withPrice} of ${trades.length} trades have price data available for simulation.` : '\u00a0'
+      hint.textContent = trades.length ? translate('analytics.priceDataCoverage', { with: withPrice, total: trades.length }) : '\u00a0'
     }
   }
 
@@ -3255,15 +3309,22 @@ export function initAnalyticsPage(
     renderSimulationTab()
   }
 
+  function showMainTab(tab: AnalyticsTabSegment) {
+    root
+      .querySelectorAll('[data-sxa-main-tabs] [data-sxa-tab]')
+      .forEach((b) => b.classList.toggle('sxa-tab-nav__btn--active', b.getAttribute('data-sxa-tab') === tab))
+    root.querySelectorAll('[data-sxa-panel]').forEach((p) => p.classList.toggle('sxa-tab-panel--active', p.getAttribute('data-sxa-panel') === tab))
+    if (tab === 'simulation') renderSimulationTab()
+    if (tab === 'drawdown') renderDrawdownTab()
+  }
+
   // Wire events once.
   root.querySelectorAll<HTMLButtonElement>('[data-sxa-main-tabs] [data-sxa-tab]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      root.querySelectorAll('[data-sxa-main-tabs] [data-sxa-tab]').forEach((b) => b.classList.remove('sxa-tab-nav__btn--active'))
-      btn.classList.add('sxa-tab-nav__btn--active')
-      const tab = btn.getAttribute('data-sxa-tab')
-      root.querySelectorAll('[data-sxa-panel]').forEach((p) => p.classList.toggle('sxa-tab-panel--active', p.getAttribute('data-sxa-panel') === tab))
-      if (tab === 'simulation') renderSimulationTab()
-      if (tab === 'drawdown') renderDrawdownTab()
+      const tab = btn.getAttribute('data-sxa-tab') ?? ''
+      if (!isAnalyticsTabSegment(tab)) return
+      showMainTab(tab)
+      opts.onTabChange?.(tab)
     })
   })
 
@@ -3591,7 +3652,7 @@ export function initAnalyticsPage(
       return
     }
     if (t.closest('[data-sxa-rr-add-new]')) {
-      void showSxaNumberPrompt({ label: 'Enter a custom R-multiple target (e.g. 2.75):', placeholder: '2.75' }).then((val) => {
+      void showSxaNumberPrompt({ label: translate('analytics.promptCustomR'), placeholder: '2.75' }).then((val) => {
         if (val != null && val > 0) {
           const color = RR_PALETTE[rrChips.length % RR_PALETTE.length]!
           rrChips.push({ value: val, color, active: true, isCurrent: false })
@@ -3612,7 +3673,7 @@ export function initAnalyticsPage(
       return
     }
     if (t.closest('[data-sxa-sl-add-new]')) {
-      void showSxaNumberPrompt({ label: 'Enter a custom stop loss reduction % (e.g. 40):', placeholder: '40' }).then((val) => {
+      void showSxaNumberPrompt({ label: translate('analytics.promptCustomStop'), placeholder: '40' }).then((val) => {
         if (val != null && val > 0 && val < 100) {
           const color = SL_PALETTE[slChips.length % SL_PALETTE.length]!
           slChips.push({ value: val, color, active: true, isCurrent: false })
@@ -3691,5 +3752,5 @@ export function initAnalyticsPage(
     })
   })
 
-  return { renderAll }
+  return { renderAll, showTab: showMainTab }
 }

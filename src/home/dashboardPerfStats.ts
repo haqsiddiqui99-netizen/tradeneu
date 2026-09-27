@@ -1,6 +1,28 @@
 import type { StoredSession } from '../data/sessionStore'
 import { listBattles, type BattleRecord } from '../battles/battleStore'
 import { primarySessionSymbol } from '../sessionTypes'
+import { activeLocaleTag } from '../i18n'
+
+/**
+ * Chart labels (month/day names) follow the active dashboard language via
+ * `Intl`, so they don't need their own translation dictionary — the browser's
+ * locale data already knows "Apr" is "abr" in Spanish, "Avr" in French, etc.
+ */
+export function monthShortLabel(year: number, month: number): string {
+  return new Intl.DateTimeFormat(activeLocaleTag(), { month: 'short' }).format(new Date(year, month, 1))
+}
+
+function monthShortFirstLetter(month: number): string {
+  return monthShortLabel(2024, month).charAt(0).toUpperCase()
+}
+
+function dayLetterLabel(d: Date): string {
+  return new Intl.DateTimeFormat(activeLocaleTag(), { weekday: 'narrow' }).format(d)
+}
+
+function dayShortLabel(d: Date): string {
+  return new Intl.DateTimeFormat(activeLocaleTag(), { weekday: 'short' }).format(d)
+}
 
 export type DashboardPerfMode = 'backtest' | 'battles' | 'prop' | 'all'
 export type DashboardPerfRange = 'week' | 'month' | 'lifetime'
@@ -25,8 +47,6 @@ function collectBattlePnlEvents(range: DashboardPerfRange, now = Date.now()): Pn
 }
 
 export const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const DAY_LETTER = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function sessionMatchesPerfMode(session: StoredSession, mode: DashboardPerfMode): boolean {
   if (mode === 'all') return true
@@ -290,7 +310,7 @@ function bucketDailyForChart(
     for (let i = 0; i < nDays; i++) {
       const day = new Date(start)
       day.setDate(start.getDate() + i)
-      labels[i] = `${MONTH_SHORT[day.getMonth()]} ${String(day.getDate()).padStart(2, '0')}`
+      labels[i] = `${monthShortLabel(day.getFullYear(), day.getMonth())} ${String(day.getDate()).padStart(2, '0')}`
     }
     for (const e of events) {
       const d = startOfLocalDay(new Date(e.ts))
@@ -327,7 +347,7 @@ function bucketDailyForChart(
 }
 
 function formatChartDayLabel(d: Date): string {
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return d.toLocaleString(activeLocaleTag(), { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function bucketMonthly(events: PnlEvent[], now = new Date()): number[] {
@@ -412,6 +432,7 @@ export function buildDashboardPerfChartSvg(
   let xLabels: string[]
 
   if (view === 'monthly') {
+    let labelYear = nowDate.getFullYear()
     vals = bucketMonthly(events, nowDate)
     if (events.length > 0 && vals.every((v) => Math.abs(v) < 1e-9)) {
       let latest = events[0]!
@@ -419,8 +440,9 @@ export function buildDashboardPerfChartSvg(
         if (e.ts > latest.ts) latest = e
       }
       vals = bucketMonthly(events, new Date(latest.ts))
+      labelYear = new Date(latest.ts).getFullYear()
     }
-    xLabels = MONTH_SHORT
+    xLabels = MONTH_SHORT.map((_, i) => monthShortLabel(labelYear, i))
   } else {
     const daily = bucketDailyForChart(events, range, nowDate)
     vals = daily.vals
@@ -650,8 +672,8 @@ export function computeEquityCurveSeries(
   }
 
   return {
-    labels: MONTH_SHORT.map((m) => m[0]!),
-    monthLabels: MONTH_SHORT.map((m) => `${m} ${year}`),
+    labels: MONTH_SHORT.map((_, i) => monthShortFirstLetter(i)),
+    monthLabels: MONTH_SHORT.map((_, i) => `${monthShortLabel(year, i)} ${year}`),
     cumulative,
     firstActivityIndex: counts.findIndex((c) => c > 0),
     lastActivityIndex: counts.reduce((last, c, i) => (c > 0 ? i : last), -1),
@@ -979,7 +1001,7 @@ export function computeSessionPulseStats(
     practiceMonths.push({
       year,
       month,
-      label: `${MONTH_SHORT[month]} ${year}`,
+      label: `${monthShortLabel(year, month)} ${year}`,
       practiceMs: practiceMonthMap.get(key) ?? 0,
     })
   }
@@ -995,8 +1017,8 @@ export function computeSessionPulseStats(
       year,
       month,
       date,
-      label: DAY_LETTER[d.getDay()] ?? '',
-      fullLabel: `${DAY_SHORT[d.getDay()]}, ${MONTH_SHORT[month]} ${date}`,
+      label: dayLetterLabel(d),
+      fullLabel: `${dayShortLabel(d)}, ${monthShortLabel(year, month)} ${date}`,
       practiceMs: practiceDayMap.get(key) ?? 0,
     })
   }
@@ -1010,8 +1032,8 @@ export function computeSessionPulseStats(
     const label = `${String(weekStart.getDate()).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`
     const sameMonth = weekStart.getMonth() === weekEnd.getMonth()
     const fullLabel = sameMonth
-      ? `${MONTH_SHORT[weekStart.getMonth()]} ${weekStart.getDate()}–${weekEnd.getDate()}`
-      : `${MONTH_SHORT[weekStart.getMonth()]} ${weekStart.getDate()}–${MONTH_SHORT[weekEnd.getMonth()]} ${weekEnd.getDate()}`
+      ? `${monthShortLabel(weekStart.getFullYear(), weekStart.getMonth())} ${weekStart.getDate()}–${weekEnd.getDate()}`
+      : `${monthShortLabel(weekStart.getFullYear(), weekStart.getMonth())} ${weekStart.getDate()}–${monthShortLabel(weekEnd.getFullYear(), weekEnd.getMonth())} ${weekEnd.getDate()}`
     practiceWeeks.push({
       weekStartMs,
       label,
@@ -1041,7 +1063,7 @@ export function computeSessionPulseStats(
     winRateMonths.push({
       year,
       month,
-      label: `${MONTH_SHORT[month]} ${year}`,
+      label: `${monthShortLabel(year, month)} ${year}`,
       winRate: monthTrades > 0 ? (monthWins / monthTrades) * 100 : null,
       trades: monthTrades,
     })
@@ -1162,8 +1184,8 @@ export function buildPulseActivityChartSvg(
             year: d.getFullYear(),
             month: d.getMonth(),
             date: d.getDate(),
-            label: DAY_LETTER[d.getDay()] ?? '',
-            fullLabel: `${DAY_SHORT[d.getDay()]}, ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`,
+            label: dayLetterLabel(d),
+            fullLabel: `${dayShortLabel(d)}, ${monthShortLabel(d.getFullYear(), d.getMonth())} ${d.getDate()}`,
             practiceMs: 0,
           }
         })

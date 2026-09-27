@@ -6,16 +6,17 @@
  * fields a StrategyDefinition needs; the single AI call happens at the end, once
  * every answer is collected (see buildInterviewDescription).
  */
+import { t, type MessageKey } from '../i18n'
 
-export type InterviewOption = { id: string; label: string }
+export type InterviewOption = { id: string; msgKey: MessageKey }
 
 export type InterviewAnswers = Record<string, string[]>
 
 export type InterviewQuestion = {
   id: string
-  prompt: string
+  promptKey: MessageKey
   /** Summary label used when replaying the answer back into the AI prompt. */
-  summary: string
+  summaryKey: MessageKey
   multi?: boolean
   options: InterviewOption[]
   /** Skipped entirely when this returns false for the answers gathered so far. */
@@ -23,153 +24,160 @@ export type InterviewQuestion = {
 }
 
 /** Recorded when the trader picks "I don't know — suggest one". */
-export const SUGGEST_ANSWER = "Not sure \u2014 pick whatever fits the rest of the strategy"
+export const SUGGEST_ANSWER = 'Not sure \u2014 pick whatever fits the rest of the strategy'
 
-function picked(answers: InterviewAnswers, questionId: string, label: string): boolean {
-  return (answers[questionId] ?? []).includes(label)
+function picked(answers: InterviewAnswers, questionId: string, optionId: string): boolean {
+  return (answers[questionId] ?? []).includes(optionId)
+}
+
+function labelForPick(question: InterviewQuestion, pick: string): string {
+  if (pick === SUGGEST_ANSWER) return pick
+  const opt = question.options.find((o) => o.id === pick)
+  if (opt) return t(opt.msgKey)
+  return pick
 }
 
 export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
   {
     id: 'markets',
-    prompt: 'Which markets do you trade?',
-    summary: 'Markets',
+    promptKey: 'strategy.interview.q.markets.prompt',
+    summaryKey: 'strategy.interview.q.markets.summary',
     multi: true,
     options: [
-      { id: 'forex', label: 'Forex' },
-      { id: 'futures', label: 'Futures' },
-      { id: 'crypto', label: 'Crypto' },
-      { id: 'stocks', label: 'Stocks/Equities' },
+      { id: 'forex', msgKey: 'strategy.interview.q.markets.opt.forex' },
+      { id: 'futures', msgKey: 'strategy.interview.q.markets.opt.futures' },
+      { id: 'crypto', msgKey: 'strategy.interview.q.markets.opt.crypto' },
+      { id: 'stocks', msgKey: 'strategy.interview.q.markets.opt.stocks' },
     ],
   },
   {
     id: 'futuresContracts',
-    prompt: 'Which futures contract(s) do you trade?',
-    summary: 'Futures contracts',
+    promptKey: 'strategy.interview.q.futuresContracts.prompt',
+    summaryKey: 'strategy.interview.q.futuresContracts.summary',
     multi: true,
-    when: (a) => picked(a, 'markets', 'Futures'),
+    when: (a) => picked(a, 'markets', 'futures'),
     options: [
-      { id: 'nq', label: 'NQ (Nasdaq)' },
-      { id: 'es', label: 'ES (S&P 500)' },
-      { id: 'gc', label: 'Gold (GC)' },
+      { id: 'nq', msgKey: 'strategy.interview.q.futuresContracts.opt.nq' },
+      { id: 'es', msgKey: 'strategy.interview.q.futuresContracts.opt.es' },
+      { id: 'gc', msgKey: 'strategy.interview.q.futuresContracts.opt.gc' },
     ],
   },
   {
     id: 'forexPairs',
-    prompt: 'Which pairs do you trade?',
-    summary: 'Forex pairs',
+    promptKey: 'strategy.interview.q.forexPairs.prompt',
+    summaryKey: 'strategy.interview.q.forexPairs.summary',
     multi: true,
-    when: (a) => picked(a, 'markets', 'Forex'),
+    when: (a) => picked(a, 'markets', 'forex'),
     options: [
-      { id: 'eurusd', label: 'EUR/USD' },
-      { id: 'gbpusd', label: 'GBP/USD' },
-      { id: 'xauusd', label: 'XAU/USD (Gold)' },
-      { id: 'usdjpy', label: 'USD/JPY' },
+      { id: 'eurusd', msgKey: 'strategy.interview.q.forexPairs.opt.eurusd' },
+      { id: 'gbpusd', msgKey: 'strategy.interview.q.forexPairs.opt.gbpusd' },
+      { id: 'xauusd', msgKey: 'strategy.interview.q.forexPairs.opt.xauusd' },
+      { id: 'usdjpy', msgKey: 'strategy.interview.q.forexPairs.opt.usdjpy' },
     ],
   },
   {
     id: 'cryptoPairs',
-    prompt: 'Which crypto pairs do you trade?',
-    summary: 'Crypto pairs',
+    promptKey: 'strategy.interview.q.cryptoPairs.prompt',
+    summaryKey: 'strategy.interview.q.cryptoPairs.summary',
     multi: true,
-    when: (a) => picked(a, 'markets', 'Crypto'),
+    when: (a) => picked(a, 'markets', 'crypto'),
     options: [
-      { id: 'btc', label: 'BTC/USD' },
-      { id: 'eth', label: 'ETH/USD' },
-      { id: 'sol', label: 'SOL/USD' },
+      { id: 'btc', msgKey: 'strategy.interview.q.cryptoPairs.opt.btc' },
+      { id: 'eth', msgKey: 'strategy.interview.q.cryptoPairs.opt.eth' },
+      { id: 'sol', msgKey: 'strategy.interview.q.cryptoPairs.opt.sol' },
     ],
   },
   {
     id: 'tickers',
-    prompt: 'Which tickers or ETFs do you trade?',
-    summary: 'Tickers',
+    promptKey: 'strategy.interview.q.tickers.prompt',
+    summaryKey: 'strategy.interview.q.tickers.summary',
     multi: true,
-    when: (a) => picked(a, 'markets', 'Stocks/Equities'),
+    when: (a) => picked(a, 'markets', 'stocks'),
     options: [
-      { id: 'spy', label: 'SPY' },
-      { id: 'qqq', label: 'QQQ' },
-      { id: 'aapl', label: 'AAPL' },
-      { id: 'nvda', label: 'NVDA' },
+      { id: 'spy', msgKey: 'strategy.interview.q.tickers.opt.spy' },
+      { id: 'qqq', msgKey: 'strategy.interview.q.tickers.opt.qqq' },
+      { id: 'aapl', msgKey: 'strategy.interview.q.tickers.opt.aapl' },
+      { id: 'nvda', msgKey: 'strategy.interview.q.tickers.opt.nvda' },
     ],
   },
   {
     id: 'timeframe',
-    prompt: 'What timeframe do you make your decisions on?',
-    summary: 'Timeframe',
+    promptKey: 'strategy.interview.q.timeframe.prompt',
+    summaryKey: 'strategy.interview.q.timeframe.summary',
     options: [
-      { id: '1m', label: '1 minute' },
-      { id: '5m', label: '5 minute' },
-      { id: '15m', label: '15 minute' },
-      { id: '1h', label: '1 hour' },
-      { id: '4h', label: '4 hour' },
-      { id: '1d', label: 'Daily' },
+      { id: '1m', msgKey: 'strategy.interview.q.timeframe.opt.1m' },
+      { id: '5m', msgKey: 'strategy.interview.q.timeframe.opt.5m' },
+      { id: '15m', msgKey: 'strategy.interview.q.timeframe.opt.15m' },
+      { id: '1h', msgKey: 'strategy.interview.q.timeframe.opt.1h' },
+      { id: '4h', msgKey: 'strategy.interview.q.timeframe.opt.4h' },
+      { id: '1d', msgKey: 'strategy.interview.q.timeframe.opt.1d' },
     ],
   },
   {
     id: 'session',
-    prompt: 'When during the day do you usually trade?',
-    summary: 'Session',
+    promptKey: 'strategy.interview.q.session.prompt',
+    summaryKey: 'strategy.interview.q.session.summary',
     options: [
-      { id: 'london', label: 'London open' },
-      { id: 'ny', label: 'New York open' },
-      { id: 'asia', label: 'Asian session' },
-      { id: 'any', label: 'Any time the setup appears' },
+      { id: 'london', msgKey: 'strategy.interview.q.session.opt.london' },
+      { id: 'ny', msgKey: 'strategy.interview.q.session.opt.ny' },
+      { id: 'asia', msgKey: 'strategy.interview.q.session.opt.asia' },
+      { id: 'any', msgKey: 'strategy.interview.q.session.opt.any' },
     ],
   },
   {
     id: 'style',
-    prompt: 'How would you describe your edge?',
-    summary: 'Style',
+    promptKey: 'strategy.interview.q.style.prompt',
+    summaryKey: 'strategy.interview.q.style.summary',
     options: [
-      { id: 'trend', label: 'Trend following' },
-      { id: 'meanrev', label: 'Mean reversion' },
-      { id: 'breakout', label: 'Breakout' },
-      { id: 'scalp', label: 'Scalping' },
+      { id: 'trend', msgKey: 'strategy.interview.q.style.opt.trend' },
+      { id: 'meanrev', msgKey: 'strategy.interview.q.style.opt.meanrev' },
+      { id: 'breakout', msgKey: 'strategy.interview.q.style.opt.breakout' },
+      { id: 'scalp', msgKey: 'strategy.interview.q.style.opt.scalp' },
     ],
   },
   {
     id: 'entry',
-    prompt: 'What has to happen before you take an entry?',
-    summary: 'Entry trigger',
+    promptKey: 'strategy.interview.q.entry.prompt',
+    summaryKey: 'strategy.interview.q.entry.summary',
     multi: true,
     options: [
-      { id: 'ma', label: 'A moving average cross or touch' },
-      { id: 'rsi', label: 'RSI reaches an extreme' },
-      { id: 'break', label: 'Price breaks a prior high or low' },
-      { id: 'pullback', label: 'Price pulls back into a level' },
+      { id: 'ma', msgKey: 'strategy.interview.q.entry.opt.ma' },
+      { id: 'rsi', msgKey: 'strategy.interview.q.entry.opt.rsi' },
+      { id: 'break', msgKey: 'strategy.interview.q.entry.opt.break' },
+      { id: 'pullback', msgKey: 'strategy.interview.q.entry.opt.pullback' },
     ],
   },
   {
     id: 'stop',
-    prompt: 'Where does your stop loss go?',
-    summary: 'Stop placement',
+    promptKey: 'strategy.interview.q.stop.prompt',
+    summaryKey: 'strategy.interview.q.stop.summary',
     options: [
-      { id: 'swing', label: 'Beyond the recent swing high/low' },
-      { id: 'atr', label: 'A fixed ATR multiple' },
-      { id: 'pct', label: 'A fixed percentage' },
-      { id: 'points', label: 'A fixed number of points/pips' },
+      { id: 'swing', msgKey: 'strategy.interview.q.stop.opt.swing' },
+      { id: 'atr', msgKey: 'strategy.interview.q.stop.opt.atr' },
+      { id: 'pct', msgKey: 'strategy.interview.q.stop.opt.pct' },
+      { id: 'points', msgKey: 'strategy.interview.q.stop.opt.points' },
     ],
   },
   {
     id: 'target',
-    prompt: 'How do you take profit?',
-    summary: 'Profit target',
+    promptKey: 'strategy.interview.q.target.prompt',
+    summaryKey: 'strategy.interview.q.target.summary',
     options: [
-      { id: 'r', label: 'A fixed R multiple (e.g. 2R)' },
-      { id: 'atr', label: 'An ATR-based target' },
-      { id: 'opposite', label: 'When the opposite signal appears' },
-      { id: 'pct', label: 'A fixed percentage' },
+      { id: 'r', msgKey: 'strategy.interview.q.target.opt.r' },
+      { id: 'atr', msgKey: 'strategy.interview.q.target.opt.atr' },
+      { id: 'opposite', msgKey: 'strategy.interview.q.target.opt.opposite' },
+      { id: 'pct', msgKey: 'strategy.interview.q.target.opt.pct' },
     ],
   },
   {
     id: 'risk',
-    prompt: 'How much do you risk per trade?',
-    summary: 'Risk per trade',
+    promptKey: 'strategy.interview.q.risk.prompt',
+    summaryKey: 'strategy.interview.q.risk.summary',
     options: [
-      { id: 'half', label: '0.5% of the account' },
-      { id: 'one', label: '1% of the account' },
-      { id: 'two', label: '2% of the account' },
-      { id: 'lot', label: 'A fixed position size' },
+      { id: 'half', msgKey: 'strategy.interview.q.risk.opt.half' },
+      { id: 'one', msgKey: 'strategy.interview.q.risk.opt.one' },
+      { id: 'two', msgKey: 'strategy.interview.q.risk.opt.two' },
+      { id: 'lot', msgKey: 'strategy.interview.q.risk.opt.lot' },
     ],
   },
 ]
@@ -193,14 +201,14 @@ export function nextInterviewQuestion(
  */
 export function buildInterviewDescription(answers: InterviewAnswers): string {
   const lines: string[] = [
-    'I answered a guided questionnaire about how I trade. Build an objective, testable strategy from these answers.',
-    'Where an answer says I am not sure, choose a sensible default that fits the rest of the answers.',
+    t('strategy.interview.descIntro1'),
+    t('strategy.interview.descIntro2'),
     '',
   ]
   for (const q of INTERVIEW_QUESTIONS) {
     const picks = answers[q.id]
     if (!picks?.length) continue
-    lines.push(`${q.summary}: ${picks.join(', ')}`)
+    lines.push(`${t(q.summaryKey)}: ${picks.map((p) => labelForPick(q, p)).join(', ')}`)
   }
   return lines.join('\n')
 }

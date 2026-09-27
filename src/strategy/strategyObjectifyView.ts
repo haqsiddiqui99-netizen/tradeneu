@@ -10,6 +10,7 @@
  * clear message rather than silently dropped.
  */
 import './strategyObjectifyView.css'
+import { onLocaleChange, te, t } from '../i18n'
 import type { StrategyDefinition } from '../backtest/BacktestTypes'
 import { parseStrategyJson } from './strategyBuilderFields'
 import { describeStrategyAiError, objectifyStrategy } from '../ai/strategyAiClient'
@@ -57,23 +58,23 @@ function html(): string {
   return `
     <div class="sx-strat-obj">
       <button type="button" class="sx-strat-obj__back" data-sx-obj-back>
-        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Strategies
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> <span data-i18n="strategy.mb.backStrategies">${te('strategy.mb.backStrategies')}</span>
       </button>
 
       <div class="sx-strat-obj__body" data-sx-obj-intake>
         <p class="sx-strat-obj__lead">
           <span class="sx-strat-obj__lead-icon" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
-          <span>Let\u2019s turn your strategy into a clean, testable document. Your rules can live anywhere \u2014 upload a file or write them out here.</span>
+          <span data-i18n="strategy.obj.lead">${te('strategy.obj.lead')}</span>
         </p>
 
         <div class="sx-strat-obj__choices">
           <button type="button" class="sx-strat-obj__choice" data-sx-obj-upload>
             <span class="sx-strat-obj__choice-icon"><i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i></span>
-            <span class="sx-strat-obj__choice-label">Upload a file</span>
+            <span class="sx-strat-obj__choice-label" data-i18n="strategy.obj.uploadFile">${te('strategy.obj.uploadFile')}</span>
           </button>
           <button type="button" class="sx-strat-obj__choice" data-sx-obj-type>
             <span class="sx-strat-obj__choice-icon"><i class="fa-solid fa-pencil" aria-hidden="true"></i></span>
-            <span class="sx-strat-obj__choice-label">I\u2019ll type it out</span>
+            <span class="sx-strat-obj__choice-label" data-i18n="strategy.obj.typeOut">${te('strategy.obj.typeOut')}</span>
           </button>
         </div>
 
@@ -88,22 +89,21 @@ function html(): string {
             data-sx-obj-text
             rows="4"
             maxlength="${MAX_CHARS}"
-            placeholder='e.g. "I trade NQ on the New York open. I fade the first liquidity sweep back into the prior-day range when a 5m FVG forms after a 15m EMA touch..."'
+            placeholder="${te('strategy.obj.placeholder')}"
+            data-i18n-placeholder="strategy.obj.placeholder"
           ></textarea>
           <div class="sx-strat-obj__composer-bar">
-            <button type="button" class="sx-strat-obj__attach" data-sx-obj-attach aria-label="Attach a file">
+            <button type="button" class="sx-strat-obj__attach" data-sx-obj-attach aria-label="${te('strategy.obj.attachAria')}" data-i18n-aria-label="strategy.obj.attachAria">
               <i class="fa-solid fa-plus" aria-hidden="true"></i>
             </button>
-            <span class="sx-strat-obj__count" data-sx-obj-count>0 / ${MAX_CHARS}</span>
-            <button type="button" class="sx-strat-obj__send" data-sx-obj-send aria-label="Send" disabled>
+            <span class="sx-strat-obj__count" data-sx-obj-count>${te('strategy.obj.count', { total: 0, max: MAX_CHARS })}</span>
+            <button type="button" class="sx-strat-obj__send" data-sx-obj-send aria-label="${te('strategy.obj.sendAria')}" data-i18n-aria-label="strategy.obj.sendAria" disabled>
               <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
             </button>
           </div>
         </div>
 
-        <p class="sx-strat-obj__hint">
-          Up to ${MAX_FILES} files \u00b7 txt/md \u00b7 10 MB each \u00b7 PDF, image and DOCX coming soon
-        </p>
+        <p class="sx-strat-obj__hint" data-i18n="strategy.obj.hintFiles">${te('strategy.obj.hintFiles', { maxFiles: MAX_FILES })}</p>
       </div>
 
       <div class="sx-strat-obj__chat" data-sx-obj-chat hidden>
@@ -114,22 +114,23 @@ function html(): string {
             class="sx-strat-obj__textarea"
             data-sx-obj-chat-text
             rows="3"
-            placeholder="Or type something else..."
+            placeholder="${te('strategy.obj.chatPlaceholder')}"
+            data-i18n-placeholder="strategy.obj.chatPlaceholder"
           ></textarea>
           <div class="sx-strat-obj__composer-bar">
-            <button type="button" class="sx-strat-obj__attach" data-sx-obj-attach aria-label="Attach a file">
+            <button type="button" class="sx-strat-obj__attach" data-sx-obj-attach aria-label="${te('strategy.obj.attachAria')}" data-i18n-aria-label="strategy.obj.attachAria">
               <i class="fa-solid fa-plus" aria-hidden="true"></i>
             </button>
             <span class="sx-strat-obj__count"></span>
-            <button type="button" class="sx-strat-obj__send" data-sx-obj-chat-send aria-label="Send">
+            <button type="button" class="sx-strat-obj__send" data-sx-obj-chat-send aria-label="${te('strategy.obj.sendAria')}" data-i18n-aria-label="strategy.obj.sendAria">
               <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
             </button>
           </div>
         </div>
-        <p class="sx-strat-obj__hint">AI can make mistakes. Verify important strategy rules.</p>
+        <p class="sx-strat-obj__hint" data-i18n="strategy.obj.aiDisclaimer">${te('strategy.obj.aiDisclaimer')}</p>
       </div>
 
-      ${buildingScreenHtml('data-sx-obj-building')}
+      ${buildingScreenHtml('data-sx-obj-building', t('strategy.obj.buildingStatusFinal'))}
 
       <input type="file" class="sx-strat-obj__file-input" data-sx-obj-file-input multiple accept=".txt,.md,.markdown,text/plain,text/markdown" />
     </div>`
@@ -173,7 +174,7 @@ export function mountStrategyObjectifyView(
 
   function paint() {
     const total = combinedDescription().length
-    countEl.textContent = `${total} / ${MAX_CHARS}`
+    countEl.textContent = t('strategy.obj.count', { total, max: MAX_CHARS })
     countEl.classList.toggle('is-over', total > MAX_CHARS)
     sendBtn.disabled = busy || total === 0 || total > MAX_CHARS
 
@@ -191,7 +192,7 @@ export function mountStrategyObjectifyView(
       const remove = document.createElement('button')
       remove.type = 'button'
       remove.className = 'sx-strat-obj__file-remove'
-      remove.setAttribute('aria-label', `Remove ${a.name}`)
+      remove.setAttribute('aria-label', t('strategy.obj.removeFileAria', { name: a.name }))
       remove.innerHTML = '<i class="fa-solid fa-xmark" aria-hidden="true"></i>'
       remove.addEventListener('click', () => {
         if (busy) return
@@ -209,25 +210,25 @@ export function mountStrategyObjectifyView(
     const rejected: string[] = []
     for (const file of incoming) {
       if (attachments.length >= MAX_FILES) {
-        showError(`You can attach up to ${MAX_FILES} files.`)
+        showError(t('strategy.obj.error.maxFiles', { max: MAX_FILES }))
         break
       }
       if (file.size > MAX_FILE_BYTES) {
-        rejected.push(`${file.name} is larger than 10 MB`)
+        rejected.push(t('strategy.obj.error.fileTooLarge', { name: file.name }))
         continue
       }
       if (!isTextFile(file)) {
-        rejected.push(`${file.name} — only txt/md files can be read right now`)
+        rejected.push(t('strategy.obj.error.notText', { name: file.name }))
         continue
       }
       const text = await file.text().catch(() => '')
       if (!text.trim()) {
-        rejected.push(`${file.name} is empty`)
+        rejected.push(t('strategy.obj.error.emptyFile', { name: file.name }))
         continue
       }
       attachments.push({ name: file.name, text: text.trim() })
     }
-    if (rejected.length) showError(`Skipped: ${rejected.join(' · ')}.`)
+    if (rejected.length) showError(t('strategy.obj.error.skipped', { list: rejected.join(' · ') }))
     paint()
   }
 
@@ -242,11 +243,11 @@ export function mountStrategyObjectifyView(
     if (busy) return
     const description = combinedDescription()
     if (!description) {
-      showError('Add your rules first — type them in or attach a file.')
+      showError(t('strategy.obj.error.addRulesFirst'))
       return
     }
     if (description.length > MAX_CHARS) {
-      showError('That\u2019s a lot of text — trim it to the essential rules and try again.')
+      showError(t('strategy.obj.error.tooLong'))
       return
     }
     showError('')
@@ -260,7 +261,7 @@ export function mountStrategyObjectifyView(
     try {
       opts.onStrategyReady(parseStrategyJson(result.strategyJson))
     } catch {
-      showError('The AI response could not be parsed into a valid strategy. Please try again.')
+      showError(t('strategy.obj.error.parseFailed'))
     }
   }
 
@@ -320,12 +321,12 @@ export function mountStrategyObjectifyView(
   }
 
   /** Records the answer, echoes it back as the trader's reply, then moves on. */
-  function commitAnswer(question: InterviewQuestion, labels: string[], echo: string) {
-    answers[question.id] = labels
+  function commitAnswer(question: InterviewQuestion, values: string[], echo: string) {
+    answers[question.id] = values
     askedIds.push(question.id)
     currentQuestion = null
     chatText.value = ''
-    chatText.placeholder = 'FX Replay is thinking...'
+    chatText.placeholder = t('strategy.obj.thinkingPlaceholder')
     // Keep the prompt in the transcript, but retire its controls so the thread
     // reads as a conversation instead of a stack of live question cards.
     const card = threadEl.querySelector('[data-sx-obj-question]')
@@ -342,7 +343,7 @@ export function mountStrategyObjectifyView(
 
   function renderQuestion(question: InterviewQuestion) {
     currentQuestion = question
-    chatText.placeholder = 'Or type something else...'
+    chatText.placeholder = t('strategy.obj.chatPlaceholder')
 
     const card = document.createElement('div')
     card.className = 'sx-strat-obj__q'
@@ -350,12 +351,12 @@ export function mountStrategyObjectifyView(
 
     const prompt = document.createElement('p')
     prompt.className = 'sx-strat-obj__q-prompt'
-    prompt.textContent = question.prompt
+    prompt.textContent = t(question.promptKey)
     card.appendChild(prompt)
 
     const hint = document.createElement('p')
     hint.className = 'sx-strat-obj__q-hint'
-    hint.textContent = question.multi ? 'Pick all that apply.' : 'Pick one.'
+    hint.textContent = question.multi ? t('strategy.obj.pickAll') : t('strategy.obj.pickOne')
     card.appendChild(hint)
 
     const list = document.createElement('div')
@@ -365,12 +366,18 @@ export function mountStrategyObjectifyView(
     const continueBtn = document.createElement('button')
     continueBtn.type = 'button'
     continueBtn.className = 'sx-strat-obj__continue'
-    continueBtn.textContent = 'Continue'
+    continueBtn.textContent = t('strategy.obj.continue')
     continueBtn.hidden = true
     continueBtn.addEventListener('click', () => {
-      const labels = [...selected]
-      if (!labels.length) return
-      commitAnswer(question, labels, labels.join(', '))
+      const ids = [...selected]
+      if (!ids.length) return
+      const echo = ids
+        .map((id) => {
+          const opt = question.options.find((o) => o.id === id)
+          return opt ? t(opt.msgKey) : id
+        })
+        .join(', ')
+      commitAnswer(question, ids, echo)
     })
 
     question.options.forEach((opt, i) => {
@@ -382,16 +389,16 @@ export function mountStrategyObjectifyView(
       key.textContent = String.fromCharCode(65 + i)
       const label = document.createElement('span')
       label.className = 'sx-strat-obj__opt-label'
-      label.textContent = opt.label
+      label.textContent = t(opt.msgKey)
       row.append(key, label)
       row.addEventListener('click', () => {
         if (!question.multi) {
-          commitAnswer(question, [opt.label], opt.label)
+          commitAnswer(question, [opt.id], t(opt.msgKey))
           return
         }
-        if (selected.has(opt.label)) selected.delete(opt.label)
-        else selected.add(opt.label)
-        row.classList.toggle('is-picked', selected.has(opt.label))
+        if (selected.has(opt.id)) selected.delete(opt.id)
+        else selected.add(opt.id)
+        row.classList.toggle('is-picked', selected.has(opt.id))
         continueBtn.hidden = selected.size === 0
         scrollThread()
       })
@@ -401,10 +408,9 @@ export function mountStrategyObjectifyView(
     const suggest = document.createElement('button')
     suggest.type = 'button'
     suggest.className = 'sx-strat-obj__opt sx-strat-obj__opt--suggest'
-    suggest.innerHTML =
-      '<span class="sx-strat-obj__opt-key">?</span><span class="sx-strat-obj__opt-label">I don\u2019t know \u2014 suggest one</span>'
+    suggest.innerHTML = `<span class="sx-strat-obj__opt-key">?</span><span class="sx-strat-obj__opt-label">${te('strategy.obj.suggestOption')}</span>`
     suggest.addEventListener('click', () => {
-      commitAnswer(question, [SUGGEST_ANSWER], 'I don\u2019t know \u2014 suggest one')
+      commitAnswer(question, [SUGGEST_ANSWER], t('strategy.obj.suggestOption'))
     })
     list.appendChild(suggest)
 
@@ -414,7 +420,7 @@ export function mountStrategyObjectifyView(
   }
 
   function askNext() {
-    const thinking = pushThinking("Checking what\u2019s still missing...")
+    const thinking = pushThinking(t('strategy.obj.thinkingMissing'))
     const timer = window.setTimeout(() => {
       thinking.remove()
       const question = nextInterviewQuestion(answers, askedIds)
@@ -439,14 +445,14 @@ export function mountStrategyObjectifyView(
       opts.onStrategyReady(parseStrategyJson(result.strategyJson))
     } catch {
       showPhase('chat')
-      showChatError('The AI response could not be parsed into a valid strategy. Please try again.')
+      showChatError(t('strategy.obj.error.parseFailed'))
     }
   }
 
   function startInterview() {
     showPhase('chat')
     if (threadEl.childElementCount === 0) {
-      pushUserBubble('I\u2019ll type it out')
+      pushUserBubble(t('strategy.obj.typeOutEcho'))
       askNext()
     }
   }
@@ -513,12 +519,26 @@ export function mountStrategyObjectifyView(
   composerEl.addEventListener('dragleave', onDragLeave)
   composerEl.addEventListener('drop', onDrop)
 
+  function repaintLocale() {
+    paint()
+    if (!chatEl.hidden && currentQuestion) {
+      const card = threadEl.querySelector('[data-sx-obj-question]')
+      card?.remove()
+      renderQuestion(currentQuestion)
+    } else if (!chatEl.hidden) {
+      chatText.placeholder = t('strategy.obj.chatPlaceholder')
+    }
+  }
+
   paint()
+
+  const offLocale = onLocaleChange(() => repaintLocale())
 
   return {
     focusComposer: () => textarea.focus(),
     dispose: () => {
-      for (const t of timers) window.clearTimeout(t)
+      offLocale()
+      for (const timer of timers) window.clearTimeout(timer)
       host.replaceChildren()
     },
   }

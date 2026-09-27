@@ -149,24 +149,31 @@ const upload = multer({
 
 app.use(express.json({ limit: '32kb' }))
 
-/** Phase 1–2 URL migration — permanent redirects to locale-prefixed canonical paths. */
+/**
+ * URL migration — permanent redirects to canonical, locale-prefixed paths.
+ * Keep in sync with `legacyTarget()` in `src/appPaths.ts`.
+ */
 const LEGACY_SPA_REDIRECTS = {
   '/': '/en-US/login',
   '/loginPage': '/en-US/login',
   '/loginpage': '/en-US/login',
   '/login': '/en-US/login',
-  '/HomePage': '/en-US/dashboard',
-  '/homepage': '/en-US/dashboard',
-  '/home': '/en-US/dashboard',
-  '/dashboard': '/en-US/dashboard',
+  '/HomePage': '/en-US/testing/dashboard',
+  '/homepage': '/en-US/testing/dashboard',
+  '/home': '/en-US/testing/dashboard',
+  '/dashboard': '/en-US/testing/dashboard',
   '/Chart': '/en-US/chart',
   '/chart': '/en-US/chart',
   '/admin': '/en-US/admin',
 }
+/** Pre-`/testing` canonical path: /{locale}/dashboard → /{locale}/testing/dashboard. */
+const LEGACY_LOCALE_DASHBOARD_RE = /^\/([A-Za-z]{2}(?:-[A-Za-z0-9]{2,4})?)\/dashboard$/
+
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next()
   const p = (req.path || '/').replace(/\/$/, '') || '/'
-  const target = LEGACY_SPA_REDIRECTS[p]
+  const localeDash = LEGACY_LOCALE_DASHBOARD_RE.exec(p)
+  const target = LEGACY_SPA_REDIRECTS[p] ?? (localeDash ? `/${localeDash[1]}/testing/dashboard` : null)
   if (!target) return next()
   const q = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''
   res.redirect(301, `${target}${q}`)

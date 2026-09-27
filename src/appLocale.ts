@@ -11,7 +11,10 @@ export const DASH_CODE_TO_LOCALE_TAG: Record<DashLocaleCode, string> = {
   fr: 'fr',
   tr: 'tr',
   uk: 'uk',
+  pt: 'pt',
+  ru: 'ru',
   ja: 'ja',
+  ko: 'ko',
 }
 
 export function dashCodeToLocaleTag(code: string): string {

@@ -25,6 +25,7 @@ import type {
 } from '../backtest/BacktestTypes'
 import type { ManualLeftOperand, ManualOperand, ManualRule, ManualStrategyLike } from '../backtest/manualStrategyEngine'
 import { newCustomStrategyId } from './strategyStore'
+import { t } from '../i18n'
 
 const FIXED_PERIODS: Record<'ema' | 'sma', number[]> = { ema: [9, 21, 50, 200], sma: [9, 21, 50, 200] }
 
@@ -37,7 +38,13 @@ function nearestFixedKey(kind: 'ema' | 'sma', period: number, warnings: string[]
     if (diff < bestDiff) { bestDiff = diff; best = p }
   }
   if (best !== Math.round(period)) {
-    warnings.push(`${kind.toUpperCase()}(${period}) isn't available on the chart engine — approximated as ${kind.toUpperCase()}(${best})`)
+    warnings.push(
+      t('strategy.convert.emaApprox', {
+        kind: kind.toUpperCase(),
+        period,
+        best,
+      }),
+    )
   }
   return `${kind}${best}` as IndicatorKey
 }
@@ -49,36 +56,36 @@ function mapIndicator(ind: string, p: Record<string, number>, warnings: string[]
     case 'ema': return nearestFixedKey('ema', p.period ?? 9, warnings)
     case 'sma': return nearestFixedKey('sma', p.period ?? 50, warnings)
     case 'rsi':
-      if ((p.period ?? 14) !== 14) warnings.push(`RSI(${p.period}) approximated as RSI(14) — the chart engine only computes a 14-period RSI`)
+      if ((p.period ?? 14) !== 14) warnings.push(t('strategy.convert.rsiApprox', { period: p.period ?? 14 }))
       return 'rsi14'
     case 'atr':
-      if ((p.period ?? 14) !== 14) warnings.push(`ATR(${p.period}) approximated as ATR(14) — the chart engine only computes a 14-period ATR`)
+      if ((p.period ?? 14) !== 14) warnings.push(t('strategy.convert.atrApprox', { period: p.period ?? 14 }))
       return 'atr14'
     case 'adx':
-      if ((p.period ?? 14) !== 14) warnings.push(`ADX(${p.period}) approximated as ADX(14) — the chart engine only computes a 14-period ADX`)
+      if ((p.period ?? 14) !== 14) warnings.push(t('strategy.convert.adxApprox', { period: p.period ?? 14 }))
       return 'adx14'
     case 'vwap': return 'vwap'
     case 'macd':
       if ((p.fast ?? 12) !== 12 || (p.slow ?? 26) !== 26 || (p.signal ?? 9) !== 9) {
-        warnings.push('Custom MACD periods approximated as the standard 12/26/9 MACD')
+        warnings.push(t('strategy.convert.macdApprox'))
       }
       return 'macd_line'
     case 'macdsig':
       if ((p.fast ?? 12) !== 12 || (p.slow ?? 26) !== 26 || (p.signal ?? 9) !== 9) {
-        warnings.push('Custom MACD periods approximated as the standard 12/26/9 MACD signal')
+        warnings.push(t('strategy.convert.macdSigApprox'))
       }
       return 'macd_signal'
     case 'bbu':
-      if ((p.period ?? 20) !== 20 || (p.sd ?? 2) !== 2) warnings.push('Custom Bollinger settings approximated as the standard 20-period, 2σ upper band')
+      if ((p.period ?? 20) !== 20 || (p.sd ?? 2) !== 2) warnings.push(t('strategy.convert.bollUpperApprox'))
       return 'bb_upper'
     case 'bbl':
-      if ((p.period ?? 20) !== 20 || (p.sd ?? 2) !== 2) warnings.push('Custom Bollinger settings approximated as the standard 20-period, 2σ lower band')
+      if ((p.period ?? 20) !== 20 || (p.sd ?? 2) !== 2) warnings.push(t('strategy.convert.bollLowerApprox'))
       return 'bb_lower'
     case 'macdhist':
-      warnings.push('MACD histogram approximated as the standard 12/26/9 MACD histogram')
+      warnings.push(t('strategy.convert.macdHistApprox'))
       return 'macd_hist'
     default:
-      warnings.push(`"${ind}" isn't supported by the chart's backtest engine — a condition using it was dropped`)
+      warnings.push(t('strategy.convert.indUnsupported', { ind }))
       return null
   }
 }
@@ -104,7 +111,9 @@ function mapRule(rule: ManualRule, warnings: string[]): StrategyCondition | null
   if (lhs == null || typeof lhs === 'number') return null // left side is always an indicator in the manual model
   const op = OP_MAP[rule.op]
   if (!op) {
-    warnings.push(`The "${rule.op === 'rise' ? 'rises for' : 'falls for'}" comparison isn't supported by the chart's backtest engine — a condition using it was dropped`)
+    const opLabel =
+      rule.op === 'rise' ? t('strategy.mb.op.rise') : t('strategy.mb.op.fall')
+    warnings.push(t('strategy.convert.riseFallUnsupported', { op: opLabel }))
     return null
   }
   const rhs = mapOperand(rule.rhs, warnings)
@@ -118,13 +127,13 @@ function mapStopLoss(risk: ManualStrategyLike['risk'], warnings: string[]): Stop
     case 'atr': return { type: 'atr_mult', value }
     case 'pct': return { type: 'fixed_pct', value }
     case 'pips':
-      warnings.push('"Fixed pips" stop isn\u2019t supported by the chart engine — approximated as a 0.3% price stop')
+      warnings.push(t('strategy.convert.stopPipsApprox'))
       return { type: 'fixed_pct', value: 0.3 }
     case 'swing':
-      warnings.push('"Last swing low/high" stop isn\u2019t supported by the chart engine — approximated as 1.5\u00d7 ATR')
+      warnings.push(t('strategy.convert.stopSwingApprox'))
       return { type: 'atr_mult', value: 1.5 }
     default:
-      warnings.push('No hard stop was set \u2014 the chart engine requires one, so a 2\u00d7 ATR safety stop was added')
+      warnings.push(t('strategy.convert.stopNoneAdded'))
       return { type: 'atr_mult', value: 2 }
   }
 }
@@ -135,7 +144,7 @@ function mapTakeProfit(risk: ManualStrategyLike['risk'], warnings: string[]): Ta
     case 'rr': return { type: 'rr_ratio', value }
     case 'pct': return { type: 'fixed_pct', value }
     case 'atr':
-      warnings.push('ATR-multiple target isn\u2019t supported by the chart engine — approximated as an equivalent R:R ratio')
+      warnings.push(t('strategy.convert.tpAtrApprox'))
       return { type: 'rr_ratio', value }
     default: return { type: 'none' }
   }
@@ -147,10 +156,10 @@ function mapPositionSize(risk: ManualStrategyLike['risk'], warnings: string[]): 
     case 'riskpct': return { type: 'fixed_risk', riskPct: value }
     case 'fixedlot': return { type: 'fixed_units', units: value }
     case 'fixedcash':
-      warnings.push('"Fixed cash" sizing isn\u2019t supported by the chart engine — approximated as 1% equity risk per trade')
+      warnings.push(t('strategy.convert.sizeFixedCashApprox'))
       return { type: 'fixed_risk', riskPct: 1 }
     default:
-      warnings.push('"Fractional Kelly" sizing isn\u2019t supported by the chart engine — approximated as a scaled equity-risk percentage')
+      warnings.push(t('strategy.convert.sizeKellyApprox'))
       return { type: 'fixed_risk', riskPct: Math.min(5, Math.max(0.25, value * 2)) }
   }
 }
@@ -159,7 +168,9 @@ function mapTrailingStop(risk: ManualStrategyLike['risk'], warnings: string[]): 
   const [type, value] = risk.trail
   if (type === 'none') return undefined
   if (type === 'be') return { activateAtRR: value, trailBy: { type: 'fixed_pct', value: 0 } }
-  warnings.push(`"${type === 'atr' ? 'Trail by ATR' : 'Chandelier exit'}" is approximated on the chart engine as breakeven-at-1R plus an ATR trail`)
+  const label =
+    type === 'atr' ? t('strategy.convert.trailAtrLabel') : t('strategy.convert.trailChandelierLabel')
+  warnings.push(t('strategy.convert.trailApprox', { label }))
   return { activateAtRR: 1, trailBy: { type: 'atr_mult', value } }
 }
 
@@ -174,7 +185,7 @@ export function manualStrategyToDefinition(strategy: ManualStrategyLike, existin
   const entryConditions = strategy.entry.map((r) => mapRule(r, warnings)).filter((c): c is StrategyCondition => c !== null)
   const exitConditions = strategy.exit.map((r) => mapRule(r, warnings)).filter((c): c is StrategyCondition => c !== null)
   if (strategy.entry.length && !entryConditions.length) {
-    warnings.push('None of the entry conditions could be represented on the chart engine \u2014 it will never open a trade until you adjust them')
+    warnings.push(t('strategy.convert.noEntryMapped'))
   }
   const definition: StrategyDefinition = {
     id: existingId?.trim() || newCustomStrategyId(),

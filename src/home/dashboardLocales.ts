@@ -5,7 +5,10 @@ export const DASH_LOCALES = [
   { code: 'fr', name: 'Français' },
   { code: 'tr', name: 'Türkçe' },
   { code: 'uk', name: 'Українська' },
+  { code: 'pt', name: 'Português' },
+  { code: 'ru', name: 'Русский' },
   { code: 'ja', name: '日本語' },
+  { code: 'ko', name: '한국어' },
 ] as const
 
 export type DashLocaleCode = (typeof DASH_LOCALES)[number]['code']

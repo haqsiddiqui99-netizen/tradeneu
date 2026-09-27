@@ -53,7 +53,7 @@ function loginPath() {
 
 function homePath(email) {
   if (email && isAdminEmail(email)) return '/en-US/admin'
-  return '/en-US/dashboard'
+  return '/en-US/testing/dashboard'
 }
 
 function redirectUri(req) {

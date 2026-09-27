@@ -9,6 +9,7 @@
  * can show the exact reasons behind its score, including the caveats.
  */
 import './strategyGenerateView.css'
+import { onLocaleChange, te, t, type MessageKey } from '../i18n'
 import type { StrategyDefinition } from '../backtest/BacktestTypes'
 import { formatStrategyConditions } from '../backtest/strategyConditionText'
 import { saveCustomStrategy } from './strategyStore'
@@ -35,37 +36,46 @@ export type StrategyGenerateViewApi = {
 const KEYS = 'ABCDE'
 const MATCH_COUNT = 3
 
-const STOP_LABELS: Record<string, (v: number) => string> = {
-  atr_mult: (v) => `${v}\u00d7 ATR`,
-  fixed_pct: (v) => `${v}% from entry`,
-  fixed_price: (v) => `${v} price distance`,
+const STOP_KEYS: Record<string, MessageKey> = {
+  atr_mult: 'strategy.gen.stop.atrMult',
+  fixed_pct: 'strategy.gen.stop.fixedPct',
+  fixed_price: 'strategy.gen.stop.fixedPrice',
 }
 
 function stopText(def: StrategyDefinition | Omit<StrategyDefinition, 'id' | 'name'>): string {
   const s = def.stopLoss
-  return STOP_LABELS[s.type]?.(s.value) ?? '\u2014'
+  const key = STOP_KEYS[s.type]
+  return key ? t(key, { value: s.value }) : '\u2014'
 }
 
 function targetText(def: StrategyDefinition | Omit<StrategyDefinition, 'id' | 'name'>): string {
-  const t = def.takeProfit
-  if (t.type === 'none') return 'No fixed target \u2014 exits on signal'
-  if (t.type === 'rr_ratio') return `${t.value}R`
-  if (t.type === 'fixed_pct') return `${t.value}%`
-  return `${t.value} price distance`
+  const tp = def.takeProfit
+  if (tp.type === 'none') return t('strategy.gen.target.none')
+  if (tp.type === 'rr_ratio') return t('strategy.gen.target.rr', { value: tp.value })
+  if (tp.type === 'fixed_pct') return t('strategy.gen.target.fixedPct', { value: tp.value })
+  return t('strategy.gen.target.fixedPrice', { value: tp.value })
 }
 
 function sessionText(def: Omit<StrategyDefinition, 'id' | 'name'>): string {
-  if (!def.sessionFilter) return 'Any hour'
-  return `${String(def.sessionFilter.fromHour).padStart(2, '0')}:00\u2013${String(
-    def.sessionFilter.toHour,
-  ).padStart(2, '0')}:00 UTC`
+  if (!def.sessionFilter) return t('strategy.gen.session.anyHour')
+  return t('strategy.gen.session.range', {
+    from: String(def.sessionFilter.fromHour).padStart(2, '0'),
+    to: String(def.sessionFilter.toHour).padStart(2, '0'),
+  })
+}
+
+function directionText(direction: string): string {
+  if (direction === 'long') return t('strategy.direction.long')
+  if (direction === 'short') return t('strategy.direction.short')
+  if (direction === 'both') return t('strategy.direction.both')
+  return direction
 }
 
 function html(): string {
   return `
     <div class="sx-sgen">
       <button type="button" class="sx-sgen__back" data-sgen-back>
-        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Strategies
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> <span data-i18n="strategy.mb.backStrategies">${te('strategy.mb.backStrategies')}</span>
       </button>
 
       <div class="sx-sgen__stage" data-sgen-stage="interview">
@@ -76,24 +86,24 @@ function html(): string {
 
       <div class="sx-sgen__stage sx-sgen__matching" data-sgen-stage="matching" hidden>
         <span class="sx-sgen__pulse" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
-        <h2 class="sx-sgen__matching-title">Finding your best fit</h2>
-        <p class="sx-sgen__matching-sub">Scoring the Tradeneu playbook against your profile.</p>
+        <h2 class="sx-sgen__matching-title" data-i18n="strategy.gen.matching.title">${te('strategy.gen.matching.title')}</h2>
+        <p class="sx-sgen__matching-sub" data-i18n="strategy.gen.matching.sub">${te('strategy.gen.matching.sub')}</p>
         <ol class="sx-sgen__ticks" data-sgen-ticks>
-          <li data-sgen-tick="0"><i class="fa-solid fa-circle-notch" aria-hidden="true"></i><span>Reading your answers</span></li>
-          <li data-sgen-tick="1"><i class="fa-solid fa-circle-notch" aria-hidden="true"></i><span>Scoring every playbook strategy</span></li>
-          <li data-sgen-tick="2"><i class="fa-solid fa-circle-notch" aria-hidden="true"></i><span>Ranking your closest matches</span></li>
+          <li data-sgen-tick="0"><i class="fa-solid fa-circle-notch" aria-hidden="true"></i><span data-i18n="strategy.gen.matching.tick0">${te('strategy.gen.matching.tick0')}</span></li>
+          <li data-sgen-tick="1"><i class="fa-solid fa-circle-notch" aria-hidden="true"></i><span data-i18n="strategy.gen.matching.tick1">${te('strategy.gen.matching.tick1')}</span></li>
+          <li data-sgen-tick="2"><i class="fa-solid fa-circle-notch" aria-hidden="true"></i><span data-i18n="strategy.gen.matching.tick2">${te('strategy.gen.matching.tick2')}</span></li>
         </ol>
       </div>
 
       <div class="sx-sgen__stage" data-sgen-stage="results" hidden>
         <div class="sx-sgen__results-head">
           <span class="sx-sgen__eyebrow" data-sgen-count></span>
-          <h2 class="sx-sgen__results-title">Strategies that fit how you want to trade</h2>
-          <p class="sx-sgen__results-sub">
-            Authored by Tradeneu. Add one to your workspace and it becomes a fully editable copy.
+          <h2 class="sx-sgen__results-title" data-i18n="strategy.gen.results.title">${te('strategy.gen.results.title')}</h2>
+          <p class="sx-sgen__results-sub" data-i18n="strategy.gen.results.sub">
+            ${te('strategy.gen.results.sub')}
           </p>
           <button type="button" class="sx-sgen__redo" data-sgen-redo>
-            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Change my answers
+            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> <span data-i18n="strategy.gen.results.redo">${te('strategy.gen.results.redo')}</span>
           </button>
         </div>
         <div class="sx-sgen__matches" data-sgen-matches></div>
@@ -128,6 +138,7 @@ export function mountStrategyGenerateView(
   let selected: string[] = []
   let customText = ''
   let customOpen = false
+  let lastMatches: StrategyMatch[] = []
   const timers: number[] = []
 
   function showStage(name: keyof typeof stages) {
@@ -143,7 +154,10 @@ export function mountStrategyGenerateView(
       else if (i === index) seg.classList.add('is-current')
       railEl.appendChild(seg)
     })
-    stepEl.textContent = `Calibration \u00b7 step ${index + 1} of ${PROFILE_QUESTIONS.length}`
+    stepEl.textContent = t('strategy.gen.step', {
+      step: index + 1,
+      total: PROFILE_QUESTIONS.length,
+    })
   }
 
   function commit(question: ProfileQuestion, values: string[], custom?: string) {
@@ -175,19 +189,19 @@ export function mountStrategyGenerateView(
     head.className = 'sx-sgen__card-head'
     const heading = document.createElement('h2')
     heading.className = 'sx-sgen__prompt'
-    heading.textContent = question.prompt
+    heading.textContent = t(question.promptKey)
     head.appendChild(heading)
-    if (question.subPrompt) {
+    if (question.subPromptKey) {
       const sub = document.createElement('p')
       sub.className = 'sx-sgen__sub-prompt'
-      sub.textContent = question.subPrompt
+      sub.textContent = t(question.subPromptKey)
       head.appendChild(sub)
     }
     if (index > 0) {
       const back = document.createElement('button')
       back.type = 'button'
       back.className = 'sx-sgen__prev'
-      back.innerHTML = '<i class="fa-solid fa-chevron-left" aria-hidden="true"></i> Back'
+      back.innerHTML = `<i class="fa-solid fa-chevron-left" aria-hidden="true"></i> ${te('strategy.gen.back')}`
       back.addEventListener('click', goBack)
       head.appendChild(back)
     }
@@ -205,7 +219,7 @@ export function mountStrategyGenerateView(
       mark.setAttribute('aria-hidden', 'true')
       const label = document.createElement('span')
       label.className = 'sx-sgen__opt-label'
-      label.textContent = opt.label
+      label.textContent = t(opt.labelKey)
       const key = document.createElement('kbd')
       key.className = 'sx-sgen__opt-key'
       key.textContent = KEYS[i] ?? ''
@@ -220,8 +234,7 @@ export function mountStrategyGenerateView(
     const otherBtn = document.createElement('button')
     otherBtn.type = 'button'
     otherBtn.className = 'sx-sgen__other-btn'
-    otherBtn.innerHTML =
-      '<i class="fa-solid fa-pen" aria-hidden="true"></i> <span>Something else</span>'
+    otherBtn.innerHTML = `<i class="fa-solid fa-pen" aria-hidden="true"></i> <span>${te('strategy.gen.other')}</span>`
     otherBtn.addEventListener('click', () => {
       customOpen = true
       renderQuestion()
@@ -234,7 +247,7 @@ export function mountStrategyGenerateView(
       const input = document.createElement('input')
       input.type = 'text'
       input.setAttribute('data-sgen-other-input', '')
-      input.placeholder = 'Describe it in your own words\u2026'
+      input.placeholder = t('strategy.gen.otherPlaceholder')
       input.value = customText
       input.addEventListener('input', () => {
         customText = input.value
@@ -248,7 +261,7 @@ export function mountStrategyGenerateView(
       const send = document.createElement('button')
       send.type = 'button'
       send.className = 'sx-sgen__other-send'
-      send.textContent = 'Use this'
+      send.textContent = t('strategy.gen.otherUse')
       send.addEventListener('click', () => {
         if (input.value.trim()) commit(question, [], input.value.trim())
       })
@@ -262,7 +275,7 @@ export function mountStrategyGenerateView(
       cont.type = 'button'
       cont.className = 'sx-sgen__continue'
       cont.disabled = selected.length === 0
-      cont.innerHTML = 'Continue <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>'
+      cont.innerHTML = `${te('strategy.gen.continue')} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>`
       cont.addEventListener('click', () => {
         if (selected.length) commit(question, selected)
       })
@@ -338,9 +351,12 @@ export function mountStrategyGenerateView(
   }
 
   function renderResults(matches: StrategyMatch[]) {
-    countEl.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> ${matches.length} match${
-      matches.length === 1 ? '' : 'es'
-    } for you`
+    lastMatches = matches
+    const countLabel =
+      matches.length === 1
+        ? t('strategy.gen.results.eyebrowOne', { count: matches.length })
+        : t('strategy.gen.results.eyebrowMany', { count: matches.length })
+    countEl.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> ${countLabel}`
     matchesEl.replaceChildren()
 
     matches.forEach((match, i) => {
@@ -367,7 +383,7 @@ export function mountStrategyGenerateView(
       const score = document.createElement('div')
       score.className = 'sx-sgen__score'
       score.style.setProperty('--sx-sgen-score', String(match.score))
-      score.innerHTML = `<span class="sx-sgen__score-num">${match.score}<em>%</em></span><span class="sx-sgen__score-cap">fit</span>`
+      score.innerHTML = `<span class="sx-sgen__score-num">${match.score}<em>%</em></span><span class="sx-sgen__score-cap">${te('strategy.gen.results.fit')}</span>`
       head.append(rank, titleWrap, score)
       card.appendChild(head)
 
@@ -378,9 +394,11 @@ export function mountStrategyGenerateView(
 
       const reasons = document.createElement('div')
       reasons.className = 'sx-sgen__reasons'
-      if (match.fits.length) reasons.appendChild(reasonList('Why this fits', match.fits, 'fit'))
+      if (match.fits.length) {
+        reasons.appendChild(reasonList(t('strategy.gen.results.whyFits'), match.fits, 'fit'))
+      }
       if (match.caveats.length) {
-        reasons.appendChild(reasonList('Worth knowing', match.caveats, 'caveat'))
+        reasons.appendChild(reasonList(t('strategy.gen.results.worthKnowing'), match.caveats, 'caveat'))
       }
       card.appendChild(reasons)
 
@@ -398,11 +416,11 @@ export function mountStrategyGenerateView(
       rules.className = 'sx-sgen__rules'
       rules.hidden = true
       rules.append(
-        ruleRow('Entry', formatStrategyConditions(match.entry.definition.entryConditions)),
-        ruleRow('Exit', formatStrategyConditions(match.entry.definition.exitConditions)),
-        ruleRow('Stop', stopText(match.entry.definition)),
-        ruleRow('Target', targetText(match.entry.definition)),
-        ruleRow('Direction', match.entry.definition.direction),
+        ruleRow(t('strategy.gen.rules.entry'), formatStrategyConditions(match.entry.definition.entryConditions)),
+        ruleRow(t('strategy.gen.rules.exit'), formatStrategyConditions(match.entry.definition.exitConditions)),
+        ruleRow(t('strategy.gen.rules.stop'), stopText(match.entry.definition)),
+        ruleRow(t('strategy.gen.rules.target'), targetText(match.entry.definition)),
+        ruleRow(t('strategy.gen.rules.direction'), directionText(match.entry.definition.direction)),
       )
 
       const actions = document.createElement('div')
@@ -410,7 +428,7 @@ export function mountStrategyGenerateView(
       const add = document.createElement('button')
       add.type = 'button'
       add.className = 'sx-sgen__add'
-      add.innerHTML = '<i class="fa-solid fa-plus" aria-hidden="true"></i> Add to workspace'
+      add.innerHTML = `<i class="fa-solid fa-plus" aria-hidden="true"></i> ${te('strategy.gen.results.addToWorkspace')}`
       add.addEventListener('click', () => {
         const strategy = saveCustomStrategy(strategyFromMatch(match, profile))
         opts.onStrategyReady(strategy)
@@ -421,7 +439,7 @@ export function mountStrategyGenerateView(
       const paintPeek = () => {
         peek.setAttribute('aria-expanded', String(!rules.hidden))
         peek.innerHTML = `<i class="fa-regular fa-file-lines" aria-hidden="true"></i> ${
-          rules.hidden ? 'Preview rules' : 'Hide rules'
+          rules.hidden ? te('strategy.gen.results.previewRules') : te('strategy.gen.results.hideRules')
         }`
       }
       paintPeek()
@@ -473,12 +491,26 @@ export function mountStrategyGenerateView(
   })
   document.addEventListener('keydown', onKeyDown)
 
+  function repaintLocale() {
+    if (!stages.interview.hidden) {
+      paintRail()
+      renderQuestion()
+      return
+    }
+    if (!stages.results.hidden && lastMatches.length) {
+      renderResults(lastMatches)
+    }
+  }
+
+  const offLocale = onLocaleChange(() => repaintLocale())
+
   loadQuestion()
   showStage('interview')
 
   return {
     dispose: () => {
-      for (const t of timers) window.clearTimeout(t)
+      offLocale()
+      for (const timer of timers) window.clearTimeout(timer)
       document.removeEventListener('keydown', onKeyDown)
       host.replaceChildren()
     },

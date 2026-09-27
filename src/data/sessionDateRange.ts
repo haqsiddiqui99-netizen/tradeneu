@@ -1,5 +1,6 @@
 import type { Bar } from '../types'
 import { readUserTimezone } from '../home/dashboardUserPrefs'
+import { activeLocaleTag } from '../i18n'
 
 /** Browser IANA timezone (e.g. `Asia/Kolkata`) — matches date pickers and LWC chart axis. */
 export function browserIanaTimezone(): string {
@@ -64,7 +65,7 @@ export function formatSessionModalDate(iso?: string): string {
   if (!s) return '—'
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s
-  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  return d.toLocaleString(activeLocaleTag(), { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 /** Replay bar-pick pill — matches chart axis timezone (session modal / Settings). */

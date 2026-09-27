@@ -19,6 +19,16 @@ import { manualStrategyToDefinition } from './manualStrategyToDefinition'
 import { saveCustomStrategy } from './strategyStore'
 import { ASSET_CATALOG, RECENT_SYMBOLS } from '../assetCatalog'
 import { fetchLocalBarCounts, type LocalBarCounts } from '../data/symbolBarCoverage'
+import { activeLocaleTag, onLocaleChange, te, t, type MessageKey } from '../i18n'
+
+const RANGE_CUSTOM = 'custom'
+const RANGE_PRESET_MONTHS: Record<string, number> = {
+  last_1_month: 1,
+  last_3_months: 3,
+  last_6_months: 6,
+  last_12_months: 12,
+}
+const SESSION_ALL = 'all'
 
 // Market dropdown options: recently-used symbols first, then the rest of
 // the shared asset catalog (deduped) — so the manual builder isn't locked
@@ -48,7 +58,7 @@ export type ManualStrategyBuilderApi = {
 
 type IndicatorParam = [key: string, def: number, min: number, max: number]
 
-type IndicatorDef = { label: string; params: IndicatorParam[] }
+type IndicatorDef = { params: IndicatorParam[] }
 
 type Operand = { kind: 'ind'; ind: string; p: Record<string, number> } | { kind: 'num'; value: number }
 
@@ -84,56 +94,102 @@ type Template = {
 }
 
 const IND: Record<string, IndicatorDef> = {
-  ema: { label: 'EMA', params: [['period', 9, 1, 400]] },
-  sma: { label: 'SMA', params: [['period', 50, 1, 400]] },
-  rsi: { label: 'RSI', params: [['period', 14, 2, 100]] },
-  atr: { label: 'ATR', params: [['period', 14, 1, 100]] },
-  macd: { label: 'MACD line', params: [['fast', 12, 1, 100], ['slow', 26, 1, 200], ['signal', 9, 1, 100]] },
-  macdsig: { label: 'MACD signal', params: [['fast', 12, 1, 100], ['slow', 26, 1, 200], ['signal', 9, 1, 100]] },
-  bbu: { label: 'Bollinger upper', params: [['period', 20, 2, 200], ['sd', 2, 0.5, 5]] },
-  bbl: { label: 'Bollinger lower', params: [['period', 20, 2, 200], ['sd', 2, 0.5, 5]] },
-  vwap: { label: 'VWAP', params: [] },
-  volume: { label: 'Volume', params: [] },
-  volsma: { label: 'Volume average', params: [['period', 20, 1, 200]] },
-  close: { label: 'Close', params: [] },
-  open: { label: 'Open', params: [] },
-  high: { label: 'High', params: [] },
-  low: { label: 'Low', params: [] },
-  hour: { label: 'Bar hour (UTC)', params: [] },
-  barsheld: { label: 'Bars in trade', params: [] },
-  pnlr: { label: 'Open P&L in R', params: [] },
-  adx: { label: 'ADX', params: [['period', 14, 2, 100]] },
-  donchianhi: { label: 'Donchian upper', params: [['period', 20, 2, 200]] },
-  donchianlo: { label: 'Donchian lower', params: [['period', 20, 2, 200]] },
-  stochk: { label: 'Stoch %K', params: [['period', 14, 1, 100], ['smooth', 3, 1, 20]] },
-  stochd: { label: 'Stoch %D', params: [['period', 14, 1, 100], ['smooth', 3, 1, 20]] },
-  bbwidth: { label: 'Bollinger width %', params: [['period', 20, 2, 200], ['sd', 2, 0.5, 5]] },
-  supertrend: { label: 'Supertrend', params: [['period', 10, 1, 100], ['mult', 3, 0.5, 10]] },
-  macdhist: { label: 'MACD histogram', params: [['fast', 12, 1, 100], ['slow', 26, 1, 200], ['signal', 9, 1, 100]] },
-  orh: { label: 'Opening range high', params: [['mins', 30, 5, 240]] },
-  orl: { label: 'Opening range low', params: [['mins', 30, 5, 240]] },
+  ema: { params: [['period', 9, 1, 400]] },
+  sma: { params: [['period', 50, 1, 400]] },
+  rsi: { params: [['period', 14, 2, 100]] },
+  atr: { params: [['period', 14, 1, 100]] },
+  macd: { params: [['fast', 12, 1, 100], ['slow', 26, 1, 200], ['signal', 9, 1, 100]] },
+  macdsig: { params: [['fast', 12, 1, 100], ['slow', 26, 1, 200], ['signal', 9, 1, 100]] },
+  bbu: { params: [['period', 20, 2, 200], ['sd', 2, 0.5, 5]] },
+  bbl: { params: [['period', 20, 2, 200], ['sd', 2, 0.5, 5]] },
+  vwap: { params: [] },
+  volume: { params: [] },
+  volsma: { params: [['period', 20, 1, 200]] },
+  close: { params: [] },
+  open: { params: [] },
+  high: { params: [] },
+  low: { params: [] },
+  hour: { params: [] },
+  barsheld: { params: [] },
+  pnlr: { params: [] },
+  adx: { params: [['period', 14, 2, 100]] },
+  donchianhi: { params: [['period', 20, 2, 200]] },
+  donchianlo: { params: [['period', 20, 2, 200]] },
+  stochk: { params: [['period', 14, 1, 100], ['smooth', 3, 1, 20]] },
+  stochd: { params: [['period', 14, 1, 100], ['smooth', 3, 1, 20]] },
+  bbwidth: { params: [['period', 20, 2, 200], ['sd', 2, 0.5, 5]] },
+  supertrend: { params: [['period', 10, 1, 100], ['mult', 3, 0.5, 10]] },
+  macdhist: { params: [['fast', 12, 1, 100], ['slow', 26, 1, 200], ['signal', 9, 1, 100]] },
+  orh: { params: [['mins', 30, 5, 240]] },
+  orl: { params: [['mins', 30, 5, 240]] },
 }
 
-const OPS: Record<string, string> = {
-  xabove: 'crosses above',
-  xbelow: 'crosses below',
-  gt: 'is above',
-  lt: 'is below',
-  gte: 'is at or above',
-  lte: 'is at or below',
-  rise: 'rises for',
-  fall: 'falls for',
+const IND_ACRONYM: Record<string, string> = {
+  ema: 'EMA',
+  sma: 'SMA',
+  rsi: 'RSI',
+  atr: 'ATR',
+  vwap: 'VWAP',
+  volume: 'Volume',
+  close: 'Close',
+  open: 'Open',
+  high: 'High',
+  low: 'Low',
+  adx: 'ADX',
+  supertrend: 'Supertrend',
+  stochk: 'Stoch %K',
+  stochd: 'Stoch %D',
 }
 
-const CATS: Record<string, string> = {
-  trend: 'Trend',
-  reversion: 'Mean reversion',
-  breakout: 'Breakout',
-  momentum: 'Momentum',
-  volatility: 'Volatility',
-  session: 'Session / time',
-  intraday: 'Intraday',
+const IND_LABEL_KEY: Partial<Record<string, MessageKey>> = {
+  macd: 'strategy.mb.ind.macdLine',
+  macdsig: 'strategy.mb.ind.macdSignal',
+  bbu: 'strategy.mb.ind.bollUpper',
+  bbl: 'strategy.mb.ind.bollLower',
+  volsma: 'strategy.mb.ind.volAvg',
+  hour: 'strategy.mb.ind.barHourUtc',
+  barsheld: 'strategy.mb.ind.barsInTrade',
+  pnlr: 'strategy.mb.ind.openPnlR',
+  donchianhi: 'strategy.mb.ind.donchianUpper',
+  donchianlo: 'strategy.mb.ind.donchianLower',
+  bbwidth: 'strategy.mb.ind.bollWidthPct',
+  macdhist: 'strategy.mb.ind.macdHist',
+  orh: 'strategy.mb.ind.orHigh',
+  orl: 'strategy.mb.ind.orLow',
 }
+
+function indLabel(k: string): string {
+  const key = IND_LABEL_KEY[k]
+  if (key) return t(key)
+  return IND_ACRONYM[k] ?? k
+}
+
+const OP_KEYS: Record<string, MessageKey> = {
+  xabove: 'strategy.mb.op.xabove',
+  xbelow: 'strategy.mb.op.xbelow',
+  gt: 'strategy.mb.op.gt',
+  lt: 'strategy.mb.op.lt',
+  gte: 'strategy.mb.op.gte',
+  lte: 'strategy.mb.op.lte',
+  rise: 'strategy.mb.op.rise',
+  fall: 'strategy.mb.op.fall',
+}
+
+function opLabel(k: string): string {
+  return t(OP_KEYS[k] ?? (k as MessageKey))
+}
+
+const CAT_KEYS: Record<string, MessageKey> = {
+  trend: 'strategy.mb.cat.trend',
+  reversion: 'strategy.mb.cat.reversion',
+  breakout: 'strategy.mb.cat.breakout',
+  momentum: 'strategy.mb.cat.momentum',
+  volatility: 'strategy.mb.cat.volatility',
+  session: 'strategy.mb.cat.session',
+  intraday: 'strategy.mb.cat.intraday',
+}
+
+const CAT_ORDER = ['trend', 'reversion', 'breakout', 'momentum', 'volatility', 'session', 'intraday'] as const
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 
@@ -400,50 +456,77 @@ const TEMPLATES: Template[] = [
 
 export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): ManualStrategyBuilderApi {
   const { host } = opts
+
+  const rangeOptionsHtml = () =>
+    (
+      [
+        ['last_1_month', 'strategy.mb.range.last1Month'],
+        ['last_3_months', 'strategy.mb.range.last3Months'],
+        ['last_6_months', 'strategy.mb.range.last6Months'],
+        ['last_12_months', 'strategy.mb.range.last12Months'],
+        [RANGE_CUSTOM, 'strategy.mb.range.custom'],
+      ] as const
+    )
+      .map(
+        ([v, k]) =>
+          `<option value="${v}"${v === 'last_12_months' ? ' selected' : ''}>${te(k)}</option>`,
+      )
+      .join('')
+
+  const sessionOptionsHtml = () =>
+    (
+      [
+        [SESSION_ALL, 'strategy.mb.session.all'],
+        ['london_ny', 'strategy.mb.session.londonNy'],
+        ['london_only', 'strategy.mb.session.londonOnly'],
+        ['ny_only', 'strategy.mb.session.nyOnly'],
+        ['asia_only', 'strategy.mb.session.asiaOnly'],
+      ] as const
+    )
+      .map(([v, k]) => `<option value="${v}"${v === SESSION_ALL ? ' selected' : ''}>${te(k)}</option>`)
+      .join('')
+
   host.innerHTML = `
     <div class="sx-manual-strat">
       <div class="app">
         <header class="topbar">
-          ${opts.onBack ? `<button type="button" class="backLink" data-sx-back><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Strategies</button>` : ''}
+          ${opts.onBack ? `<button type="button" class="backLink" data-sx-back><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> <span data-i18n="strategy.mb.backStrategies">${te('strategy.mb.backStrategies')}</span></button>` : ''}
           <div class="nameFieldWrap">
-            <input class="nameField" id="stratName" value="EMA 9/21 Crossover" aria-label="Strategy name" readonly>
+            <input class="nameField" id="stratName" value="EMA 9/21 Crossover" aria-label="${te('strategy.mb.strategyNameAria')}" data-i18n-aria-label="strategy.mb.strategyNameAria" readonly>
             <span class="nameFieldGhost" id="nameFieldGhost" aria-hidden="true"></span>
-            <button type="button" class="nameFieldEdit" id="nameFieldEdit" title="Edit strategy name" aria-label="Edit strategy name"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>
+            <button type="button" class="nameFieldEdit" id="nameFieldEdit" title="${te('strategy.mb.editNameTitle')}" data-i18n-title="strategy.mb.editNameTitle" aria-label="${te('strategy.mb.editNameAria')}" data-i18n-aria-label="strategy.mb.editNameAria"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>
           </div>
-          <span class="forked" id="forkTag" hidden>Copy — saves to your strategies</span>
+          <span class="forked" id="forkTag" hidden data-i18n="strategy.mb.forkCopy">${te('strategy.mb.forkCopy')}</span>
           <div class="spacer"></div>
-          <button class="btn btn-chart" id="btnChart"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> Open in chart</button>
-          <button class="btn btn-save" id="btnSave"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save</button>
+          <button class="btn btn-chart" id="btnChart"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> <span data-i18n="strategy.openInChart">${te('strategy.openInChart')}</span></button>
+          <button class="btn btn-save" id="btnSave"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> <span data-i18n="strategy.mb.save">${te('strategy.mb.save')}</span></button>
         </header>
 
         <div class="context">
-          <div class="ctxItem"><span>Market</span>
-            <select class="sel ticker" id="symbol" aria-label="Symbol">
+          <div class="ctxItem"><span data-i18n="strategy.mb.ctx.market">${te('strategy.mb.ctx.market')}</span>
+            <select class="sel ticker" id="symbol" aria-label="${te('strategy.mb.symbolAria')}" data-i18n-aria-label="strategy.mb.symbolAria">
               ${SYMBOL_OPTIONS.map((sym) => `<option${sym === 'XAUUSD' ? ' selected' : ''}>${sym}</option>`).join('')}
             </select>
           </div>
-          <div class="ctxItem"><span>Timeframe</span>
-            <select class="sel" id="tf" aria-label="Timeframe">
+          <div class="ctxItem"><span data-i18n="strategy.mb.ctx.timeframe">${te('strategy.mb.ctx.timeframe')}</span>
+            <select class="sel" id="tf" aria-label="${te('strategy.mb.timeframeAria')}" data-i18n-aria-label="strategy.mb.timeframeAria">
               <option>1m</option><option>5m</option><option selected>15m</option>
               <option>1h</option><option>4h</option><option>1D</option>
             </select>
           </div>
-          <div class="ctxItem"><span>Range</span>
-            <select class="sel" id="range" aria-label="Date range">
-              <option>Last 1 month</option><option>Last 3 months</option>
-              <option>Last 6 months</option><option selected>Last 12 months</option>
-              <option>Custom range</option>
+          <div class="ctxItem"><span data-i18n="strategy.mb.ctx.range">${te('strategy.mb.ctx.range')}</span>
+            <select class="sel" id="range" aria-label="${te('strategy.mb.rangeAria')}" data-i18n-aria-label="strategy.mb.rangeAria">
+              ${rangeOptionsHtml()}
             </select>
           </div>
           <div class="ctxItem customRange" id="customRange" hidden>
-            <input class="txt dateField" type="date" id="rangeStart" aria-label="Range start date">
-            <span class="customRangeTo">to</span>
-            <input class="txt dateField" type="date" id="rangeEnd" aria-label="Range end date">
+            <input class="txt dateField" type="date" id="rangeStart" aria-label="${te('strategy.mb.rangeStartAria')}" data-i18n-aria-label="strategy.mb.rangeStartAria">
+            <span class="customRangeTo" data-i18n="strategy.mb.rangeTo">${te('strategy.mb.rangeTo')}</span>
+            <input class="txt dateField" type="date" id="rangeEnd" aria-label="${te('strategy.mb.rangeEndAria')}" data-i18n-aria-label="strategy.mb.rangeEndAria">
           </div>
-          <div class="ctxItem"><span>Sessions</span>
-            <select class="sel" id="session" aria-label="Session filter">
-              <option selected>All hours</option><option>London + New York</option>
-              <option>London only</option><option>New York only</option><option>Asia only</option>
+          <div class="ctxItem"><span data-i18n="strategy.mb.ctx.sessions">${te('strategy.mb.ctx.sessions')}</span>
+            <select class="sel" id="session" aria-label="${te('strategy.mb.sessionAria')}" data-i18n-aria-label="strategy.mb.sessionAria">
+              ${sessionOptionsHtml()}
             </select>
           </div>
           <div class="bars" id="barsInfo"></div>
@@ -452,18 +535,18 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         <div class="templateBar">
           <div class="tplBarHead">
             <div class="tplTabs" role="tablist">
-              <button type="button" class="tplTab" id="tabTemplates" data-tab="templates" role="tab" aria-selected="true">Templates</button>
-              <button type="button" class="tplTab" id="tabMine" data-tab="mine" role="tab" aria-selected="false">Your strategies<span class="tplTabCount" id="mineCount" hidden>0</span></button>
+              <button type="button" class="tplTab" id="tabTemplates" data-tab="templates" role="tab" aria-selected="true" data-i18n="strategy.mb.tab.templates">${te('strategy.mb.tab.templates')}</button>
+              <button type="button" class="tplTab" id="tabMine" data-tab="mine" role="tab" aria-selected="false"><span data-i18n="strategy.mb.tab.yours">${te('strategy.mb.tab.yours')}</span><span class="tplTabCount" id="mineCount" hidden>0</span></button>
             </div>
-            <button class="addLink" id="btnNew" title="Blank strategy">+ New strategy</button>
+            <button class="addLink" id="btnNew" title="${te('strategy.mb.blankStrategyTitle')}" data-i18n-title="strategy.mb.blankStrategyTitle" data-i18n="strategy.newStrategy">${te('strategy.newStrategy')}</button>
           </div>
-          <div class="tplCats" id="tplCats" role="tablist" aria-label="Filter templates by category"></div>
+          <div class="tplCats" id="tplCats" role="tablist" aria-label="${te('strategy.mb.tplCatsAria')}" data-i18n-aria-label="strategy.mb.tplCatsAria"></div>
           <div class="tplStrip">
-            <button type="button" class="tplNav tplNavPrev" id="tplPrev" aria-label="Show previous strategies" title="Show previous strategies">
+            <button type="button" class="tplNav tplNavPrev" id="tplPrev" aria-label="${te('strategy.mb.tplPrevAria')}" data-i18n-aria-label="strategy.mb.tplPrevAria" title="${te('strategy.mb.tplPrevAria')}" data-i18n-title="strategy.mb.tplPrevAria">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M6.8 1L2.4 5l4.4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
             <div class="tplScroll" id="tplScroll"></div>
-            <button type="button" class="tplNav tplNavNext" id="tplNext" aria-label="Show more strategies" title="Show more strategies">
+            <button type="button" class="tplNav tplNavNext" id="tplNext" aria-label="${te('strategy.mb.tplNextAria')}" data-i18n-aria-label="strategy.mb.tplNextAria" title="${te('strategy.mb.tplNextAria')}" data-i18n-title="strategy.mb.tplNextAria">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M3.2 1L7.6 5l-4.4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
@@ -478,112 +561,112 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
             <section class="block">
               <div class="blockHead">
-                <span class="kw">WHEN</span>
-                <h2>Entry conditions</h2>
+                <span class="kw" data-i18n="strategy.mb.kw.when">${te('strategy.mb.kw.when')}</span>
+                <h2 data-i18n="strategy.mb.entryConditions">${te('strategy.mb.entryConditions')}</h2>
                 <div class="joinPick">
-                  <label for="entryJoin">Match</label>
+                  <label for="entryJoin" data-i18n="strategy.mb.match">${te('strategy.mb.match')}</label>
                   <select class="sel" id="entryJoin">
-                    <option value="all">all of these</option>
-                    <option value="any">any of these</option>
+                    <option value="all">${te('strategy.mb.matchAll')}</option>
+                    <option value="any">${te('strategy.mb.matchAny')}</option>
                   </select>
                 </div>
               </div>
               <div class="rules">
                 <div id="entryRules"></div>
                 <div class="ruleFoot">
-                  <button class="addLink" data-add="entry">Add condition</button>
-                  <button class="addLink" data-add="entry" data-preset="time">Add time filter</button>
+                  <button class="addLink" data-add="entry" data-i18n="strategy.mb.addCondition">${te('strategy.mb.addCondition')}</button>
+                  <button class="addLink" data-add="entry" data-preset="time" data-i18n="strategy.mb.addTimeFilter">${te('strategy.mb.addTimeFilter')}</button>
                 </div>
               </div>
             </section>
 
             <section class="block">
               <div class="blockHead">
-                <span class="kw">THEN</span>
-                <h2>Position and risk</h2>
+                <span class="kw" data-i18n="strategy.mb.kw.then">${te('strategy.mb.kw.then')}</span>
+                <h2 data-i18n="strategy.mb.positionRisk">${te('strategy.mb.positionRisk')}</h2>
                 <div class="joinPick">
-                  <div class="seg" role="group" aria-label="Direction">
-                    <button data-dir="long" aria-pressed="true">Long</button>
-                    <button data-dir="short" aria-pressed="false">Short</button>
-                    <button data-dir="both" aria-pressed="false">Both</button>
+                  <div class="seg" role="group" aria-label="${te('strategy.mb.directionAria')}" data-i18n-aria-label="strategy.mb.directionAria">
+                    <button data-dir="long" aria-pressed="true" data-i18n="strategy.direction.long">${te('strategy.direction.long')}</button>
+                    <button data-dir="short" aria-pressed="false" data-i18n="strategy.direction.short">${te('strategy.direction.short')}</button>
+                    <button data-dir="both" aria-pressed="false" data-i18n="strategy.direction.both">${te('strategy.direction.both')}</button>
                   </div>
                 </div>
               </div>
               <div class="posGrid">
                 <div class="field">
-                  <label for="sizeType">Position size</label>
+                  <label for="sizeType" data-i18n="strategy.mb.positionSize">${te('strategy.mb.positionSize')}</label>
                   <div class="row">
                     <select class="sel" id="sizeType">
-                      <option value="riskpct" selected>Risk % of equity</option>
-                      <option value="fixedlot">Fixed lots</option>
-                      <option value="fixedcash">Fixed cash</option>
-                      <option value="kelly">Fractional Kelly</option>
+                      <option value="riskpct" selected>${te('strategy.mb.size.riskPct')}</option>
+                      <option value="fixedlot">${te('strategy.mb.size.fixedLot')}</option>
+                      <option value="fixedcash">${te('strategy.mb.size.fixedCash')}</option>
+                      <option value="kelly">${te('strategy.mb.size.kelly')}</option>
                     </select>
                     <input class="num" id="sizeVal" value="1" step="0.1">
                   </div>
-                  <div class="hint" id="sizeHint">\u2248 $1,000 risked per trade on $100k</div>
+                  <div class="hint" id="sizeHint">${te('strategy.mb.hint.sizeRiskPctInitial')}</div>
                 </div>
                 <div class="field">
-                  <label for="stopType">Stop loss</label>
+                  <label for="stopType" data-i18n="strategy.mb.stopLoss">${te('strategy.mb.stopLoss')}</label>
                   <div class="row">
                     <select class="sel" id="stopType">
-                      <option value="atr" selected>ATR multiple</option>
-                      <option value="pct">Percent of price</option>
-                      <option value="pips">Fixed pips</option>
-                      <option value="swing">Last swing low/high</option>
-                      <option value="none">No hard stop</option>
+                      <option value="atr" selected>${te('strategy.mb.stop.atr')}</option>
+                      <option value="pct">${te('strategy.mb.stop.pct')}</option>
+                      <option value="pips">${te('strategy.mb.stop.pips')}</option>
+                      <option value="swing">${te('strategy.mb.stop.swing')}</option>
+                      <option value="none">${te('strategy.mb.stop.none')}</option>
                     </select>
                     <input class="num" id="stopVal" value="1.5" step="0.1">
                   </div>
-                  <div class="hint" id="stopHint">ATR(14) on 15m \u2248 2.4 pts \u2192 stop \u2248 3.6 pts</div>
+                  <div class="hint" id="stopHint">${te('strategy.mb.hint.stopAtrInitial')}</div>
                 </div>
                 <div class="field">
-                  <label for="tpType">Take profit</label>
+                  <label for="tpType" data-i18n="strategy.mb.takeProfit">${te('strategy.mb.takeProfit')}</label>
                   <div class="row">
                     <select class="sel" id="tpType">
-                      <option value="rr" selected>Risk : reward</option>
-                      <option value="atr">ATR multiple</option>
-                      <option value="pct">Percent of price</option>
-                      <option value="none">Exit rules only</option>
+                      <option value="rr" selected>${te('strategy.mb.tp.rr')}</option>
+                      <option value="atr">${te('strategy.mb.tp.atr')}</option>
+                      <option value="pct">${te('strategy.mb.tp.pct')}</option>
+                      <option value="none">${te('strategy.mb.tp.none')}</option>
                     </select>
                     <input class="num" id="tpVal" value="2" step="0.1">
                   </div>
-                  <div class="hint" id="tpHint">Breakeven win rate at 2R \u2248 33.3%</div>
+                  <div class="hint" id="tpHint">${te('strategy.mb.hint.tpRrInitial')}</div>
                 </div>
                 <div class="field">
-                  <label for="trailType">Trail / breakeven</label>
+                  <label for="trailType" data-i18n="strategy.mb.trailBreakeven">${te('strategy.mb.trailBreakeven')}</label>
                   <div class="row">
                     <select class="sel" id="trailType">
-                      <option value="none" selected>Off</option>
-                      <option value="be">Move to breakeven at</option>
-                      <option value="atr">Trail by ATR</option>
-                      <option value="chandelier">Chandelier exit</option>
+                      <option value="none" selected>${te('strategy.mb.trail.off')}</option>
+                      <option value="be">${te('strategy.mb.trail.be')}</option>
+                      <option value="atr">${te('strategy.mb.trail.atr')}</option>
+                      <option value="chandelier">${te('strategy.mb.trail.chandelier')}</option>
                     </select>
                     <input class="num" id="trailVal" value="1" step="0.1" disabled>
                   </div>
-                  <div class="hint" id="trailHint">No trailing \u2014 stop and target are fixed</div>
+                  <div class="hint" id="trailHint">${te('strategy.mb.hint.trailNone')}</div>
                 </div>
               </div>
             </section>
 
             <section class="block">
               <div class="blockHead">
-                <span class="kw">UNTIL</span>
-                <h2>Exit conditions</h2>
-                <p>Checked on every bar close, alongside the stop and target.</p>
+                <span class="kw" data-i18n="strategy.mb.kw.until">${te('strategy.mb.kw.until')}</span>
+                <h2 data-i18n="strategy.mb.exitConditions">${te('strategy.mb.exitConditions')}</h2>
+                <p data-i18n="strategy.mb.exitAside">${te('strategy.mb.exitAside')}</p>
                 <div class="joinPick">
-                  <label for="exitJoin">Match</label>
+                  <label for="exitJoin" data-i18n="strategy.mb.match">${te('strategy.mb.match')}</label>
                   <select class="sel" id="exitJoin">
-                    <option value="any" selected>any of these</option>
-                    <option value="all">all of these</option>
+                    <option value="any" selected>${te('strategy.mb.matchAny')}</option>
+                    <option value="all">${te('strategy.mb.matchAll')}</option>
                   </select>
                 </div>
               </div>
               <div class="rules">
                 <div id="exitRules"></div>
                 <div class="ruleFoot">
-                  <button class="addLink" data-add="exit">Add condition</button>
-                  <button class="addLink" data-add="exit" data-preset="bars">Add time stop</button>
+                  <button class="addLink" data-add="exit" data-i18n="strategy.mb.addCondition">${te('strategy.mb.addCondition')}</button>
+                  <button class="addLink" data-add="exit" data-preset="bars" data-i18n="strategy.mb.addTimeStop">${te('strategy.mb.addTimeStop')}</button>
                 </div>
               </div>
             </section>
@@ -592,8 +675,8 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
           <aside class="reader">
             <div class="sparkWrap">
-              <div class="sHead"><span id="sparkHeadTitle">Equity shape</span><span id="sparkHeadNote">illustrative — not backtest data</span></div>
-              <svg class="spark" id="sparkSvg" viewBox="0 0 300 58" preserveAspectRatio="none" aria-label="Illustrative equity shape">
+              <div class="sHead"><span id="sparkHeadTitle" data-i18n="strategy.mb.spark.equityShape">${te('strategy.mb.spark.equityShape')}</span><span id="sparkHeadNote" data-i18n="strategy.mb.spark.illustrativeNote">${te('strategy.mb.spark.illustrativeNote')}</span></div>
+              <svg class="spark" id="sparkSvg" viewBox="0 0 300 58" preserveAspectRatio="none" aria-label="${te('strategy.mb.spark.aria')}" data-i18n-aria-label="strategy.mb.spark.aria">
                 <defs>
                   <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stop-color="#E0A94A" stop-opacity="0.35"/>
@@ -617,14 +700,14 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
               <div class="sparkStats" id="sparkStats" hidden></div>
             </div>
 
-            <div class="readerHead"><h3>Plain English</h3></div>
+            <div class="readerHead"><h3 data-i18n="strategy.mb.plainEnglish">${te('strategy.mb.plainEnglish')}</h3></div>
             <div class="prose" id="prose"></div>
 
             <div class="checks" id="checks"></div>
 
             <div class="jsonWrap">
               <button class="jsonToggle" id="jsonToggle" aria-expanded="false">
-                <span>Strategy JSON</span><span id="jsonCaret">Show</span>
+                <span data-i18n="strategy.mb.strategyJson">${te('strategy.mb.strategyJson')}</span><span id="jsonCaret" data-i18n="strategy.mb.json.show">${te('strategy.mb.json.show')}</span>
               </button>
               <pre class="json" id="json" hidden></pre>
             </div>
@@ -634,7 +717,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
         <div class="actions">
           <div class="actionsInner">
-            <button class="btn btn-primary" id="btnRun">Run backtest</button>
+            <button class="btn btn-primary" id="btnRun" data-i18n="strategy.runBacktest">${te('strategy.runBacktest')}</button>
             <span class="est" id="est"></span>
           </div>
         </div>
@@ -816,6 +899,62 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   // rows, so *all* dropdowns on this page look and behave the same way.
   host.querySelectorAll<HTMLSelectElement>('select.sel').forEach((sel) => dressSelect(sel))
 
+  const SELECT_OPTION_KEYS: Record<string, Record<string, MessageKey>> = {
+    range: {
+      last_1_month: 'strategy.mb.range.last1Month',
+      last_3_months: 'strategy.mb.range.last3Months',
+      last_6_months: 'strategy.mb.range.last6Months',
+      last_12_months: 'strategy.mb.range.last12Months',
+      [RANGE_CUSTOM]: 'strategy.mb.range.custom',
+    },
+    session: {
+      [SESSION_ALL]: 'strategy.mb.session.all',
+      london_ny: 'strategy.mb.session.londonNy',
+      london_only: 'strategy.mb.session.londonOnly',
+      ny_only: 'strategy.mb.session.nyOnly',
+      asia_only: 'strategy.mb.session.asiaOnly',
+    },
+    entryJoin: { all: 'strategy.mb.matchAll', any: 'strategy.mb.matchAny' },
+    exitJoin: { all: 'strategy.mb.matchAll', any: 'strategy.mb.matchAny' },
+    sizeType: {
+      riskpct: 'strategy.mb.size.riskPct',
+      fixedlot: 'strategy.mb.size.fixedLot',
+      fixedcash: 'strategy.mb.size.fixedCash',
+      kelly: 'strategy.mb.size.kelly',
+    },
+    stopType: {
+      atr: 'strategy.mb.stop.atr',
+      pct: 'strategy.mb.stop.pct',
+      pips: 'strategy.mb.stop.pips',
+      swing: 'strategy.mb.stop.swing',
+      none: 'strategy.mb.stop.none',
+    },
+    tpType: {
+      rr: 'strategy.mb.tp.rr',
+      atr: 'strategy.mb.tp.atr',
+      pct: 'strategy.mb.tp.pct',
+      none: 'strategy.mb.tp.none',
+    },
+    trailType: {
+      none: 'strategy.mb.trail.off',
+      be: 'strategy.mb.trail.be',
+      atr: 'strategy.mb.trail.atr',
+      chandelier: 'strategy.mb.trail.chandelier',
+    },
+  }
+
+  function localizeStaticSelects() {
+    for (const [id, map] of Object.entries(SELECT_OPTION_KEYS)) {
+      const sel = $<HTMLSelectElement>(id)
+      Array.from(sel.options).forEach((opt) => {
+        const key = map[opt.value]
+        if (key) opt.textContent = t(key)
+      })
+    }
+    syncAllDropdownLabels()
+  }
+  localizeStaticSelects()
+
   let S: Strategy = null as unknown as Strategy
   let activeTpl = 0
   let dirty = false
@@ -846,7 +985,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   function blank() {
     S = {
-      name: 'Untitled strategy',
+      name: t('strategy.mb.untitled'),
       dir: 'long',
       entryJoin: 'all',
       exitJoin: 'any',
@@ -868,7 +1007,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   function sizeNameField() {
     const input = $<HTMLInputElement>('stratName')
     const ghost = $<HTMLElement>('nameFieldGhost')
-    ghost.textContent = input.value || 'Untitled strategy'
+    ghost.textContent = input.value || t('strategy.mb.untitled')
     input.style.width = Math.min(520, Math.max(88, Math.ceil(ghost.offsetWidth) + 2)) + 'px'
   }
 
@@ -906,11 +1045,11 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     wrap.className = 'chip'
     const sel = document.createElement('select')
     sel.className = 'sel'
-    sel.setAttribute('aria-label', 'Indicator')
+    sel.setAttribute('aria-label', t('strategy.mb.aria.indicator'))
     for (const k in IND) {
       const opt = document.createElement('option')
       opt.value = k
-      opt.textContent = IND[k].label
+      opt.textContent = indLabel(k)
       if (k === o.ind) opt.selected = true
       sel.appendChild(opt)
     }
@@ -936,7 +1075,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         n.min = String(min)
         n.max = String(max)
         n.step = key === 'sd' ? '0.1' : '1'
-        n.setAttribute('aria-label', IND[o.ind].label + ' ' + key)
+        n.setAttribute('aria-label', indLabel(o.ind) + ' ' + key)
         n.title = key
         n.oninput = () => {
           o.p[key] = parseFloat(n.value) || 0
@@ -959,9 +1098,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       e.className = 'rule'
       e.innerHTML =
         '<span style="color:var(--dimmer);font-size:13px">' +
-        (kind === 'entry'
-          ? 'No entry conditions \u2014 the strategy will never open a trade.'
-          : 'No exit conditions \u2014 trades close on the stop or target only.') +
+        (kind === 'entry' ? t('strategy.mb.noEntryRules') : t('strategy.mb.noExitRules')) +
         '</span>'
       host2.appendChild(e)
       return
@@ -972,18 +1109,19 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
       const tag = document.createElement('span')
       tag.className = 'joinTag' + (i === 0 ? ' first' : '')
-      tag.textContent = i === 0 ? 'if' : join === 'all' ? 'and' : 'or'
+      tag.textContent =
+        i === 0 ? t('strategy.mb.join.if') : join === 'all' ? t('strategy.mb.join.and') : t('strategy.mb.join.or')
       row.appendChild(tag)
 
       row.appendChild(operandChip(r.left, update, updateKeepingRuleFocus))
 
       const opSel = document.createElement('select')
       opSel.className = 'sel'
-      opSel.setAttribute('aria-label', 'Comparison')
-      for (const k in OPS) {
+      opSel.setAttribute('aria-label', t('strategy.mb.aria.comparison'))
+      for (const k in OP_KEYS) {
         const o = document.createElement('option')
         o.value = k
-        o.textContent = OPS[k]
+        o.textContent = opLabel(k)
         if (k === r.op) o.selected = true
         opSel.appendChild(o)
       }
@@ -995,11 +1133,16 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
       const kindSel = document.createElement('select')
       kindSel.className = 'sel'
-      kindSel.setAttribute('aria-label', 'Compare against')
-      ;([['ind', 'an indicator'], ['num', 'a value']] as const).forEach(([v, t]) => {
+      kindSel.setAttribute('aria-label', t('strategy.mb.aria.compareAgainst'))
+      ;(
+        [
+          ['ind', 'strategy.mb.rhs.indicator'],
+          ['num', 'strategy.mb.rhs.value'],
+        ] as const
+      ).forEach(([v, key]) => {
         const o = document.createElement('option')
         o.value = v
-        o.textContent = t
+        o.textContent = t(key)
         if (v === r.rhs.kind) o.selected = true
         kindSel.appendChild(o)
       })
@@ -1020,7 +1163,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         n.className = 'num'
         n.style.width = '72px'
         n.value = String(r.rhs.value)
-        n.setAttribute('aria-label', 'Value')
+        n.setAttribute('aria-label', t('strategy.mb.aria.value'))
         n.oninput = () => {
           ;(r.rhs as { kind: 'num'; value: number }).value = parseFloat(n.value)
           // Not `update()` \u2014 that rebuilds every rule row (this input
@@ -1033,7 +1176,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       const del = document.createElement('button')
       del.className = 'del'
       del.textContent = '\u00d7'
-      del.setAttribute('aria-label', 'Remove condition')
+      del.setAttribute('aria-label', t('strategy.mb.aria.removeCondition'))
       del.onclick = () => {
         S[kind].splice(i, 1)
         update()
@@ -1048,20 +1191,26 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     if (o.kind === 'num') return '<span class="v">' + o.value + '</span>'
     const ps = IND[o.ind].params ?? []
     const args = ps.map((p) => o.p[p[0]]).join(', ')
-    return '<span class="v">' + IND[o.ind].label + (args ? '(' + args + ')' : '') + '</span>'
+    return '<span class="v">' + indLabel(o.ind) + (args ? '(' + args + ')' : '') + '</span>'
   }
-  const dirWord = (d: Strategy['dir']) =>
+  const dirWordHtml = (d: Strategy['dir']) =>
     d === 'long'
-      ? '<span class="long">long</span>'
+      ? '<span class="long">' + te('strategy.mb.prose.dirLong') + '</span>'
       : d === 'short'
-        ? '<span class="short">short</span>'
-        : '<span class="long">long</span> or <span class="short">short</span>'
+        ? '<span class="short">' + te('strategy.mb.prose.dirShort') + '</span>'
+        : '<span class="long">' +
+          te('strategy.mb.prose.dirLong') +
+          '</span> ' +
+          te('strategy.mb.join.or') +
+          ' <span class="short">' +
+          te('strategy.mb.prose.dirShort') +
+          '</span>'
 
   function sentence(list: Rule[], join: 'all' | 'any'): string | null {
     if (!list.length) return null
-    const parts = list.map((r) => fmt(r.left as unknown as Operand) + ' ' + OPS[r.op] + ' ' + fmt(r.rhs))
+    const parts = list.map((r) => fmt(r.left as unknown as Operand) + ' ' + opLabel(r.op) + ' ' + fmt(r.rhs))
     if (parts.length === 1) return parts[0]!
-    const sep = join === 'all' ? ' and ' : ' or '
+    const sep = join === 'all' ? ' ' + t('strategy.mb.join.and') + ' ' : ' ' + t('strategy.mb.join.or') + ' '
     return parts.slice(0, -1).join(', ') + sep + parts[parts.length - 1]
   }
 
@@ -1072,44 +1221,52 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const [rt, rv] = S.risk.trail
     const size =
       zt === 'riskpct'
-        ? 'risking <span class="v">' + zv + '%</span> of equity'
+        ? t('strategy.mb.prose.sizeRiskPct', { pct: zv }).replace(String(zv), '<span class="v">' + zv + '</span>')
         : zt === 'fixedlot'
-          ? 'using <span class="v">' + zv + '</span> lots'
+          ? t('strategy.mb.prose.sizeFixedLot', { lots: zv }).replace(String(zv), '<span class="v">' + zv + '</span>')
           : zt === 'fixedcash'
-            ? 'committing <span class="v">$' + zv + '</span>'
-            : 'sizing by <span class="v">' + zv + '</span>-fraction Kelly'
+            ? t('strategy.mb.prose.sizeFixedCash', { amount: '$' + zv }).replace(
+                '$' + zv,
+                '<span class="v">$' + zv + '</span>',
+              )
+            : t('strategy.mb.prose.sizeKelly', { frac: zv }).replace(String(zv), '<span class="v">' + zv + '</span>')
     const stop =
       st === 'atr'
-        ? 'a stop <span class="v">' + sv + '\u00d7</span> ATR away'
+        ? t('strategy.mb.prose.stopAtr', { mult: sv }).replace(String(sv), '<span class="v">' + sv + '</span>')
         : st === 'pct'
-          ? 'a stop <span class="v">' + sv + '%</span> away'
+          ? t('strategy.mb.prose.stopPct', { pct: sv }).replace(String(sv), '<span class="v">' + sv + '</span>')
           : st === 'pips'
-            ? 'a stop <span class="v">' + sv + '</span> pips away'
+            ? t('strategy.mb.prose.stopPips', { pips: sv }).replace(String(sv), '<span class="v">' + sv + '</span>')
             : st === 'swing'
-              ? 'a stop at the last swing point'
-              : 'no hard stop'
+              ? t('strategy.mb.prose.stopSwing')
+              : t('strategy.mb.prose.stopNone')
     const tp =
       tt === 'rr'
-        ? 'a target at <span class="v">' + tv + 'R</span>'
+        ? t('strategy.mb.prose.tpRr', { rr: tv }).replace(String(tv), '<span class="v">' + tv + '</span>')
         : tt === 'atr'
-          ? 'a target <span class="v">' + tv + '\u00d7</span> ATR away'
+          ? t('strategy.mb.prose.tpAtr', { mult: tv }).replace(String(tv), '<span class="v">' + tv + '</span>')
           : tt === 'pct'
-            ? 'a target <span class="v">' + tv + '%</span> away'
-            : 'no fixed target'
+            ? t('strategy.mb.prose.tpPct', { pct: tv }).replace(String(tv), '<span class="v">' + tv + '</span>')
+            : t('strategy.mb.prose.tpNone')
     const trail =
       rt === 'none'
         ? ''
         : rt === 'be'
-          ? ' Move the stop to breakeven once price reaches <span class="v">' + rv + 'R</span>.'
+          ? t('strategy.mb.prose.trailBe', { rr: rv }).replace(String(rv), '<span class="v">' + rv + '</span>')
           : rt === 'atr'
-            ? ' Trail the stop by <span class="v">' + rv + '\u00d7</span> ATR once in profit.'
-            : ' Trail with a chandelier exit at <span class="v">' + rv + '\u00d7</span> ATR.'
-    return 'Enter ' + dirWord(S.dir) + ', ' + size + ', with ' + stop + ' and ' + tp + '.' + trail
+            ? t('strategy.mb.prose.trailAtr', { mult: rv }).replace(String(rv), '<span class="v">' + rv + '</span>')
+            : t('strategy.mb.prose.trailChandelier', { mult: rv }).replace(String(rv), '<span class="v">' + rv + '</span>')
+    return t('strategy.mb.prose.risk', { direction: dirWordHtml(S.dir), size, stop, tp, trail })
+  }
+
+  function sessionLabel(sessionId: string): string {
+    const key = SELECT_OPTION_KEYS.session[sessionId]
+    return key ? t(key) : sessionId
   }
 
   function renderProse() {
     const p = $('prose')
-    const sym = $<HTMLSelectElement>('symbol').value.toUpperCase() || 'the market'
+    const sym = $<HTMLSelectElement>('symbol').value.toUpperCase() || t('strategy.mb.prose.marketFallback')
     const tf = $<HTMLSelectElement>('tf').value
     const ses = $<HTMLSelectElement>('session').value
     const e = sentence(S.entry, S.entryJoin)
@@ -1117,27 +1274,36 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
     const html: string[] = []
     html.push(
-      "<p>On <span class='v'>" +
-        sym +
-        "</span> " +
-        tf +
-        ' bars' +
-        (ses === 'All hours' ? '' : ', during ' + ses.toLowerCase()) +
-        ':</p>',
+      '<p>' +
+        t('strategy.mb.prose.intro', {
+          sym: "<span class='v'>" + sym + '</span>',
+          tf,
+          sessionPart:
+            ses === SESSION_ALL
+              ? ''
+              : t('strategy.mb.prose.sessionPart', { session: sessionLabel(ses).toLowerCase() }),
+        }) +
+        '</p>',
     )
     html.push(
       '<p>' +
         (e
-          ? 'When ' +
-            e +
-            ' \u2014 ' +
-            (S.entryJoin === 'all' ? 'all true on the same bar close' : 'any one of them true') +
-            ' \u2014 open a trade.'
-          : "<em style='color:var(--short);font-style:normal'>No entry condition is set, so no trade will ever open.</em>") +
+          ? t('strategy.mb.prose.entryOpen', {
+              conditions: e,
+              match:
+                S.entryJoin === 'all'
+                  ? t('strategy.mb.prose.entryMatchAll')
+                  : t('strategy.mb.prose.entryMatchAny'),
+            })
+          : "<em style='color:var(--short);font-style:normal'>" + te('strategy.mb.prose.noEntry') + '</em>') +
         '</p>',
     )
     html.push('<p>' + riskSentence() + '</p>')
-    html.push('<p>' + (x ? 'Close early if ' + x + '.' : 'Otherwise hold until the stop or target is hit.') + '</p>')
+    html.push(
+      '<p>' +
+        (x ? t('strategy.mb.prose.exitEarly', { conditions: x }) : t('strategy.mb.prose.exitHold')) +
+        '</p>',
+    )
 
     p.innerHTML = html.join('')
     p.classList.remove('flash')
@@ -1208,22 +1374,27 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const barsInfo = $<HTMLElement>('barsInfo')
     if (state === 'loading') {
       barsInfo.innerHTML =
-        '<button type="button" class="barsBtn" id="barsBtn" disabled><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Fetching bar coverage\u2026</button>'
+        '<button type="button" class="barsBtn" id="barsBtn" disabled><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> ' +
+        te('strategy.mb.bars.fetching') +
+        '</button>'
     } else if (state === 'idle') {
       barsInfo.innerHTML =
-        '<button type="button" class="barsBtn" id="barsBtn" title="Count the bars stored locally for this symbol"><i class="fa-solid fa-database" aria-hidden="true"></i> Check bar coverage</button>'
+        '<button type="button" class="barsBtn" id="barsBtn" title="' +
+        te('strategy.mb.bars.checkTitle') +
+        '"><i class="fa-solid fa-database" aria-hidden="true"></i> ' +
+        te('strategy.mb.bars.check') +
+        '</button>'
     } else {
       const title =
-        state === 'live'
-          ? 'Live count from your local market data store \u2014 click to re-check'
-          : 'Estimated \u2014 no local data found for this symbol yet \u2014 click to re-check'
+        state === 'live' ? te('strategy.mb.bars.liveTitle') : te('strategy.mb.bars.estTitle')
       barsInfo.innerHTML =
         '<button type="button" class="barsBtn barsBtnDone" id="barsBtn" title="' +
         title +
         '">\u2248 <b>' +
-        baseBars.toLocaleString() +
-        '</b> bars available' +
-        (state === 'estimated' ? ' <span class="barsEst">(est.)</span>' : '') +
+        baseBars.toLocaleString(activeLocaleTag()) +
+        '</b> ' +
+        te('strategy.mb.bars.availableSuffix') +
+        (state === 'estimated' ? ' <span class="barsEst">' + te('strategy.mb.bars.estTag') + '</span>' : '') +
         ' <i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>'
     }
     $<HTMLButtonElement>('barsBtn').onclick = () => {
@@ -1250,33 +1421,41 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const both = S.dir === 'both'
 
     if (!S.entry.length) {
-      out.push(['bad', 'No entry condition', 'Add at least one condition or the backtest returns zero trades.'])
+      out.push(['bad', t('strategy.mb.check.noEntryTitle'), t('strategy.mb.check.noEntryBody')])
     }
     if (lb) {
-      out.push(['ok', 'Warm-up ' + lb + ' bars', 'The first ' + lb + ' bars are skipped so every indicator is fully formed.'])
+      out.push([
+        'ok',
+        t('strategy.mb.check.warmupTitle', { count: lb }),
+        t('strategy.mb.check.warmupBody', { count: lb }),
+      ])
     }
     if (S.risk.stop[0] === 'none') {
-      out.push(['bad', 'No stop loss', 'One adverse run can end the equity curve. Drawdown numbers will not be meaningful.'])
+      out.push(['bad', t('strategy.mb.check.noStopTitle'), t('strategy.mb.check.noStopBody')])
     }
     if (S.risk.tp[0] === 'none' && !S.exit.length) {
-      out.push(['bad', 'Nothing closes the trade', 'There is no target and no exit condition, so positions stay open to the end of the range.'])
+      out.push(['bad', t('strategy.mb.check.noCloseTitle'), t('strategy.mb.check.noCloseBody')])
     }
     if (S.risk.size[0] === 'riskpct' && Number(S.risk.size[1]) > 2) {
-      out.push(['warn', 'Risk ' + S.risk.size[1] + '% per trade', 'Above 2%, a normal losing streak of 8 costs roughly a third of the account.'])
+      out.push([
+        'warn',
+        t('strategy.mb.check.riskTitle', { pct: S.risk.size[1] }),
+        t('strategy.mb.check.riskBody'),
+      ])
     }
     if (S.risk.tp[0] === 'rr' && Number(S.risk.tp[1]) >= 3) {
       const wr = (100 / (1 + Number(S.risk.tp[1]))).toFixed(1)
-      out.push(['warn', 'Needs only ' + wr + '% wins', 'High R targets are hit less often. Check the distribution, not just expectancy.'])
+      out.push(['warn', t('strategy.mb.check.winsTitle', { pct: wr }), t('strategy.mb.check.winsBody')])
     }
     const crossOnly = S.entry.length > 0 && S.entry.every((r) => r.op === 'xabove' || r.op === 'xbelow')
     if (crossOnly && both) {
-      out.push(['warn', 'Always in the market', 'Every entry is a cross and direction is both ways, so the strategy flips on each signal.'])
+      out.push(['warn', t('strategy.mb.check.alwaysInTitle'), t('strategy.mb.check.alwaysInBody')])
     }
     const tf = $<HTMLSelectElement>('tf').value
-    if ((tf === '1m' || tf === '5m') && $<HTMLSelectElement>('session').value === 'All hours') {
-      out.push(['warn', 'Low-liquidity hours included', 'On ' + tf + ' bars the Asian rollover fills will flatter the result. Consider a session filter.'])
+    if ((tf === '1m' || tf === '5m') && $<HTMLSelectElement>('session').value === SESSION_ALL) {
+      out.push(['warn', t('strategy.mb.check.liquidityTitle'), t('strategy.mb.check.liquidityBody', { tf })])
     }
-    if (!out.length) out.push(['ok', 'Ready to run', 'Nothing in the rule set looks structurally broken.'])
+    if (!out.length) out.push(['ok', t('strategy.mb.check.readyTitle'), t('strategy.mb.check.readyBody')])
 
     const checksHost = $('checks')
     checksHost.textContent = ''
@@ -1291,14 +1470,14 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const { est } = estimates()
     renderBarsInfo()
     $('est').textContent = S.entry.length
-      ? '\u2248 ' + est.toLocaleString() + ' trades over the selected range \u00b7 under 2s'
-      : 'Add an entry condition to run'
+      ? t('strategy.mb.est.tradesRange', { count: est.toLocaleString(activeLocaleTag()) })
+      : t('strategy.mb.est.addEntry')
   }
 
   function renderJson() {
     if ($<HTMLElement>('json').hidden) return
     const rangeValue = $<HTMLSelectElement>('range').value
-    const rangeDates = rangeValue === CUSTOM_RANGE ? rangeToDates(rangeValue) : null
+    const rangeDates = rangeValue === RANGE_CUSTOM ? rangeToDates(rangeValue) : null
     const obj = {
       name: S.name,
       symbol: $<HTMLSelectElement>('symbol').value.toUpperCase(),
@@ -1344,38 +1523,43 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const [rt, rv] = S.risk.trail
     $('sizeHint').textContent =
       zt === 'riskpct'
-        ? '\u2248 $' + (1000 * zv).toLocaleString() + ' risked per trade on $100k'
+        ? t('strategy.mb.hint.sizeRiskPct', {
+            amount: '$' + (1000 * zv).toLocaleString(activeLocaleTag()),
+          })
         : zt === 'fixedlot'
-          ? zv + ' lots regardless of stop distance'
+          ? t('strategy.mb.hint.sizeFixedLot', { lots: zv })
           : zt === 'fixedcash'
-            ? '$' + zv + ' committed per trade'
-            : 'Capped at ' + zv + ' of the full Kelly fraction'
+            ? t('strategy.mb.hint.sizeFixedCash', { amount: '$' + zv })
+            : t('strategy.mb.hint.sizeKelly', { frac: zv })
     $('stopHint').textContent =
       st === 'atr'
-        ? 'ATR(14) on ' + $<HTMLSelectElement>('tf').value + ' \u2248 2.4 pts \u2192 stop \u2248 ' + (2.4 * sv).toFixed(1) + ' pts'
+        ? t('strategy.mb.hint.stopAtr', {
+            tf: $<HTMLSelectElement>('tf').value,
+            pts: (2.4 * sv).toFixed(1),
+          })
         : st === 'pct'
-          ? sv + '% of entry price'
+          ? t('strategy.mb.hint.stopPct', { pct: sv })
           : st === 'pips'
-            ? sv + ' pips from entry'
+            ? t('strategy.mb.hint.stopPips', { pips: sv })
             : st === 'swing'
-              ? 'Uses the most recent swing high or low'
-              : 'Unbounded loss per trade'
+              ? t('strategy.mb.hint.stopSwing')
+              : t('strategy.mb.hint.stopNone')
     $('tpHint').textContent =
       tt === 'rr'
-        ? 'Breakeven win rate at ' + tv + 'R \u2248 ' + (100 / (1 + Number(tv))).toFixed(1) + '%'
+        ? t('strategy.mb.hint.tpRr', { rr: tv, pct: (100 / (1 + Number(tv))).toFixed(1) })
         : tt === 'atr'
-          ? tv + '\u00d7 ATR from entry'
+          ? t('strategy.mb.hint.tpAtr', { mult: tv })
           : tt === 'pct'
-            ? tv + '% from entry'
-            : 'Trades close on exit conditions or the stop'
+            ? t('strategy.mb.hint.tpPct', { pct: tv })
+            : t('strategy.mb.hint.tpRulesOnly')
     $('trailHint').textContent =
       rt === 'none'
-        ? 'No trailing \u2014 stop and target are fixed'
+        ? t('strategy.mb.hint.trailNone')
         : rt === 'be'
-          ? 'Risk drops to zero once ' + rv + 'R is reached'
+          ? t('strategy.mb.hint.trailBe', { rr: rv })
           : rt === 'atr'
-            ? 'Stop follows price by ' + rv + '\u00d7 ATR'
-            : 'Stop anchored ' + rv + '\u00d7 ATR below the highest close since entry'
+            ? t('strategy.mb.hint.trailAtr', { mult: rv })
+            : t('strategy.mb.hint.trailChandelier', { mult: rv })
     $<HTMLInputElement>('trailVal').disabled = rt === 'none'
   }
 
@@ -1389,43 +1573,98 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   function renderLiveLine() {
     const e = sentence(S.entry, S.entryJoin)
-    const dir = S.dir === 'both' ? 'Long/short' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
-    const stop = S.risk.stop[0] === 'none' ? 'no stop' : S.risk.stop[1] + '\u00d7 ' + S.risk.stop[0] + ' stop'
-    const tp = S.risk.tp[0] === 'rr' ? S.risk.tp[1] + 'R target' : IND[S.risk.tp[0]] ? S.risk.tp[0] : 'no fixed target'
-    const txt = '<b>' + dir + '</b> \u00b7 ' + (e ? 'when ' + stripTags(e) : 'no entry set') + ' \u00b7 ' + stop + ', ' + tp
+    const dir =
+      S.dir === 'both'
+        ? t('strategy.mb.dir.longShort')
+        : S.dir === 'long'
+          ? t('strategy.direction.long')
+          : t('strategy.direction.short')
+    const stop =
+      S.risk.stop[0] === 'none'
+        ? t('strategy.mb.liveLine.noStop')
+        : t('strategy.mb.liveLine.stopAtr', { mult: S.risk.stop[1], type: S.risk.stop[0] })
+    const tp =
+      S.risk.tp[0] === 'rr'
+        ? t('strategy.mb.liveLine.rrTarget', { rr: S.risk.tp[1] })
+        : IND[S.risk.tp[0]]
+          ? S.risk.tp[0]
+          : t('strategy.mb.liveLine.noFixedTarget')
+    const entryPart = e ? t('strategy.mb.liveLine.whenPrefix', { cond: stripTags(e) }) : t('strategy.mb.liveLine.noEntry')
+    const txt = t('strategy.mb.liveLine', { dir: '<b>' + dir + '</b>', entry: entryPart, stop, target: tp })
     $('liveLine').innerHTML = txt
   }
 
   function renderStats() {
     const statHost = $('statStrip')
     const { est } = estimates()
-    const dirLabel = S.dir === 'both' ? 'Both ways' : S.dir[0]!.toUpperCase() + S.dir.slice(1)
+    const loc = activeLocaleTag()
+    const dirLabel =
+      S.dir === 'both'
+        ? t('strategy.mb.dir.bothWays')
+        : S.dir === 'long'
+          ? t('strategy.direction.long')
+          : t('strategy.direction.short')
     const dirCls = S.dir === 'long' ? 'long' : S.dir === 'short' ? 'short' : ''
     const rr = S.risk.tp[0] === 'rr' ? S.risk.tp[1] + 'R' : '\u2014'
-    const items: [string, string, string][] = lastResult
+    const items: [MessageKey, string, string][] = lastResult
       ? [
-          ['Direction', dirLabel, dirCls],
-          ['Trades', lastResult.summary.totalTrades.toLocaleString(), lastResult.summary.totalTrades === 0 ? 'warn' : ''],
-          ['Win rate', lastResult.summary.totalTrades ? lastResult.summary.winRate.toFixed(1) + '%' : '\u2014', ''],
-          ['Net P&L', (lastResult.summary.netPnl >= 0 ? '+$' : '-$') + Math.abs(lastResult.summary.netPnl).toLocaleString(undefined, { maximumFractionDigits: 0 }), lastResult.summary.netPnl < 0 ? 'short' : 'long'],
-          ['Max DD', lastResult.summary.maxDrawdownPct.toFixed(1) + '%', ''],
+          ['strategy.mb.stat.direction', dirLabel, dirCls],
+          [
+            'strategy.mb.stat.trades',
+            lastResult.summary.totalTrades.toLocaleString(loc),
+            lastResult.summary.totalTrades === 0 ? 'warn' : '',
+          ],
+          [
+            'strategy.mb.stat.winRate',
+            lastResult.summary.totalTrades ? lastResult.summary.winRate.toFixed(1) + '%' : '\u2014',
+            '',
+          ],
+          [
+            'strategy.mb.stat.netPnl',
+            (lastResult.summary.netPnl >= 0 ? '+$' : '-$') +
+              Math.abs(lastResult.summary.netPnl).toLocaleString(loc, { maximumFractionDigits: 0 }),
+            lastResult.summary.netPnl < 0 ? 'short' : 'long',
+          ],
+          ['strategy.mb.stat.maxDd', lastResult.summary.maxDrawdownPct.toFixed(1) + '%', ''],
         ]
       : [
-          ['Direction', dirLabel, dirCls],
-          ['Entry', S.entry.length ? S.entry.length + ' \u00b7 ' + (S.entryJoin === 'all' ? 'AND' : 'OR') : 'none set', S.entry.length ? '' : 'warn'],
-          ['Exit', S.exit.length ? S.exit.length + ' \u00b7 ' + (S.exitJoin === 'all' ? 'AND' : 'OR') : 'stop/target only', ''],
-          ['Target', rr, ''],
-          ['Est. trades', est.toLocaleString(), est === 0 ? 'warn' : ''],
+          ['strategy.mb.stat.direction', dirLabel, dirCls],
+          [
+            'strategy.mb.stat.entry',
+            S.entry.length
+              ? t('strategy.mb.stat.entryJoin', {
+                  count: S.entry.length,
+                  join: S.entryJoin === 'all' ? t('common.and') : t('common.or'),
+                })
+              : t('strategy.mb.entryNone'),
+            S.entry.length ? '' : 'warn',
+          ],
+          [
+            'strategy.mb.stat.exit',
+            S.exit.length
+              ? t('strategy.mb.stat.exitJoin', {
+                  count: S.exit.length,
+                  join: S.exitJoin === 'all' ? t('common.and') : t('common.or'),
+                })
+              : t('strategy.mb.exitStopTarget'),
+            '',
+          ],
+          ['strategy.mb.stat.target', rr, ''],
+          ['strategy.mb.stat.estTrades', est.toLocaleString(loc), est === 0 ? 'warn' : ''],
         ]
     if (!statHost.dataset.init) {
       statHost.innerHTML = items
-        .map(([label, value, cls]) => '<div class="stat"><label>' + label + '</label><div class="val ' + cls + '">' + value + '</div></div>')
+        .map(
+          ([labelKey, value, cls]) =>
+            '<div class="stat"><label>' + te(labelKey) + '</label><div class="val ' + cls + '">' + value + '</div></div>',
+        )
         .join('')
       statHost.dataset.init = '1'
       return
     }
-    items.forEach(([, value, cls], i) => {
+    items.forEach(([labelKey, value, cls], i) => {
       const cell = statHost.children[i] as HTMLElement
+      cell.querySelector('label')!.textContent = t(labelKey)
       const val = cell.querySelector<HTMLElement>('.val')!
       const changed = val.textContent !== String(value)
       val.textContent = value
@@ -1452,19 +1691,12 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   const TF_STEP_SEC: Record<string, number> = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1D': 86400 }
 
-  const CUSTOM_RANGE = 'Custom range'
-  const PRESET_RANGE_MONTHS: Record<string, number> = {
-    'Last 1 month': 1,
-    'Last 3 months': 3,
-    'Last 6 months': 6,
-    'Last 12 months': 12,
-  }
-  let lastPresetRange = 'Last 12 months'
+  let lastPresetRange = 'last_12_months'
 
   function rangeToDates(range: string): { startDate?: string; endDate?: string } {
     const end = new Date()
     const endDate = end.toISOString().slice(0, 10)
-    if (range === CUSTOM_RANGE) {
+    if (range === RANGE_CUSTOM) {
       // Either side may be left blank, which just means "open-ended on that
       // end" rather than an invalid range.
       const from = $<HTMLInputElement>('rangeStart').value
@@ -1472,7 +1704,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       if (from && to && from > to) return { startDate: to, endDate: from }
       return { startDate: from || undefined, endDate: to || undefined }
     }
-    const months = PRESET_RANGE_MONTHS[range]
+    const months = RANGE_PRESET_MONTHS[range]
     if (!months) return {}
     const start = new Date(end)
     start.setMonth(start.getMonth() - months)
@@ -1483,7 +1715,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   // preset was showing, so switching over starts from that same window
   // instead of an empty pair of inputs.
   function syncCustomRange() {
-    const isCustom = $<HTMLSelectElement>('range').value === CUSTOM_RANGE
+    const isCustom = $<HTMLSelectElement>('range').value === RANGE_CUSTOM
     $<HTMLElement>('customRange').hidden = !isCustom
     if (!isCustom) return
     const startEl = $<HTMLInputElement>('rangeStart')
@@ -1500,11 +1732,16 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
 
   function sessionToHourFilter(session: string): { fromHour: number; toHour: number } | null {
     switch (session) {
-      case 'London + New York': return { fromHour: 7, toHour: 20 }
-      case 'London only': return { fromHour: 7, toHour: 15 }
-      case 'New York only': return { fromHour: 12, toHour: 20 }
-      case 'Asia only': return { fromHour: 23, toHour: 7 }
-      default: return null // "All hours"
+      case 'london_ny':
+        return { fromHour: 7, toHour: 20 }
+      case 'london_only':
+        return { fromHour: 7, toHour: 15 }
+      case 'ny_only':
+        return { fromHour: 12, toHour: 20 }
+      case 'asia_only':
+        return { fromHour: 23, toHour: 7 }
+      default:
+        return null
     }
   }
 
@@ -1514,8 +1751,8 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const originalLabel = btn.textContent
     const mySeq = ++backtestRunSeq
     btn.disabled = true
-    btn.textContent = 'Loading bars\u2026'
-    est.textContent = 'Fetching market data\u2026'
+    btn.textContent = t('strategy.mb.backtest.loadingBars')
+    est.textContent = t('strategy.mb.est.loadingBars')
     try {
       const symbol = ($<HTMLSelectElement>('symbol').value || 'XAUUSD').toUpperCase()
       const tf = $<HTMLSelectElement>('tf').value
@@ -1527,10 +1764,10 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       const stepSec = TF_STEP_SEC[tf] ?? 60
       const bars: Bar[] = stepSec > 60 ? aggregateOHLCV(resolved.bars, stepSec) : resolved.bars
       if (bars.length < 50) {
-        window.alert('Not enough bars loaded for this symbol/range to run a backtest (need at least 50).')
+        window.alert(t('strategy.mb.alert.notEnoughBars'))
         return
       }
-      btn.textContent = 'Running\u2026'
+      btn.textContent = t('strategy.mb.backtest.running')
       const result = runManualStrategy(bars, S, {
         initialCapital: 100_000,
         sessionFilter: sessionToHourFilter(session),
@@ -1542,21 +1779,17 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       const s = result.summary
       est.textContent =
         s.totalTrades === 0
-          ? 'Ran on ' + bars.length.toLocaleString() + ' real bars \u2014 0 trades triggered'
-          : '\u2248 ' +
-            s.totalTrades.toLocaleString() +
-            ' trades \u00b7 ' +
-            s.winRate.toFixed(1) +
-            '% win rate \u00b7 ' +
-            (s.netPnl >= 0 ? '+' : '') +
-            s.returnPct.toFixed(1) +
-            '% return on ' +
-            bars.length.toLocaleString() +
-            ' real bars'
+          ? t('strategy.mb.est.zeroTrades', { bars: bars.length.toLocaleString(activeLocaleTag()) })
+          : t('strategy.mb.est.result', {
+              trades: s.totalTrades.toLocaleString(activeLocaleTag()),
+              winRate: s.winRate.toFixed(1),
+              ret: (s.netPnl >= 0 ? '+' : '') + s.returnPct.toFixed(1),
+              bars: bars.length.toLocaleString(activeLocaleTag()),
+            })
     } catch (err) {
       if (mySeq !== backtestRunSeq) return
       console.error('[Tradeneu] Manual strategy backtest failed', err)
-      est.textContent = 'Could not load market data \u2014 try again'
+      est.textContent = t('strategy.mb.est.loadFailed')
     } finally {
       if (mySeq === backtestRunSeq) {
         btn.textContent = originalLabel
@@ -1589,8 +1822,8 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const fillEl = $('sparkFill')
 
     if (lastResult && lastResult.equity.length > 1) {
-      titleEl.textContent = 'Equity curve'
-      noteEl.textContent = 'from last backtest run'
+      titleEl.textContent = t('strategy.mb.spark.equityCurve')
+      noteEl.textContent = t('strategy.mb.spark.fromBacktest')
       const w = 300
       const h = 58
       const s = lastResult.summary
@@ -1627,21 +1860,34 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       endDot.classList.toggle('is-loss', isLoss)
       endDot.hidden = false
 
-      statsHost.innerHTML = [
-        ['Start', fmtMoney(s.initialCapital), ''],
-        ['End', fmtMoney(s.finalEquity), ''],
-        ['Net P&L', fmtMoney(s.netPnl) + ' (' + fmtSigned(s.returnPct, '%') + ')', isLoss ? 'short' : isProfit ? 'long' : ''],
-        ['Max DD', '-' + s.maxDrawdownPct.toFixed(1) + '%', s.maxDrawdownPct > 15 ? 'warn' : ''],
-        ['Trades', s.totalTrades.toLocaleString() + ' \u00b7 ' + s.winRate.toFixed(0) + '% won', ''],
-      ]
-        .map(([label, value, cls]) => '<div class="cell"><label>' + label + '</label><div class="v ' + cls + '">' + value + '</div></div>')
+      statsHost.innerHTML = (
+        [
+          ['strategy.mb.stat.start', fmtMoney(s.initialCapital), ''],
+          ['strategy.mb.stat.end', fmtMoney(s.finalEquity), ''],
+          [
+            'strategy.mb.stat.netPnl',
+            fmtMoney(s.netPnl) + ' (' + fmtSigned(s.returnPct, '%') + ')',
+            isLoss ? 'short' : isProfit ? 'long' : '',
+          ],
+          ['strategy.mb.stat.maxDd', '-' + s.maxDrawdownPct.toFixed(1) + '%', s.maxDrawdownPct > 15 ? 'warn' : ''],
+          [
+            'strategy.mb.stat.trades',
+            t('strategy.mb.spark.tradesWon', {
+              trades: s.totalTrades.toLocaleString(activeLocaleTag()),
+              pct: s.winRate.toFixed(0),
+            }),
+            '',
+          ],
+        ] as [MessageKey, string, string][]
+      )
+        .map(([labelKey, value, cls]) => '<div class="cell"><label>' + te(labelKey) + '</label><div class="v ' + cls + '">' + value + '</div></div>')
         .join('')
       statsHost.hidden = false
       return
     }
 
-    titleEl.textContent = 'Equity shape'
-    noteEl.textContent = 'illustrative \u2014 not backtest data'
+    titleEl.textContent = t('strategy.mb.spark.equityShape')
+    noteEl.textContent = t('strategy.mb.spark.illustrativeNote')
     baseline.hidden = true
     startDot.hidden = true
     endDot.hidden = true
@@ -1683,7 +1929,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   function markDirty() {
     if (activeTpl >= 0 && !dirty) {
       dirty = true
-      S.name = S.name + ' (my copy)'
+      S.name = S.name + t('strategy.mb.myCopySuffix')
       $<HTMLInputElement>('stratName').value = S.name
       sizeNameField()
       $<HTMLElement>('forkTag').hidden = false
@@ -1729,20 +1975,20 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
       allPill.type = 'button'
       allPill.className = 'tplCat'
       allPill.setAttribute('aria-selected', String(activeCat === null))
-      allPill.innerHTML = '<span>All</span><em>' + TEMPLATES.length + '</em>'
+      allPill.innerHTML = '<span>' + te('common.all') + '</span><em>' + TEMPLATES.length + '</em>'
       allPill.onclick = () => {
         activeCat = null
         scrollHost.scrollLeft = 0
         renderLibrary()
       }
       catsHost.appendChild(allPill)
-      Object.keys(CATS).forEach((catKey) => {
+      CAT_ORDER.forEach((catKey) => {
         if (!counts[catKey]) return
         const pill = document.createElement('button')
         pill.type = 'button'
         pill.className = 'tplCat'
         pill.setAttribute('aria-selected', String(activeCat === catKey))
-        pill.innerHTML = '<span>' + CATS[catKey] + '</span><em>' + counts[catKey] + '</em>'
+        pill.innerHTML = '<span>' + te(CAT_KEYS[catKey]) + '</span><em>' + counts[catKey] + '</em>'
         pill.onclick = () => {
           activeCat = catKey
           scrollHost.scrollLeft = 0
@@ -1756,7 +2002,12 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         const b = document.createElement('button')
         b.className = 'tplChip'
         b.setAttribute('aria-current', String(i === activeTpl && !dirty))
-        b.innerHTML = '<b>' + t.name + '</b><em>' + t.meta + '</em>'
+        b.innerHTML =
+          '<b>' +
+          t.name +
+          '</b><em>' +
+          te('strategy.mb.templateMeta', { entry: t.entry.length, exit: t.exit.length }) +
+          '</em>'
         b.onclick = () => {
           activeTpl = i
           $<HTMLElement>('forkTag').hidden = true
@@ -1771,7 +2022,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     if (!mine.length) {
       const empty = document.createElement('p')
       empty.className = 'tplEmpty'
-      empty.textContent = 'Nothing saved yet. Edit any template and hit Save — it becomes yours.'
+      empty.textContent = t('strategy.mb.library.empty')
       scrollHost.appendChild(empty)
       requestAnimationFrame(refreshTemplateNav)
       return
@@ -1791,14 +2042,20 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         '<div class="tplChipMineHead">' +
         '<b>' + escapeHtml(m.name) + '</b>' +
         '<span class="tplChipMineActions" data-actions>' +
-        '<button type="button" class="tplChipIcon" data-act="rename" title="Rename strategy" aria-label="Rename ' +
-        escapeHtml(m.name) +
+        '<button type="button" class="tplChipIcon" data-act="rename" title="' +
+        te('strategy.mb.library.renameTitle') +
+        '" aria-label="' +
+        te('strategy.mb.library.renameAria', { name: m.name }) +
         '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>' +
-        '<button type="button" class="tplChipIcon tplChipIconDanger" data-act="delete" title="Delete strategy" aria-label="Delete ' +
-        escapeHtml(m.name) +
+        '<button type="button" class="tplChipIcon tplChipIconDanger" data-act="delete" title="' +
+        te('strategy.mb.library.deleteTitle') +
+        '" aria-label="' +
+        te('strategy.mb.library.deleteAria', { name: m.name }) +
         '"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>' +
         '</span>' +
-        '</div><em>saved</em>'
+        '</div><em>' +
+        te('strategy.mb.library.saved') +
+        '</em>'
 
       const load = () => {
         S = JSON.parse(JSON.stringify(m))
@@ -1833,7 +2090,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         input.className = 'tplChipMineRenameInput'
         input.value = m.name
         input.setAttribute('data-mine-editing', '1')
-        input.setAttribute('aria-label', 'Strategy name')
+        input.setAttribute('aria-label', t('strategy.mb.strategyNameAria'))
         nameEl.replaceWith(input)
         input.focus()
         input.select()
@@ -1869,9 +2126,19 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
         e.stopPropagation()
         const actions = b.querySelector<HTMLElement>('[data-actions]')!
         actions.innerHTML =
-          '<span class="tplChipMineConfirm">Delete?</span>' +
-          '<button type="button" class="tplChipIcon" data-mine-editing="1" data-act="cancel-delete" title="Cancel" aria-label="Cancel delete"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>' +
-          '<button type="button" class="tplChipIcon tplChipIconDanger" data-mine-editing="1" data-act="confirm-delete" title="Confirm delete" aria-label="Confirm delete"><i class="fa-solid fa-check" aria-hidden="true"></i></button>'
+          '<span class="tplChipMineConfirm">' +
+          te('strategy.mb.library.deleteConfirm') +
+          '</span>' +
+          '<button type="button" class="tplChipIcon" data-mine-editing="1" data-act="cancel-delete" title="' +
+          te('common.cancel') +
+          '" aria-label="' +
+          te('strategy.mb.library.cancelDeleteAria') +
+          '"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>' +
+          '<button type="button" class="tplChipIcon tplChipIconDanger" data-mine-editing="1" data-act="confirm-delete" title="' +
+          te('strategy.mb.library.confirmDeleteTitle') +
+          '" aria-label="' +
+          te('strategy.mb.library.confirmDeleteAria') +
+          '"><i class="fa-solid fa-check" aria-hidden="true"></i></button>'
         actions.querySelector<HTMLButtonElement>('[data-act="cancel-delete"]')!.onclick = (ev) => {
           ev.stopPropagation()
           renderLibrary()
@@ -1954,7 +2221,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const onContextChange = () => {
       if (id === 'range') {
         const value = $<HTMLSelectElement>('range').value
-        if (value !== CUSTOM_RANGE) lastPresetRange = value
+        if (value !== RANGE_CUSTOM) lastPresetRange = value
         syncCustomRange()
       }
       clearBacktestResult()
@@ -2025,7 +2292,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const open = j.hidden
     j.hidden = !open
     $<HTMLButtonElement>('jsonToggle').setAttribute('aria-expanded', String(open))
-    $('jsonCaret').textContent = open ? 'Hide' : 'Show'
+    $('jsonCaret').textContent = open ? t('strategy.mb.json.hide') : t('strategy.mb.json.show')
     renderJson()
   }
   $<HTMLButtonElement>('btnSave').onclick = () => {
@@ -2050,11 +2317,11 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   }
   $<HTMLButtonElement>('btnChart').onclick = () => {
     if (!opts.onOpenInChart) {
-      $('est').textContent = 'Opening in chart isn\u2019t available here.'
+      $('est').textContent = t('strategy.mb.openChartUnavailable')
       return
     }
     if (!S.entry.length) {
-      window.alert('Add at least one entry condition before opening this strategy in the chart.')
+      window.alert(t('strategy.mb.alert.needEntryCondition'))
       return
     }
     // The chart page's replay/backtest engine (BacktestEngine.ts) uses a
@@ -2065,9 +2332,7 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
     const { definition, warnings } = manualStrategyToDefinition(S)
     if (warnings.length) {
       const proceed = window.confirm(
-        'The chart\u2019s backtest engine can\u2019t represent this strategy exactly. It will approximate:\n\n\u2022 ' +
-          warnings.join('\n\u2022 ') +
-          '\n\nOpen in chart anyway?',
+        t('strategy.mb.confirm.approximate', { warnings: '\u2022 ' + warnings.join('\n\u2022 ') }),
       )
       if (!proceed) return
     }
@@ -2082,8 +2347,14 @@ export function mountManualStrategyBuilder(opts: ManualStrategyBuilderOptions): 
   // box sized for the fallback font's metrics.
   void document.fonts?.ready.then(() => sizeNameField())
 
+  const offLocale = onLocaleChange(() => {
+    localizeStaticSelects()
+    renderAll()
+  })
+
   return {
     dispose: () => {
+      offLocale()
       document.removeEventListener('click', onDocDdClick)
       document.removeEventListener('keydown', onDocDdKey)
       document.removeEventListener('scroll', onDocDdScroll, true)
