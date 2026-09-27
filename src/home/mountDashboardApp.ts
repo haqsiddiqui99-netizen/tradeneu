@@ -1579,6 +1579,69 @@ function buildDashTopbarHtml(): string {
 }
 
 /**
+ * Illustrative figures for the first-run hero card, shown before the trader has
+ * any real session. Labelled as an example on screen so it can't be mistaken for
+ * their own results. The curve closes at the +4.2R the card quotes.
+ */
+const DASH_HERO_EXAMPLE_CURVE = [0, 0.5, -0.3, 0.8, 0.4, 1.4, 1.1, 2, 1.6, 2.5, 2.2, 3, 3.5, 3.1, 4.2]
+const DASH_HERO_EXAMPLE_PRICE = '2,398.40'
+const DASH_HERO_EXAMPLE_NET = '+4.2R'
+const DASH_HERO_EXAMPLE_WINRATE = '58%'
+
+/** Free-tier markets that cover the three things a new trader usually wants. */
+const DASH_QUICK_START_MARKETS = [
+  { symbol: 'XAUUSD', descKey: 'dash.quickStart.gold' },
+  { symbol: 'EURUSD', descKey: 'dash.quickStart.forex' },
+  { symbol: 'SPX', descKey: 'dash.quickStart.index' },
+] as const satisfies readonly { symbol: string; descKey: MessageKey }[]
+
+/**
+ * First-run only: a market shortcut row and a three-step explainer. Hidden as
+ * soon as the trader has a session, since by then the real data says more.
+ */
+function buildDashOnboardingHtml(): string {
+  const markets = DASH_QUICK_START_MARKETS.map(
+    ({ symbol, descKey }) => `
+                  <button type="button" class="sx-dash-quick-card" data-sx-quick-symbol="${symbol}" aria-label="${te('dash.quickStart.cardAria', { symbol })}">
+                    <span class="sx-dash-quick-card__symbol">${symbol}</span>
+                    <span class="sx-dash-quick-card__desc" data-i18n="${descKey}">${te(descKey)}</span>
+                  </button>`,
+  ).join('')
+
+  const steps = [1, 2, 3]
+    .map((n) => {
+      const titleKey = `dash.howItWorks.step${n}Title` as MessageKey
+      const descKey = `dash.howItWorks.step${n}Desc` as MessageKey
+      const now =
+        n === 1
+          ? `<span class="sx-dash-step__now" data-i18n="dash.howItWorks.now">${te('dash.howItWorks.now')}</span>`
+          : ''
+      return `
+                  <li class="sx-dash-step${n === 1 ? ' sx-dash-step--now' : ''}">
+                    <p class="sx-dash-step__num"><span>0${n}</span>${now}</p>
+                    <h3 class="sx-dash-step__title" data-i18n="${titleKey}">${te(titleKey)}</h3>
+                    <p class="sx-dash-step__desc" data-i18n="${descKey}">${te(descKey)}</p>
+                  </li>`
+    })
+    .join('')
+
+  return `
+            <div class="sx-dash-onboard" data-sx-dash-onboard hidden>
+              <section class="sx-dash-onboard__block" aria-labelledby="sx-dash-quickstart-title">
+                <h2 class="sx-dash-onboard__title" id="sx-dash-quickstart-title" data-i18n="dash.quickStart.title">${te('dash.quickStart.title')}</h2>
+                <div class="sx-dash-onboard__grid">${markets}
+                </div>
+              </section>
+
+              <section class="sx-dash-onboard__block" aria-labelledby="sx-dash-howitworks-title">
+                <h2 class="sx-dash-onboard__title" id="sx-dash-howitworks-title" data-i18n="dash.howItWorks.title">${te('dash.howItWorks.title')}</h2>
+                <ol class="sx-dash-onboard__grid sx-dash-steps">${steps}
+                </ol>
+              </section>
+            </div>`
+}
+
+/**
  * Home hero: the "Backtesting" eyebrow, a headline that changes with whether
  * the trader has a session to come back to, and a preview card for that last
  * session. Copy, the resume button and the card are all filled in by
@@ -1595,6 +1658,7 @@ function buildDashboardPageHeadHtml(): string {
                   <button type="button" data-action="backtest" class="sx-dash-hero-btn sx-dash-hero-btn--primary" data-i18n="dash.hero.startSession">${te('dash.hero.startSession')}</button>
                   <button type="button" data-action="resume-session" class="sx-dash-hero-btn sx-dash-hero-btn--ghost" data-sx-hero-resume hidden></button>
                 </div>
+                <p class="sx-dash-hero__note" data-sx-hero-note data-i18n="dash.hero.firstRunNote" hidden>${te('dash.hero.firstRunNote')}</p>
               </div>
 
               <aside class="sx-dash-hero__card" data-sx-hero-card hidden aria-label="${te('dash.hero.cardAria')}" data-i18n-aria-label="dash.hero.cardAria">
@@ -1730,18 +1794,26 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           <div class="sx-dash-testing-panel sx-dash-testing-panel--dashboard" data-testing-panel="dashboard" role="tabpanel">
             ${buildDashboardPageHeadHtml()}
 
+            ${buildDashOnboardingHtml()}
+
             <section class="sx-dash-performance" aria-labelledby="sx-dash-performance-title">
               <header class="sx-dash-performance__head">
           <div>
                   <h2 id="sx-dash-performance-title" data-i18n="perf.title">${te('perf.title')}</h2>
-                  <p data-i18n="perf.subtitle">${te('perf.subtitle')}</p>
+                  <p data-sx-perf-head-detail data-i18n="perf.subtitle">${te('perf.subtitle')}</p>
           </div>
                 ${buildPulseRangeHtml()}
         </header>
 
+              <div class="sx-dash-perf-empty" data-sx-perf-empty hidden>
+                <p class="sx-dash-perf-empty__text" data-sx-perf-empty-text></p>
+              </div>
+
+              <div data-sx-perf-body>
               ${buildSessionPulseKpiHtml({ bare: true })}
 
               ${buildDashGraphCardsHtml()}
+              </div>
             </section>
 
             <div class="sx-dash-recent-sessions-host" data-sx-recent-sessions-anchor="dashboard"></div>
@@ -2612,6 +2684,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   }
 
   function syncRecentSessionsUi() {
+    // Ahead of the guard below: the hero and its onboarding state don't live in
+    // the sessions section, so they must still sync if that section is absent.
+    syncDashHero()
+
     const list = root.querySelector('#sx-dash-session-list')
     const countEl = root.querySelector('[data-sx-sessions-count]')
     const fillEl = root.querySelector<HTMLElement>('[data-sx-sessions-count-fill]')
@@ -2656,7 +2732,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     } else {
       list.innerHTML = sessions.map((s) => buildSessionRowHtml(s)).join('')
     }
-    syncDashHero()
     syncDashboardPerf()
     syncSessionPulse()
     syncTradesUi()
@@ -4668,21 +4743,80 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const resumeBtn = hero.querySelector<HTMLButtonElement>('[data-sx-hero-resume]')
     const card = hero.querySelector<HTMLElement>('[data-sx-hero-card]')
 
+    const noteEl = hero.querySelector<HTMLElement>('[data-sx-hero-note]')
     const sessions = listSessions()
     const lastId = getLastSessionId()
     const session = (lastId ? getSession(lastId) : null) ?? sessions[0] ?? null
+    const firstRun = session == null
 
-    if (!session) {
+    // First run swaps the whole page over to onboarding: market shortcuts, the
+    // three-step explainer, and a Performance section that explains itself
+    // instead of showing a grid of em dashes.
+    const onboard = root.querySelector<HTMLElement>('[data-sx-dash-onboard]')
+    if (onboard) onboard.hidden = !firstRun
+    const perfBody = root.querySelector<HTMLElement>('[data-sx-perf-body]')
+    if (perfBody) perfBody.hidden = firstRun
+    const perfRange = root.querySelector<HTMLElement>('.sx-dash-performance__head .sx-dash-pulse__range')
+    if (perfRange) perfRange.hidden = firstRun
+    root.querySelectorAll<HTMLElement>('[data-sx-perf-head-detail]').forEach((el) => {
+      el.hidden = firstRun
+    })
+    const perfEmpty = root.querySelector<HTMLElement>('[data-sx-perf-empty]')
+    if (perfEmpty) perfEmpty.hidden = !firstRun
+    const perfEmptyText = root.querySelector<HTMLElement>('[data-sx-perf-empty-text]')
+    if (perfEmptyText) {
+      // Both halves come from our own catalog, so the bold run is safe to inject
+      // after the surrounding sentence has been escaped.
+      perfEmptyText.innerHTML = te('dash.perfEmpty.text').replace(
+        '{highlight}',
+        `<strong>${te('dash.perfEmpty.highlight')}</strong>`,
+      )
+    }
+    if (noteEl) noteEl.hidden = !firstRun
+
+    if (firstRun) {
       if (titleEl) titleEl.textContent = translate('dash.hero.emptyTitle')
       if (subEl) subEl.textContent = translate('dash.hero.emptySub')
       if (resumeBtn) {
         resumeBtn.hidden = true
         resumeBtn.removeAttribute('data-session-id')
       }
-      if (card) card.hidden = true
+      // The card stays on screen as a worked example of what a finished
+      // session looks like, rather than leaving a blank column.
+      if (card) {
+        card.hidden = false
+        card.classList.add('is-example')
+        card.setAttribute('aria-label', translate('dash.hero.exampleAria'))
+        card.setAttribute('data-i18n-aria-label', 'dash.hero.exampleAria')
+        const symbolEl = card.querySelector<HTMLElement>('[data-sx-hero-symbol]')
+        const balanceEl = card.querySelector<HTMLElement>('[data-sx-hero-balance]')
+        const metaEl = card.querySelector<HTMLElement>('[data-sx-hero-meta]')
+        const sparkEl = card.querySelector<HTMLElement>('[data-sx-hero-spark]')
+        const netEl = card.querySelector<HTMLElement>('[data-sx-hero-net]')
+        const winEl = card.querySelector<HTMLElement>('[data-sx-hero-win]')
+        if (symbolEl) symbolEl.textContent = translate('dash.hero.exampleSymbol')
+        if (balanceEl) {
+          balanceEl.textContent = DASH_HERO_EXAMPLE_PRICE
+          balanceEl.classList.remove('is-loss')
+          balanceEl.classList.add('is-profit')
+        }
+        if (metaEl) metaEl.textContent = translate('dash.hero.exampleMeta')
+        if (sparkEl) sparkEl.innerHTML = buildHeroSparkSvg([...DASH_HERO_EXAMPLE_CURVE])
+        if (netEl) {
+          netEl.textContent = DASH_HERO_EXAMPLE_NET
+          netEl.classList.remove('is-loss')
+          netEl.classList.add('is-profit')
+        }
+        if (winEl) winEl.textContent = DASH_HERO_EXAMPLE_WINRATE
+      }
       return
     }
 
+    if (card) {
+      card.classList.remove('is-example')
+      card.setAttribute('aria-label', translate('dash.hero.cardAria'))
+      card.setAttribute('data-i18n-aria-label', 'dash.hero.cardAria')
+    }
     if (titleEl) titleEl.textContent = translate('dash.hero.resumeTitle')
     if (subEl) {
       subEl.textContent = translate('dash.hero.resumeSub', {
@@ -5385,6 +5519,13 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const newSessionBtn = t.closest<HTMLButtonElement>('[data-action="backtest"]')
     if (newSessionBtn && root.contains(newSessionBtn) && !newSessionBtn.disabled) {
       sessionModal.open({ sessionType: 'backtest' })
+      return
+    }
+
+    const quickMarketBtn = t.closest<HTMLButtonElement>('[data-sx-quick-symbol]')
+    if (quickMarketBtn && root.contains(quickMarketBtn)) {
+      const symbol = quickMarketBtn.getAttribute('data-sx-quick-symbol')?.trim()
+      sessionModal.open({ sessionType: 'backtest', draft: symbol ? { assets: symbol } : undefined })
       return
     }
 

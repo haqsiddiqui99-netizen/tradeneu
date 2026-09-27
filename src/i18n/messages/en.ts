@@ -60,6 +60,28 @@ export const en = {
   'dash.hero.cardAria': 'Last session summary',
   'dash.hero.equityAria': 'Running profit and loss across the last session’s trades',
 
+  // ——— Dashboard first run (no sessions yet) ———
+  'dash.hero.firstRunNote': 'Takes about 5 minutes for your first replay',
+  'dash.hero.exampleSymbol': 'XAUUSD · 15m replay',
+  'dash.hero.exampleMeta': 'Example session — this is what you’ll have after your first replay',
+  'dash.hero.exampleAria': 'Example of a completed session',
+  'dash.quickStart.title': 'Quick start — pick a market',
+  'dash.quickStart.cardAria': 'Start a session on {symbol}',
+  'dash.quickStart.gold': 'Gold · most replayed market on Tradeneu',
+  'dash.quickStart.forex': 'Forex · high liquidity, tight spreads',
+  'dash.quickStart.index': 'Index · good for trend strategies',
+  'dash.howItWorks.title': 'How it works',
+  'dash.howItWorks.now': 'Now',
+  'dash.howItWorks.step1Title': 'Pick a market',
+  'dash.howItWorks.step1Desc': 'Choose a symbol and a time range to replay.',
+  'dash.howItWorks.step2Title': 'Replay and take trades',
+  'dash.howItWorks.step2Desc': 'Step through history bar by bar and enter trades with no hindsight.',
+  'dash.howItWorks.step3Title': 'Read your diagnosis',
+  'dash.howItWorks.step3Desc': 'Get a breakdown of what to change next time.',
+  'dash.perfEmpty.highlight': 'Performance fills in automatically',
+  'dash.perfEmpty.text':
+    'Nothing to show yet — {highlight} once you complete your first session, with the same stats shown in the example above.',
+
   // ——— Performance section ———
   'perf.title': 'Performance',
   'perf.subtitle': 'Your practice, market coverage, and trading results.',
