@@ -35,6 +35,41 @@ export const tr: MessageDict = {
   'dash.challengeSub': 'Mücadele başlat',
   'dash.proFeature': 'Pro özellik',
 
+  'dash.hero.resumeTitle': 'Tekrar hoş geldin — bıraktığın yerden devam et.',
+  'dash.hero.resumeSub':
+    '{sessions} devam ediyor. Bıraktığın yerden devam et ya da yeni bir piyasada taze bir replay başlat.',
+  'dash.hero.emptyTitle': 'Stratejini gerçek geçmiş veriyle test et — sana gerçek para kaybettirmeden önce.',
+  'dash.hero.emptySub':
+    'Tradeneu gerçek piyasa verisini bar bar yeniden oynatır; girişleri, çıkışları ve riski tam canlıdaymış gibi çalışırsın — sonra bir işlemin neden işe yaradığını ya da yaramadığını sade bir dille anlatır.',
+  'dash.hero.startSession': 'Yeni oturum başlat',
+  'dash.hero.resumeSession': '“{name}” oturumunu sürdür',
+  'dash.hero.replayLabel': '{symbol} · replay',
+  'dash.hero.lastSession': 'Son oturumun — kayıtta {trades}',
+  'dash.hero.lastSessionNoTrades': 'Son oturumun — henüz kayıtlı işlem yok',
+  'dash.hero.netResult': 'Net sonuç',
+  'dash.hero.winRate': 'Kazanma oranı',
+  'dash.hero.cardAria': 'Son oturum özeti',
+  'dash.hero.equityAria': 'Son oturumun işlemleri boyunca birikimli kâr ve zarar',
+
+  'dash.firstRun.eyebrow': 'Backtesting platformu',
+  'dash.firstRun.cta': 'Ücretsiz başla',
+  'dash.firstRun.sampleCta': 'Örnek oturuma bak',
+  'dash.hero.firstRunNote': 'Kart gerekmez · XAUUSD, endeksler ve foreks için',
+  'dash.hero.exampleSymbol': 'XAUUSD · 15m replay',
+  'dash.hero.exampleMeta': 'Örnek oturum — tamamlanmış bir backtest böyle görünür',
+  'dash.hero.exampleAria': 'Tamamlanmış bir oturum örneği',
+  'dash.why.title': 'Trader’lar canlıya geçmeden önce neden bunu kullanır',
+  'dash.why.sub': 'Bir demo hesabın ya da tablonun sana veremediği üç şey.',
+  'dash.why.card1Title': 'Geçmişi bilme avantajı yok',
+  'dash.why.card1Desc':
+    'Fiyat bar bar açılır, yani sıradakini bilmeden karar vermek zorundasın — canlı bir grafikteki baskının aynısı.',
+  'dash.why.card2Title': 'Her işlem kayda geçer',
+  'dash.why.card2Desc':
+    'Girişler, çıkışlar ve stoplar replay sırasında otomatik kaydedilir; gerçekten inceleyebileceğin bir sicil oluşur.',
+  'dash.why.card3Title': 'Sadece ne değil, neden',
+  'dash.why.card3Desc':
+    'Kuru bir kazanma oranı yerine, zarar eden işlemlerini tam olarak neyin ekside bıraktığının dökümünü alırsın.',
+
   'perf.title': 'Performans',
   'perf.subtitle': 'Pratiğin, piyasa kapsamın ve işlem sonuçların.',
   'perf.rangeAria': 'Nabız zaman aralığı',

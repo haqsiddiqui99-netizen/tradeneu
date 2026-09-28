@@ -35,6 +35,41 @@ export const ko: MessageDict = {
   'dash.challengeSub': '챌린지 시작',
   'dash.proFeature': 'Pro 기능',
 
+  'dash.hero.resumeTitle': '다시 오셨네요 — 멈춘 지점부터 이어서 하세요.',
+  'dash.hero.resumeSub':
+    '진행 중인 세션이 {sessions} 있습니다. 멈춘 지점부터 이어서 하거나 다른 시장에서 새 리플레이를 시작하세요.',
+  'dash.hero.emptyTitle': '실제 과거 데이터로 전략을 검증하세요 — 실제 돈을 잃기 전에.',
+  'dash.hero.emptySub':
+    'Tradeneu는 실제 시장 데이터를 한 봉씩 재생하므로 진입, 청산, 리스크 관리를 실전과 똑같이 연습할 수 있습니다. 그리고 그 매매가 왜 통했는지 또는 통하지 않았는지를 쉬운 말로 알려줍니다.',
+  'dash.hero.startSession': '새 세션 시작',
+  'dash.hero.resumeSession': '“{name}” 세션 이어하기',
+  'dash.hero.replayLabel': '{symbol} · 리플레이',
+  'dash.hero.lastSession': '최근 세션 — {trades} 기록됨',
+  'dash.hero.lastSessionNoTrades': '최근 세션 — 아직 기록된 매매가 없습니다',
+  'dash.hero.netResult': '순손익',
+  'dash.hero.winRate': '승률',
+  'dash.hero.cardAria': '최근 세션 요약',
+  'dash.hero.equityAria': '최근 세션 매매별 누적 손익',
+
+  'dash.firstRun.eyebrow': '백테스팅 플랫폼',
+  'dash.firstRun.cta': '무료로 시작하기',
+  'dash.firstRun.sampleCta': '샘플 세션 보기',
+  'dash.hero.firstRunNote': '카드 불필요 · XAUUSD, 지수, 외환 지원',
+  'dash.hero.exampleSymbol': 'XAUUSD · 15분봉 리플레이',
+  'dash.hero.exampleMeta': '샘플 세션 — 완료된 백테스트는 이렇게 보입니다',
+  'dash.hero.exampleAria': '완료된 세션 예시',
+  'dash.why.title': '트레이더가 실전 전에 이걸 쓰는 이유',
+  'dash.why.sub': '데모 계좌나 스프레드시트로는 얻을 수 없는 세 가지.',
+  'dash.why.card1Title': '미래를 모르는 상태',
+  'dash.why.card1Desc':
+    '가격이 한 봉씩 공개되므로 다음에 무엇이 올지 모른 채 판단해야 합니다. 실시간 차트와 같은 압박입니다.',
+  'dash.why.card2Title': '모든 매매 자동 기록',
+  'dash.why.card2Desc':
+    '리플레이 중 진입, 청산, 손절이 자동으로 기록되어 실제로 되돌아볼 수 있는 매매 이력이 쌓입니다.',
+  'dash.why.card3Title': '무엇이 아니라 왜까지',
+  'dash.why.card3Desc':
+    '단순한 승률 대신, 손실 매매를 마이너스로 끌어내린 요인을 구체적으로 분석해 줍니다.',
+
   'perf.title': '성과',
   'perf.subtitle': '연습량, 시장 커버리지, 거래 결과입니다.',
   'perf.rangeAria': '펄스 기간',

@@ -35,6 +35,41 @@ export const es: MessageDict = {
   'dash.challengeSub': 'Iniciar un reto',
   'dash.proFeature': 'Función Pro',
 
+  'dash.hero.resumeTitle': 'Bienvenido de nuevo: continúa donde lo dejaste.',
+  'dash.hero.resumeSub':
+    'Tienes {sessions} en curso. Continúa donde lo dejaste o empieza una repetición nueva en otro mercado.',
+  'dash.hero.emptyTitle': 'Pon a prueba tu estrategia con historia real, antes de que te cueste dinero real.',
+  'dash.hero.emptySub':
+    'Tradeneu reproduce datos reales del mercado vela a vela para que practiques entradas, salidas y riesgo igual que en vivo, y luego te explica en lenguaje claro por qué una operación funcionó o no.',
+  'dash.hero.startSession': 'Iniciar una sesión nueva',
+  'dash.hero.resumeSession': 'Reanudar la sesión «{name}»',
+  'dash.hero.replayLabel': '{symbol} · repetición',
+  'dash.hero.lastSession': 'Tu última sesión: {trades} en el registro',
+  'dash.hero.lastSessionNoTrades': 'Tu última sesión: aún sin operaciones registradas',
+  'dash.hero.netResult': 'Resultado neto',
+  'dash.hero.winRate': 'Tasa de acierto',
+  'dash.hero.cardAria': 'Resumen de la última sesión',
+  'dash.hero.equityAria': 'Ganancias y pérdidas acumuladas en las operaciones de la última sesión',
+
+  'dash.firstRun.eyebrow': 'Plataforma de backtesting',
+  'dash.firstRun.cta': 'Empieza gratis',
+  'dash.firstRun.sampleCta': 'Ver una sesión de ejemplo',
+  'dash.hero.firstRunNote': 'Sin tarjeta · Hecho para XAUUSD, índices y forex',
+  'dash.hero.exampleSymbol': 'XAUUSD · repetición de 15m',
+  'dash.hero.exampleMeta': 'Sesión de ejemplo: así se ve un backtest terminado',
+  'dash.hero.exampleAria': 'Ejemplo de una sesión completada',
+  'dash.why.title': 'Por qué los traders lo usan antes de operar en real',
+  'dash.why.sub': 'Tres cosas que una cuenta demo o una hoja de cálculo no te dan.',
+  'dash.why.card1Title': 'Sin ver el futuro',
+  'dash.why.card1Desc':
+    'El precio se revela vela a vela, así que decides sin saber qué viene después: la misma presión que en un gráfico en vivo.',
+  'dash.why.card2Title': 'Cada operación registrada',
+  'dash.why.card2Desc':
+    'Entradas, salidas y stops se registran automáticamente mientras repites, creando un historial que puedes revisar de verdad.',
+  'dash.why.card3Title': 'El por qué, no solo el qué',
+  'dash.why.card3Desc':
+    'En lugar de una simple tasa de acierto, obtienes un desglose de qué llevó exactamente tus operaciones perdedoras a números rojos.',
+
   'perf.title': 'Rendimiento',
   'perf.subtitle': 'Tu práctica, cobertura de mercado y resultados de trading.',
   'perf.rangeAria': 'Rango de tiempo del pulso',

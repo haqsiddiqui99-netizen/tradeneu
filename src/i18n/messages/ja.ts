@@ -35,6 +35,41 @@ export const ja: MessageDict = {
   'dash.challengeSub': 'チャレンジを開始',
   'dash.proFeature': 'Pro機能',
 
+  'dash.hero.resumeTitle': 'おかえりなさい — 中断したところから再開しましょう。',
+  'dash.hero.resumeSub':
+    '進行中のセッションが{sessions}あります。中断したところから再開するか、別の市場で新しいリプレイを始めましょう。',
+  'dash.hero.emptyTitle': '実際の値動きで戦略を検証 — 本物のお金を失う前に。',
+  'dash.hero.emptySub':
+    'Tradeneuは実際の市場データを1本ずつ再生するので、エントリー・エグジット・リスク管理をライブと同じ条件で練習できます。そのうえで、そのトレードがなぜ機能したのか（しなかったのか）を平易な言葉で示します。',
+  'dash.hero.startSession': '新しいセッションを開始',
+  'dash.hero.resumeSession': 'セッション「{name}」を再開',
+  'dash.hero.replayLabel': '{symbol} · リプレイ',
+  'dash.hero.lastSession': '直近のセッション — {trades}を記録',
+  'dash.hero.lastSessionNoTrades': '直近のセッション — まだトレードの記録がありません',
+  'dash.hero.netResult': '純損益',
+  'dash.hero.winRate': '勝率',
+  'dash.hero.cardAria': '直近のセッションの概要',
+  'dash.hero.equityAria': '直近のセッションのトレードごとの累積損益',
+
+  'dash.firstRun.eyebrow': 'バックテスト・プラットフォーム',
+  'dash.firstRun.cta': '無料で始める',
+  'dash.firstRun.sampleCta': 'サンプルセッションを見る',
+  'dash.hero.firstRunNote': 'カード不要 · XAUUSD・指数・FXに対応',
+  'dash.hero.exampleSymbol': 'XAUUSD · 15分足リプレイ',
+  'dash.hero.exampleMeta': 'サンプルセッション — 完了したバックテストの表示例',
+  'dash.hero.exampleAria': '完了したセッションの例',
+  'dash.why.title': 'トレーダーが本番前にこれを使う理由',
+  'dash.why.sub': 'デモ口座や表計算では得られない3つのこと。',
+  'dash.why.card1Title': '後出しの情報なし',
+  'dash.why.card1Desc':
+    '価格は1本ずつ明らかになるため、次に何が来るか分からないまま判断する必要があります。ライブチャートと同じ緊張感です。',
+  'dash.why.card2Title': '全トレードを自動記録',
+  'dash.why.card2Desc':
+    'リプレイ中にエントリー・エグジット・ストップが自動で記録され、実際に振り返れる取引履歴ができます。',
+  'dash.why.card3Title': '結果だけでなく理由まで',
+  'dash.why.card3Desc':
+    '単なる勝率ではなく、負けトレードを赤字に追い込んだ具体的な要因の内訳が分かります。',
+
   'perf.title': 'パフォーマンス',
   'perf.subtitle': '練習量、マーケットカバレッジ、取引成績。',
   'perf.rangeAria': 'パルスの期間',

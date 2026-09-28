@@ -35,6 +35,41 @@ export const de: MessageDict = {
   'dash.challengeSub': 'Challenge starten',
   'dash.proFeature': 'Pro-Funktion',
 
+  'dash.hero.resumeTitle': 'Willkommen zurück — mach dort weiter, wo du aufgehört hast.',
+  'dash.hero.resumeSub':
+    'Du hast {sessions} in Arbeit. Mach dort weiter, wo du aufgehört hast, oder starte ein frisches Replay auf einem neuen Markt.',
+  'dash.hero.emptyTitle': 'Teste deine Strategie an echter Historie — bevor sie dich echtes Geld kostet.',
+  'dash.hero.emptySub':
+    'Tradeneu spielt echte Marktdaten Bar für Bar nach, damit du Einstiege, Ausstiege und Risiko genau wie im Live-Handel üben kannst — und erklärt dir dann in klarer Sprache, warum ein Trade wirklich funktioniert hat oder nicht.',
+  'dash.hero.startSession': 'Neue Sitzung starten',
+  'dash.hero.resumeSession': 'Sitzung „{name}“ fortsetzen',
+  'dash.hero.replayLabel': '{symbol} · Replay',
+  'dash.hero.lastSession': 'Deine letzte Sitzung — {trades} erfasst',
+  'dash.hero.lastSessionNoTrades': 'Deine letzte Sitzung — noch keine Trades erfasst',
+  'dash.hero.netResult': 'Nettoergebnis',
+  'dash.hero.winRate': 'Trefferquote',
+  'dash.hero.cardAria': 'Zusammenfassung der letzten Sitzung',
+  'dash.hero.equityAria': 'Laufender Gewinn und Verlust über die Trades der letzten Sitzung',
+
+  'dash.firstRun.eyebrow': 'Backtesting-Plattform',
+  'dash.firstRun.cta': 'Kostenlos starten',
+  'dash.firstRun.sampleCta': 'Beispielsitzung ansehen',
+  'dash.hero.firstRunNote': 'Keine Kreditkarte nötig · Gemacht für XAUUSD, Indizes & Forex',
+  'dash.hero.exampleSymbol': 'XAUUSD · 15m Replay',
+  'dash.hero.exampleMeta': 'Beispielsitzung — so sieht ein abgeschlossener Backtest aus',
+  'dash.hero.exampleAria': 'Beispiel einer abgeschlossenen Sitzung',
+  'dash.why.title': 'Warum Trader es nutzen, bevor sie live gehen',
+  'dash.why.sub': 'Drei Dinge, die ein Demokonto oder eine Tabelle dir nicht geben können.',
+  'dash.why.card1Title': 'Kein Rückblickwissen',
+  'dash.why.card1Desc':
+    'Der Kurs entwickelt sich Bar für Bar, du musst also entscheiden, ohne zu wissen, was als Nächstes kommt — derselbe Druck wie bei einem Live-Chart.',
+  'dash.why.card2Title': 'Jeder Trade protokolliert',
+  'dash.why.card2Desc':
+    'Einstiege, Ausstiege und Stops werden beim Replay automatisch erfasst und bauen einen Track Record auf, den du wirklich auswerten kannst.',
+  'dash.why.card3Title': 'Das Warum, nicht nur das Was',
+  'dash.why.card3Desc':
+    'Statt einer nackten Trefferquote bekommst du eine Aufschlüsselung, was deine Verlust-Trades konkret ins Minus gedrückt hat.',
+
   'perf.title': 'Performance',
   'perf.subtitle': 'Deine Übung, Marktabdeckung und Handelsergebnisse.',
   'perf.rangeAria': 'Puls-Zeitraum',

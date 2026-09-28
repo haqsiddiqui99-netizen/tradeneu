@@ -47,9 +47,9 @@ export const en = {
   'dash.hero.resumeTitle': 'Welcome back — pick up where you left off.',
   'dash.hero.resumeSub':
     'You’ve got {sessions} in progress. Resume where you stopped, or start a fresh replay on a new market.',
-  'dash.hero.emptyTitle': 'Start your first backtesting session.',
+  'dash.hero.emptyTitle': 'Test your strategy against real history — before it costs you real money.',
   'dash.hero.emptySub':
-    'Pick a market and a date range, then replay the tape bar by bar to find out what your edge really is.',
+    'Tradeneu replays real market data bar by bar so you can practice entries, exits and risk exactly as if you were live — then shows you, in plain language, why a trade actually worked or didn’t.',
   'dash.hero.startSession': 'Start a new session',
   'dash.hero.resumeSession': 'Resume “{name}” session',
   'dash.hero.replayLabel': '{symbol} · replay',
@@ -61,26 +61,24 @@ export const en = {
   'dash.hero.equityAria': 'Running profit and loss across the last session’s trades',
 
   // ——— Dashboard first run (no sessions yet) ———
-  'dash.hero.firstRunNote': 'Takes about 5 minutes for your first replay',
+  'dash.firstRun.eyebrow': 'Backtesting platform',
+  'dash.firstRun.cta': 'Get started free',
+  'dash.firstRun.sampleCta': 'See a sample session',
+  'dash.hero.firstRunNote': 'No card required · Built for XAUUSD, indices & forex',
   'dash.hero.exampleSymbol': 'XAUUSD · 15m replay',
-  'dash.hero.exampleMeta': 'Example session — this is what you’ll have after your first replay',
+  'dash.hero.exampleMeta': 'Example session — what a completed backtest looks like',
   'dash.hero.exampleAria': 'Example of a completed session',
-  'dash.quickStart.title': 'Quick start — pick a market',
-  'dash.quickStart.cardAria': 'Start a session on {symbol}',
-  'dash.quickStart.gold': 'Gold · most replayed market on Tradeneu',
-  'dash.quickStart.forex': 'Forex · high liquidity, tight spreads',
-  'dash.quickStart.index': 'Index · good for trend strategies',
-  'dash.howItWorks.title': 'How it works',
-  'dash.howItWorks.now': 'Now',
-  'dash.howItWorks.step1Title': 'Pick a market',
-  'dash.howItWorks.step1Desc': 'Choose a symbol and a time range to replay.',
-  'dash.howItWorks.step2Title': 'Replay and take trades',
-  'dash.howItWorks.step2Desc': 'Step through history bar by bar and enter trades with no hindsight.',
-  'dash.howItWorks.step3Title': 'Read your diagnosis',
-  'dash.howItWorks.step3Desc': 'Get a breakdown of what to change next time.',
-  'dash.perfEmpty.highlight': 'Performance fills in automatically',
-  'dash.perfEmpty.text':
-    'Nothing to show yet — {highlight} once you complete your first session, with the same stats shown in the example above.',
+  'dash.why.title': 'Why traders use it before going live',
+  'dash.why.sub': 'Three things a demo account or a spreadsheet can’t give you.',
+  'dash.why.card1Title': 'No hindsight',
+  'dash.why.card1Desc':
+    'Price reveals itself bar by bar, so you’re forced to decide without knowing what comes next — the same pressure as a live chart.',
+  'dash.why.card2Title': 'Every trade logged',
+  'dash.why.card2Desc':
+    'Entries, exits and stops are recorded automatically as you replay, building a track record you can actually review.',
+  'dash.why.card3Title': 'Told why, not just what',
+  'dash.why.card3Desc':
+    'Instead of a bare win rate, get a breakdown of what specifically pushed your losing trades into the red.',
 
   // ——— Performance section ———
   'perf.title': 'Performance',

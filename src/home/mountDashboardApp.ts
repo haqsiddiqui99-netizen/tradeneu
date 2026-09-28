@@ -1588,55 +1588,30 @@ const DASH_HERO_EXAMPLE_PRICE = '2,398.40'
 const DASH_HERO_EXAMPLE_NET = '+4.2R'
 const DASH_HERO_EXAMPLE_WINRATE = '58%'
 
-/** Free-tier markets that cover the three things a new trader usually wants. */
-const DASH_QUICK_START_MARKETS = [
-  { symbol: 'XAUUSD', descKey: 'dash.quickStart.gold' },
-  { symbol: 'EURUSD', descKey: 'dash.quickStart.forex' },
-  { symbol: 'SPX', descKey: 'dash.quickStart.index' },
-] as const satisfies readonly { symbol: string; descKey: MessageKey }[]
-
 /**
- * First-run only: a market shortcut row and a three-step explainer. Hidden as
- * soon as the trader has a session, since by then the real data says more.
+ * First-run only: what replay gives a trader that a demo account doesn't.
+ * Hidden as soon as they have a session, since by then their own data says more.
  */
-function buildDashOnboardingHtml(): string {
-  const markets = DASH_QUICK_START_MARKETS.map(
-    ({ symbol, descKey }) => `
-                  <button type="button" class="sx-dash-quick-card" data-sx-quick-symbol="${symbol}" aria-label="${te('dash.quickStart.cardAria', { symbol })}">
-                    <span class="sx-dash-quick-card__symbol">${symbol}</span>
-                    <span class="sx-dash-quick-card__desc" data-i18n="${descKey}">${te(descKey)}</span>
-                  </button>`,
-  ).join('')
-
-  const steps = [1, 2, 3]
+function buildDashFirstRunSectionsHtml(): string {
+  const cards = [1, 2, 3]
     .map((n) => {
-      const titleKey = `dash.howItWorks.step${n}Title` as MessageKey
-      const descKey = `dash.howItWorks.step${n}Desc` as MessageKey
-      const now =
-        n === 1
-          ? `<span class="sx-dash-step__now" data-i18n="dash.howItWorks.now">${te('dash.howItWorks.now')}</span>`
-          : ''
+      const titleKey = `dash.why.card${n}Title` as MessageKey
+      const descKey = `dash.why.card${n}Desc` as MessageKey
       return `
-                  <li class="sx-dash-step${n === 1 ? ' sx-dash-step--now' : ''}">
-                    <p class="sx-dash-step__num"><span>0${n}</span>${now}</p>
-                    <h3 class="sx-dash-step__title" data-i18n="${titleKey}">${te(titleKey)}</h3>
-                    <p class="sx-dash-step__desc" data-i18n="${descKey}">${te(descKey)}</p>
+                  <li class="sx-dash-why-card">
+                    <h3 class="sx-dash-why-card__title" data-i18n="${titleKey}">${te(titleKey)}</h3>
+                    <p class="sx-dash-why-card__desc" data-i18n="${descKey}">${te(descKey)}</p>
                   </li>`
     })
     .join('')
 
   return `
             <div class="sx-dash-onboard" data-sx-dash-onboard hidden>
-              <section class="sx-dash-onboard__block" aria-labelledby="sx-dash-quickstart-title">
-                <h2 class="sx-dash-onboard__title" id="sx-dash-quickstart-title" data-i18n="dash.quickStart.title">${te('dash.quickStart.title')}</h2>
-                <div class="sx-dash-onboard__grid">${markets}
-                </div>
-              </section>
-
-              <section class="sx-dash-onboard__block" aria-labelledby="sx-dash-howitworks-title">
-                <h2 class="sx-dash-onboard__title" id="sx-dash-howitworks-title" data-i18n="dash.howItWorks.title">${te('dash.howItWorks.title')}</h2>
-                <ol class="sx-dash-onboard__grid sx-dash-steps">${steps}
-                </ol>
+              <section class="sx-dash-onboard__block" aria-labelledby="sx-dash-why-title">
+                <h2 class="sx-dash-onboard__title" id="sx-dash-why-title" data-i18n="dash.why.title">${te('dash.why.title')}</h2>
+                <p class="sx-dash-onboard__sub" data-i18n="dash.why.sub">${te('dash.why.sub')}</p>
+                <ul class="sx-dash-onboard__grid">${cards}
+                </ul>
               </section>
             </div>`
 }
@@ -1657,6 +1632,7 @@ function buildDashboardPageHeadHtml(): string {
                 <div class="sx-dash-hero__actions">
                   <button type="button" data-action="backtest" class="sx-dash-hero-btn sx-dash-hero-btn--primary" data-i18n="dash.hero.startSession">${te('dash.hero.startSession')}</button>
                   <button type="button" data-action="resume-session" class="sx-dash-hero-btn sx-dash-hero-btn--ghost" data-sx-hero-resume hidden></button>
+                  <button type="button" class="sx-dash-hero-btn sx-dash-hero-btn--ghost" data-sx-hero-sample data-i18n="dash.firstRun.sampleCta" hidden>${te('dash.firstRun.sampleCta')}</button>
                 </div>
                 <p class="sx-dash-hero__note" data-sx-hero-note data-i18n="dash.hero.firstRunNote" hidden>${te('dash.hero.firstRunNote')}</p>
               </div>
@@ -1794,26 +1770,20 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           <div class="sx-dash-testing-panel sx-dash-testing-panel--dashboard" data-testing-panel="dashboard" role="tabpanel">
             ${buildDashboardPageHeadHtml()}
 
-            ${buildDashOnboardingHtml()}
+            ${buildDashFirstRunSectionsHtml()}
 
             <section class="sx-dash-performance" aria-labelledby="sx-dash-performance-title">
               <header class="sx-dash-performance__head">
           <div>
                   <h2 id="sx-dash-performance-title" data-i18n="perf.title">${te('perf.title')}</h2>
-                  <p data-sx-perf-head-detail data-i18n="perf.subtitle">${te('perf.subtitle')}</p>
+                  <p data-i18n="perf.subtitle">${te('perf.subtitle')}</p>
           </div>
                 ${buildPulseRangeHtml()}
         </header>
 
-              <div class="sx-dash-perf-empty" data-sx-perf-empty hidden>
-                <p class="sx-dash-perf-empty__text" data-sx-perf-empty-text></p>
-              </div>
-
-              <div data-sx-perf-body>
               ${buildSessionPulseKpiHtml({ bare: true })}
 
               ${buildDashGraphCardsHtml()}
-              </div>
             </section>
 
             <div class="sx-dash-recent-sessions-host" data-sx-recent-sessions-anchor="dashboard"></div>
@@ -4749,30 +4719,26 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const session = (lastId ? getSession(lastId) : null) ?? sessions[0] ?? null
     const firstRun = session == null
 
-    // First run swaps the whole page over to onboarding: market shortcuts, the
-    // three-step explainer, and a Performance section that explains itself
-    // instead of showing a grid of em dashes.
+    // First run only: the pitch sections below the hero, and a hero that drops
+    // its card chrome to read as a landing page. Performance is left alone.
     const onboard = root.querySelector<HTMLElement>('[data-sx-dash-onboard]')
     if (onboard) onboard.hidden = !firstRun
-    const perfBody = root.querySelector<HTMLElement>('[data-sx-perf-body]')
-    if (perfBody) perfBody.hidden = firstRun
-    const perfRange = root.querySelector<HTMLElement>('.sx-dash-performance__head .sx-dash-pulse__range')
-    if (perfRange) perfRange.hidden = firstRun
-    root.querySelectorAll<HTMLElement>('[data-sx-perf-head-detail]').forEach((el) => {
-      el.hidden = firstRun
-    })
-    const perfEmpty = root.querySelector<HTMLElement>('[data-sx-perf-empty]')
-    if (perfEmpty) perfEmpty.hidden = !firstRun
-    const perfEmptyText = root.querySelector<HTMLElement>('[data-sx-perf-empty-text]')
-    if (perfEmptyText) {
-      // Both halves come from our own catalog, so the bold run is safe to inject
-      // after the surrounding sentence has been escaped.
-      perfEmptyText.innerHTML = te('dash.perfEmpty.text').replace(
-        '{highlight}',
-        `<strong>${te('dash.perfEmpty.highlight')}</strong>`,
-      )
-    }
+    hero.classList.toggle('is-first-run', firstRun)
     if (noteEl) noteEl.hidden = !firstRun
+
+    const eyebrowEl = hero.querySelector<HTMLElement>('.sx-dash-hero__eyebrow')
+    const primaryBtn = hero.querySelector<HTMLElement>('.sx-dash-hero-btn--primary')
+    const sampleBtn = hero.querySelector<HTMLButtonElement>('[data-sx-hero-sample]')
+    // Both carry data-i18n so a language switch re-translates them, which means
+    // the attribute has to move with the text or translateDom will undo this.
+    const setLabel = (el: HTMLElement | null, key: MessageKey) => {
+      if (!el) return
+      el.textContent = translate(key)
+      el.setAttribute('data-i18n', key)
+    }
+    setLabel(eyebrowEl, firstRun ? 'dash.firstRun.eyebrow' : 'dash.title')
+    setLabel(primaryBtn, firstRun ? 'dash.firstRun.cta' : 'dash.hero.startSession')
+    if (sampleBtn) sampleBtn.hidden = !firstRun
 
     if (firstRun) {
       if (titleEl) titleEl.textContent = translate('dash.hero.emptyTitle')
@@ -5522,10 +5488,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       return
     }
 
-    const quickMarketBtn = t.closest<HTMLButtonElement>('[data-sx-quick-symbol]')
-    if (quickMarketBtn && root.contains(quickMarketBtn)) {
-      const symbol = quickMarketBtn.getAttribute('data-sx-quick-symbol')?.trim()
-      sessionModal.open({ sessionType: 'backtest', draft: symbol ? { assets: symbol } : undefined })
+    const sampleBtn = t.closest<HTMLButtonElement>('[data-sx-hero-sample]')
+    if (sampleBtn && root.contains(sampleBtn)) {
+      // Opens the session form pre-filled with the market the example card shows,
+      // so "see a sample" lands on something concrete rather than a blank form.
+      sessionModal.open({ sessionType: 'backtest', draft: { assets: 'XAUUSD' } })
       return
     }
 

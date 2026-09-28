@@ -35,6 +35,42 @@ export const fr: MessageDict = {
   'dash.challengeSub': 'Démarrer un défi',
   'dash.proFeature': 'Fonction Pro',
 
+  'dash.hero.resumeTitle': 'Bon retour — reprenez là où vous vous êtes arrêté.',
+  'dash.hero.resumeSub':
+    'Vous avez {sessions} en cours. Reprenez là où vous vous êtes arrêté, ou lancez un nouveau replay sur un autre marché.',
+  'dash.hero.emptyTitle':
+    'Testez votre stratégie sur de l’historique réel — avant qu’elle ne vous coûte de l’argent réel.',
+  'dash.hero.emptySub':
+    'Tradeneu rejoue les données réelles du marché bougie par bougie pour que vous travailliez entrées, sorties et risque exactement comme en réel — puis vous explique en langage clair pourquoi un trade a marché ou non.',
+  'dash.hero.startSession': 'Démarrer une nouvelle session',
+  'dash.hero.resumeSession': 'Reprendre la session « {name} »',
+  'dash.hero.replayLabel': '{symbol} · replay',
+  'dash.hero.lastSession': 'Votre dernière session — {trades} au journal',
+  'dash.hero.lastSessionNoTrades': 'Votre dernière session — aucun trade enregistré pour l’instant',
+  'dash.hero.netResult': 'Résultat net',
+  'dash.hero.winRate': 'Taux de réussite',
+  'dash.hero.cardAria': 'Résumé de la dernière session',
+  'dash.hero.equityAria': 'Profits et pertes cumulés sur les trades de la dernière session',
+
+  'dash.firstRun.eyebrow': 'Plateforme de backtesting',
+  'dash.firstRun.cta': 'Commencer gratuitement',
+  'dash.firstRun.sampleCta': 'Voir une session exemple',
+  'dash.hero.firstRunNote': 'Sans carte bancaire · Conçu pour XAUUSD, indices et forex',
+  'dash.hero.exampleSymbol': 'XAUUSD · replay 15m',
+  'dash.hero.exampleMeta': 'Session exemple — voilà à quoi ressemble un backtest terminé',
+  'dash.hero.exampleAria': 'Exemple de session terminée',
+  'dash.why.title': 'Pourquoi les traders l’utilisent avant de passer en réel',
+  'dash.why.sub': 'Trois choses qu’un compte démo ou un tableur ne peuvent pas vous donner.',
+  'dash.why.card1Title': 'Aucun biais rétrospectif',
+  'dash.why.card1Desc':
+    'Le prix se révèle bougie par bougie : vous devez décider sans savoir ce qui vient ensuite — la même pression qu’un graphique en direct.',
+  'dash.why.card2Title': 'Chaque trade journalisé',
+  'dash.why.card2Desc':
+    'Entrées, sorties et stops sont enregistrés automatiquement pendant le replay, ce qui construit un historique réellement exploitable.',
+  'dash.why.card3Title': 'Le pourquoi, pas seulement le quoi',
+  'dash.why.card3Desc':
+    'Au lieu d’un simple taux de réussite, vous obtenez le détail de ce qui a précisément fait basculer vos trades perdants dans le rouge.',
+
   'perf.title': 'Performance',
   'perf.subtitle': 'Votre pratique, votre couverture de marché et vos résultats de trading.',
   'perf.rangeAria': 'Période du pouls',
