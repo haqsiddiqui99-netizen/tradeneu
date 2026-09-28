@@ -47,10 +47,12 @@ export const en = {
   'dash.hero.resumeTitle': 'Welcome back — pick up where you left off.',
   'dash.hero.resumeSub':
     'You’ve got {sessions} in progress. Resume where you stopped, or start a fresh replay on a new market.',
-  'dash.hero.emptyTitle': 'Test your strategy against real history — before it costs you real money.',
+  'dash.hero.emptyTitle': 'See why a strategy would have won or lost — before you trade it.',
   'dash.hero.emptySub':
-    'Tradeneu replays real market data bar by bar so you can practice entries, exits and risk exactly as if you were live — then shows you, in plain language, why a trade actually worked or didn’t.',
+    'Replay real market history bar by bar, place trades as if you were there, and get a plain-language breakdown of what actually moved your result.',
   'dash.hero.startSession': 'Start a new session',
+  'dash.hero.firstRunCta': 'Run your first backtest',
+  'dash.hero.walkthroughCta': 'Watch a 2-min walkthrough',
   'dash.hero.resumeSession': 'Resume “{name}” session',
   'dash.hero.replayLabel': '{symbol} · replay',
   'dash.hero.lastSession': 'Your last session — {trades} logged',
@@ -61,24 +63,78 @@ export const en = {
   'dash.hero.equityAria': 'Running profit and loss across the last session’s trades',
 
   // ——— Dashboard first run (no sessions yet) ———
-  'dash.firstRun.eyebrow': 'Backtesting platform',
-  'dash.firstRun.cta': 'Get started free',
-  'dash.firstRun.sampleCta': 'See a sample session',
-  'dash.hero.firstRunNote': 'No card required · Built for XAUUSD, indices & forex',
+  'dash.hero.firstRunNote':
+    'No card required · Built for XAUUSD, indices & forex · 10,000+ hours of replay data',
   'dash.hero.exampleSymbol': 'XAUUSD · 15m replay',
-  'dash.hero.exampleMeta': 'Example session — what a completed backtest looks like',
+  'dash.hero.exampleMeta': 'Example session — this is what you’ll have after your first replay',
   'dash.hero.exampleAria': 'Example of a completed session',
-  'dash.why.title': 'Why traders use it before going live',
-  'dash.why.sub': 'Three things a demo account or a spreadsheet can’t give you.',
-  'dash.why.card1Title': 'No hindsight',
-  'dash.why.card1Desc':
+  'dash.quickStart.title': 'Quick start',
+  'dash.quickStart.hint': 'Pick a popular market and jump straight in',
+  'dash.quickStart.cardAria': 'Start a session on {symbol}',
+  'dash.quickStart.startSession': 'Start session',
+  'dash.quickStart.browseLabel': 'Or browse:',
+  'dash.quickStart.browseAria': 'Browse markets by category',
+  'dash.quickStart.browseCatAria': 'Browse {category} markets',
+
+  'dash.tutorial.title': 'How a session works',
+  'dash.tutorial.hint': 'Five steps, about two minutes to your first trade',
+  'dash.tutorial.step1Title': 'Start a new session',
+  'dash.tutorial.step1Desc':
+    'Click **Start a new session** at the top of this page. The session creator opens.',
+  'dash.tutorial.step2Title': 'Choose an asset',
+  'dash.tutorial.step2Desc':
+    'Search by name or symbol, or filter by category. Recently used assets are listed first.',
+  'dash.tutorial.step3Title': 'Set your date range',
+  'dash.tutorial.step3Desc':
+    'Pick an **Initial** and **End** date. Use `+1D` `+1W` `+1M` to extend the range, or tick **Random** to get a surprise period.',
+  'dash.tutorial.step4Title': 'Replay and place trades',
+  'dash.tutorial.step4Desc':
+    'Click **Create session**. Use `▶ Play` or `+1 bar` to move through time, then **Buy** or **Sell** when you’d enter. Future bars stay hidden.',
+  'dash.tutorial.step5Title': 'End and review',
+  'dash.tutorial.step5Desc':
+    'Click **End session** to lock in your result and get a plain-language breakdown of what worked.',
+
+  // Static illustration of the session creator, shown beside steps 2 and 3.
+  'dash.tutorial.previewTitle': 'Steps 2-3: what you’ll see in the session creator',
+  'dash.tutorial.previewSearch': 'Type to search for assets',
+  'dash.tutorial.previewRecent': 'Recently used',
+  'dash.tutorial.previewStartDate': 'Initial date',
+  'dash.tutorial.previewEndDate': 'End date',
+  'dash.tutorial.previewSubmit': 'Create session',
+
+  'dash.perfEmpty.text':
+    'Nothing to show yet — **Performance fills in automatically** once you complete your first session, with the same stats shown in the example above.',
+
+  // ——— Public landing page (pre-login, always dark) ———
+  'landing.nav.product': 'Product',
+  'landing.nav.markets': 'Markets',
+  'landing.nav.pricing': 'Pricing',
+  'landing.nav.signIn': 'Sign in',
+  'landing.eyebrow': 'Backtesting platform',
+  'landing.title': 'Test your strategy against real history — before it costs you real money.',
+  'landing.sub':
+    'Tradeneu replays real market data bar by bar so you can practice entries, exits and risk exactly as if you were live — then shows you, in plain language, why a trade actually worked or didn’t.',
+  'landing.cta': 'Get started free',
+  'landing.sampleCta': 'See a sample session',
+  'landing.note': 'No card required · Built for XAUUSD, indices & forex',
+  'landing.example.symbol': 'XAUUSD · 15m replay',
+  'landing.example.meta': 'Example session — what a completed backtest looks like',
+  'landing.example.aria': 'Example of a completed session',
+  'landing.example.equityAria': 'Running profit and loss across the example session’s trades',
+  'landing.netResult': 'Net result',
+  'landing.winRate': 'Win rate',
+  'landing.why.title': 'Why traders use it before going live',
+  'landing.why.sub': 'Three things a demo account or a spreadsheet can’t give you.',
+  'landing.why.card1Title': 'No hindsight',
+  'landing.why.card1Desc':
     'Price reveals itself bar by bar, so you’re forced to decide without knowing what comes next — the same pressure as a live chart.',
-  'dash.why.card2Title': 'Every trade logged',
-  'dash.why.card2Desc':
+  'landing.why.card2Title': 'Every trade logged',
+  'landing.why.card2Desc':
     'Entries, exits and stops are recorded automatically as you replay, building a track record you can actually review.',
-  'dash.why.card3Title': 'Told why, not just what',
-  'dash.why.card3Desc':
+  'landing.why.card3Title': 'Told why, not just what',
+  'landing.why.card3Desc':
     'Instead of a bare win rate, get a breakdown of what specifically pushed your losing trades into the red.',
+  'landing.footer': 'Tradeneu · Practice on the past, trade the present.',
 
   // ——— Performance section ———
   'perf.title': 'Performance',

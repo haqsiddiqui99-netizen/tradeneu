@@ -67,13 +67,28 @@ export function tCount(base: PluralBaseKey, count: number, vars?: TranslateVars)
   return interpolate(raw, { count, ...vars })
 }
 
-/** `t()` escaped for interpolation into an HTML template literal. */
-export function te(key: MessageKey, vars?: TranslateVars): string {
-  return t(key, vars)
+function escapeHtml(s: string): string {
+  return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+/** `t()` escaped for interpolation into an HTML template literal. */
+export function te(key: MessageKey, vars?: TranslateVars): string {
+  return escapeHtml(t(key, vars))
+}
+
+/**
+ * `t()` with inline emphasis for instructional copy: `**text**` becomes bold and
+ * `` `text` `` becomes a key/button chip. Escaping happens before the markers are
+ * expanded, so a translation can never inject markup of its own.
+ */
+export function tRich(key: MessageKey, vars?: TranslateVars): string {
+  return escapeHtml(t(key, vars))
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<kbd class="sx-kbd">$1</kbd>')
 }
 
 /**
@@ -91,13 +106,19 @@ const TRANSLATED_ATTRS = [
   'data-tip',
 ] as const
 
-const TRANSLATED_SELECTOR = ['[data-i18n]', ...TRANSLATED_ATTRS.map((a) => `[data-i18n-${a}]`)].join(
-  ',',
-)
+const TRANSLATED_SELECTOR = [
+  '[data-i18n]',
+  '[data-i18n-rich]',
+  ...TRANSLATED_ATTRS.map((a) => `[data-i18n-${a}]`),
+].join(',')
 
 function translateElement(el: HTMLElement) {
   const textKey = el.getAttribute('data-i18n')
   if (textKey) el.textContent = t(textKey as MessageKey)
+  // `data-i18n-rich` replaces the element's children, so it can't be combined
+  // with `data-i18n` on the same element.
+  const richKey = el.getAttribute('data-i18n-rich')
+  if (richKey) el.innerHTML = tRich(richKey as MessageKey)
   for (const attr of TRANSLATED_ATTRS) {
     const key = el.getAttribute(`data-i18n-${attr}`)
     if (key) el.setAttribute(attr, t(key as MessageKey))

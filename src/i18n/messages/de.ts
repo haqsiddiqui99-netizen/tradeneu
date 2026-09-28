@@ -38,10 +38,13 @@ export const de: MessageDict = {
   'dash.hero.resumeTitle': 'Willkommen zurück — mach dort weiter, wo du aufgehört hast.',
   'dash.hero.resumeSub':
     'Du hast {sessions} in Arbeit. Mach dort weiter, wo du aufgehört hast, oder starte ein frisches Replay auf einem neuen Markt.',
-  'dash.hero.emptyTitle': 'Teste deine Strategie an echter Historie — bevor sie dich echtes Geld kostet.',
+  'dash.hero.emptyTitle':
+    'Sieh, warum eine Strategie gewonnen oder verloren hätte — bevor du sie handelst.',
   'dash.hero.emptySub':
-    'Tradeneu spielt echte Marktdaten Bar für Bar nach, damit du Einstiege, Ausstiege und Risiko genau wie im Live-Handel üben kannst — und erklärt dir dann in klarer Sprache, warum ein Trade wirklich funktioniert hat oder nicht.',
+    'Spiele echte Markthistorie Bar für Bar nach, platziere Trades, als wärst du dabei gewesen, und erhalte in klarer Sprache eine Aufschlüsselung, was dein Ergebnis wirklich bewegt hat.',
   'dash.hero.startSession': 'Neue Sitzung starten',
+  'dash.hero.firstRunCta': 'Ersten Backtest starten',
+  'dash.hero.walkthroughCta': '2-Minuten-Rundgang ansehen',
   'dash.hero.resumeSession': 'Sitzung „{name}“ fortsetzen',
   'dash.hero.replayLabel': '{symbol} · Replay',
   'dash.hero.lastSession': 'Deine letzte Sitzung — {trades} erfasst',
@@ -51,24 +54,76 @@ export const de: MessageDict = {
   'dash.hero.cardAria': 'Zusammenfassung der letzten Sitzung',
   'dash.hero.equityAria': 'Laufender Gewinn und Verlust über die Trades der letzten Sitzung',
 
-  'dash.firstRun.eyebrow': 'Backtesting-Plattform',
-  'dash.firstRun.cta': 'Kostenlos starten',
-  'dash.firstRun.sampleCta': 'Beispielsitzung ansehen',
-  'dash.hero.firstRunNote': 'Keine Kreditkarte nötig · Gemacht für XAUUSD, Indizes & Forex',
+  'dash.hero.firstRunNote':
+    'Keine Kreditkarte nötig · Gemacht für XAUUSD, Indizes & Forex · Über 10.000 Stunden Replay-Daten',
   'dash.hero.exampleSymbol': 'XAUUSD · 15m Replay',
-  'dash.hero.exampleMeta': 'Beispielsitzung — so sieht ein abgeschlossener Backtest aus',
+  'dash.hero.exampleMeta': 'Beispielsitzung — so sieht es bei dir nach dem ersten Replay aus',
   'dash.hero.exampleAria': 'Beispiel einer abgeschlossenen Sitzung',
-  'dash.why.title': 'Warum Trader es nutzen, bevor sie live gehen',
-  'dash.why.sub': 'Drei Dinge, die ein Demokonto oder eine Tabelle dir nicht geben können.',
-  'dash.why.card1Title': 'Kein Rückblickwissen',
-  'dash.why.card1Desc':
+  'dash.quickStart.title': 'Schnellstart',
+  'dash.quickStart.hint': 'Wähle einen beliebten Markt und leg direkt los',
+  'dash.quickStart.cardAria': 'Sitzung auf {symbol} starten',
+  'dash.quickStart.startSession': 'Sitzung starten',
+  'dash.quickStart.browseLabel': 'Oder stöbern:',
+  'dash.quickStart.browseAria': 'Märkte nach Kategorie durchsuchen',
+  'dash.quickStart.browseCatAria': '{category}-Märkte durchsuchen',
+
+  'dash.tutorial.title': 'So läuft eine Sitzung ab',
+  'dash.tutorial.hint': 'Fünf Schritte, etwa zwei Minuten bis zum ersten Trade',
+  'dash.tutorial.step1Title': 'Neue Sitzung starten',
+  'dash.tutorial.step1Desc':
+    'Klicke oben auf dieser Seite auf **Neue Sitzung starten**. Der Sitzungs-Assistent öffnet sich.',
+  'dash.tutorial.step2Title': 'Asset auswählen',
+  'dash.tutorial.step2Desc':
+    'Suche nach Name oder Symbol oder filtere nach Kategorie. Zuletzt genutzte Assets stehen oben.',
+  'dash.tutorial.step3Title': 'Zeitraum festlegen',
+  'dash.tutorial.step3Desc':
+    'Wähle ein **Start**- und ein **Enddatum**. Mit `+1D` `+1W` `+1M` erweiterst du den Zeitraum, oder setze **Zufällig** für eine Überraschungsperiode.',
+  'dash.tutorial.step4Title': 'Replay und Trades platzieren',
+  'dash.tutorial.step4Desc':
+    'Klicke auf **Sitzung erstellen**. Mit `▶ Play` oder `+1 bar` bewegst du dich durch die Zeit, dann **Kaufen** oder **Verkaufen**, wo du einsteigen würdest. Künftige Bars bleiben verborgen.',
+  'dash.tutorial.step5Title': 'Beenden und auswerten',
+  'dash.tutorial.step5Desc':
+    'Klicke auf **Sitzung beenden**, um dein Ergebnis festzuschreiben und eine Auswertung in klarer Sprache zu erhalten.',
+
+  'dash.tutorial.previewTitle': 'Schritte 2-3: das siehst du im Sitzungs-Assistenten',
+  'dash.tutorial.previewSearch': 'Tippen, um Assets zu suchen',
+  'dash.tutorial.previewRecent': 'Zuletzt genutzt',
+  'dash.tutorial.previewStartDate': 'Startdatum',
+  'dash.tutorial.previewEndDate': 'Enddatum',
+  'dash.tutorial.previewSubmit': 'Sitzung erstellen',
+
+  'dash.perfEmpty.text':
+    'Noch nichts zu zeigen — **die Performance füllt sich automatisch**, sobald du deine erste Sitzung abgeschlossen hast, mit denselben Kennzahlen wie im Beispiel oben.',
+
+  'landing.nav.product': 'Produkt',
+  'landing.nav.markets': 'Märkte',
+  'landing.nav.pricing': 'Preise',
+  'landing.nav.signIn': 'Anmelden',
+  'landing.eyebrow': 'Backtesting-Plattform',
+  'landing.title': 'Teste deine Strategie an echter Historie — bevor sie dich echtes Geld kostet.',
+  'landing.sub':
+    'Tradeneu spielt echte Marktdaten Bar für Bar nach, damit du Einstiege, Ausstiege und Risiko genau wie im Live-Handel üben kannst — und erklärt dir dann in klarer Sprache, warum ein Trade wirklich funktioniert hat oder nicht.',
+  'landing.cta': 'Kostenlos starten',
+  'landing.sampleCta': 'Beispielsitzung ansehen',
+  'landing.note': 'Keine Kreditkarte nötig · Gemacht für XAUUSD, Indizes & Forex',
+  'landing.example.symbol': 'XAUUSD · 15m Replay',
+  'landing.example.meta': 'Beispielsitzung — so sieht ein abgeschlossener Backtest aus',
+  'landing.example.aria': 'Beispiel einer abgeschlossenen Sitzung',
+  'landing.example.equityAria': 'Laufender Gewinn und Verlust über die Trades der Beispielsitzung',
+  'landing.netResult': 'Nettoergebnis',
+  'landing.winRate': 'Trefferquote',
+  'landing.why.title': 'Warum Trader es nutzen, bevor sie live gehen',
+  'landing.why.sub': 'Drei Dinge, die ein Demokonto oder eine Tabelle dir nicht geben können.',
+  'landing.why.card1Title': 'Kein Rückblickwissen',
+  'landing.why.card1Desc':
     'Der Kurs entwickelt sich Bar für Bar, du musst also entscheiden, ohne zu wissen, was als Nächstes kommt — derselbe Druck wie bei einem Live-Chart.',
-  'dash.why.card2Title': 'Jeder Trade protokolliert',
-  'dash.why.card2Desc':
+  'landing.why.card2Title': 'Jeder Trade protokolliert',
+  'landing.why.card2Desc':
     'Einstiege, Ausstiege und Stops werden beim Replay automatisch erfasst und bauen einen Track Record auf, den du wirklich auswerten kannst.',
-  'dash.why.card3Title': 'Das Warum, nicht nur das Was',
-  'dash.why.card3Desc':
+  'landing.why.card3Title': 'Das Warum, nicht nur das Was',
+  'landing.why.card3Desc':
     'Statt einer nackten Trefferquote bekommst du eine Aufschlüsselung, was deine Verlust-Trades konkret ins Minus gedrückt hat.',
+  'landing.footer': 'Tradeneu · Übe an der Vergangenheit, handle die Gegenwart.',
 
   'perf.title': 'Performance',
   'perf.subtitle': 'Deine Übung, Marktabdeckung und Handelsergebnisse.',

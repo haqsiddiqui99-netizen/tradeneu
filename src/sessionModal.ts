@@ -140,6 +140,11 @@ export type SessionModalOpenOpts = {
       'name' | 'balance' | 'assets' | 'layout' | 'sessionType' | 'startDate' | 'endDate' | 'propRules'
     >
   >
+  /**
+   * Opens the asset picker straight onto this category instead of the default
+   * "All" — used by the dashboard's "Or browse" shortcuts.
+   */
+  assetCategory?: AssetCategory
 }
 
 const CATEGORY_HEADINGS: Record<AssetCategory, string> = {
@@ -1162,9 +1167,9 @@ export function createSessionModal(options?: {
     randomEndCb.checked = false
     setAutoEndOn(false)
     syncDateControlsDisabledState()
-    activePill = 'all'
-    assetPills.querySelectorAll('.sx-assetdd__pill').forEach((el, i) => {
-      el.classList.toggle('sx-assetdd__pill--on', i === 0)
+    activePill = opts?.assetCategory ?? 'all'
+    assetPills.querySelectorAll('.sx-assetdd__pill').forEach((el) => {
+      el.classList.toggle('sx-assetdd__pill--on', (el as HTMLElement).dataset.pill === activePill)
     })
     assetSearch.value = ''
     clearNameError()
@@ -1177,7 +1182,11 @@ export function createSessionModal(options?: {
     wrap.removeAttribute('hidden')
     document.body.classList.add('sx-modal-open')
     document.addEventListener('keydown', onKey)
-    requestAnimationFrame(() => nameInput.focus())
+    requestAnimationFrame(() => {
+      // Arriving from a category shortcut, the picker is the thing they came for.
+      if (opts?.assetCategory) openAssetPanel()
+      else nameInput.focus()
+    })
   }
 
   backdrop.addEventListener('click', close)

@@ -38,10 +38,12 @@ export const tr: MessageDict = {
   'dash.hero.resumeTitle': 'Tekrar hoş geldin — bıraktığın yerden devam et.',
   'dash.hero.resumeSub':
     '{sessions} devam ediyor. Bıraktığın yerden devam et ya da yeni bir piyasada taze bir replay başlat.',
-  'dash.hero.emptyTitle': 'Stratejini gerçek geçmiş veriyle test et — sana gerçek para kaybettirmeden önce.',
+  'dash.hero.emptyTitle': 'Bir stratejinin neden kazanacağını ya da kaybedeceğini işleme girmeden gör.',
   'dash.hero.emptySub':
-    'Tradeneu gerçek piyasa verisini bar bar yeniden oynatır; girişleri, çıkışları ve riski tam canlıdaymış gibi çalışırsın — sonra bir işlemin neden işe yaradığını ya da yaramadığını sade bir dille anlatır.',
+    'Gerçek piyasa geçmişini bar bar yeniden oynat, sanki o anda oradaymışsın gibi işlem aç ve sonucunu gerçekte neyin değiştirdiğini sade bir dille öğren.',
   'dash.hero.startSession': 'Yeni oturum başlat',
+  'dash.hero.firstRunCta': 'İlk backtest’ini çalıştır',
+  'dash.hero.walkthroughCta': '2 dakikalık tanıtımı izle',
   'dash.hero.resumeSession': '“{name}” oturumunu sürdür',
   'dash.hero.replayLabel': '{symbol} · replay',
   'dash.hero.lastSession': 'Son oturumun — kayıtta {trades}',
@@ -51,24 +53,75 @@ export const tr: MessageDict = {
   'dash.hero.cardAria': 'Son oturum özeti',
   'dash.hero.equityAria': 'Son oturumun işlemleri boyunca birikimli kâr ve zarar',
 
-  'dash.firstRun.eyebrow': 'Backtesting platformu',
-  'dash.firstRun.cta': 'Ücretsiz başla',
-  'dash.firstRun.sampleCta': 'Örnek oturuma bak',
-  'dash.hero.firstRunNote': 'Kart gerekmez · XAUUSD, endeksler ve foreks için',
+  'dash.hero.firstRunNote': 'Kart gerekmez · XAUUSD, endeksler ve foreks için · 10.000+ saat replay verisi',
   'dash.hero.exampleSymbol': 'XAUUSD · 15m replay',
-  'dash.hero.exampleMeta': 'Örnek oturum — tamamlanmış bir backtest böyle görünür',
+  'dash.hero.exampleMeta': 'Örnek oturum — ilk replay’inden sonra elinde bu olacak',
   'dash.hero.exampleAria': 'Tamamlanmış bir oturum örneği',
-  'dash.why.title': 'Trader’lar canlıya geçmeden önce neden bunu kullanır',
-  'dash.why.sub': 'Bir demo hesabın ya da tablonun sana veremediği üç şey.',
-  'dash.why.card1Title': 'Geçmişi bilme avantajı yok',
-  'dash.why.card1Desc':
+  'dash.quickStart.title': 'Hızlı başlangıç',
+  'dash.quickStart.hint': 'Popüler bir piyasa seç ve doğrudan başla',
+  'dash.quickStart.cardAria': '{symbol} üzerinde oturum başlat',
+  'dash.quickStart.startSession': 'Oturumu başlat',
+  'dash.quickStart.browseLabel': 'Ya da göz at:',
+  'dash.quickStart.browseAria': 'Piyasalara kategoriye göre göz at',
+  'dash.quickStart.browseCatAria': '{category} piyasalarına göz at',
+
+  'dash.tutorial.title': 'Bir oturum nasıl işler',
+  'dash.tutorial.hint': 'Beş adım, ilk işlemine yaklaşık iki dakika',
+  'dash.tutorial.step1Title': 'Yeni bir oturum başlat',
+  'dash.tutorial.step1Desc':
+    'Bu sayfanın üstündeki **Yeni oturum başlat**’a tıkla. Oturum oluşturucu açılır.',
+  'dash.tutorial.step2Title': 'Bir varlık seç',
+  'dash.tutorial.step2Desc':
+    'İsim ya da sembolle ara, veya kategoriye göre filtrele. Son kullanılan varlıklar en üstte listelenir.',
+  'dash.tutorial.step3Title': 'Tarih aralığını belirle',
+  'dash.tutorial.step3Desc':
+    'Bir **Başlangıç** ve **Bitiş** tarihi seç. Aralığı genişletmek için `+1D` `+1W` `+1M`, sürpriz bir dönem için **Rastgele**’yi işaretle.',
+  'dash.tutorial.step4Title': 'Replay yap ve işlem aç',
+  'dash.tutorial.step4Desc':
+    '**Oturum oluştur**’a tıkla. Zamanda ilerlemek için `▶ Play` ya da `+1 bar` kullan, sonra gireceğin yerde **Al** ya da **Sat**. Gelecek barlar gizli kalır.',
+  'dash.tutorial.step5Title': 'Bitir ve incele',
+  'dash.tutorial.step5Desc':
+    'Sonucunu sabitlemek ve neyin işe yaradığının sade bir dökümünü almak için **Oturumu bitir**’e tıkla.',
+
+  'dash.tutorial.previewTitle': 'Adım 2-3: oturum oluşturucuda göreceklerin',
+  'dash.tutorial.previewSearch': 'Varlık aramak için yaz',
+  'dash.tutorial.previewRecent': 'Son kullanılan',
+  'dash.tutorial.previewStartDate': 'Başlangıç tarihi',
+  'dash.tutorial.previewEndDate': 'Bitiş tarihi',
+  'dash.tutorial.previewSubmit': 'Oturum oluştur',
+
+  'dash.perfEmpty.text':
+    'Henüz gösterecek bir şey yok — ilk oturumunu tamamladığında **performans kendiliğinden dolar**, yukarıdaki örnekte görünen istatistiklerin aynısıyla.',
+
+  'landing.nav.product': 'Ürün',
+  'landing.nav.markets': 'Piyasalar',
+  'landing.nav.pricing': 'Fiyatlandırma',
+  'landing.nav.signIn': 'Giriş yap',
+  'landing.eyebrow': 'Backtesting platformu',
+  'landing.title': 'Stratejini gerçek geçmiş veriyle test et — sana gerçek para kaybettirmeden önce.',
+  'landing.sub':
+    'Tradeneu gerçek piyasa verisini bar bar yeniden oynatır; girişleri, çıkışları ve riski tam canlıdaymış gibi çalışırsın — sonra bir işlemin neden işe yaradığını ya da yaramadığını sade bir dille anlatır.',
+  'landing.cta': 'Ücretsiz başla',
+  'landing.sampleCta': 'Örnek oturuma bak',
+  'landing.note': 'Kart gerekmez · XAUUSD, endeksler ve foreks için',
+  'landing.example.symbol': 'XAUUSD · 15m replay',
+  'landing.example.meta': 'Örnek oturum — tamamlanmış bir backtest böyle görünür',
+  'landing.example.aria': 'Tamamlanmış bir oturum örneği',
+  'landing.example.equityAria': 'Örnek oturumun işlemleri boyunca birikimli kâr ve zarar',
+  'landing.netResult': 'Net sonuç',
+  'landing.winRate': 'Kazanma oranı',
+  'landing.why.title': 'Trader’lar canlıya geçmeden önce neden bunu kullanır',
+  'landing.why.sub': 'Bir demo hesabın ya da tablonun sana veremediği üç şey.',
+  'landing.why.card1Title': 'Geçmişi bilme avantajı yok',
+  'landing.why.card1Desc':
     'Fiyat bar bar açılır, yani sıradakini bilmeden karar vermek zorundasın — canlı bir grafikteki baskının aynısı.',
-  'dash.why.card2Title': 'Her işlem kayda geçer',
-  'dash.why.card2Desc':
+  'landing.why.card2Title': 'Her işlem kayda geçer',
+  'landing.why.card2Desc':
     'Girişler, çıkışlar ve stoplar replay sırasında otomatik kaydedilir; gerçekten inceleyebileceğin bir sicil oluşur.',
-  'dash.why.card3Title': 'Sadece ne değil, neden',
-  'dash.why.card3Desc':
+  'landing.why.card3Title': 'Sadece ne değil, neden',
+  'landing.why.card3Desc':
     'Kuru bir kazanma oranı yerine, zarar eden işlemlerini tam olarak neyin ekside bıraktığının dökümünü alırsın.',
+  'landing.footer': 'Tradeneu · Geçmişte çalış, bugünü işle.',
 
   'perf.title': 'Performans',
   'perf.subtitle': 'Pratiğin, piyasa kapsamın ve işlem sonuçların.',

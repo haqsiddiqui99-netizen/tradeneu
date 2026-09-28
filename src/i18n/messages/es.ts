@@ -38,10 +38,12 @@ export const es: MessageDict = {
   'dash.hero.resumeTitle': 'Bienvenido de nuevo: continúa donde lo dejaste.',
   'dash.hero.resumeSub':
     'Tienes {sessions} en curso. Continúa donde lo dejaste o empieza una repetición nueva en otro mercado.',
-  'dash.hero.emptyTitle': 'Pon a prueba tu estrategia con historia real, antes de que te cueste dinero real.',
+  'dash.hero.emptyTitle': 'Descubre por qué una estrategia habría ganado o perdido, antes de operarla.',
   'dash.hero.emptySub':
-    'Tradeneu reproduce datos reales del mercado vela a vela para que practiques entradas, salidas y riesgo igual que en vivo, y luego te explica en lenguaje claro por qué una operación funcionó o no.',
+    'Reproduce el historial real del mercado vela a vela, abre operaciones como si estuvieras ahí y recibe un desglose en lenguaje claro de qué movió realmente tu resultado.',
   'dash.hero.startSession': 'Iniciar una sesión nueva',
+  'dash.hero.firstRunCta': 'Ejecuta tu primer backtest',
+  'dash.hero.walkthroughCta': 'Ver el recorrido de 2 min',
   'dash.hero.resumeSession': 'Reanudar la sesión «{name}»',
   'dash.hero.replayLabel': '{symbol} · repetición',
   'dash.hero.lastSession': 'Tu última sesión: {trades} en el registro',
@@ -51,24 +53,77 @@ export const es: MessageDict = {
   'dash.hero.cardAria': 'Resumen de la última sesión',
   'dash.hero.equityAria': 'Ganancias y pérdidas acumuladas en las operaciones de la última sesión',
 
-  'dash.firstRun.eyebrow': 'Plataforma de backtesting',
-  'dash.firstRun.cta': 'Empieza gratis',
-  'dash.firstRun.sampleCta': 'Ver una sesión de ejemplo',
-  'dash.hero.firstRunNote': 'Sin tarjeta · Hecho para XAUUSD, índices y forex',
+  'dash.hero.firstRunNote':
+    'Sin tarjeta · Hecho para XAUUSD, índices y forex · Más de 10.000 horas de datos de repetición',
   'dash.hero.exampleSymbol': 'XAUUSD · repetición de 15m',
-  'dash.hero.exampleMeta': 'Sesión de ejemplo: así se ve un backtest terminado',
+  'dash.hero.exampleMeta': 'Sesión de ejemplo: esto es lo que tendrás después de tu primera repetición',
   'dash.hero.exampleAria': 'Ejemplo de una sesión completada',
-  'dash.why.title': 'Por qué los traders lo usan antes de operar en real',
-  'dash.why.sub': 'Tres cosas que una cuenta demo o una hoja de cálculo no te dan.',
-  'dash.why.card1Title': 'Sin ver el futuro',
-  'dash.why.card1Desc':
+  'dash.quickStart.title': 'Inicio rápido',
+  'dash.quickStart.hint': 'Elige un mercado popular y entra directo',
+  'dash.quickStart.cardAria': 'Iniciar una sesión en {symbol}',
+  'dash.quickStart.startSession': 'Iniciar sesión',
+  'dash.quickStart.browseLabel': 'O explora:',
+  'dash.quickStart.browseAria': 'Explorar mercados por categoría',
+  'dash.quickStart.browseCatAria': 'Explorar mercados de {category}',
+
+  'dash.tutorial.title': 'Cómo funciona una sesión',
+  'dash.tutorial.hint': 'Cinco pasos, unos dos minutos hasta tu primera operación',
+  'dash.tutorial.step1Title': 'Inicia una sesión nueva',
+  'dash.tutorial.step1Desc':
+    'Pulsa **Iniciar una sesión nueva** en la parte superior de esta página. Se abre el creador de sesiones.',
+  'dash.tutorial.step2Title': 'Elige un activo',
+  'dash.tutorial.step2Desc':
+    'Busca por nombre o símbolo, o filtra por categoría. Los activos usados hace poco aparecen primero.',
+  'dash.tutorial.step3Title': 'Define tu rango de fechas',
+  'dash.tutorial.step3Desc':
+    'Elige una fecha **Inicial** y **Final**. Usa `+1D` `+1W` `+1M` para ampliar el rango, o marca **Aleatorio** para recibir un periodo sorpresa.',
+  'dash.tutorial.step4Title': 'Reproduce y abre operaciones',
+  'dash.tutorial.step4Desc':
+    'Pulsa **Crear sesión**. Usa `▶ Play` o `+1 bar` para avanzar en el tiempo y luego **Compra** o **Vende** donde entrarías. Las velas futuras siguen ocultas.',
+  'dash.tutorial.step5Title': 'Termina y revisa',
+  'dash.tutorial.step5Desc':
+    'Pulsa **Terminar sesión** para fijar tu resultado y recibir un desglose en lenguaje claro de qué funcionó.',
+
+  'dash.tutorial.previewTitle': 'Pasos 2-3: lo que verás en el creador de sesiones',
+  'dash.tutorial.previewSearch': 'Escribe para buscar activos',
+  'dash.tutorial.previewRecent': 'Usados hace poco',
+  'dash.tutorial.previewStartDate': 'Fecha inicial',
+  'dash.tutorial.previewEndDate': 'Fecha final',
+  'dash.tutorial.previewSubmit': 'Crear sesión',
+
+  'dash.perfEmpty.text':
+    'Aún no hay nada que mostrar: **el rendimiento se rellena solo** en cuanto completes tu primera sesión, con las mismas estadísticas del ejemplo de arriba.',
+
+  'landing.nav.product': 'Producto',
+  'landing.nav.markets': 'Mercados',
+  'landing.nav.pricing': 'Precios',
+  'landing.nav.signIn': 'Iniciar sesión',
+  'landing.eyebrow': 'Plataforma de backtesting',
+  'landing.title': 'Pon a prueba tu estrategia con historia real, antes de que te cueste dinero real.',
+  'landing.sub':
+    'Tradeneu reproduce datos reales del mercado vela a vela para que practiques entradas, salidas y riesgo igual que en vivo, y luego te explica en lenguaje claro por qué una operación funcionó o no.',
+  'landing.cta': 'Empieza gratis',
+  'landing.sampleCta': 'Ver una sesión de ejemplo',
+  'landing.note': 'Sin tarjeta · Hecho para XAUUSD, índices y forex',
+  'landing.example.symbol': 'XAUUSD · repetición de 15m',
+  'landing.example.meta': 'Sesión de ejemplo: así se ve un backtest terminado',
+  'landing.example.aria': 'Ejemplo de una sesión completada',
+  'landing.example.equityAria':
+    'Ganancias y pérdidas acumuladas en las operaciones de la sesión de ejemplo',
+  'landing.netResult': 'Resultado neto',
+  'landing.winRate': 'Tasa de acierto',
+  'landing.why.title': 'Por qué los traders lo usan antes de operar en real',
+  'landing.why.sub': 'Tres cosas que una cuenta demo o una hoja de cálculo no te dan.',
+  'landing.why.card1Title': 'Sin ver el futuro',
+  'landing.why.card1Desc':
     'El precio se revela vela a vela, así que decides sin saber qué viene después: la misma presión que en un gráfico en vivo.',
-  'dash.why.card2Title': 'Cada operación registrada',
-  'dash.why.card2Desc':
+  'landing.why.card2Title': 'Cada operación registrada',
+  'landing.why.card2Desc':
     'Entradas, salidas y stops se registran automáticamente mientras repites, creando un historial que puedes revisar de verdad.',
-  'dash.why.card3Title': 'El por qué, no solo el qué',
-  'dash.why.card3Desc':
+  'landing.why.card3Title': 'El por qué, no solo el qué',
+  'landing.why.card3Desc':
     'En lugar de una simple tasa de acierto, obtienes un desglose de qué llevó exactamente tus operaciones perdedoras a números rojos.',
+  'landing.footer': 'Tradeneu · Practica con el pasado, opera el presente.',
 
   'perf.title': 'Rendimiento',
   'perf.subtitle': 'Tu práctica, cobertura de mercado y resultados de trading.',

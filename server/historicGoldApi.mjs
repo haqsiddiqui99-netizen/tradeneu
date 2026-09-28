@@ -154,7 +154,7 @@ app.use(express.json({ limit: '32kb' }))
  * Keep in sync with `legacyTarget()` in `src/appPaths.ts`.
  */
 const LEGACY_SPA_REDIRECTS = {
-  '/': '/en-US/login',
+  '/': '/en-US',
   '/loginPage': '/en-US/login',
   '/loginpage': '/en-US/login',
   '/login': '/en-US/login',

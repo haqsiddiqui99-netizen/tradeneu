@@ -604,8 +604,25 @@ import { buildAnalyticsPageHtml, initAnalyticsPage, type SxaTrade } from './dash
 import type { AccountPageHandle, AccountTabKey, ProfileSessionStats } from '../views/mountAccountPage'
 import { postTelemetryEvent } from '../telemetry/telemetryApi'
 import { DASH_LOCALES, dashLocaleMenuLabel, isDashLocaleCode } from './dashboardLocales'
-import { activeLocaleTag, onLocaleChange, setLocale, tCount, te, t as translate, type MessageKey } from '../i18n'
+import {
+  activeLocaleTag,
+  onLocaleChange,
+  setLocale,
+  tCount,
+  te,
+  tRich,
+  t as translate,
+  type MessageKey,
+} from '../i18n'
+import { ASSET_PILLS, catalogMarketDataLabel, findAsset, type AssetCategory } from '../assetCatalog'
 import { readDisplayName, readUserAvatar } from './dashboardUserPrefs'
+import {
+  buildHeroSparkSvg,
+  HERO_EXAMPLE_CURVE,
+  HERO_EXAMPLE_NET,
+  HERO_EXAMPLE_PRICE,
+  HERO_EXAMPLE_WINRATE,
+} from './heroSparkline'
 import {
   buildDashboardPerfChartSvg,
   computeEquityCurveSeries,
@@ -854,43 +871,6 @@ function formatDashMoney(n: number): string {
   const sign = n < 0 ? '-' : ''
   const v = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return `${sign}$${v}`
-}
-
-/**
- * Running-P&L sparkline for the hero card. Tinted by the closing value so a
- * losing session reads red at a glance. Baseline is pinned to 0 so a flat or
- * single-trade series still draws something meaningful.
- */
-function buildHeroSparkSvg(points: number[]): string {
-  if (points.length === 0) return ''
-  const width = 100
-  const height = 36
-  const series = points.length === 1 ? [0, points[0]!] : points
-  const min = Math.min(...series, 0)
-  const max = Math.max(...series, 0)
-  const span = max - min || 1
-  const stepX = width / (series.length - 1)
-  const coords = series.map((v, i) => {
-    const x = i * stepX
-    const y = height - ((v - min) / span) * height
-    return `${x.toFixed(2)},${y.toFixed(2)}`
-  })
-  const line = coords.join(' ')
-  const zeroY = height - ((0 - min) / span) * height
-  const closing = series[series.length - 1] ?? 0
-  const tone = closing < 0 ? 'is-loss' : closing > 0 ? 'is-profit' : 'is-flat'
-  const gradientId = `sx-dash-hero-spark-grad-${tone}`
-  return `<svg class="sx-dash-hero-spark ${tone}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-      <defs>
-        <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="currentColor" stop-opacity="0.3" />
-          <stop offset="100%" stop-color="currentColor" stop-opacity="0" />
-        </linearGradient>
-      </defs>
-      <polygon class="sx-dash-hero-spark__fill" fill="url(#${gradientId})" points="0,${height} ${line} ${width},${height}" />
-      <line class="sx-dash-hero-spark__zero" x1="0" y1="${zeroY.toFixed(2)}" x2="${width}" y2="${zeroY.toFixed(2)}" />
-      <polyline class="sx-dash-hero-spark__line" points="${line}" />
-    </svg>`
 }
 
 function sessionMatchesFilter(session: StoredSession, filter: SessionFilterValue): boolean {
@@ -1579,40 +1559,180 @@ function buildDashTopbarHtml(): string {
 }
 
 /**
- * Illustrative figures for the first-run hero card, shown before the trader has
- * any real session. Labelled as an example on screen so it can't be mistaken for
- * their own results. The curve closes at the +4.2R the card quotes.
+ * Markets offered as one-tap starting points on the first run. Every symbol has
+ * to exist in the asset catalog: names, categories and data sources are read
+ * from there so the cards can't drift from the session creator, and an unknown
+ * symbol would have its prefill silently dropped by `sessionModal`.
  */
-const DASH_HERO_EXAMPLE_CURVE = [0, 0.5, -0.3, 0.8, 0.4, 1.4, 1.1, 2, 1.6, 2.5, 2.2, 3, 3.5, 3.1, 4.2]
-const DASH_HERO_EXAMPLE_PRICE = '2,398.40'
-const DASH_HERO_EXAMPLE_NET = '+4.2R'
-const DASH_HERO_EXAMPLE_WINRATE = '58%'
+const DASH_QUICK_START_SYMBOLS = ['XAUUSD', 'EURUSD', 'SPX'] as const
+
+/** Assets shown in the session-creator illustration next to steps 2 and 3. */
+const DASH_PREVIEW_SYMBOLS = ['XAUUSD', 'EURUSD'] as const
+
+/** Steps whose text sits beside the illustration rather than full width. */
+const DASH_TUTORIAL_STEP_COUNT = 5
+
+function buildDashQuickStartCardsHtml(): string {
+  return DASH_QUICK_START_SYMBOLS.map((symbol) => {
+    const asset = findAsset(symbol)
+    if (!asset) return ''
+    const category = ASSET_PILLS.find((p) => p.id === asset.category)?.label ?? asset.category
+    const source = catalogMarketDataLabel(symbol)
+    return `
+                  <li>
+                    <button type="button" class="sx-dash-quick-card" data-sx-quick-symbol="${symbol}" aria-label="${te('dash.quickStart.cardAria', { symbol })}">
+                      <span class="sx-dash-quick-card__head">
+                        <span class="sx-dash-quick-card__symbol">${symbol}</span>
+                        <span class="sx-dash-quick-card__cat">${escapeHtml(category)}</span>
+                      </span>
+                      <span class="sx-dash-quick-card__name">${escapeHtml(asset.name)}</span>
+                      <span class="sx-dash-quick-card__foot">
+                        <span class="sx-dash-quick-card__source">${source ? escapeHtml(source) : ''}</span>
+                        <span class="sx-dash-quick-card__go" data-i18n="dash.quickStart.startSession">${te('dash.quickStart.startSession')}</span>
+                      </span>
+                    </button>
+                  </li>`
+  }).join('')
+}
 
 /**
- * First-run only: what replay gives a trader that a demo account doesn't.
- * Hidden as soon as they have a session, since by then their own data says more.
+ * Category shortcuts into the session creator's asset picker, for traders whose
+ * market isn't one of the three cards. Labels come from `ASSET_PILLS` so they
+ * read the same here as in the picker they open.
+ */
+function buildDashBrowseChipsHtml(): string {
+  return ASSET_PILLS.filter((p) => p.id !== 'all')
+    .map(
+      (p) => `
+                    <button type="button" class="sx-dash-browse__chip" data-sx-browse-cat="${p.id}" aria-label="${te('dash.quickStart.browseCatAria', { category: p.label })}">${escapeHtml(p.label)}</button>`,
+    )
+    .join('')
+}
+
+/**
+ * Static picture of the session creator, so steps 2 and 3 can point at something
+ * concrete before the trader has ever opened it. Inert and `aria-hidden` — the
+ * step text carries the same information for screen readers.
+ */
+function buildDashCreatorPreviewHtml(): string {
+  const pills = ASSET_PILLS.map(
+    (p, i) =>
+      `<span class="sx-dash-creator__pill${i === 0 ? ' is-on' : ''}">${escapeHtml(p.label)}</span>`,
+  ).join('')
+
+  const rows = DASH_PREVIEW_SYMBOLS.map((symbol, i) => {
+    const asset = findAsset(symbol)
+    if (!asset) return ''
+    const source = catalogMarketDataLabel(symbol)
+    return `
+                      <div class="sx-dash-creator__row${i === 0 ? ' is-on' : ''}">
+                        <span class="sx-dash-creator__row-main">
+                          <span class="sx-dash-creator__row-symbol">${symbol}</span>
+                          <span class="sx-dash-creator__row-name">${escapeHtml(asset.name)}</span>
+                        </span>
+                        <span class="sx-dash-creator__row-source">${source ? escapeHtml(source) : ''}</span>
+                      </div>`
+  }).join('')
+
+  const { start, end } = dashPreviewDateRange()
+
+  return `
+              <aside class="sx-dash-creator" aria-hidden="true">
+                <p class="sx-dash-creator__caption" data-i18n="dash.tutorial.previewTitle">${te('dash.tutorial.previewTitle')}</p>
+                <p class="sx-dash-creator__search" data-i18n="dash.tutorial.previewSearch">${te('dash.tutorial.previewSearch')}</p>
+                <div class="sx-dash-creator__pills">${pills}</div>
+                <p class="sx-dash-creator__label" data-i18n="dash.tutorial.previewRecent">${te('dash.tutorial.previewRecent')}</p>
+                <div class="sx-dash-creator__rows">${rows}
+                </div>
+                <div class="sx-dash-creator__dates">
+                  <div class="sx-dash-creator__field">
+                    <span class="sx-dash-creator__field-label" data-i18n="dash.tutorial.previewStartDate">${te('dash.tutorial.previewStartDate')}</span>
+                    <span class="sx-dash-creator__field-value" data-sx-preview-start>${escapeHtml(start)}</span>
+                  </div>
+                  <div class="sx-dash-creator__field">
+                    <span class="sx-dash-creator__field-label" data-i18n="dash.tutorial.previewEndDate">${te('dash.tutorial.previewEndDate')}</span>
+                    <span class="sx-dash-creator__field-value" data-sx-preview-end>${escapeHtml(end)}</span>
+                  </div>
+                </div>
+                <p class="sx-dash-creator__submit" data-i18n="dash.tutorial.previewSubmit">${te('dash.tutorial.previewSubmit')}</p>
+              </aside>`
+}
+
+/**
+ * A recent two-week window for the illustration's date fields, so the mock never
+ * shows a range that has drifted into the past relative to today.
+ */
+function dashPreviewDateRange(): { start: string; end: string } {
+  const fmt = new Intl.DateTimeFormat(activeLocaleTag(), {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  const end = new Date()
+  end.setDate(end.getDate() - 30)
+  const start = new Date(end)
+  start.setDate(start.getDate() - 16)
+  return { start: fmt.format(start), end: fmt.format(end) }
+}
+
+/**
+ * First-run only: a market picker so the trader doesn't have to face an empty
+ * session form, then a walkthrough of what a replay actually involves. Both are
+ * hidden as soon as they have a session, since by then their own data says more.
  */
 function buildDashFirstRunSectionsHtml(): string {
-  const cards = [1, 2, 3]
+  const steps = Array.from({ length: DASH_TUTORIAL_STEP_COUNT }, (_, i) => i + 1)
     .map((n) => {
-      const titleKey = `dash.why.card${n}Title` as MessageKey
-      const descKey = `dash.why.card${n}Desc` as MessageKey
+      const titleKey = `dash.tutorial.step${n}Title` as MessageKey
+      const descKey = `dash.tutorial.step${n}Desc` as MessageKey
       return `
-                  <li class="sx-dash-why-card">
-                    <h3 class="sx-dash-why-card__title" data-i18n="${titleKey}">${te(titleKey)}</h3>
-                    <p class="sx-dash-why-card__desc" data-i18n="${descKey}">${te(descKey)}</p>
-                  </li>`
+                    <li class="sx-dash-step">
+                      <span class="sx-dash-step__num" aria-hidden="true">${n}</span>
+                      <div class="sx-dash-step__body">
+                        <h3 class="sx-dash-step__title" data-i18n="${titleKey}">${te(titleKey)}</h3>
+                        <p class="sx-dash-step__desc" data-i18n-rich="${descKey}">${tRich(descKey)}</p>
+                      </div>
+                    </li>`
     })
     .join('')
 
   return `
             <div class="sx-dash-onboard" data-sx-dash-onboard hidden>
-              <section class="sx-dash-onboard__block" aria-labelledby="sx-dash-why-title">
-                <h2 class="sx-dash-onboard__title" id="sx-dash-why-title" data-i18n="dash.why.title">${te('dash.why.title')}</h2>
-                <p class="sx-dash-onboard__sub" data-i18n="dash.why.sub">${te('dash.why.sub')}</p>
-                <ul class="sx-dash-onboard__grid">${cards}
+              <section class="sx-dash-onboard__block" aria-labelledby="sx-dash-quick-title">
+                <header class="sx-dash-onboard__head">
+                  <h2 class="sx-dash-onboard__title" id="sx-dash-quick-title" data-i18n="dash.quickStart.title">${te('dash.quickStart.title')}</h2>
+                  <p class="sx-dash-onboard__hint" data-i18n="dash.quickStart.hint">${te('dash.quickStart.hint')}</p>
+                </header>
+                <ul class="sx-dash-onboard__grid">${buildDashQuickStartCardsHtml()}
                 </ul>
+                <div class="sx-dash-browse" role="group" aria-label="${te('dash.quickStart.browseAria')}" data-i18n-aria-label="dash.quickStart.browseAria">
+                  <span class="sx-dash-browse__label" data-i18n="dash.quickStart.browseLabel">${te('dash.quickStart.browseLabel')}</span>${buildDashBrowseChipsHtml()}
+                </div>
               </section>
+
+              <section class="sx-dash-onboard__block" aria-labelledby="sx-dash-tutorial-title">
+                <header class="sx-dash-onboard__head">
+                  <h2 class="sx-dash-onboard__title" id="sx-dash-tutorial-title" data-i18n="dash.tutorial.title">${te('dash.tutorial.title')}</h2>
+                  <p class="sx-dash-onboard__hint" data-i18n="dash.tutorial.hint">${te('dash.tutorial.hint')}</p>
+                </header>
+                <div class="sx-dash-tutorial">
+                  <ol class="sx-dash-steps">${steps}
+                  </ol>
+                  ${buildDashCreatorPreviewHtml()}
+                </div>
+              </section>
+            </div>`
+}
+
+/**
+ * Stands in for the Performance charts until there's data to draw. Visibility is
+ * CSS-only, driven by `is-first-run` on the section, so the KPIs and charts can
+ * be swapped out without moving them into a wrapper the layout doesn't expect.
+ */
+function buildDashPerfPlaceholderHtml(): string {
+  return `
+            <div class="sx-dash-perf-empty">
+              <p class="sx-dash-perf-empty__text" data-i18n-rich="dash.perfEmpty.text">${tRich('dash.perfEmpty.text')}</p>
             </div>`
 }
 
@@ -1632,7 +1752,7 @@ function buildDashboardPageHeadHtml(): string {
                 <div class="sx-dash-hero__actions">
                   <button type="button" data-action="backtest" class="sx-dash-hero-btn sx-dash-hero-btn--primary" data-i18n="dash.hero.startSession">${te('dash.hero.startSession')}</button>
                   <button type="button" data-action="resume-session" class="sx-dash-hero-btn sx-dash-hero-btn--ghost" data-sx-hero-resume hidden></button>
-                  <button type="button" class="sx-dash-hero-btn sx-dash-hero-btn--ghost" data-sx-hero-sample data-i18n="dash.firstRun.sampleCta" hidden>${te('dash.firstRun.sampleCta')}</button>
+                  <button type="button" class="sx-dash-hero-btn sx-dash-hero-btn--ghost" data-sx-hero-walkthrough data-i18n="dash.hero.walkthroughCta" hidden>${te('dash.hero.walkthroughCta')}</button>
                 </div>
                 <p class="sx-dash-hero__note" data-sx-hero-note data-i18n="dash.hero.firstRunNote" hidden>${te('dash.hero.firstRunNote')}</p>
               </div>
@@ -1780,6 +1900,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           </div>
                 ${buildPulseRangeHtml()}
         </header>
+
+              ${buildDashPerfPlaceholderHtml()}
 
               ${buildSessionPulseKpiHtml({ bare: true })}
 
@@ -4719,26 +4841,28 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const session = (lastId ? getSession(lastId) : null) ?? sessions[0] ?? null
     const firstRun = session == null
 
-    // First run only: the pitch sections below the hero, and a hero that drops
-    // its card chrome to read as a landing page. Performance is left alone.
+    // First run only: quick-start markets and the tutorial below the hero, and a
+    // Performance section that explains itself instead of drawing empty charts.
     const onboard = root.querySelector<HTMLElement>('[data-sx-dash-onboard]')
     if (onboard) onboard.hidden = !firstRun
+    root
+      .querySelector<HTMLElement>('.sx-dash-performance')
+      ?.classList.toggle('is-first-run', firstRun)
     hero.classList.toggle('is-first-run', firstRun)
     if (noteEl) noteEl.hidden = !firstRun
 
-    const eyebrowEl = hero.querySelector<HTMLElement>('.sx-dash-hero__eyebrow')
+    const walkthroughBtn = hero.querySelector<HTMLButtonElement>('[data-sx-hero-walkthrough]')
+    if (walkthroughBtn) walkthroughBtn.hidden = !firstRun
+
+    // The primary button carries data-i18n so a language switch re-translates it,
+    // which means the attribute has to move with the text or translateDom will
+    // put the other state's label back.
     const primaryBtn = hero.querySelector<HTMLElement>('.sx-dash-hero-btn--primary')
-    const sampleBtn = hero.querySelector<HTMLButtonElement>('[data-sx-hero-sample]')
-    // Both carry data-i18n so a language switch re-translates them, which means
-    // the attribute has to move with the text or translateDom will undo this.
-    const setLabel = (el: HTMLElement | null, key: MessageKey) => {
-      if (!el) return
-      el.textContent = translate(key)
-      el.setAttribute('data-i18n', key)
+    if (primaryBtn) {
+      const key: MessageKey = firstRun ? 'dash.hero.firstRunCta' : 'dash.hero.startSession'
+      primaryBtn.textContent = translate(key)
+      primaryBtn.setAttribute('data-i18n', key)
     }
-    setLabel(eyebrowEl, firstRun ? 'dash.firstRun.eyebrow' : 'dash.title')
-    setLabel(primaryBtn, firstRun ? 'dash.firstRun.cta' : 'dash.hero.startSession')
-    if (sampleBtn) sampleBtn.hidden = !firstRun
 
     if (firstRun) {
       if (titleEl) titleEl.textContent = translate('dash.hero.emptyTitle')
@@ -4762,18 +4886,18 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         const winEl = card.querySelector<HTMLElement>('[data-sx-hero-win]')
         if (symbolEl) symbolEl.textContent = translate('dash.hero.exampleSymbol')
         if (balanceEl) {
-          balanceEl.textContent = DASH_HERO_EXAMPLE_PRICE
+          balanceEl.textContent = HERO_EXAMPLE_PRICE
           balanceEl.classList.remove('is-loss')
           balanceEl.classList.add('is-profit')
         }
         if (metaEl) metaEl.textContent = translate('dash.hero.exampleMeta')
-        if (sparkEl) sparkEl.innerHTML = buildHeroSparkSvg([...DASH_HERO_EXAMPLE_CURVE])
+        if (sparkEl) sparkEl.innerHTML = buildHeroSparkSvg([...HERO_EXAMPLE_CURVE])
         if (netEl) {
-          netEl.textContent = DASH_HERO_EXAMPLE_NET
+          netEl.textContent = HERO_EXAMPLE_NET
           netEl.classList.remove('is-loss')
           netEl.classList.add('is-profit')
         }
-        if (winEl) winEl.textContent = DASH_HERO_EXAMPLE_WINRATE
+        if (winEl) winEl.textContent = HERO_EXAMPLE_WINRATE
       }
       return
     }
@@ -5488,11 +5612,38 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       return
     }
 
-    const sampleBtn = t.closest<HTMLButtonElement>('[data-sx-hero-sample]')
-    if (sampleBtn && root.contains(sampleBtn)) {
-      // Opens the session form pre-filled with the market the example card shows,
-      // so "see a sample" lands on something concrete rather than a blank form.
-      sessionModal.open({ sessionType: 'backtest', draft: { assets: 'XAUUSD' } })
+    const walkthroughBtn = t.closest<HTMLButtonElement>('[data-sx-hero-walkthrough]')
+    if (walkthroughBtn && root.contains(walkthroughBtn)) {
+      // No video yet — take them to the step-by-step walkthrough further down the
+      // page, which is the same tour in written form. Scroll only the dashboard's
+      // own content viewport, not native scrollIntoView — which walks every
+      // scrollable ancestor (including the window/body) and knocks the sticky
+      // topbar/sidebar out of place (see sxHighlightTradeRowByKey above).
+      const titleEl = root.querySelector<HTMLElement>('#sx-dash-tutorial-title')
+      const scrollHost = root.querySelector<HTMLElement>('.sx-dash-shell__scroll')
+      if (titleEl && scrollHost) {
+        const hostRect = scrollHost.getBoundingClientRect()
+        const titleRect = titleEl.getBoundingClientRect()
+        const delta = titleRect.top - hostRect.top
+        scrollHost.scrollBy({ top: delta, behavior: 'smooth' })
+      }
+      return
+    }
+
+    const quickMarketBtn = t.closest<HTMLButtonElement>('[data-sx-quick-symbol]')
+    if (quickMarketBtn && root.contains(quickMarketBtn)) {
+      const symbol = quickMarketBtn.getAttribute('data-sx-quick-symbol')?.trim()
+      sessionModal.open({ sessionType: 'backtest', draft: symbol ? { assets: symbol } : undefined })
+      return
+    }
+
+    const browseChip = t.closest<HTMLButtonElement>('[data-sx-browse-cat]')
+    if (browseChip && root.contains(browseChip)) {
+      const cat = browseChip.getAttribute('data-sx-browse-cat')?.trim()
+      sessionModal.open({
+        sessionType: 'backtest',
+        assetCategory: (cat as AssetCategory | undefined) ?? undefined,
+      })
       return
     }
 

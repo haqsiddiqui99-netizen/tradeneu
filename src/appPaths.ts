@@ -8,8 +8,10 @@ import {
 import { setLocale } from './i18n'
 
 /**
- * URL model: `/{locale}/{section}[/{tab}][?tab=…]`.
+ * URL model: `/{locale}/{section}[/{tab}][?tab=…]`, plus a bare `/{locale}` for
+ * the public landing page.
  *
+ *   /en-US                          (landing — signed-out visitors only)
  *   /en-US/login
  *   /en-US/testing/dashboard        (also sessions | trades | analytics)
  *   /en-US/testing/analytics?tab=drawdown
@@ -22,7 +24,7 @@ import { setLocale } from './i18n'
  * `AppPage` stays coarse because it only answers "which shell does main.ts
  * mount"; `AppView` is the destination inside the dashboard shell.
  */
-export type AppPage = 'login' | 'dashboard' | 'chart' | 'admin'
+export type AppPage = 'landing' | 'login' | 'dashboard' | 'chart' | 'admin'
 
 export const TESTING_TAB_SEGMENTS = ['dashboard', 'sessions', 'trades', 'analytics'] as const
 export type TestingTabSegment = (typeof TESTING_TAB_SEGMENTS)[number]
@@ -58,7 +60,7 @@ export type AppView =
 export type ParsedAppPath = {
   localeTag: string
   page: AppPage
-  /** Null for login and admin, which live outside the dashboard shell. */
+  /** Null for landing, login and admin, which live outside the dashboard shell. */
   view: AppView | null
 }
 
@@ -107,6 +109,8 @@ export function viewPath(localeTag: string, view: AppView): string {
 /** Build a shell path. `dashboard` resolves to the testing home. */
 export function appPath(localeTag: string, page: AppPage): string {
   switch (page) {
+    case 'landing':
+      return `/${localeTag}`
     case 'login':
       return `/${localeTag}/login`
     case 'admin':
@@ -119,6 +123,7 @@ export function appPath(localeTag: string, page: AppPage): string {
 }
 
 /** Default-locale shortcuts (backward-compatible exports). */
+export const LANDING_PAGE_PATH = appPath(DEFAULT_LOCALE_TAG, 'landing')
 export const LOGIN_PAGE_PATH = appPath(DEFAULT_LOCALE_TAG, 'login')
 export const HOME_PAGE_PATH = appPath(DEFAULT_LOCALE_TAG, 'dashboard')
 export const DASHBOARD_PAGE_PATH = HOME_PAGE_PATH
@@ -149,7 +154,18 @@ function legacyTarget(pathname: string): string | null {
  * sub-tab state in the query string.
  */
 export function parseAppPath(pathname: string, search = ''): ParsedAppPath | null {
-  const m = /^\/([^/]+)\/([^/]+)(?:\/([^/]+))?$/.exec(trimPath(pathname))
+  const path = trimPath(pathname)
+
+  // A bare locale is the landing page. Checked before the section regex, which
+  // requires two segments. Legacy single-segment paths like `/login` fall
+  // through to null here and are picked up by `legacyTarget`.
+  const bare = /^\/([^/]+)$/.exec(path)
+  if (bare) {
+    const tag = bare[1]!
+    return isKnownLocaleTag(tag) ? { localeTag: tag, page: 'landing', view: null } : null
+  }
+
+  const m = /^\/([^/]+)\/([^/]+)(?:\/([^/]+))?$/.exec(path)
   if (!m) return null
   const localeTag = m[1]!
   const section = m[2]!

@@ -14,6 +14,7 @@ import { resolveAuthSession, getAuthUser, isAdminUser, isGuestAuthUser } from '.
 import { fetchAdminMe, resolveAuthedHomePath } from './admin/adminApi'
 import { startGuestHeartbeat, pingGuestSession } from './guest/guestSessionApi'
 import { mountDashboardApp } from './home/mountDashboardApp'
+import { mountLandingPage } from './landing/mountLandingPage'
 import { mountLoginGate } from './login/mountLoginGate'
 import { mountAdminPage } from './views/mountAdminPage'
 
@@ -36,12 +37,26 @@ async function bootstrap(): Promise<void> {
 
   if (!parsed) {
     window.location.replace(
-      authed ? (isAdmin ? resolveAppPath('admin') : resolveAppPath('dashboard')) : appPath(DEFAULT_LOCALE_TAG, 'login'),
+      authed
+        ? isAdmin
+          ? resolveAppPath('admin')
+          : resolveAppPath('dashboard')
+        : appPath(DEFAULT_LOCALE_TAG, 'landing'),
     )
     return
   }
 
   applyLocaleFromPath(window.location.pathname)
+
+  // Signed-in users skip the marketing page entirely.
+  if (parsed.page === 'landing') {
+    if (authed) {
+      window.location.replace(isAdmin ? resolveAppPath('admin', parsed.localeTag) : dashboardPathForUser())
+      return
+    }
+    mountLandingPage(root)
+    return
+  }
 
   if (authed && isGuestAuthUser(getAuthUser())) {
     const guestPage =

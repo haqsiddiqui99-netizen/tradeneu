@@ -4635,7 +4635,7 @@ a.sx-dash-account__item {
   display: none;
 }
 
-/* ── Home first run: why replay beats a demo account ─────────────────────── */
+/* ── Home first run: quick-start markets and the replay walkthrough ──────── */
 
 .sx-dash-onboard {
   display: flex;
@@ -4650,8 +4650,19 @@ a.sx-dash-account__item {
   display: none;
 }
 
+.sx-dash-onboard__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1.5rem;
+  margin-bottom: 1.125rem;
+}
+
 .sx-dash-onboard__title {
   margin: 0;
+  /* Room for the shell header when the hero's walkthrough button scrolls here. */
+  scroll-margin-top: 1.5rem;
   color: #101828;
   font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 1.375rem;
@@ -4659,11 +4670,10 @@ a.sx-dash-account__item {
   letter-spacing: -0.015em;
 }
 
-.sx-dash-onboard__sub {
-  margin: 0.4rem 0 1.125rem;
-  color: #667085;
+.sx-dash-onboard__hint {
+  margin: 0;
+  color: #98a2b3;
   font-size: 0.9375rem;
-  line-height: 1.5;
 }
 
 .sx-dash-onboard__grid {
@@ -4681,27 +4691,416 @@ a.sx-dash-account__item {
   }
 }
 
-.sx-dash-why-card {
-  padding: 1.25rem 1.375rem;
+/* Inline key / button chip inside instructional copy (see `tRich` in src/i18n). */
+.sx-kbd {
+  display: inline-block;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 0.3rem;
+  background: rgba(15, 23, 42, 0.04);
+  color: #475467;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* One-tap market picker, so the first session doesn't start at a blank form. */
+.sx-dash-quick-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+  height: 100%;
+  padding: 1.125rem 1.25rem;
   border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 0.75rem;
   background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 
-.sx-dash-why-card__title {
+.sx-dash-quick-card:hover {
+  border-color: rgba(181, 130, 42, 0.5);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07);
+  transform: translateY(-1px);
+}
+
+.sx-dash-quick-card:focus-visible {
+  outline: 2px solid #b5822a;
+  outline-offset: 2px;
+}
+
+.sx-dash-quick-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sx-dash-quick-card__symbol {
+  min-width: 0;
+  overflow: hidden;
+  color: #101828;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sx-dash-quick-card__cat {
+  flex-shrink: 0;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
+  color: #667085;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.sx-dash-quick-card__name {
+  color: #475467;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.sx-dash-quick-card__foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.sx-dash-quick-card__source {
+  min-width: 0;
+  overflow: hidden;
+  color: #98a2b3;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sx-dash-quick-card__go {
+  flex-shrink: 0;
+  color: #b5822a;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.sx-dash-quick-card__go::after {
+  content: ' →';
+}
+
+/* ── Browse by category ──────────────────────────────────────────────────── */
+
+.sx-dash-browse {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.sx-dash-browse__label {
+  color: #98a2b3;
+  font-size: 0.8125rem;
+}
+
+.sx-dash-browse__chip {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475467;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.sx-dash-browse__chip:hover {
+  border-color: rgba(181, 130, 42, 0.5);
+  background: rgba(181, 130, 42, 0.06);
+  color: #8a5f16;
+}
+
+.sx-dash-browse__chip:focus-visible {
+  outline: 2px solid #b5822a;
+  outline-offset: 2px;
+}
+
+/* ── How a session works ─────────────────────────────────────────────────── */
+
+.sx-dash-tutorial {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+@media (min-width: 960px) {
+  .sx-dash-tutorial {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 27rem);
+    gap: 2.5rem;
+  }
+}
+
+.sx-dash-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sx-dash-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+}
+
+/* Connector down the numbers, drawn on every step but the last. */
+.sx-dash-step:not(:last-child) .sx-dash-step__num::after {
+  content: '';
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 50%;
+  width: 1px;
+  height: calc(100% + 1.25rem);
+  background: rgba(15, 23, 42, 0.1);
+}
+
+.sx-dash-step__num {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: 999px;
+  background: rgba(181, 130, 42, 0.14);
+  color: #8a5f16;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.sx-dash-step__body {
+  min-width: 0;
+  padding-bottom: 0.15rem;
+}
+
+.sx-dash-step__title {
   margin: 0;
   color: #101828;
   font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 1.0625rem;
+  font-size: 0.9375rem;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.005em;
 }
 
-.sx-dash-why-card__desc {
-  margin: 0.5rem 0 0;
+.sx-dash-step__desc {
+  margin: 0.25rem 0 0;
   color: #667085;
   font-size: 0.875rem;
-  line-height: 1.55;
+  line-height: 1.6;
+}
+
+.sx-dash-step__desc strong {
+  color: #344054;
+  font-weight: 700;
+}
+
+/* ── Session-creator illustration (static, inert) ────────────────────────── */
+
+.sx-dash-creator {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-self: start;
+  padding: 1.25rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 0.875rem;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  /* Decorative: nothing inside is focusable or interactive. */
+  user-select: none;
+}
+
+.sx-dash-creator__caption {
+  margin: 0;
+  color: #98a2b3;
+  font-size: 0.8125rem;
+}
+
+.sx-dash-creator__search {
+  margin: 0;
+  padding: 0.7rem 0.875rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.5rem;
+  background: rgba(15, 23, 42, 0.02);
+  color: #98a2b3;
+  font-size: 0.875rem;
+}
+
+.sx-dash-creator__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.sx-dash-creator__pill {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
+  color: #475467;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.sx-dash-creator__pill.is-on {
+  border-color: #101828;
+  background: #101828;
+  color: #ffffff;
+}
+
+.sx-dash-creator__label {
+  margin: 0.25rem 0 0;
+  color: #98a2b3;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sx-dash-creator__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.sx-dash-creator__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+}
+
+/* The highlighted row stands for the trader's hovered / recent pick. */
+.sx-dash-creator__row.is-on {
+  background: rgba(181, 130, 42, 0.12);
+}
+
+.sx-dash-creator__row-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sx-dash-creator__row-symbol {
+  color: #101828;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.sx-dash-creator__row-name {
+  overflow: hidden;
+  color: #667085;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sx-dash-creator__row-source {
+  flex-shrink: 0;
+  color: #98a2b3;
+  font-size: 0.75rem;
+}
+
+.sx-dash-creator__dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.sx-dash-creator__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.5rem;
+}
+
+.sx-dash-creator__field-label {
+  color: #98a2b3;
+  font-size: 0.6875rem;
+}
+
+.sx-dash-creator__field-value {
+  color: #101828;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.sx-dash-creator__submit {
+  margin: 0;
+  padding: 0.7rem;
+  border-radius: 0.5rem;
+  background: #b5822a;
+  color: #ffffff;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Performance before the first session: explain what will appear, don't draw
+   empty axes. Visibility is class-driven so the KPIs and charts can stay where
+   the layout expects them. */
+.sx-dash-perf-empty {
+  display: none;
+  padding: 1.5rem 1.5rem;
+  border: 1px dashed rgba(15, 23, 42, 0.18);
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.015);
+}
+
+.sx-dash-performance.is-first-run .sx-dash-perf-empty {
+  display: block;
+}
+
+.sx-dash-performance.is-first-run .sx-dash-pulse__range,
+.sx-dash-performance.is-first-run [data-sx-session-pulse],
+.sx-dash-performance.is-first-run .sx-dash-graphs {
+  display: none;
+}
+
+.sx-dash-perf-empty__text {
+  margin: 0;
+  max-width: 56rem;
+  color: #667085;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.sx-dash-perf-empty__text strong {
+  color: #101828;
+  font-weight: 700;
 }
 
 /* ── Home hero: last-session preview card ────────────────────────────────── */
@@ -4765,26 +5164,26 @@ a.sx-dash-account__item {
   height: 4.5rem;
 }
 
-.sx-dash-hero-spark {
+.sx-spark {
   display: block;
   width: 100%;
   height: 100%;
   overflow: visible;
 }
 
-.sx-dash-hero-spark.is-profit {
+.sx-spark.is-profit {
   color: #12805c;
 }
 
-.sx-dash-hero-spark.is-loss {
+.sx-spark.is-loss {
   color: #d92d20;
 }
 
-.sx-dash-hero-spark.is-flat {
+.sx-spark.is-flat {
   color: #98a2b3;
 }
 
-.sx-dash-hero-spark__line {
+.sx-spark__line {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
@@ -4795,7 +5194,7 @@ a.sx-dash-account__item {
 }
 
 /* Break-even marker, so the curve reads as profit and loss rather than a shape. */
-.sx-dash-hero-spark__zero {
+.sx-spark__zero {
   stroke: rgba(15, 23, 42, 0.16);
   stroke-width: 1;
   stroke-dasharray: 3 3;
@@ -5060,6 +5459,7 @@ a.sx-dash-account__item {
 
 .sx-dash-graph__title {
   margin: 0;
+  min-width: 0;
   color: #475467;
   font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 1.05rem;
@@ -5070,6 +5470,7 @@ a.sx-dash-account__item {
 
 .sx-dash-graph__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.6rem;
@@ -5081,6 +5482,9 @@ a.sx-dash-account__item {
   align-items: flex-end;
   gap: 0.35rem;
   flex-shrink: 0;
+  /* When .sx-dash-graph__head wraps on narrow cards, this drops to its own line —
+     push it to the right edge of that line instead of hugging the title's left side. */
+  margin-left: auto;
 }
 
 .sx-dash-graph__total {
@@ -5308,13 +5712,17 @@ a.sx-dash-account__item {
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-spark__zero {
+#sx-app-root[data-dashboard-theme='dark'] .sx-spark__zero {
   stroke: rgba(255, 255, 255, 0.18);
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero__note,
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-onboard__sub,
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-why-card__desc {
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-quick-card__name,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-step__desc,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-perf-empty__text,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-browse__chip,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator__pill,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator__row-name {
   color: #a1a1aa;
 }
 
@@ -5323,13 +5731,86 @@ a.sx-dash-account__item {
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-onboard__title,
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-why-card__title {
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-quick-card__symbol,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-step__title,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-step__desc strong,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-perf-empty__text strong,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator__row-symbol,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator__field-value {
   color: #fafafa;
 }
 
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-why-card {
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-quick-card,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator {
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(24, 24, 27, 0.92);
+  box-shadow: none;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-quick-card:hover {
+  border-color: rgba(224, 163, 60, 0.55);
+  box-shadow: none;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-quick-card__cat,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-browse__chip,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator__pill,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator__field,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator__search {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-browse__chip {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-browse__chip:hover {
+  border-color: rgba(224, 163, 60, 0.55);
+  background: rgba(224, 163, 60, 0.12);
+  color: #e0a33c;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator__search {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator__pill.is-on {
+  border-color: #fafafa;
+  background: #fafafa;
+  color: #18181b;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator__dates {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-creator__submit {
+  background: #e0a33c;
+  color: #1c1300;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-quick-card__go {
+  color: #e0a33c;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-step__num {
+  background: rgba(224, 163, 60, 0.18);
+  color: #e0a33c;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-step:not(:last-child) .sx-dash-step__num::after {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-kbd {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #d4d4d8;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-perf-empty {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero.is-first-run {
@@ -5339,13 +5820,13 @@ a.sx-dash-account__item {
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-card__balance.is-profit,
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-stat__value.is-profit,
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-spark.is-profit {
+#sx-app-root[data-dashboard-theme='dark'] .sx-spark.is-profit {
   color: #3ccb7f;
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-card__balance.is-loss,
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-stat__value.is-loss,
-#sx-app-root[data-dashboard-theme='dark'] .sx-dash-hero-spark.is-loss {
+#sx-app-root[data-dashboard-theme='dark'] .sx-spark.is-loss {
   color: #f97066;
 }
 

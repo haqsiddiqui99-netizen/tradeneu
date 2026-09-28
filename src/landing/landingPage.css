@@ -1,0 +1,428 @@
+/**
+ * Public landing page — always dark.
+ *
+ * Self-contained on purpose: this page ships before login, so it must not
+ * depend on dashboardTheme.css or the in-app theme toggle. Colours are
+ * hard-coded rather than themed for the same reason.
+ */
+
+.sx-landing {
+  --sx-landing-bg: #0b0d0f;
+  --sx-landing-panel: #121417;
+  --sx-landing-line: rgba(255, 255, 255, 0.09);
+  --sx-landing-text: #f4f4f5;
+  --sx-landing-muted: #a1a1aa;
+  --sx-landing-accent: #e0a33c;
+  --sx-landing-profit: #3ccb7f;
+
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--sx-landing-bg);
+  color: var(--sx-landing-text);
+  font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+
+.sx-landing__nav {
+  border-bottom: 1px solid var(--sx-landing-line);
+}
+
+.sx-landing__nav-inner {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0.85rem 1.25rem;
+}
+
+.sx-landing__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-right: auto;
+  text-decoration: none;
+}
+
+.sx-landing__brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  background: #8a5f16;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.sx-landing__brand-name {
+  color: var(--sx-landing-text);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Placeholder marketing links — intentionally not interactive yet. */
+.sx-landing__links {
+  display: none;
+  align-items: center;
+  gap: 1.75rem;
+}
+
+@media (min-width: 860px) {
+  .sx-landing__links {
+    display: flex;
+  }
+}
+
+.sx-landing__link {
+  color: var(--sx-landing-muted);
+  font-size: 0.9375rem;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.22);
+  text-underline-offset: 0.25rem;
+}
+
+.sx-landing__nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-left: auto;
+}
+
+.sx-landing__signin {
+  color: var(--sx-landing-text);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.3);
+  text-underline-offset: 0.25rem;
+}
+
+.sx-landing__signin:hover {
+  text-decoration-color: var(--sx-landing-text);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.sx-landing-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.sx-landing-btn--primary {
+  background: var(--sx-landing-accent);
+  border-color: var(--sx-landing-accent);
+  color: #1c1300;
+}
+
+.sx-landing-btn--primary:hover {
+  background: #eeb352;
+  border-color: #eeb352;
+}
+
+.sx-landing-btn--ghost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--sx-landing-text);
+}
+
+.sx-landing-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+.sx-landing-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--sx-landing-bg),
+    0 0 0 5px rgba(224, 163, 60, 0.6);
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+
+.sx-landing__main {
+  flex: 1;
+  width: 100%;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+.sx-landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  padding: 2.5rem 0 3rem;
+}
+
+@media (min-width: 900px) {
+  .sx-landing-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+    align-items: center;
+    gap: 3.5rem;
+    padding: 4rem 0 4.5rem;
+  }
+}
+
+.sx-landing-hero__copy {
+  min-width: 0;
+}
+
+.sx-landing-hero__eyebrow {
+  margin: 0;
+  color: var(--sx-landing-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.sx-landing-hero__title {
+  margin: 1.1rem 0 0;
+  max-width: 24ch;
+  font-size: 2.125rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+@media (min-width: 640px) {
+  .sx-landing-hero__title {
+    font-size: 2.75rem;
+  }
+}
+
+.sx-landing-hero__sub {
+  margin: 1.25rem 0 0;
+  max-width: 34rem;
+  color: var(--sx-landing-muted);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+.sx-landing-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 2rem;
+}
+
+.sx-landing-hero__note {
+  margin: 1.1rem 0 0;
+  color: #71717a;
+  font-size: 0.8125rem;
+}
+
+/* ── Example session card ────────────────────────────────────────────────── */
+
+.sx-landing-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.25rem 1.375rem;
+  border: 1px solid var(--sx-landing-line);
+  border-radius: 0.875rem;
+  background: var(--sx-landing-panel);
+  scroll-margin-top: 5rem;
+}
+
+.sx-landing-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sx-landing-card__symbol {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sx-landing-card__price {
+  flex-shrink: 0;
+  color: var(--sx-landing-profit);
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sx-landing-card__meta {
+  margin: -0.4rem 0 0;
+  color: var(--sx-landing-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.sx-landing-card__spark {
+  height: 6rem;
+}
+
+.sx-landing-card__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--sx-landing-line);
+}
+
+.sx-landing-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.sx-landing-stat__label {
+  color: var(--sx-landing-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.sx-landing-stat__value {
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.sx-landing-stat__value.is-profit {
+  color: var(--sx-landing-profit);
+}
+
+/* ── Sparkline (markup comes from heroSparkline.ts) ──────────────────────── */
+
+.sx-landing .sx-spark {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.sx-landing .sx-spark.is-profit {
+  color: var(--sx-landing-profit);
+}
+
+.sx-landing .sx-spark.is-loss {
+  color: #f97066;
+}
+
+.sx-landing .sx-spark.is-flat {
+  color: var(--sx-landing-muted);
+}
+
+.sx-landing .sx-spark__line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  /* Non-uniform viewBox scaling would otherwise stretch the stroke. */
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sx-landing .sx-spark__zero {
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+/* ── Why traders use it ──────────────────────────────────────────────────── */
+
+.sx-landing-why {
+  padding: 2.5rem 0 3rem;
+  border-top: 1px solid var(--sx-landing-line);
+}
+
+.sx-landing-why__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.sx-landing-why__sub {
+  margin: 0.5rem 0 1.75rem;
+  color: var(--sx-landing-muted);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.sx-landing-why__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 760px) {
+  .sx-landing-why__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.sx-landing-why__card {
+  padding: 1.375rem 1.5rem;
+  border: 1px solid var(--sx-landing-line);
+  border-radius: 0.75rem;
+  background: var(--sx-landing-panel);
+}
+
+.sx-landing-why__card-title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.sx-landing-why__card-desc {
+  margin: 0.6rem 0 0;
+  color: var(--sx-landing-muted);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+
+.sx-landing__foot {
+  border-top: 1px solid var(--sx-landing-line);
+}
+
+.sx-landing__foot-text {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem;
+  color: #71717a;
+  font-size: 0.8125rem;
+  text-align: center;
+}
