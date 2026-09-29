@@ -1,0 +1,40 @@
+/* Split layouts position panes as percentage boxes rather than a CSS grid, because the
+   arrangements are nested splits (a column that is itself divided) rather than a uniform
+   matrix, and the fractions come straight from the layout tree.
+   The container is expected to be positioned already — `.rw-chart-host` is `absolute; inset: 0`
+   — so this class deliberately sets no `position` of its own. */
+
+.rw-split-grid__pane {
+  position: absolute;
+  /* The primary pane is `.rw-chart-tv`, which ships `inset: 0`; clear it so the inline
+     percentage box is the only thing positioning the pane. */
+  inset: auto;
+  z-index: 2;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Hairlines between panes, drawn on the pane so nested splits line up with their neighbours. */
+.rw-split-grid--multi .rw-split-grid__pane {
+  border-right: 1px solid var(--rw-split-grid-line, #e0e3eb);
+  border-bottom: 1px solid var(--rw-split-grid-line, #e0e3eb);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-split-grid--multi .rw-split-grid__pane {
+  --rw-split-grid-line: #2a2e39;
+}
+
+/* One header drives every pane, so the trader needs to see which one it is pointed at.
+   The ring is inset by the same bands the pane crops away, because the primary pane's box
+   extends past its visible area to hide TradingView's own header and footer. */
+.rw-split-grid--multi .rw-split-grid__pane--active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--rw-split-crop-top, 0px);
+  bottom: var(--rw-split-crop-bottom, 0px);
+  z-index: 4;
+  border: 1px solid var(--rw-split-grid-active, rgba(41, 98, 255, 0.55));
+  pointer-events: none;
+}

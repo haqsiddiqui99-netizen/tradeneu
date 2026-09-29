@@ -21,10 +21,23 @@ export type TvHeaderButtonDef = {
   iconHtml?: string
   align?: 'left' | 'right'
   insertAfterIndicatorTemplate?: boolean
+  /** Left-aligned buttons: place just before TradingView's own "Indicators" control. */
+  insertBeforeIndicators?: boolean
   /** Right-aligned icon buttons: place just before TV utility icons (search, settings, etc.). */
   insertBeforeRightUtilities?: boolean
-  onClick: () => void
+  /** The event is passed through so buttons with several hit targets can dispatch on it. */
+  onClick: (event?: Event) => void
 }
+
+/** The subset of TradingView's own header actions the shared multi-chart header exposes. */
+export type TvProxyActionId =
+  | 'symbolSearch'
+  | 'compareOrAdd'
+  | 'changeInterval'
+  | 'insertIndicator'
+  | 'chartProperties'
+  | 'undo'
+  | 'redo'
 
 export type TradingViewChartHandle = {
   dispose: () => void
@@ -42,6 +55,16 @@ export type TradingViewChartHandle = {
   setDataSourceLabel: (dataSource?: string) => void
   applyTheme: (theme: TvTheme) => void
   resize: () => void
+  /** TradingView's left drawing toolbar, driven from our chart-edge collapse handle. */
+  isDrawingToolbarVisible: () => boolean
+  toggleDrawingToolbar: () => void
+  /** Chart state (studies, drawings, chart type, panes) for the chart-layout store. */
+  saveChartState: () => Promise<object | null>
+  loadChartState: (state: object) => Promise<boolean>
+  /** Strip studies and drawings back to a bare chart — backs "New Layout". */
+  clearChartState: () => void
+  /** TradingView's own "user changed the chart" signal; returns an unsubscribe. */
+  onChartStateChanged: (cb: () => void) => () => void
   whenChartReady: () => Promise<void>
   getHeaderButton: (id: string) => HTMLElement | null
   setHeaderButtonIcon: (id: string, iconHtml: string) => void
@@ -80,6 +103,37 @@ export type TradingViewChartHandle = {
   setTvFullSeriesReplay: (enabled: boolean) => void
   /** Replay mask reveal count — keeps full series in TV while hiding future bars. */
   setReplayRevealForMask: (count: number) => void
+  /**
+   * Exactly the bars this chart treats as revealed. Split panes are fed from this rather than
+   * from the replay slice, because the two do not agree: the slice includes pre-session
+   * lead-in bars the chart's own feed starts after, and a pane must never show a bar the
+   * trader cannot see on the main chart.
+   */
+  getRevealedBars: () => Bar[]
+  /**
+   * The shared multi-chart header has no chrome of its own to drive, so every control it
+   * offers is routed here and runs against whichever pane the trader last touched.
+   */
+  executeAction: (actionId: TvProxyActionId) => void
+  /**
+   * Presses one of TradingView's own header buttons by its tooltip. The fallback for controls
+   * with no entry in `ChartActionId` — indicator templates and quick search have none — and the
+   * reason split panes keep a header at all. Returns false when the button is not there.
+   */
+  clickNativeHeaderButton: (title: string) => boolean
+  getSymbol: () => string
+  getResolution: () => string
+  getChartType: () => number
+  setChartType: (type: number) => void
+  getPriceAxisState: () => { mode: number; autoScale: boolean }
+  setPriceAxisMode: (mode: number) => void
+  setPriceAxisAutoScale: (on: boolean) => void
+  /**
+   * Height of TradingView's own header and footer bands. A pane that is showing the shared
+   * chrome instead crops these away, which needs their exact size — TradingView sizes them
+   * from the widget, so they cannot be read from anything on our side of the iframe.
+   */
+  getChromeInsets: () => { top: number; bottom: number }
   /** Merge earlier session bars (pan-left lazy load). */
   prependSessionBars: (bars: Bar[]) => number
   /** Merge later session bars (replay toward B). */
@@ -186,6 +240,8 @@ export type TradingViewChartHandle = {
   captureVisibleRange: () => { from: number; to: number } | null
   captureLockedViewport: () => TvLockedViewport | null
   restoreVisibleRange: (range: TvLockedViewport) => Promise<void>
+  /** Re-zoom to a normal candle width — for when the plot width or bar duration changed. */
+  refitViewport: (bars: Bar[], pastCount: number) => void
   swapInterval: (
     bars: Bar[],
     resolution: string,
@@ -217,6 +273,11 @@ export type TradingViewChartOpts = {
   headerButtons?: TvHeaderButtonDef[]
   /** Fetch older/newer chunks when TV pans past loaded session bars. */
   lazyFetchBars?: (req: LazyFetchBarsRequest) => Promise<boolean>
+  /**
+   * Secondary pane of a split layout: keeps the compact header (symbol + interval) but drops
+   * the drawing toolbar and bottom bars, which do not fit a quarter-height chart.
+   */
+  bare?: boolean
 }
 
 type TvSubscription = {
@@ -239,14 +300,27 @@ type TvExecutionShape = {
   remove: () => void
 }
 
+type TvPriceScaleApi = {
+  getMode?: () => number
+  setMode?: (mode: number) => void
+  isAutoScale?: () => boolean
+  setAutoScale?: (on: boolean) => void
+}
+
 type TvChartApi = {
   symbol: () => string
   resolution?: () => string
   setResolution?: (resolution: string, callback?: () => void) => void
   onSymbolChanged: () => TvSubscription
+  executeActionById?: (actionId: string) => void
+  chartType?: () => number
+  setChartType?: (type: number) => void
+  getPanes?: () => Array<{ getRightPriceScales?: () => TvPriceScaleApi[] }>
   applyOverrides?: (overrides: Record<string, unknown>) => void
   getAllShapes?: () => Array<{ id: string; name: string }>
   removeEntity?: (entityId: string) => void
+  removeAllShapes?: () => void
+  removeAllStudies?: () => void
 }
 
 type TvStyledButtonOptions = {
@@ -275,6 +349,11 @@ type TvWidgetApi = {
   headerReady: () => Promise<void>
   createButton: (options?: TvCreateButtonOptions) => string | HTMLElement
   resetCache: () => void
+  /** Low-level save/load API — the payload our chart-layout store persists. */
+  save?: (options?: Record<string, unknown>) => Promise<object>
+  load?: (state: object, extendedData?: Record<string, unknown>) => Promise<void>
+  subscribe?: (event: string, callback: (...args: unknown[]) => void) => void
+  unsubscribe?: (event: string, callback: (...args: unknown[]) => void) => void
   /** Native TradingView client-side snapshot - mirrors what the widget's own
    *  camera/screenshot tool produces (legend, price/time scale, drawings). */
   takeClientScreenshot?: (options?: Record<string, unknown>) => Promise<HTMLCanvasElement>
@@ -323,6 +402,9 @@ function tvIframeDocument(mount: HTMLElement): Document | null {
  * TV layout (bottom → up): bottom toolbar (~38px) → time axis (~25–60px) → hairline.
  * Screenshots put the hairline ~100–120px above the host bottom (toolbar + time axis).
  */
+/** Used until the widget's own header and footer can be measured; matches CL v32 defaults. */
+const TV_CHROME_INSET_FALLBACK = { top: 42, bottom: 39 }
+
 const TV_HAIRLINE_FALLBACK_FROM_BOTTOM_PX = 100
 const TV_HAIRLINE_SEARCH_MAX_FROM_BOTTOM_PX = 160
 
@@ -590,6 +672,50 @@ function realHeaderNodes<T extends HTMLElement>(doc: Document, selector: string)
   return Array.from(doc.querySelectorAll<T>(selector)).filter((node) => !isInsideFakeHeaderPanel(node))
 }
 
+/**
+ * TradingView pairs every `createButton()` with its own group *and* a leading separator.
+ * We relocate the groups elsewhere in the row, which leaves those separators behind as
+ * stray vertical pipes — one per custom button, either trailing at the end of the row or
+ * doubled up against the separator of whatever now follows. Hide a separator that has no
+ * visible control after it, and any that immediately follows another separator.
+ */
+function hideStrayHeaderSeparators(doc: Document) {
+  const isSeparator = (el: Element) => el.matches('[class*="separatorWrap-"]')
+  const visibleControlIn = (el: HTMLElement): boolean => {
+    const control = el.matches('button, [role="button"], [data-rw-tv-btn]')
+      ? el
+      : el.querySelector<HTMLElement>('button, [role="button"], [data-rw-tv-btn]')
+    if (!control) return false
+    const rect = control.getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0
+  }
+
+  for (const wrap of realHeaderNodes<HTMLElement>(doc, '[class*="separatorWrap-"]')) {
+    let hasControlAfter = false
+    for (let sib = wrap.nextElementSibling; sib; sib = sib.nextElementSibling) {
+      if (isSeparator(sib)) continue
+      if (!visibleControlIn(sib as HTMLElement)) continue
+      hasControlAfter = true
+      break
+    }
+
+    let followsSeparator = false
+    for (let sib = wrap.previousElementSibling; sib; sib = sib.previousElementSibling) {
+      const el = sib as HTMLElement
+      if (isSeparator(el)) {
+        // A hidden one is already collapsed, so keep looking past it.
+        if (el.style.display === 'none') continue
+        followsSeparator = true
+        break
+      }
+      if (!visibleControlIn(el)) continue
+      break
+    }
+
+    wrap.style.display = hasControlAfter && !followsSeparator ? '' : 'none'
+  }
+}
+
 function findIndicatorTemplateAnchor(doc: Document): HTMLElement | null {
   const nodes = realHeaderNodes(
     doc,
@@ -600,6 +726,31 @@ function findIndicatorTemplateAnchor(doc: Document): HTMLElement | null {
     if (tip.includes('indicator template') || tip.includes('study template')) {
       return headerToolbarSlot(node)
     }
+  }
+  return null
+}
+
+/**
+ * TradingView's own "Indicators" control. The tooltip wording drifts between builds
+ * ("Indicators", "Indicators, metrics and strategies"), and "Indicator templates" sits
+ * right next to it in the same row, so matches carrying "template" are rejected.
+ */
+function findIndicatorsAnchor(doc: Document): HTMLElement | null {
+  for (const name of ['open-indicators-dialog', 'header-toolbar-indicators', 'indicators']) {
+    const node = realHeaderNodes<HTMLElement>(doc, `[data-name="${name}"]`)[0]
+    if (node) return headerToolbarSlot(node)
+  }
+  const nodes = realHeaderNodes<HTMLElement>(
+    doc,
+    '[data-tooltip], [title], [aria-label], button, [role="button"], .apply-common-tooltip',
+  )
+  for (const node of nodes) {
+    const tip = headerTooltip(node)
+    if (!tip.includes('indicator') || tip.includes('template')) continue
+    return headerToolbarSlot(node)
+  }
+  for (const node of nodes) {
+    if (node.textContent?.trim().toLowerCase() === 'indicators') return headerToolbarSlot(node)
   }
   return null
 }
@@ -701,17 +852,31 @@ function findFirstRightUtilityAnchor(
   return best ? headerToolbarSlot(best.node) : null
 }
 
-function applyIconHeaderButton(el: HTMLElement, iconHtml: string, title: string, id: string) {
+/**
+ * Paints into the slot ancestor, which replaces its children — so `el` itself may be
+ * detached here. Returns the live slot so callers bind handlers to that, not to `el`.
+ */
+function applyIconHeaderButton(el: HTMLElement, iconHtml: string, title: string, id: string): HTMLElement {
   const slot = headerToolbarSlot(el)
   slot.classList.add('rw-tv-header-btn', 'rw-tv-header-btn--icon')
   if (id === 'sessions') {
     slot.classList.add('rw-tv-header-btn--sessions')
     if (slot.ownerDocument) ensureSessionHeaderCss(slot.ownerDocument)
   }
+  if (id === 'theme') {
+    // Opts into TradingView's own tooltip (dark pill under the button) instead of the
+    // browser's native one; its handler is delegated, so `title` is all it needs.
+    slot.classList.add('apply-common-tooltip')
+  }
+  if (id === 'layout') {
+    // Icon + name + chevron, so it needs to grow past the square icon-button box.
+    slot.classList.add('rw-tv-header-btn--layout', 'apply-common-tooltip')
+  }
   slot.dataset.rwTvBtn = id
   slot.innerHTML = iconHtml
   slot.setAttribute('title', title)
   slot.setAttribute('aria-label', title)
+  return slot
 }
 
 /** Paint target for TV text header buttons (the clickable node, not an empty wrapper). */
@@ -734,6 +899,8 @@ function resolveHeaderButtonPaintTarget(el: HTMLElement): HTMLElement {
 const headerButtonActiveState = new Map<string, boolean>()
 const headerButtonFaceWatchers = new Map<string, MutationObserver>()
 const headerButtonLatestHtml = new Map<string, string>()
+/** Icon-button slots that already carry a click handler (TV re-mounts them on rebuild). */
+const iconHeaderButtonBoundSlots = new WeakSet<HTMLElement>()
 
 const REPLAY_HEADER_CSS_ID = 'rw-tv-replay-header-css'
 const GOTO_HEADER_CSS_ID = 'rw-tv-goto-header-css'
@@ -884,41 +1051,70 @@ function ensureSessionHeaderCss(doc: Document) {
   min-width: auto !important;
   height: 28px !important;
   line-height: 0 !important;
-  cursor: default !important;
+  cursor: pointer !important;
   background: transparent !important;
 }
 [data-rw-tv-btn="sessions"]:hover { opacity: 1 !important; }
-.rw-tv-sessions { display: inline-flex; align-items: center; gap: 13px; }
-.rw-tv-session { position: relative; display: inline-flex; width: 18px; height: 18px; flex-shrink: 0; }
-.rw-tv-session__flag {
-  width: 18px; height: 18px; border-radius: 50%; object-fit: contain; display: block;
-  pointer-events: none; box-shadow: 0 0 0 1.5px #b6bac1;
-}
-.rw-tv-session__dot {
-  position: absolute; right: -4px; bottom: -3px; width: 11px; height: 11px;
-  border-radius: 50%; box-sizing: border-box; border: 2px solid #ffffff;
-  background: #8b909a; pointer-events: none;
-  box-shadow: 0 0 0 0.5px rgba(19, 23, 34, 0.28);
-}
-.rw-tv-session[data-status="open"] .rw-tv-session__flag { box-shadow: 0 0 0 1.5px #22c55e; }
-.rw-tv-session[data-status="open"] .rw-tv-session__dot { background: #22c55e; }
-.rw-tv-session[data-status="weekend"] .rw-tv-session__flag { box-shadow: 0 0 0 1.5px #ef4444; }
-.rw-tv-session[data-status="weekend"] .rw-tv-session__dot { background: #ef4444; }
+.rw-tv-sessions { display: inline-flex; align-items: center; }
 .rw-tv-volume {
-  display: inline-flex; align-items: center; gap: 5px; height: 22px; margin-left: 2px;
-  padding: 0 8px 0 6px; box-sizing: border-box; border: 1px solid #d6d9df;
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; margin-left: 2px;
+  padding: 0 6px 0 7px; box-sizing: border-box; border: 1px solid #d6d9df;
   border-radius: 999px; color: #434651;
   font-family: var(--rw-tv-header-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   font-size: 12px; font-weight: 500; line-height: 20px; letter-spacing: 0; white-space: nowrap;
 }
+.rw-tv-volume:hover,
+.rw-tv-volume[data-expanded="true"] { border-color: #b6bac1; }
 .rw-tv-volume__dot {
   width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: #cc2b7a;
 }
 .rw-tv-volume[data-level="medium"] .rw-tv-volume__dot { background: #f2b705; }
 .rw-tv-volume[data-level="high"] .rw-tv-volume__dot { background: #36b84a; }
-html.theme-dark .rw-tv-session__dot { border-color: #131722; box-shadow: none; }
-html.theme-dark .rw-tv-session__flag { box-shadow: 0 0 0 1.5px #50535e; }
+.rw-tv-volume__chev {
+  display: inline-flex; flex: 0 0 auto; margin-left: -1px; opacity: 0.75;
+  transition: transform 120ms ease;
+}
+.rw-tv-volume__chev svg { display: block; width: 12px; height: 12px; }
+.rw-tv-volume[data-expanded="true"] .rw-tv-volume__chev { transform: rotate(180deg); }
 html.theme-dark .rw-tv-volume { border-color: #434651; color: #d1d4dc; }
+html.theme-dark .rw-tv-volume:hover,
+html.theme-dark .rw-tv-volume[data-expanded="true"] { border-color: #5d606b; }
+[data-rw-tv-btn="layout"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0 6px !important;
+  min-width: auto !important;
+  height: 28px !important;
+  background: transparent !important;
+}
+/* TradingView zeroes line-height on header buttons, which drops the chevron out of the text
+   baseline and onto the name. Laying the three targets out as a single no-wrap flex row keeps
+   them on one line regardless of how long the layout name is. */
+.rw-tv-layout-chip {
+  display: inline-flex; align-items: center; flex-wrap: nowrap; gap: 2px;
+  max-width: 230px; min-width: 0;
+  font-family: var(--rw-tv-header-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: 13px; font-weight: 500; line-height: 20px;
+}
+.rw-tv-layout-chip__ico,
+.rw-tv-layout-chip__chev {
+  display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 5px; cursor: pointer;
+}
+.rw-tv-layout-chip__ico svg { display: block; width: 18px; height: 18px; }
+.rw-tv-layout-chip__chev svg { display: block; width: 14px; height: 14px; }
+.rw-tv-layout-chip__ico:hover,
+.rw-tv-layout-chip__chev:hover { background-color: rgba(19, 23, 34, 0.09); }
+html.theme-dark .rw-tv-layout-chip__ico:hover,
+html.theme-dark .rw-tv-layout-chip__chev:hover { background-color: rgba(255, 255, 255, 0.14); }
+/* Shrinks and ellipsises instead of pushing the chevron off the end of the slot. */
+.rw-tv-layout-chip__name {
+  flex: 0 1 auto; min-width: 0; padding: 0 1px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; cursor: default;
+}
+.rw-tv-layout-chip__dirty {
+  width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: #2962ff;
+}
 `
 }
 
@@ -1396,6 +1592,12 @@ function paintTextHeaderButtonFace(
     const active = opts.active
     const fg = active ? '#ffffff' : '#131722'
     const bg = active ? '#131722' : isReplay ? '#f0f3fa' : 'transparent'
+    // Replay's chip stays light in both themes, so dark ink is always right for it. A
+    // plain text button sits straight on the header, so its ink must follow the theme —
+    // and CSS has to own that, because TradingView flips `theme-dark` on <html> a beat
+    // after changeTheme() and anything sampled during this pass freezes stale colors.
+    const themedInk = !active && !isReplay
+    paint.classList.toggle('rw-tv-header-btn--themed-ink', themedInk)
     const radius = isReplay ? '8px' : '4px'
     paint.style.setProperty('display', 'inline-flex', 'important')
     paint.style.setProperty('align-items', 'center', 'important')
@@ -1411,7 +1613,8 @@ function paintTextHeaderButtonFace(
     paint.style.setProperty('border-radius', radius, 'important')
     paint.style.setProperty('background', bg, 'important')
     paint.style.setProperty('background-color', bg, 'important')
-    paint.style.setProperty('color', fg, 'important')
+    if (themedInk) paint.style.removeProperty('color')
+    else paint.style.setProperty('color', fg, 'important')
     const face = isReplay ? TV_HEADER_FONT_FALLBACK : tvHeaderTextFont(paint.ownerDocument)
     paint.style.setProperty('font-family', face.family, 'important')
     paint.style.setProperty('font-size', face.size, 'important')
@@ -1425,8 +1628,13 @@ function paintTextHeaderButtonFace(
     paint.style.setProperty('white-space', 'nowrap', 'important')
 
     paint.querySelectorAll<HTMLElement>('.rw-tv-header-btn__ico, .rw-tv-header-btn__label, svg, .sx-ico').forEach((child) => {
-      child.style.setProperty('color', fg, 'important')
-      child.style.setProperty('stroke', fg, 'important')
+      if (themedInk) {
+        child.style.removeProperty('color')
+        child.style.removeProperty('stroke')
+      } else {
+        child.style.setProperty('color', fg, 'important')
+        child.style.setProperty('stroke', fg, 'important')
+      }
       child.style.setProperty('fill', 'none', 'important')
       child.style.setProperty('background', 'transparent', 'important')
       child.style.setProperty('opacity', '1', 'important')
@@ -1561,6 +1769,44 @@ function repositionAfterIndicatorTemplate(
     slots.push(slot)
   }
   insertSlotsAfterAnchor(anchor, slots)
+}
+
+/**
+ * Park buttons immediately left of TradingView's "Indicators" control, as one contiguous
+ * block in a single pass — same reasoning as `repositionBeforeRightUtilities`: moving them
+ * one at a time makes each steal the previous one's slot and the header MutationObserver
+ * then re-triggers placement forever.
+ */
+function repositionBeforeIndicators(mount: HTMLElement, items: Array<string | HTMLElement>): void {
+  const doc = tvIframeDocument(mount)
+  if (!doc) return
+  const slots: HTMLElement[] = []
+  for (const item of items) {
+    const slot =
+      typeof item === 'string' ? findHeaderButtonByText(doc, item) : headerToolbarSlot(item)
+    if (!slot || slots.includes(slot)) continue
+    slots.push(slot)
+  }
+  if (!slots.length) return
+
+  const anchor = findIndicatorsAnchor(doc)
+  if (!anchor) return
+  const parent = anchor.parentElement
+  if (!parent) return
+
+  const placeable = slots.filter(
+    (slot) => slot !== anchor && !slot.contains(anchor) && !anchor.contains(slot),
+  )
+  if (!placeable.length) return
+
+  let ref: Element = anchor
+  for (let i = placeable.length - 1; i >= 0; i--) {
+    const slot = placeable[i]!
+    if (slot.parentElement !== parent || slot.nextElementSibling !== ref) {
+      parent.insertBefore(slot, ref)
+    }
+    ref = slot
+  }
 }
 
 async function waitForContainerLayout(
@@ -1980,7 +2226,14 @@ export async function createTradingViewChart(
     theme: opts.theme,
     timezone: chartTimezone,
     datafeed,
-    disabled_features: ['use_localstorage_for_settings'],
+    disabled_features: [
+      'use_localstorage_for_settings',
+      // A split pane keeps its native header and footer even though the grid crops them out of
+      // sight: the shared header drives the active pane by clicking its real controls, and the
+      // controls have to exist for that. Only the drawing toolbar is dropped, because it costs
+      // a fixed ~50px of an already narrow pane.
+      ...(opts.bare ? ['left_toolbar'] : []),
+    ],
     enabled_features: [
       'iframe_loading_same_origin',
       'study_templates',
@@ -1991,7 +2244,10 @@ export async function createTradingViewChart(
       // Parent `use_localstorage_for_settings` is off; re-enable stars in Indicators dialog.
       'items_favoriting',
     ],
-    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css?v=goto-hover-2`,
+    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css?v=laysetup-1`,
+    // Throttles `onAutoSaveNeeded`, which drives the "unsaved changes" state on the
+    // layout menu's Save item; the 5s default made the item feel stuck.
+    auto_save_delay: 1,
     loading_screen: { backgroundColor: opts.theme === 'dark' ? '#131722' : '#ffffff' },
     // settings_overrides wins over any saved chart settings; plain overrides do not.
     settings_overrides: { ...chartChromeOverrides },
@@ -2021,6 +2277,14 @@ export async function createTradingViewChart(
   const headerButtonElements = new Map<string, HTMLElement>()
   const headerButtonTitles = new Map<string, string>()
   const headerButtonCleanups: Array<() => void> = []
+
+  const mainPriceScale = (): TvPriceScaleApi | null => {
+    try {
+      return widget.activeChart().getPanes?.()[0]?.getRightPriceScales?.()[0] ?? null
+    } catch {
+      return null
+    }
+  }
 
   const resolveHeaderButtonEl = (id: string): HTMLElement | null => {
     const cached = headerButtonElements.get(id)
@@ -2063,12 +2327,29 @@ export async function createTradingViewChart(
 
   const mountHeaderButtons = () => {
     const afterTemplateItems: Array<string | HTMLElement> = []
+    const beforeIndicatorsIds = new Set<string>()
     const beforeUtilityButtonIds = new Set<string>()
 
     const buttonDefs: TvHeaderButtonDef[] = [...(opts.headerButtons ?? [])]
 
+    const bindIconButtonClick = (slot: HTMLElement, def: TvHeaderButtonDef) => {
+      if (iconHeaderButtonBoundSlots.has(slot)) return
+      iconHeaderButtonBoundSlots.add(slot)
+      const onClick = (e: Event) => {
+        e.preventDefault()
+        e.stopPropagation()
+        def.onClick(e)
+      }
+      slot.addEventListener('click', onClick)
+      headerButtonCleanups.push(() => {
+        slot.removeEventListener('click', onClick)
+        iconHeaderButtonBoundSlots.delete(slot)
+      })
+    }
+
     for (const def of buttonDefs) {
       const align = def.align ?? 'left'
+      if (def.insertBeforeIndicators) beforeIndicatorsIds.add(def.id)
       if (def.insertBeforeRightUtilities) beforeUtilityButtonIds.add(def.id)
 
       if (def.iconHtml) {
@@ -2082,14 +2363,7 @@ export async function createTradingViewChart(
           headerButtonElements.set(def.id, el)
           headerButtonTitles.set(def.id, def.title)
           headerButtonLatestHtml.set(def.id, def.iconHtml)
-          applyIconHeaderButton(el, def.iconHtml, def.title, def.id)
-          const onClick = (e: Event) => {
-            e.preventDefault()
-            e.stopPropagation()
-            def.onClick()
-          }
-          el.addEventListener('click', onClick)
-          headerButtonCleanups.push(() => el.removeEventListener('click', onClick))
+          bindIconButtonClick(applyIconHeaderButton(el, def.iconHtml, def.title, def.id), def)
         } catch (err) {
           console.error('[TradingView] createButton failed:', def.id, err)
         }
@@ -2135,11 +2409,20 @@ export async function createTradingViewChart(
       if (afterTemplateItems.length) {
         repositionAfterIndicatorTemplate(mount, afterTemplateItems)
       }
+      if (beforeIndicatorsIds.size) {
+        const beforeIndicatorsSlots: HTMLElement[] = []
+        for (const id of beforeIndicatorsIds) {
+          beforeIndicatorsSlots.push(...resolveHeaderButtonEls(id))
+        }
+        repositionBeforeIndicators(mount, beforeIndicatorsSlots)
+      }
       const beforeUtilitySlots: HTMLElement[] = []
       for (const id of beforeUtilityButtonIds) {
         beforeUtilitySlots.push(...resolveHeaderButtonEls(id))
       }
       repositionBeforeRightUtilities(mount, beforeUtilitySlots)
+      const doc = tvIframeDocument(mount)
+      if (doc) hideStrayHeaderSeparators(doc)
     }
 
     const runPlacement = () => {
@@ -2147,11 +2430,14 @@ export async function createTradingViewChart(
       for (const def of buttonDefs) {
         for (const el of resolveHeaderButtonEls(def.id)) {
           if (def.iconHtml) {
-            applyIconHeaderButton(
-              el,
-              headerButtonLatestHtml.get(def.id) ?? def.iconHtml,
-              def.title,
-              def.id,
+            bindIconButtonClick(
+              applyIconHeaderButton(
+                el,
+                headerButtonLatestHtml.get(def.id) ?? def.iconHtml,
+                def.title,
+                def.id,
+              ),
+              def,
             )
             continue
           }
@@ -2174,7 +2460,7 @@ export async function createTradingViewChart(
       window.setTimeout(runPlacement, delay)
     }
 
-    if (beforeUtilityButtonIds.size) {
+    if (beforeUtilityButtonIds.size || beforeIndicatorsIds.size) {
       const doc = tvIframeDocument(mount)
       const header = doc ? tvHeaderRoot(doc) : null
       if (header) {
@@ -2518,6 +2804,72 @@ export async function createTradingViewChart(
       notifyWidgetResize()
     },
 
+    isDrawingToolbarVisible() {
+      const doc = tvIframeDocument(mount)
+      const area = doc?.querySelector<HTMLElement>('.layout__area--left')
+      // Collapsed leaves a ~5px stub rather than unmounting; expanded is a full icon column.
+      return !!area && area.getBoundingClientRect().width > 20
+    },
+
+    toggleDrawingToolbar() {
+      widget?.activeChart().executeActionById?.('drawingToolbarAction')
+    },
+
+    async saveChartState() {
+      if (disposed || typeof widget.save !== 'function') return null
+      try {
+        return await widget.save()
+      } catch (err) {
+        console.warn('[TradingView] save() failed', err)
+        return null
+      }
+    },
+
+    async loadChartState(state) {
+      if (disposed || typeof widget.load !== 'function') return false
+      try {
+        await widget.load(state)
+        // The saved state carries its own symbol/interval; re-read them so later
+        // setSymbol/setResolution calls diff against what the chart actually shows.
+        const chart = widget.activeChart()
+        const symbol = chart?.symbol?.()
+        if (symbol) currentSymbol = symbol
+        const resolution = chart?.resolution?.()
+        if (resolution) currentResolution = resolution
+        return true
+      } catch (err) {
+        console.warn('[TradingView] load() failed', err)
+        return false
+      }
+    },
+
+    clearChartState() {
+      if (disposed) return
+      try {
+        const chart = widget.activeChart()
+        chart?.removeAllShapes?.()
+        chart?.removeAllStudies?.()
+      } catch (err) {
+        console.warn('[TradingView] could not reset chart state', err)
+      }
+    },
+
+    onChartStateChanged(cb) {
+      if (disposed || typeof widget.subscribe !== 'function') return () => {}
+      try {
+        widget.subscribe('onAutoSaveNeeded', cb)
+      } catch {
+        return () => {}
+      }
+      return () => {
+        try {
+          widget.unsubscribe?.('onAutoSaveNeeded', cb)
+        } catch {
+          /* noop */
+        }
+      }
+    },
+
     setSessionBars(bars, resolution, barPeriodSec, sessionOpts) {
       replayCtrl?.setSessionBars(bars, resolution, barPeriodSec, sessionOpts)
     },
@@ -2552,6 +2904,112 @@ export async function createTradingViewChart(
 
     scrollToWallTimeSec(timeSec: number) {
       replayCtrl?.scrollToWallTimeSec(timeSec)
+    },
+
+    getRevealedBars() {
+      const feed = datafeedBundle.replayFeed
+      const all = feed.getAllBars()
+      // Mask mode keeps the whole series in TV and hides the future with a DOM overlay, so the
+      // reveal count is the only thing that says where the trader's visible edge actually is.
+      const revealed = Math.max(0, Math.min(feed.getRevealedCount(), all.length))
+      return all.slice(0, revealed).map((b) => ({
+        time: Math.floor(b.time / 1000) as Bar['time'],
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: b.volume ?? 0,
+      }))
+    },
+
+    executeAction(actionId) {
+      try {
+        widget.activeChart().executeActionById?.(actionId)
+      } catch (err) {
+        console.warn('[TradingView] executeActionById failed', actionId, err)
+      }
+    },
+
+    clickNativeHeaderButton(title) {
+      const top = tvIframeDocument(mount)?.querySelector('.layout__area--top')
+      if (!top) return false
+      const selector = `[title="${title}"],[data-tooltip="${title}"],[aria-label="${title}"]`
+      for (const el of top.querySelectorAll<HTMLElement>(selector)) {
+        // TradingView renders two extra copies of the whole row to measure how much of it fits.
+        // They are laid out and visible to `getBoundingClientRect`, so the only thing telling
+        // them apart from the live row is the `fake-` wrapper their container carries.
+        if (el.closest('[class*="fake-"]')) continue
+        const rect = el.getBoundingClientRect()
+        if (rect.width === 0 || rect.top > 60) continue
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+        return true
+      }
+      return false
+    },
+
+    getSymbol() {
+      try {
+        return widget.activeChart().symbol()
+      } catch {
+        return currentSymbol
+      }
+    },
+
+    getResolution() {
+      try {
+        return widget.activeChart().resolution?.() ?? currentResolution
+      } catch {
+        return currentResolution
+      }
+    },
+
+    getChartType() {
+      try {
+        return widget.activeChart().chartType?.() ?? 1
+      } catch {
+        return 1
+      }
+    },
+
+    setChartType(type) {
+      try {
+        widget.activeChart().setChartType?.(type)
+      } catch (err) {
+        console.warn('[TradingView] setChartType failed', err)
+      }
+    },
+
+    getPriceAxisState() {
+      const scale = mainPriceScale()
+      return {
+        mode: scale?.getMode?.() ?? 0,
+        autoScale: scale?.isAutoScale?.() ?? true,
+      }
+    },
+
+    setPriceAxisMode(mode) {
+      mainPriceScale()?.setMode?.(mode)
+    },
+
+    setPriceAxisAutoScale(on) {
+      mainPriceScale()?.setAutoScale?.(on)
+    },
+
+    getChromeInsets() {
+      const doc = tvIframeDocument(mount)
+      const host = doc?.documentElement
+      if (!doc || !host) return { ...TV_CHROME_INSET_FALLBACK }
+      const height = host.clientHeight
+      const center = doc.querySelector<HTMLElement>('.layout__area--center')
+      const bottomBar = doc.querySelector<HTMLElement>('.chart-controls-bar')
+      const top = center ? Math.round(center.getBoundingClientRect().top) : null
+      const bottom = bottomBar
+        ? Math.round(height - bottomBar.getBoundingClientRect().top)
+        : null
+      return {
+        top: top && top > 0 ? top : TV_CHROME_INSET_FALLBACK.top,
+        bottom: bottom && bottom > 0 ? bottom : TV_CHROME_INSET_FALLBACK.bottom,
+      }
     },
 
     setHistoricalAnchorIndex(barIndex: number) {
@@ -3215,6 +3673,10 @@ export async function createTradingViewChart(
 
     restoreVisibleRange(range) {
       return replayCtrl?.restoreVisibleRange(range) ?? Promise.resolve()
+    },
+
+    refitViewport(bars, pastCount) {
+      replayCtrl?.refitViewport(bars, pastCount)
     },
 
     swapInterval(bars, resolution, pastCount, lockedViewport, swapOpts) {

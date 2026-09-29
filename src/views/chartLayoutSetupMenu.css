@@ -1,0 +1,194 @@
+.rw-laysetup {
+  position: fixed;
+  z-index: var(--rw-z-popover-top);
+  display: none;
+  flex-direction: column;
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  padding: var(--rw-space-1) 0 var(--rw-space-2);
+  font-family: var(--rw-font);
+  /* Fallbacks matter: the tokens are only defined for menus registered in menu-portal.css. */
+  color: var(--rw-menu-text, #131722);
+  background: var(--rw-menu-bg, #ffffff);
+  border: 1px solid var(--rw-menu-border, #e0e3eb);
+  border-radius: var(--rw-radius-sm);
+  box-shadow: var(--rw-menu-shadow-lg, 0 10px 32px rgba(19, 23, 34, 0.14));
+}
+
+.rw-laysetup.rw-laysetup--open {
+  display: flex;
+}
+
+.rw-laysetup__grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.rw-laysetup__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px var(--rw-space-3);
+  border-bottom: 1px solid var(--rw-menu-sep, #e0e3eb);
+}
+
+.rw-laysetup__row:last-child {
+  border-bottom: none;
+}
+
+.rw-laysetup__num {
+  flex: 0 0 14px;
+  color: var(--rw-menu-muted, #787b86);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.rw-laysetup__row--active .rw-laysetup__num {
+  color: var(--rw-menu-text, #131722);
+}
+
+.rw-laysetup__opts {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+}
+
+.rw-laysetup__opt {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--rw-menu-text, #131722);
+  background: transparent;
+  border: none;
+  border-radius: var(--rw-radius-sm);
+  cursor: pointer;
+  transition: background var(--rw-transition-fast);
+}
+
+.rw-laysetup__opt svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+.rw-laysetup__opt:hover {
+  background: var(--rw-menu-hover, #f0f3fa);
+}
+
+/* Selected arrangement reads as a filled tile, matching TradingView's own picker. */
+.rw-laysetup__opt--active {
+  color: var(--rw-menu-active-text, #f0f3fa);
+  background: var(--rw-menu-active-bg, #2a2e39);
+}
+
+.rw-laysetup__opt--active:hover {
+  background: var(--rw-menu-active-hover, #363a45);
+}
+
+/* Counts above the plan limit stay visible but greyed, with a lock at the end of the row. */
+.rw-laysetup__row[data-locked='true'] .rw-laysetup__opt {
+  color: var(--rw-menu-muted, #787b86);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.rw-laysetup__lock {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--rw-menu-muted, #787b86);
+}
+
+.rw-laysetup__lock svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.rw-laysetup__head {
+  padding: var(--rw-space-3) var(--rw-space-3) var(--rw-space-1);
+  color: var(--rw-menu-muted, #787b86);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.rw-laysetup__syncs {
+  display: flex;
+  flex-direction: column;
+}
+
+.rw-laysetup__sync {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px var(--rw-space-3);
+}
+
+.rw-laysetup__sync-lbl {
+  font-size: 13px;
+}
+
+.rw-laysetup__info {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-right: auto;
+  color: var(--rw-menu-muted, #787b86);
+  cursor: help;
+}
+
+.rw-laysetup__info svg {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
+
+.rw-laysetup__tgl {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 21px;
+  margin-left: 24px;
+  padding: 0;
+  background: var(--rw-laysetup-tgl-off, #d1d4dc);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background var(--rw-transition-fast);
+}
+
+.rw-laysetup__tgl::after {
+  content: '';
+  position: absolute;
+  top: 2.5px;
+  left: 2.5px;
+  width: 16px;
+  height: 16px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform var(--rw-transition-fast);
+}
+
+.rw-laysetup__tgl--on {
+  background: var(--rw-laysetup-tgl-on, #2a2e39);
+}
+
+.rw-laysetup__tgl--on::after {
+  transform: translateX(17px);
+}
+
+.rw-laysetup[data-chart-theme='dark'] {
+  --rw-laysetup-tgl-off: #434651;
+  --rw-laysetup-tgl-on: #2962ff;
+  --rw-laysetup-info-ink: #1e222d;
+}

@@ -1,0 +1,69 @@
+.rw-sesspop {
+  position: fixed;
+  z-index: var(--rw-z-popover-top);
+  display: none;
+  align-items: center;
+  gap: 16px;
+  padding: 9px 13px;
+  /* Fallbacks matter: the tokens are only defined for menus registered in menu-portal.css. */
+  background: var(--rw-menu-bg, #ffffff);
+  border: 1px solid var(--rw-menu-border, #e0e3eb);
+  border-radius: var(--rw-radius-sm);
+  box-shadow: var(--rw-menu-shadow-lg, 0 10px 32px rgba(19, 23, 34, 0.14));
+}
+
+.rw-sesspop.rw-sesspop--open {
+  display: inline-flex;
+}
+
+.rw-sesspop .rw-tv-session {
+  position: relative;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.rw-sesspop .rw-tv-session__flag {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: contain;
+  pointer-events: none;
+  box-shadow: 0 0 0 1.5px #b6bac1;
+}
+
+/* Ringed in the status colour, with a matching badge clipped to the flag's lower-right. */
+.rw-sesspop .rw-tv-session__dot {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  width: 11px;
+  height: 11px;
+  box-sizing: border-box;
+  border: 2px solid var(--rw-menu-bg, #ffffff);
+  border-radius: 50%;
+  background: #8b909a;
+  pointer-events: none;
+}
+
+.rw-sesspop .rw-tv-session[data-status='open'] .rw-tv-session__flag {
+  box-shadow: 0 0 0 1.5px #22c55e;
+}
+
+.rw-sesspop .rw-tv-session[data-status='open'] .rw-tv-session__dot {
+  background: #22c55e;
+}
+
+.rw-sesspop .rw-tv-session[data-status='weekend'] .rw-tv-session__flag {
+  box-shadow: 0 0 0 1.5px #ef4444;
+}
+
+.rw-sesspop .rw-tv-session[data-status='weekend'] .rw-tv-session__dot {
+  background: #ef4444;
+}
+
+.rw-sesspop[data-chart-theme='dark'] .rw-tv-session__flag {
+  box-shadow: 0 0 0 1.5px #50535e;
+}

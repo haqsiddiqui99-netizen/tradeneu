@@ -136,15 +136,32 @@ export function tradingVolumeTitle(unixSec: number): string {
   return `Trading volume: ${level[0].toUpperCase()}${level.slice(1)} · ${detail}`
 }
 
-export function sessionHeaderStripHtml(unixSec: number, assetUrl: (pathFromRoot: string) => string): string {
+/** Rotated to point up by CSS while the session flags are showing. */
+const VOLUME_CHEVRON = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+
+/**
+ * The trading-volume pill, which doubles as the disclosure for the session flags — those are
+ * rendered separately by `sessionFlagsHtml` into a panel below the header.
+ */
+export function sessionHeaderStripHtml(
+  unixSec: number,
+  expanded = false,
+): string {
   const volume = tradingVolumeLevel(unixSec)
   const volumeLabel = `${volume[0].toUpperCase()}${volume.slice(1)}`
   const volumeTitle = tradingVolumeTitle(unixSec).replace(/"/g, '&quot;')
-  const flags = HEADER_SESSION_ORDER.map((id) => {
+  return `<span class="rw-tv-sessions"><span class="rw-tv-volume" data-level="${volume}" data-expanded="${expanded ? 'true' : 'false'}" title="${volumeTitle}"><span class="rw-tv-volume__dot" aria-hidden="true"></span><span class="rw-tv-volume__label">${volumeLabel}</span><span class="rw-tv-volume__chev" aria-hidden="true">${VOLUME_CHEVRON}</span></span></span>`
+}
+
+/** The four session flags, for the panel the volume pill opens. */
+export function sessionFlagsHtml(
+  unixSec: number,
+  assetUrl: (pathFromRoot: string) => string,
+): string {
+  return HEADER_SESSION_ORDER.map((id) => {
     const status = sessionChipStatus(id, unixSec)
     const title = sessionChipTitle(id, unixSec).replace(/"/g, '&quot;')
     const src = `${assetUrl(HEADER_SESSION_FLAG[id])}?v=${FLAG_ASSET_VERSION}`
-    return `<span class="rw-tv-session" data-status="${status}" title="${title}"><img class="rw-tv-session__flag" src="${src}" alt="" width="18" height="18" decoding="async" draggable="false"/><span class="rw-tv-session__dot" aria-hidden="true"></span></span>`
+    return `<span class="rw-tv-session" data-status="${status}" title="${title}"><img class="rw-tv-session__flag" src="${src}" alt="${HEADER_SESSION_LABEL[id]}" width="18" height="18" decoding="async" draggable="false"/><span class="rw-tv-session__dot" aria-hidden="true"></span></span>`
   }).join('')
-  return `<span class="rw-tv-sessions">${flags}<span class="rw-tv-volume" data-level="${volume}" title="${volumeTitle}"><span class="rw-tv-volume__dot" aria-hidden="true"></span><span class="rw-tv-volume__label">${volumeLabel}</span></span></span>`
 }

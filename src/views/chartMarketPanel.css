@@ -1,0 +1,176 @@
+/* Right-hand market panel — the column the chart's right edge handle folds away.
+   Tokens default to the TradingView light palette and are re-pointed for dark below. */
+.rw-mkt-panel {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  width: 268px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--rw-mkt-border, #e0e3eb);
+  background: var(--rw-mkt-bg, #ffffff);
+  color: var(--rw-mkt-ink, #131722);
+  font: 400 13px/1.4 var(--rw-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+}
+
+.rw-mkt-panel[hidden] {
+  display: none;
+}
+
+.rw-mkt-panel__tabs {
+  display: flex;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--rw-mkt-border, #e0e3eb);
+}
+
+.rw-mkt-panel__tab {
+  flex: 1 1 0;
+  padding: 9px 8px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--rw-mkt-ink-muted, #5d606b);
+  font: 500 12px/1.2 inherit;
+  cursor: pointer;
+}
+
+.rw-mkt-panel__tab:hover {
+  color: var(--rw-mkt-ink, #131722);
+  background: var(--rw-mkt-hover, #f0f3fa);
+}
+
+.rw-mkt-panel__tab--active {
+  color: var(--rw-mkt-accent, #2962ff);
+  border-bottom-color: var(--rw-mkt-accent, #2962ff);
+}
+
+.rw-mkt-panel__search {
+  flex: 0 0 auto;
+  padding: 8px;
+  border-bottom: 1px solid var(--rw-mkt-border, #e0e3eb);
+}
+
+.rw-mkt-panel__search[hidden] {
+  display: none;
+}
+
+.rw-mkt-panel__search-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--rw-mkt-border, #e0e3eb);
+  border-radius: 4px;
+  background: var(--rw-mkt-field, #ffffff);
+  color: inherit;
+  font: inherit;
+}
+
+.rw-mkt-panel__search-input:focus {
+  outline: none;
+  border-color: var(--rw-mkt-accent, #2962ff);
+}
+
+.rw-mkt-panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.rw-mkt-panel__empty {
+  margin: 0;
+  padding: 16px 12px;
+  color: var(--rw-mkt-ink-muted, #5d606b);
+}
+
+.rw-mkt-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rw-mkt-row {
+  /* Symbol column is fixed so the names line up; source tucks under the name. */
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rw-mkt-row:hover {
+  background: var(--rw-mkt-hover, #f0f3fa);
+}
+
+.rw-mkt-row--active {
+  background: var(--rw-mkt-active, #e8effd);
+}
+
+.rw-mkt-row__sym {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rw-mkt-row__name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--rw-mkt-ink-muted, #5d606b);
+}
+
+.rw-mkt-row__src {
+  grid-column: 2;
+  font-size: 11px;
+  color: var(--rw-mkt-ink-faint, #868993);
+}
+
+.rw-mkt-facts {
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.rw-mkt-facts__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rw-mkt-border, #e0e3eb);
+}
+
+.rw-mkt-facts__row:last-child {
+  border-bottom: none;
+}
+
+.rw-mkt-facts dt {
+  flex: 0 0 auto;
+  color: var(--rw-mkt-ink-muted, #5d606b);
+}
+
+.rw-mkt-facts dd {
+  margin: 0;
+  min-width: 0;
+  text-align: right;
+  font-weight: 500;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-mkt-panel {
+  --rw-mkt-border: #2a2e39;
+  --rw-mkt-bg: #131722;
+  --rw-mkt-ink: #d1d4dc;
+  --rw-mkt-ink-muted: #a3a6af;
+  --rw-mkt-ink-faint: #787b86;
+  --rw-mkt-hover: #1e222d;
+  --rw-mkt-active: #1f2b45;
+  --rw-mkt-field: #1e222d;
+}

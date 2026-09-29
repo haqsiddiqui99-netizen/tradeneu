@@ -98,8 +98,43 @@ import {
   tvResolutionToIntervalPill,
 } from './chartIntervalCatalog'
 import { getFavoriteIntervals, removeFavoriteInterval, resolveIntervalPick } from './chartIntervalStore'
-import { createChartTypeMenu } from './chartTypeMenu'
-import { createChartSnapshotMenu, type ChartSnapshotAction } from './chartSnapshotMenu'
+import { createChartTypeMenu, type ChartTypeMenuApi } from './chartTypeMenu'
+import {
+  createChartSnapshotMenu,
+  type ChartSnapshotAction,
+  type ChartSnapshotMenuApi,
+} from './chartSnapshotMenu'
+import {
+  tvSeriesTypeForVisualKind,
+  visualKindForTvSeriesType,
+} from '../chart/chartVisualKind'
+import { createChartLayoutMenu, type ChartLayoutMenuApi } from './chartLayoutMenu'
+import {
+  createChartLayoutSetupMenu,
+  type ChartLayoutSetupMenuApi,
+} from './chartLayoutSetupMenu'
+import { DEFAULT_SPLIT_LAYOUT, splitLayoutIconSvg } from '../chart/chartSplitLayouts'
+import { createChartSplitGrid, type ChartSplitGridApi } from '../chart/chartSplitGrid'
+import { createChartSplitChrome, type ChartSplitChromeApi } from '../chart/chartSplitChrome'
+import {
+  createChartLayoutNameDialog,
+  createChartLayoutsModal,
+  type ChartLayoutNameDialogApi,
+  type ChartLayoutsModalApi,
+} from './chartLayoutsModal'
+import {
+  DEFAULT_CHART_LAYOUT_SYNC,
+  activeChartLayoutId,
+  copyChartLayoutName,
+  draftChartLayout,
+  getChartLayout,
+  listChartLayouts,
+  putChartLayout,
+  removeChartLayout,
+  setActiveChartLayoutId,
+  type ChartLayoutRecord,
+  type ChartLayoutSync,
+} from '../chart/chartLayoutStore'
 import { createReplayGoToMenu, type ReplayGoToMenuApi } from './replayGoToMenu'
 import { createReplayGoToSettingsDialog, type ReplayGoToSettingsApi } from './replayGoToSettings'
 import { createReplayScalperModeDialog } from './replayScalperModeDialog'
@@ -154,6 +189,7 @@ import {
 } from '../replay/replayScalperMode'
 import { replayInstrumentSizing } from '../replay/replayInstrumentSizing'
 import { confirmDialog } from './confirmDialog'
+import { createChartMarketPanel, type ChartMarketPanelApi } from './chartMarketPanel'
 import { showBacktestResultDialog } from './backtestResultDialog'
 import { mountChartPositionOverlay } from '../chart/chartPositionOverlay'
 import type { SessionBacktestSnapshot, SessionReplaySnapshot } from '../data/sessionStore'
@@ -192,7 +228,11 @@ import {
 } from '../backtest/backtestReplayUtils'
 import { getBacktestSnapshotAtTime } from '../backtest/backtestReplaySnapshot'
 import { goToUtcOffsetHint, resolveGoToBarIndex, type ReplayGoToTarget } from '../playback/replayGoTo'
-import { sessionHeaderStripHtml } from '../playback/marketSessions'
+import { sessionFlagsHtml, sessionHeaderStripHtml } from '../playback/marketSessions'
+import {
+  createChartSessionsPopover,
+  type ChartSessionsPopoverApi,
+} from './chartSessionsPopover'
 import type { SidePanelApi } from './sidePanel'
 
 function setReplayPlayButtonIcon(btn: HTMLButtonElement | null, playing: boolean) {
@@ -215,8 +255,8 @@ function sessionAssetUrl(pathFromRoot: string): string {
   return new URL(joined, window.location.origin).href
 }
 
-function sessionStripHtmlAt(unixSec: number): string {
-  return sessionHeaderStripHtml(unixSec, sessionAssetUrl)
+function sessionFlagsHtmlAt(unixSec: number): string {
+  return sessionFlagsHtml(unixSec, sessionAssetUrl)
 }
 
 const CHART_THEME_STORAGE_KEY = 'suplexity-chart-theme'
@@ -650,14 +690,14 @@ export function mountChartWorkspace(
           <button type="button" class="rw-pill-btn rw-pill-btn--ico rw-chart-type-btn" title="Chart type" aria-haspopup="listbox" aria-expanded="false">${candleIco}</button>
           <button type="button" class="rw-pill-btn rw-pill-btn--ico rw-compare-btn rw-fxr-hide" title="Compare or add symbol">${icons.plus}</button>
           <button type="button" class="rw-pill-btn rw-indicators-btn" title="Indicators, metrics, and strategies" aria-haspopup="dialog" aria-expanded="false">${icons.chart} Indicators</button>
-          <button type="button" class="rw-pill-btn">New Layout</button>
+          <button type="button" class="rw-pill-btn" data-rw-new-layout title="Create a new empty chart layout">New Layout</button>
           <button type="button" class="rw-pill-btn rw-fxr-hide">Alert</button>
           <button type="button" class="rw-pill-btn rw-replay-launch${tvChartMode ? ' rw-top-btn--tv-header' : ''}" data-rw-replay-launch aria-expanded="false" aria-controls="rw-chart-replay-dock" title="Bar replay">${icons.replayLaunch} Replay</button>
           ${tvChartMode ? '' : `<button type="button" class="rw-pill-btn rw-backtest-launch" title="Run strategy backtest on loaded bars">${icons.bolt} Backtest</button>`}
           <button type="button" class="rw-pill-btn rw-fxr-hide">${icons.layout}</button>
         </div>
         <div class="rw-top__right">
-          <button type="button" class="rw-layout-name" title="Layouts">Unnamed ${icons.chevronDown}</button>
+          <button type="button" class="rw-layout-name" data-rw-layout-name title="Layouts" aria-haspopup="menu" aria-expanded="false">Unnamed ${icons.chevronDown}</button>
           <span class="rw-top__vsep" aria-hidden="true"></span>
           <button type="button" class="rw-pill-btn rw-header-goto" data-rw-header-goto title="Go To" aria-label="Go To" aria-haspopup="menu" aria-expanded="false">${icons.replayGoto} Go To</button>
           <div class="rw-top__utility" role="group" aria-label="Chart utilities">
@@ -732,6 +772,22 @@ export function mountChartWorkspace(
           </div>
           <div class="rw-chart-vol" aria-live="polite"></div>
           <div class="rw-watermark">Tradeneu</div>
+          <button
+            type="button"
+            class="rw-chart-edge"
+            data-rw-chart-edge="left"
+            aria-expanded="true"
+            title="Hide drawing toolbar"
+            aria-label="Hide drawing toolbar"
+          >${icons.chevronRight}</button>
+          <button
+            type="button"
+            class="rw-chart-edge"
+            data-rw-chart-edge="right"
+            aria-expanded="false"
+            title="Show side panel"
+            aria-label="Show side panel"
+          >${icons.chevronRight}</button>
           <div class="rw-chart-nav-hoverzone" data-rw-chart-nav-hoverzone aria-label="Chart zoom and pan">
             <div class="rw-chart-float rw-chart-float--nav" role="toolbar" aria-label="Chart zoom, pan, and reset">
               <button type="button" class="rw-chart-float__btn" data-chart-nav="zoom-out" title="Zoom out">${icons.chartNavMinus}</button>
@@ -1471,10 +1527,14 @@ export function mountChartWorkspace(
   const btnJournalExport: HTMLButtonElement | null = null
   const backtestState = { result: null as BacktestResult | null, highlightTradeNum: undefined as number | undefined }
 
+  /** Assigned once the chart wrap exists; the panel mirrors the active symbol. */
+  let marketPanel: ChartMarketPanelApi | null = null
+
   function paintSymbolPanel(symbol: string, _feed: string) {
     const m = symbolPanelMeta(symbol)
     currentFullName = m.fullName
     if (symbolToolbarLabel) symbolToolbarLabel.textContent = formatLegendSymbol(symbol, m.fullName)
+    marketPanel?.refresh()
   }
 
   let switchChartSymbolImpl: ((symbol: string) => void) | null = null
@@ -1485,6 +1545,8 @@ export function mountChartWorkspace(
     if (!s) return
     if (switchChartSymbolImpl) switchChartSymbolImpl(s)
     else pendingSymbolPick = s
+    // No-op unless the layout's Symbol sync is on.
+    chartSplitGrid?.setSymbol(s)
     opts?.onSymbolChange?.(s)
   }
   const rwRoot = host.querySelector('.rw-root') as HTMLElement
@@ -1493,10 +1555,35 @@ export function mountChartWorkspace(
   const btnTopSnapshot = host.querySelector('[data-rw-top-snapshot]') as HTMLButtonElement | null
   const btnTopFullscreen = host.querySelector('[data-rw-top-fullscreen]') as HTMLButtonElement | null
   const btnHeaderGoTo = host.querySelector('[data-rw-header-goto]') as HTMLButtonElement | null
+  const btnNewLayout = host.querySelector('[data-rw-new-layout]') as HTMLButtonElement | null
+  const btnLayoutName = host.querySelector('[data-rw-layout-name]') as HTMLButtonElement | null
   const btnReplayLaunch = host.querySelector('[data-rw-replay-launch]') as HTMLButtonElement | null
   let replayGoToMenu: ReplayGoToMenuApi | null = null
   let replayGoToMenuAnchor: HTMLElement | null = null
   let replayGoToSettings: ReplayGoToSettingsApi | null = null
+
+  // Chart layouts. Declared up here rather than beside their handlers because the header
+  // button definitions read `activeLayout` while the widget is being constructed.
+  let chartLayoutMenu: ChartLayoutMenuApi | null = null
+  let chartLayoutMenuAnchor: HTMLElement | null = null
+  let chartLayoutsModal: ChartLayoutsModalApi | null = null
+  let chartLayoutNameDialog: ChartLayoutNameDialogApi | null = null
+  let chartLayoutSetupMenu: ChartLayoutSetupMenuApi | null = null
+  let chartLayoutSetupAnchor: HTMLElement | null = null
+  let chartSplitGrid: ChartSplitGridApi | null = null
+  /** The single header and footer a split layout shows in place of per-pane chrome. */
+  let chartSplitChrome: ChartSplitChromeApi | null = null
+  let chartSplitChartTypeMenu: ChartTypeMenuApi | null = null
+  let chartSplitSnapshotMenu: ChartSnapshotMenuApi | null = null
+  let activeLayout: ChartLayoutRecord | null =
+    (activeChartLayoutId() ? getChartLayout(activeChartLayoutId()!) : null) ??
+    listChartLayouts()[0] ??
+    null
+  /** Unsaved changes since the last save — greys the menu's Save row when false. */
+  let chartLayoutDirty = false
+  /** Split arrangement id; the chip's square icon renders it. */
+  let activeChartSplit: string = activeLayout?.split ?? DEFAULT_SPLIT_LAYOUT
+  let activeChartSync: ChartLayoutSync = activeLayout?.sync ?? { ...DEFAULT_CHART_LAYOUT_SYNC }
 
   function getReplayLaunchButtons(): HTMLElement[] {
     const out: HTMLElement[] = []
@@ -1848,6 +1935,79 @@ export function mountChartWorkspace(
   cleanupFns.push(() => {
     clearReplayToastTimers()
   })
+
+  const edgeToggleLeft = host.querySelector('[data-rw-chart-edge="left"]') as HTMLButtonElement | null
+  const edgeToggleRight = host.querySelector('[data-rw-chart-edge="right"]') as HTMLButtonElement | null
+
+  /** The chevron mirrors TradingView's own toolbar state, which it can change on its own
+   *  (responsive collapse at narrow widths, or its built-in hide control). */
+  function syncEdgeToggles() {
+    if (edgeToggleRight) {
+      const open = marketPanel?.isOpen() ?? false
+      const label = open ? 'Hide market panel' : 'Show market panel'
+      edgeToggleRight.setAttribute('aria-expanded', open ? 'true' : 'false')
+      edgeToggleRight.title = label
+      edgeToggleRight.setAttribute('aria-label', label)
+    }
+    if (!edgeToggleLeft) return
+    // Only the TradingView chart has a drawing toolbar to fold away.
+    const available = !!state.tvChart
+    edgeToggleLeft.hidden = !available
+    const open = available && state.tvChart!.isDrawingToolbarVisible()
+    const label = open ? 'Hide drawing toolbar' : 'Show drawing toolbar'
+    edgeToggleLeft.setAttribute('aria-expanded', open ? 'true' : 'false')
+    edgeToggleLeft.title = label
+    edgeToggleLeft.setAttribute('aria-label', label)
+  }
+
+  if (edgeToggleLeft) {
+    const onEdgeLeft = () => {
+      state.tvChart?.toggleDrawingToolbar()
+      // TradingView animates the fold — read the settled width, not the mid-flight one.
+      window.setTimeout(syncEdgeToggles, 450)
+    }
+    edgeToggleLeft.addEventListener('click', onEdgeLeft)
+    // TradingView folds the toolbar away on its own once the chart gets narrow.
+    const onEdgeResize = () => syncEdgeToggles()
+    window.addEventListener('resize', onEdgeResize)
+    cleanupFns.push(() => {
+      edgeToggleLeft.removeEventListener('click', onEdgeLeft)
+      window.removeEventListener('resize', onEdgeResize)
+    })
+    edgeToggleLeft.hidden = true
+  }
+  const chartWrapEl = host.querySelector('.rw-chart-wrap') as HTMLElement | null
+  marketPanel =
+    edgeToggleRight && chartWrapEl
+      ? createChartMarketPanel({
+          mount: chartWrapEl,
+          getSymbol: () => currentChartSymbol,
+          onPickSymbol: (symbol) => applySymbolPick(symbol),
+          onToggle: () => {
+            syncEdgeToggles()
+            // The chart lost or gained a column — let it re-measure once layout settles.
+            requestAnimationFrame(() => {
+              if (state.disposed) return
+              state.tvChart?.resize()
+              state.trading?.chart.resize(chartHost.clientWidth, chartHost.clientHeight)
+              state.redrawDrawings?.()
+            })
+          },
+        })
+      : null
+  cleanupFns.push(() => {
+    marketPanel?.dispose()
+    marketPanel = null
+  })
+
+  if (edgeToggleRight && marketPanel) {
+    const onEdgeRight = () => marketPanel?.toggle()
+    edgeToggleRight.addEventListener('click', onEdgeRight)
+    cleanupFns.push(() => edgeToggleRight.removeEventListener('click', onEdgeRight))
+  } else if (edgeToggleRight) {
+    edgeToggleRight.hidden = true
+  }
+  syncEdgeToggles()
 
   bindReplayDockDrag()
 
@@ -2366,6 +2526,8 @@ export function mountChartWorkspace(
       btnThemeToggle.title = 'Toggle theme'
       btnThemeToggle.setAttribute('aria-label', 'Toggle theme')
     }
+    state.tvChart?.setHeaderButtonIcon('theme', icon)
+    chartSplitChrome?.sync()
   }
   syncThemeToggleButton()
 
@@ -2410,8 +2572,10 @@ export function mountChartWorkspace(
     rwRoot.dataset.chartTheme = uiChartTheme
     host.setAttribute('data-chart-theme', uiChartTheme)
     syncThemeToggleButton()
+
     state.trading?.applyTheme(tradingThemeFromUi(uiChartTheme))
     state.tvChart?.applyTheme(uiChartTheme === 'dark' ? 'dark' : 'light')
+    chartSplitGrid?.setTheme(uiChartTheme === 'dark' ? 'dark' : 'light')
     state.redrawDrawings?.()
     requestAnimationFrame(() => {
       if (state.trading && !state.disposed) {
@@ -2420,6 +2584,8 @@ export function mountChartWorkspace(
         state.redrawDrawings?.()
       } else if (state.tvChart && !state.disposed) {
         state.tvChart.resize()
+        // TV rebuilds header chrome on changeTheme — repaint our icon after it settles.
+        syncThemeToggleButton()
       }
     })
   }
@@ -4572,6 +4738,45 @@ export function mountChartWorkspace(
       positionOverlay?.sync({ recreateLines: recreateLines && !usedTvShapes })
     }
 
+    /** The volume pill is the disclosure for the session flags; collapsed to start. */
+    let sessionFlagsExpanded = false
+    let sessionsPopover: ChartSessionsPopoverApi | null = null
+    let sessionsPopoverAnchor: HTMLElement | null = null
+
+    function syncSessionStrip(bar?: Bar | null) {
+      state.tvChart?.setHeaderButtonIcon(
+        'sessions',
+        sessionHeaderStripHtml(sessionReferenceSec(bar), sessionFlagsExpanded),
+      )
+      chartSplitChrome?.sync()
+      sessionsPopover?.refresh()
+    }
+
+    function toggleSessionFlags() {
+      // TradingView re-mounts the header slot on rebuild, so re-anchor whenever it changes.
+      const anchor = state.tvChart?.getHeaderButton('sessions')
+      if (!anchor) return
+      if (!sessionsPopover || sessionsPopoverAnchor !== anchor) {
+        sessionsPopover?.dispose()
+        sessionsPopoverAnchor = anchor
+        sessionsPopover = createChartSessionsPopover({
+          anchor,
+          getFlagsHtml: () => sessionFlagsHtmlAt(sessionReferenceSec()),
+          onOpenChange: (open) => {
+            sessionFlagsExpanded = open
+            anchor.setAttribute('aria-expanded', open ? 'true' : 'false')
+            syncSessionStrip()
+          },
+        })
+      }
+      sessionsPopover.toggle()
+    }
+    cleanupFns.push(() => {
+      sessionsPopover?.dispose()
+      sessionsPopover = null
+      sessionsPopoverAnchor = null
+    })
+
     function sessionReferenceSec(bar?: Bar | null): number {
       const replayBar = replay ? lastBar(replay.slice()) : null
       const sessionStartBar = chartBars[Math.max(0, sessionReplayStartIndex)]
@@ -4646,7 +4851,8 @@ export function mountChartWorkspace(
       syncPositionOverlay(false)
       if (accountChanged) schedulePersistReplay()
       evaluatePropIfNeeded(b)
-      state.tvChart?.setHeaderButtonIcon('sessions', sessionStripHtmlAt(sessionReferenceSec(b)))
+      syncSessionStrip(b)
+      feedChartSplitGrid()
     }
 
     let trading: ReturnType<typeof createTradingChart> | null = null
@@ -4705,12 +4911,28 @@ export function mountChartWorkspace(
           },
           headerButtons: [
             {
+              id: 'newlayout',
+              title: 'Create a new empty chart layout',
+              text: 'New Layout',
+              align: 'left',
+              insertBeforeIndicators: true,
+              onClick: () => void createNewChartLayout(),
+            },
+            {
               id: 'sessions',
-              title: 'Market sessions',
-              iconHtml: sessionStripHtmlAt(sessionReferenceSec()),
+              title: 'Trading volume — show market sessions',
+              iconHtml: sessionHeaderStripHtml(sessionReferenceSec(), sessionFlagsExpanded),
               align: 'right',
               insertBeforeRightUtilities: true,
-              onClick: () => undefined,
+              onClick: () => toggleSessionFlags(),
+            },
+            {
+              id: 'layout',
+              title: 'Chart layout',
+              iconHtml: chartLayoutChipHtml(),
+              align: 'right',
+              insertBeforeRightUtilities: true,
+              onClick: (event) => onChartLayoutChipClick(event),
             },
             {
               id: 'goto',
@@ -4720,6 +4942,14 @@ export function mountChartWorkspace(
               align: 'right',
               insertBeforeRightUtilities: true,
               onClick: () => toggleReplayGoToMenu(),
+            },
+            {
+              id: 'theme',
+              title: 'Toggle theme',
+              iconHtml: uiChartTheme === 'dark' ? icons.sun : icons.moon,
+              align: 'right',
+              insertBeforeRightUtilities: true,
+              onClick: () => applyChartPaletteToggle(),
             },
           ],
           intervalSwapRef: tvIntervalSwap,
@@ -4785,6 +5015,8 @@ export function mountChartWorkspace(
       void state.tvChart?.whenChartReady().then(() => {
         if (state.disposed) return
         bindTvOverlayObserver()
+        syncEdgeToggles()
+        bindChartLayoutSignals()
       })
       /* Iframe may appear slightly after ready — retry bind a few times. */
       window.setTimeout(() => {
@@ -8716,6 +8948,435 @@ export function mountChartWorkspace(
       replayGoToMenu = null
       replayGoToMenuAnchor = null
     })
+
+    /* ---- Chart layouts ---------------------------------------------------- */
+
+    /**
+     * Bar spacing is pinned to whatever the chart was showing at its previous width, so a pane
+     * that just got narrower ends up displaying a handful of bars. Drop the pin and let the
+     * chart re-fit; the trader can pan and zoom again from there.
+     */
+    function releaseChartViewportForSplitResize() {
+      replayViewportLocked = false
+      lockedTvViewport = null
+      pendingTvViewportRestore = null
+      userViewportPinned = false
+      state.tvChart?.setReplayLockedViewport(null)
+      state.tvChart?.setViewportFreeze(null)
+      const bars = state.tvChart?.getRevealedBars() ?? []
+      if (bars.length) state.tvChart?.refitViewport(bars, bars.length)
+    }
+
+    /**
+     * Created on first use, because a single-chart session never needs it. Pane 0 is the
+     * existing, fully-wired chart — replay, trades and overlays all stay on it — and the
+     * extra panes are analysis-only views fed the same revealed bars.
+     */
+    /** The pane the shared multi-chart header drives; the primary whenever there is no split. */
+    function activeChartHandle(): TradingViewChartHandle | null {
+      return chartSplitGrid?.getActiveHandle() ?? state.tvChart
+    }
+
+    /**
+     * Only exists while a split is showing. Each pane is its own TradingView iframe, so a
+     * pane's native header can never span the others — the panes run chrome-less instead and
+     * this one row drives whichever of them was last clicked.
+     */
+    function setChartSplitChrome(on: boolean) {
+      if (on === !!chartSplitChrome) return
+      if (!on) {
+        chartSplitChrome?.dispose()
+        chartSplitChrome = null
+        chartSplitChartTypeMenu?.dispose()
+        chartSplitChartTypeMenu = null
+        chartSplitSnapshotMenu?.dispose()
+        chartSplitSnapshotMenu = null
+        return
+      }
+      chartSplitChrome = createChartSplitChrome({
+        container: chartHost,
+        getActive: () => activeChartHandle(),
+        getTheme: () => (uiChartTheme === 'dark' ? 'dark' : 'light'),
+        getLayoutChipHtml: () => chartLayoutChipHtml(),
+        getSessionsHtml: () => sessionHeaderStripHtml(sessionReferenceSec(), sessionFlagsExpanded),
+        onChipClick: (event) => onChartLayoutChipClick(event),
+        onSessionsClick: () => toggleSessionFlags(),
+        onNewLayout: () => void createNewChartLayout(),
+        onChartType: (anchor) => openChartSplitChartTypeMenu(anchor),
+        onGoTo: (anchor) => toggleReplayGoToMenu(anchor),
+        onThemeToggle: () => applyChartPaletteToggle(),
+        onSnapshot: (anchor) => openChartSplitSnapshotMenu(anchor),
+        onFullscreen: () => toggleChartFullscreen(),
+        onGoToDate: (anchor) => toggleReplayGoToMenu(anchor),
+        onRangePick: (spanSec) => applyChartSplitRange(spanSec),
+      })
+    }
+
+    function openChartSplitChartTypeMenu(anchor: HTMLElement) {
+      if (!chartSplitChartTypeMenu) {
+        chartSplitChartTypeMenu = createChartTypeMenu({
+          anchor,
+          getSelected: () =>
+            visualKindForTvSeriesType(activeChartHandle()?.getChartType() ?? 1),
+          onSelect: (kind) => {
+            activeChartHandle()?.setChartType(tvSeriesTypeForVisualKind(kind))
+            chartSplitChartTypeMenu?.syncActive()
+          },
+        })
+      }
+      chartSplitChartTypeMenu.toggle()
+    }
+
+    function openChartSplitSnapshotMenu(anchor: HTMLElement) {
+      if (!chartSplitSnapshotMenu) {
+        chartSplitSnapshotMenu = createChartSnapshotMenu({
+          anchor,
+          onAction: (action) => void runSnapshotAction(action),
+        })
+      }
+      chartSplitSnapshotMenu.toggle()
+    }
+
+    /** Zooms the active pane to the last `spanSec` of the bars it is holding. */
+    function applyChartSplitRange(spanSec: number) {
+      const handle = activeChartHandle()
+      const bars = handle?.getRevealedBars() ?? []
+      const last = bars[bars.length - 1]
+      if (!handle || !last) return
+      void handle.restoreVisibleRange({ from: last.time - spanSec, to: last.time })
+    }
+
+    function ensureChartSplitGrid(): ChartSplitGridApi | null {
+      if (chartSplitGrid || !tvChartMode) return chartSplitGrid
+      const range = sessionDateRangeSec(activeSession.startDate, activeSession.endDate)
+      chartSplitGrid = createChartSplitGrid({
+        container: chartHost,
+        primaryEl: chartTv,
+        getPrimaryHandle: () => state.tvChart,
+        getSymbol: () => formatDisplaySymbol(currentChartSymbol),
+        getTheme: () => (uiChartTheme === 'dark' ? 'dark' : 'light'),
+        getDataSource: () => series?.dataSource,
+        getSessionRange: () => ({ startSec: range.startSec, endSec: range.endSec }),
+        onMultiChange: (multi) => setChartSplitChrome(multi),
+        getChromeInsets: () => chartSplitChrome?.getInsets() ?? { top: 0, bottom: 0 },
+        onActiveChange: () => chartSplitChrome?.sync(),
+        onLayoutApplied: () => {
+          state.tvChart?.resize()
+          releaseChartViewportForSplitResize()
+          chartSplitChrome?.sync()
+        },
+      })
+      chartSplitGrid.setSync(activeChartSync)
+      feedChartSplitGrid()
+      return chartSplitGrid
+    }
+
+    /**
+     * Sourced from the main chart rather than `replay.slice()`. The slice runs from the first
+     * lead-in bar, which is earlier than the main chart's own series starts, so feeding it
+     * straight through put bars on the panes that the trader could not see on the main chart.
+     */
+    function feedChartSplitGrid() {
+      if (!chartSplitGrid) return
+      const revealed = state.tvChart?.getRevealedBars() ?? []
+      if (!revealed.length) return
+      chartSplitGrid.setBars(revealed, tvBarPeriodSecForPill(chartTimeframe))
+    }
+
+    /** Only spins the grid up when the layout actually asks for more than one chart. */
+    function applyRestoredChartSplit() {
+      if (activeChartSplit === DEFAULT_SPLIT_LAYOUT && !chartSplitGrid) return
+      const grid = ensureChartSplitGrid()
+      grid?.setSync(activeChartSync)
+      grid?.setLayout(activeChartSplit)
+    }
+
+    cleanupFns.push(() => {
+      chartSplitGrid?.dispose()
+      chartSplitGrid = null
+      setChartSplitChrome(false)
+    })
+
+    /**
+     * The chip is three separate hit targets sharing one header slot: the square opens Layout
+     * setup, the name only reports save state, and the chevron opens the layout menu. Each
+     * carries its own `apply-common-tooltip` so TradingView renders the tooltips natively.
+     */
+    function chartLayoutChipHtml(): string {
+      const name = activeLayout?.name ?? 'Unnamed'
+      const saveTip = chartLayoutDirty ? 'Unsaved changes' : 'All changes saved'
+      const splitIco = splitLayoutIconSvg(activeChartSplit)
+      return `<span class="rw-tv-layout-chip">
+        <span class="rw-tv-layout-chip__ico apply-common-tooltip" data-rw-chip="setup" title="Layout setup">${splitIco}</span>
+        <span class="rw-tv-layout-chip__name apply-common-tooltip" data-rw-chip="name" title="${escapeLoadingHtml(saveTip)}">${escapeLoadingHtml(name)}</span>
+        ${chartLayoutDirty ? '<span class="rw-tv-layout-chip__dirty" aria-hidden="true"></span>' : ''}
+        <span class="rw-tv-layout-chip__chev apply-common-tooltip" data-rw-chip="manage" title="Manage layouts">${icons.chevronDown}</span>
+      </span>`
+    }
+
+    /** Routes a click on the chip to whichever of its three targets was hit. */
+    function onChartLayoutChipClick(event?: Event) {
+      const target = event?.target as HTMLElement | null
+      const part = target?.closest<HTMLElement>('[data-rw-chip]')?.dataset.rwChip
+      if (part === 'setup') {
+        toggleChartLayoutSetupMenu()
+        return
+      }
+      if (part === 'name') {
+        // Nothing to open — the name is a status readout, so nudge a save instead.
+        if (chartLayoutDirty) void saveActiveChartLayout()
+        return
+      }
+      toggleChartLayoutMenu()
+    }
+
+    function syncChartLayoutChip() {
+      const name = activeLayout?.name ?? 'Unnamed'
+      state.tvChart?.setHeaderButtonIcon('layout', chartLayoutChipHtml())
+      chartSplitChrome?.sync()
+      if (btnLayoutName) {
+        btnLayoutName.innerHTML = `${escapeLoadingHtml(name)} ${icons.chevronDown}`
+        btnLayoutName.title = name
+      }
+      chartLayoutMenu?.setCanSave(chartLayoutDirty)
+    }
+
+    function markChartLayoutDirty() {
+      if (chartLayoutDirty) return
+      chartLayoutDirty = true
+      syncChartLayoutChip()
+    }
+
+    /** Symbol/interval shown under the name in the Layouts list. */
+    function chartLayoutContext() {
+      return { symbol: formatDisplaySymbol(currentChartSymbol), interval: chartTimeframe }
+    }
+
+    async function saveActiveChartLayout() {
+      const ctx = chartLayoutContext()
+      const base = activeLayout ?? draftChartLayout(ctx.symbol, ctx.interval)
+      const snapshot = (await state.tvChart?.saveChartState()) ?? null
+      activeLayout = putChartLayout({
+        ...base,
+        ...ctx,
+        // A layout can be saved before the widget is ready; keep the last good payload.
+        state: snapshot ?? base.state,
+        split: activeChartSplit,
+        sync: { ...activeChartSync },
+      })
+      setActiveChartLayoutId(activeLayout.id)
+      chartLayoutDirty = false
+      syncChartLayoutChip()
+    }
+
+    async function createNewChartLayout() {
+      state.tvChart?.clearChartState()
+      const ctx = chartLayoutContext()
+      activeLayout = draftChartLayout(ctx.symbol, ctx.interval)
+      activeChartSplit = activeLayout.split
+      activeChartSync = { ...activeLayout.sync }
+      setActiveChartLayoutId(activeLayout.id)
+      applyRestoredChartSplit()
+      chartLayoutDirty = false
+      syncChartLayoutChip()
+      // Persisted straight away so it is present in the Layouts list, like the chip implies.
+      await saveActiveChartLayout()
+    }
+
+    async function openChartLayoutById(id: string) {
+      const record = getChartLayout(id)
+      if (!record) return
+      activeLayout = record
+      activeChartSplit = record.split
+      activeChartSync = { ...record.sync }
+      setActiveChartLayoutId(record.id)
+      applyRestoredChartSplit()
+      chartLayoutDirty = false
+      syncChartLayoutChip()
+      if (!record.state) return
+      const loaded = (await state.tvChart?.loadChartState(record.state)) ?? false
+      if (!loaded || state.disposed) return
+      // `load()` usually fires TradingView's own symbol/interval callbacks, which drive the
+      // normal app switch. Reconcile anyway in case the payload matched what TV already had.
+      if (record.symbol && record.symbol !== formatDisplaySymbol(currentChartSymbol)) {
+        applySymbolPick(record.symbol)
+      }
+      if (record.interval && record.interval !== chartTimeframe) {
+        const pick = resolveIntervalPick(record.interval)
+        if (pick) void applyIntervalPick(pick)
+      }
+    }
+
+    async function renameActiveChartLayout() {
+      if (!activeLayout) return
+      const next = await chartLayoutNameDialog?.prompt({
+        title: 'Rename layout',
+        confirmLabel: 'Rename',
+        value: activeLayout.name,
+      })
+      if (!next || !activeLayout) return
+      activeLayout = putChartLayout({ ...activeLayout, name: next })
+      syncChartLayoutChip()
+    }
+
+    async function copyActiveChartLayout() {
+      const source = activeLayout
+      if (!source) return
+      const suggested = copyChartLayoutName(
+        source.name,
+        listChartLayouts().map((r) => r.name),
+      )
+      const next = await chartLayoutNameDialog?.prompt({
+        title: 'Make a copy',
+        confirmLabel: 'Save',
+        value: suggested,
+      })
+      if (!next) return
+      const snapshot = (await state.tvChart?.saveChartState()) ?? source.state
+      const ctx = chartLayoutContext()
+      activeLayout = putChartLayout({ ...draftChartLayout(ctx.symbol, ctx.interval, next), state: snapshot })
+      setActiveChartLayoutId(activeLayout.id)
+      chartLayoutDirty = false
+      syncChartLayoutChip()
+    }
+
+    function openChartLayoutsModal() {
+      if (!chartLayoutsModal) {
+        chartLayoutsModal = createChartLayoutsModal({
+          getLayouts: () => listChartLayouts(),
+          getActiveId: () => activeLayout?.id ?? null,
+          onPick: (id) => void openChartLayoutById(id),
+          onDelete: (id) => {
+            removeChartLayout(id)
+            if (activeLayout?.id !== id) return
+            activeLayout = listChartLayouts()[0] ?? null
+            setActiveChartLayoutId(activeLayout?.id ?? null)
+            syncChartLayoutChip()
+          },
+        })
+      }
+      chartLayoutsModal.open()
+    }
+
+    function onChartLayoutMenuAction(action: 'save' | 'copy' | 'rename' | 'open') {
+      if (action === 'save') void saveActiveChartLayout()
+      else if (action === 'rename') void renameActiveChartLayout()
+      else if (action === 'copy') void copyActiveChartLayout()
+      else openChartLayoutsModal()
+    }
+
+    function toggleChartLayoutMenu(anchor = state.tvChart?.getHeaderButton('layout') ?? btnLayoutName) {
+      if (!anchor) return
+      if (!chartLayoutMenu || chartLayoutMenuAnchor !== anchor) {
+        chartLayoutMenu?.dispose()
+        chartLayoutMenuAnchor = anchor
+        chartLayoutMenu = createChartLayoutMenu({
+          anchor,
+          onAction: onChartLayoutMenuAction,
+          onOpenChange: (open) => anchor.setAttribute('aria-expanded', open ? 'true' : 'false'),
+        })
+      }
+      chartLayoutMenu.setCanSave(chartLayoutDirty)
+      chartLayoutMenu.toggle()
+    }
+
+    function applyChartSplit(split: string) {
+      if (split === activeChartSplit) return
+      activeChartSplit = split
+      ensureChartSplitGrid()?.setLayout(split)
+      markChartLayoutDirty()
+      syncChartLayoutChip()
+    }
+
+    function applyChartSync(key: keyof ChartLayoutSync, on: boolean) {
+      if (activeChartSync[key] === on) return
+      activeChartSync = { ...activeChartSync, [key]: on }
+      chartSplitGrid?.setSync(activeChartSync)
+      markChartLayoutDirty()
+    }
+
+    function toggleChartLayoutSetupMenu() {
+      const anchor = state.tvChart?.getHeaderButton('layout') ?? btnLayoutName
+      if (!anchor) return
+      chartLayoutMenu?.close()
+      if (!chartLayoutSetupMenu || chartLayoutSetupAnchor !== anchor) {
+        chartLayoutSetupMenu?.dispose()
+        chartLayoutSetupAnchor = anchor
+        chartLayoutSetupMenu = createChartLayoutSetupMenu({
+          anchor,
+          getSplit: () => activeChartSplit,
+          getSync: () => activeChartSync,
+          maxCharts: null,
+          onPickSplit: applyChartSplit,
+          onToggleSync: applyChartSync,
+        })
+      }
+      chartLayoutSetupMenu.toggle()
+    }
+
+    chartLayoutNameDialog = createChartLayoutNameDialog()
+    cleanupFns.push(() => {
+      chartLayoutNameDialog?.dispose()
+      chartLayoutNameDialog = null
+      chartLayoutsModal?.dispose()
+      chartLayoutsModal = null
+      chartLayoutMenu?.dispose()
+      chartLayoutMenu = null
+      chartLayoutMenuAnchor = null
+    })
+
+    const onNewLayoutClick = (e: MouseEvent) => {
+      e.preventDefault()
+      void createNewChartLayout()
+    }
+    const onLayoutNameClick = (e: MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      toggleChartLayoutMenu(btnLayoutName ?? undefined)
+    }
+    btnNewLayout?.addEventListener('click', onNewLayoutClick)
+    btnLayoutName?.addEventListener('click', onLayoutNameClick)
+    cleanupFns.push(() => {
+      btnNewLayout?.removeEventListener('click', onNewLayoutClick)
+      btnLayoutName?.removeEventListener('click', onLayoutNameClick)
+    })
+
+    /** Ctrl+S saves, Dot opens the picker — the shortcuts printed in the layout menu. */
+    const onChartLayoutKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const typing =
+        !!target?.closest('input, textarea, select, [contenteditable="true"]') ||
+        !!target?.isContentEditable
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault()
+        void saveActiveChartLayout()
+        return
+      }
+      if (e.key === '.' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault()
+        openChartLayoutsModal()
+      }
+    }
+    document.addEventListener('keydown', onChartLayoutKey)
+    cleanupFns.push(() => document.removeEventListener('keydown', onChartLayoutKey))
+
+    /**
+     * Wired once TradingView is ready: its "user changed the chart" signal drives the
+     * unsaved marker, and the shortcuts need a second binding because key events raised
+     * inside the widget's iframe never reach the parent document.
+     */
+    function bindChartLayoutSignals() {
+      const stopDirty = state.tvChart?.onChartStateChanged(markChartLayoutDirty)
+      if (stopDirty) cleanupFns.push(stopDirty)
+
+      const frameDoc = state.tvChart?.getHeaderButton('layout')?.ownerDocument
+      if (frameDoc && frameDoc !== document) {
+        frameDoc.addEventListener('keydown', onChartLayoutKey)
+        cleanupFns.push(() => frameDoc.removeEventListener('keydown', onChartLayoutKey))
+      }
+      syncChartLayoutChip()
+      applyRestoredChartSplit()
+    }
 
     function goToCursorSec(): number | null {
       const bars = replay.getBars()

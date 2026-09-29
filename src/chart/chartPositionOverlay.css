@@ -1150,8 +1150,8 @@
 }
 
 .rw-root[data-chart-theme='dark'] .rw-trade-bar {
-  background: rgba(30, 34, 45, 0.75);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: transparent;
+  border-color: transparent;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-trade-stats {

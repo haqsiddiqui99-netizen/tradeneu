@@ -1,0 +1,307 @@
+/* The shared header and footer for a split layout. Each pane is its own TradingView iframe,
+   so a pane's native chrome can never stretch past its own edge — these two rows replace it
+   and drive whichever pane was last touched. Deliberately styled to match TradingView's own
+   header so the single-chart and multi-chart views read the same. */
+
+.rw-split-chrome {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  background: var(--rw-split-chrome-bg, #ffffff);
+  color: var(--rw-split-chrome-fg, #131722);
+  /* Metrics below are read off the widget's own header: 38px rows, 14px text, 38px square
+     icon buttons with 5px side padding, 9px separator gutters. */
+  font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  user-select: none;
+  /* Never let a long layout name or a narrow window push a control out of the band. */
+  overflow: hidden;
+  flex-wrap: nowrap;
+}
+
+.rw-split-chrome--header {
+  top: 0;
+  height: 38px;
+  border-bottom: 1px solid var(--rw-split-chrome-line, #e0e3eb);
+}
+
+.rw-split-chrome--footer {
+  bottom: 0;
+  height: 38px;
+  border-top: 1px solid var(--rw-split-chrome-line, #e0e3eb);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-split-chrome {
+  --rw-split-chrome-bg: #131722;
+  --rw-split-chrome-fg: #d1d4dc;
+  --rw-split-chrome-line: #2a2e39;
+}
+
+.rw-split-chrome__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rw-split-chrome--footer .rw-split-chrome__btn {
+  min-width: 26px;
+  padding: 0 6px;
+}
+
+.rw-split-chrome--footer .rw-split-chrome__btn[data-rw-chrome='gotodate'] {
+  min-width: 38px;
+  padding: 0 5px;
+}
+
+.rw-split-chrome__btn--text {
+  padding: 0 10px;
+}
+
+.rw-split-chrome__btn--symbol {
+  gap: 6px;
+  padding: 0 10px 0 8px;
+  text-transform: uppercase;
+}
+
+.rw-split-chrome__btn--interval {
+  min-width: 39px;
+}
+
+/* Buttons we add ourselves wear TradingView's "custom button" pill rather than the plain
+   header face, matching what `createButton({ useTradingViewStyle: true })` produces. */
+.rw-split-chrome__btn--pill {
+  height: 28px;
+  margin: 0 2px;
+  padding: 0 10px;
+  gap: 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.rw-split-chrome__btn svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.rw-split-chrome__btn:hover {
+  background: rgba(19, 23, 34, 0.08);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-split-chrome__btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Price-scale toggles latch, so they need a resting "on" face as well as a hover one. */
+.rw-split-chrome__btn.is-on {
+  background: rgba(19, 23, 34, 0.1);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-split-chrome__btn.is-on {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.rw-split-chrome__label {
+  white-space: nowrap;
+}
+
+/* TradingView gives each separator a 9px gutter with the rule centred inside it. */
+.rw-split-chrome__sep {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 9px;
+  height: 18px;
+  border-left: 1px solid var(--rw-split-chrome-line, #e0e3eb);
+  margin-left: 4px;
+}
+
+.rw-split-chrome__spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
+/* Hosts HTML owned by the workspace (the layout chip, the session strip) verbatim. */
+.rw-split-chrome__slot {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  /* Must not shrink: these two are the only flexible items in the row, so letting them give
+     way means the chip collapses to nothing while every fixed button still overflows. The
+     row sheds whole controls instead, and the chip ellipsises within its own max-width. */
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 4px;
+  overflow: hidden;
+}
+
+.rw-split-chrome__btn.is-collapsed,
+.rw-split-chrome__btn.is-label-off .rw-split-chrome__label {
+  display: none;
+}
+
+.rw-split-chrome.is-compact-seps .rw-split-chrome__sep {
+  display: none;
+}
+
+/* --- Session volume pill and layout chip ---------------------------------
+   Both are rendered from the same markup the TradingView header uses, but that
+   stylesheet is injected into the widget's iframe and cannot reach app DOM, so the
+   rules are restated here against the app's own theme selector. */
+
+.rw-split-chrome .rw-tv-sessions {
+  display: inline-flex;
+  align-items: center;
+}
+
+.rw-split-chrome .rw-tv-volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 6px 0 7px;
+  box-sizing: border-box;
+  border: 1px solid #d6d9df;
+  border-radius: 999px;
+  color: #434651;
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rw-split-chrome .rw-tv-volume:hover,
+.rw-split-chrome .rw-tv-volume[data-expanded='true'] {
+  border-color: #b6bac1;
+}
+
+.rw-split-chrome .rw-tv-volume__dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  background: #cc2b7a;
+}
+
+.rw-split-chrome .rw-tv-volume[data-level='medium'] .rw-tv-volume__dot {
+  background: #f2b705;
+}
+
+.rw-split-chrome .rw-tv-volume[data-level='high'] .rw-tv-volume__dot {
+  background: #36b84a;
+}
+
+.rw-split-chrome .rw-tv-volume__chev {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: -1px;
+  opacity: 0.75;
+  transition: transform 120ms ease;
+}
+
+.rw-split-chrome .rw-tv-volume__chev svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+.rw-split-chrome .rw-tv-volume[data-expanded='true'] .rw-tv-volume__chev {
+  transform: rotate(180deg);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-split-chrome .rw-tv-volume {
+  border-color: #434651;
+  color: #d1d4dc;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-split-chrome .rw-tv-volume:hover,
+.rw-root[data-chart-theme='dark'] .rw-split-chrome .rw-tv-volume[data-expanded='true'] {
+  border-color: #5d606b;
+}
+
+.rw-split-chrome .rw-tv-layout-chip {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 2px;
+  max-width: 230px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.rw-split-chrome .rw-tv-layout-chip__ico,
+.rw-split-chrome .rw-tv-layout-chip__chev {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.rw-split-chrome .rw-tv-layout-chip__ico svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.rw-split-chrome .rw-tv-layout-chip__chev svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.rw-split-chrome .rw-tv-layout-chip__ico:hover,
+.rw-split-chrome .rw-tv-layout-chip__chev:hover {
+  background-color: rgba(19, 23, 34, 0.09);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-split-chrome .rw-tv-layout-chip__ico:hover,
+.rw-root[data-chart-theme='dark'] .rw-split-chrome .rw-tv-layout-chip__chev:hover {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.rw-split-chrome .rw-tv-layout-chip__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.rw-split-chrome .rw-tv-layout-chip__dirty {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: #2962ff;
+}
+
+.rw-split-chrome__clock {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}

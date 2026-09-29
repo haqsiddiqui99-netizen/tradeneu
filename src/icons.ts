@@ -63,6 +63,12 @@ export const icons = {
     12,
     12,
   ),
+  /** Chart edge collapse handles — flipped with CSS rather than a second icon. */
+  chevronRight: svg(
+    '<path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"/>',
+    12,
+    12,
+  ),
   /** Chart header — back to dashboard. */
   arrowLeft: svg(
     '<path d="M19 12H5M11 18l-6-6 6-6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>',

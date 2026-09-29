@@ -54,6 +54,12 @@ const DEFAULT_BOOT_BAR_SPACING = 6
 const REPLAY_RIGHT_OFFSET = 12
 /** Bars to show after switching 1m/5m/15m so candles keep normal width. */
 const INTERVAL_SWAP_VISIBLE_BARS = 80
+/**
+ * Backoff for re-asserting the boot window, totalling ~7s. TV collapses the axis once its
+ * data settles, and on a slow feed that lands seconds after boot — a short budget expires
+ * first and leaves the chart zoomed onto the last bar with every revealed candle off-screen.
+ */
+const BOOT_VIEWPORT_VERIFY_DELAYS = [120, 240, 360, 480, 700, 900, 1200, 1500, 2000]
 /** Tick / sub-minute: TV resolution stays 1m but bars are remapped to minute slots. */
 const TICK_SWAP_VISIBLE_BARS = 120
 const REFRESH_THROTTLE_MS = 150
@@ -159,6 +165,12 @@ export type TvReplayChartController = {
   captureVisibleRange: () => { from: number; to: number } | null
   captureLockedViewport: () => TvLockedViewport | null
   restoreVisibleRange: (range: TvLockedViewport) => Promise<void>
+  /**
+   * Re-zoom to a normal candle width around the revealed bars. Needed whenever bar spacing
+   * stops meaning what it did — an interval swap changes the bar duration, and a split layout
+   * changes the plot width, both of which otherwise leave a handful of bars on screen.
+   */
+  refitViewport: (bars: Bar[], pastCount: number) => void
   dispose: () => void
 }
 
@@ -831,11 +843,17 @@ export function createTvReplayChartController(opts: {
     // TV can re-fit to the data span right after resetData/getBars settle, which collapses
     // the window. Re-assert the bar layout until it sticks.
     const verifyBootViewport = (attempt = 0) => {
-      if (attempt >= 5 || opts.isDisposed()) return
+      if (attempt >= BOOT_VIEWPORT_VERIFY_DELAYS.length || opts.isDisposed()) return
+      // A pinned viewport means playback or the trader now owns the view — re-asserting the
+      // boot window here would yank them back to it.
+      if (frozenViewport || replayLockedViewport) return
       if (!bootViewportLooksApplied(anchorIdx)) {
         applyViewportAroundBarIndex(anchorIdx, { preserveBarSpacing: false })
       }
-      window.setTimeout(() => verifyBootViewport(attempt + 1), 120 * (attempt + 1))
+      window.setTimeout(
+        () => verifyBootViewport(attempt + 1),
+        BOOT_VIEWPORT_VERIFY_DELAYS[attempt],
+      )
     }
     window.setTimeout(() => verifyBootViewport(0), 80)
   }
@@ -1997,6 +2015,12 @@ export function createTvReplayChartController(opts: {
 
     async restoreVisibleRange(saved) {
       await restoreVisibleRangeLocked(saved)
+    },
+
+    refitViewport(bars, pastCount) {
+      replayLockedViewport = null
+      playbackOffsetAnchor = null
+      scheduleIntervalSwapRefit(bars, pastCount)
     },
 
     isProgrammaticViewportRestore() {

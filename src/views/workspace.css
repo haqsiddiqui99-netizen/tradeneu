@@ -592,7 +592,8 @@
 .rw-chart-wrap {
   grid-area: chart;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  /* Second track stays empty until the market panel opens; everything else pins to column 1. */
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
@@ -1904,6 +1905,71 @@ button.rw-legend-status-btn:focus-visible {
 /* TV chart already shows “Chart by TradingView” — hide our watermark so it doesn’t clip that badge. */
 .rw-root--tv .rw-watermark {
   display: none !important;
+}
+
+/* Collapse handles pinned to the chart's outer edges: left folds the drawing toolbar,
+   right folds TradingView's side panel. The chevron points the way the panel will move. */
+.rw-chart-edge {
+  position: absolute;
+  top: 50%;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid var(--rw-chart-edge-border, #e0e3eb);
+  background: var(--rw-chart-edge-bg, #f0f3fa);
+  color: var(--rw-chart-edge-fg, #5d606b);
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.rw-chart-edge[hidden] {
+  display: none;
+}
+
+.rw-chart-edge:hover {
+  background: var(--rw-chart-edge-bg-hover, #e0e3eb);
+  color: var(--rw-chart-edge-fg-hover, #131722);
+}
+
+.rw-chart-edge svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+}
+
+.rw-chart-edge[data-rw-chart-edge='left'] {
+  left: 0;
+  transform: translateY(-50%);
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+}
+
+.rw-chart-edge[data-rw-chart-edge='right'] {
+  right: 0;
+  transform: translateY(-50%);
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+}
+
+/* aria-expanded tracks the panel, so the chevron always points at the resulting motion. */
+.rw-chart-edge[data-rw-chart-edge='left'][aria-expanded='true'] svg,
+.rw-chart-edge[data-rw-chart-edge='right'][aria-expanded='false'] svg {
+  transform: scaleX(-1);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-chart-edge {
+  --rw-chart-edge-border: #2a2e39;
+  --rw-chart-edge-bg: #1e222d;
+  --rw-chart-edge-fg: #a3a6af;
+  --rw-chart-edge-bg-hover: #2a2e39;
+  --rw-chart-edge-fg-hover: #ffffff;
 }
 
 /* Chart bottom nav — hidden until hover (TradingView-style floating tiles) */
@@ -5935,7 +6001,9 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   display: flex;
   flex-direction: column;
   padding: 4px 10px 4px;
-  background: #f3f4f6;
+  /* Reads as a continuation of the chart, not a separate tray — the trade bar on top of
+     this contributes no surface of its own, so this is the only footer fill. */
+  background: var(--rw-chart);
 }
 
 .rw-foot__trade-dock-row--collapsed .rw-order-book {
@@ -7990,7 +8058,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 .rw-root--fxr .rw-foot__trade-dock-row {
   padding: 2px 10px 2px;
-  background: #f3f4f6;
+  background: var(--rw-chart);
 }
 
 .rw-root--fxr .rw-foot__strip-left {
@@ -8038,16 +8106,17 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   color: var(--rw-bright);
 }
 
+/* No card of its own: a rounded, bordered, shadowed panel floating inside the footer read
+   as a grey slab pasted over the chart. The row underneath supplies the fill and the side
+   gutter, so this only lays out the controls. */
 .rw-root--fxr .rw-trade-bar {
   width: 100%;
-  background: #ffffff;
-  border: 1px solid #e0e3eb;
-  border-radius: 10px;
-  padding: 3px 8px 3px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 3px 0;
   gap: 8px;
-  box-shadow:
-    0 0 0 1px rgba(17, 24, 39, 0.02),
-    0 1px 6px rgba(17, 24, 39, 0.05);
+  box-shadow: none;
 }
 
 .rw-foot__trade-dock {
@@ -9490,6 +9559,13 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 .rw-trade-bar__ico:hover {
   background: var(--rw-hover);
   color: var(--rw-bright);
+}
+
+/* The only trade-bar control without a dark variant — it was rendering as a pale disc. */
+.rw-root[data-chart-theme='dark'] .rw-trade-bar__ico {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: #1e222d;
+  color: #b4b9c6;
 }
 
 /* Mirrors the take-partials amount field: box, track and stepper arrows. */

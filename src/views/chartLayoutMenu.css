@@ -1,0 +1,90 @@
+/* Dropdown under the layout name chip in the TradingView header */
+
+.rw-laymenu {
+  position: fixed;
+  z-index: var(--rw-z-popover-top);
+  min-width: 230px;
+  display: none;
+  flex-direction: column;
+  padding: var(--rw-space-1) 0;
+  font-family: var(--rw-font);
+  font-size: 13px;
+  /* Fallbacks matter: the tokens are only defined for menus registered in
+     menu-portal.css, and without them `color` inherits the app shell's pale text and the
+     whole menu reads as disabled. */
+  color: var(--rw-menu-text, #131722);
+  background: var(--rw-menu-bg, #ffffff);
+  border: 1px solid var(--rw-menu-border, #e0e3eb);
+  border-radius: var(--rw-radius-sm);
+  box-shadow: var(--rw-menu-shadow-lg, 0 10px 32px rgba(19, 23, 34, 0.14));
+}
+
+.rw-laymenu.rw-laymenu--open {
+  display: flex;
+}
+
+.rw-laymenu__sep {
+  height: 1px;
+  margin: var(--rw-space-1) 0;
+  background: var(--rw-menu-sep, #e0e3eb);
+}
+
+.rw-laymenu__btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 8px var(--rw-space-3);
+  border: none;
+  background: transparent;
+  color: var(--rw-menu-text, #131722);
+  font: 400 13px/1.25 var(--rw-font);
+  letter-spacing: -0.01em;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--rw-transition-fast);
+}
+
+.rw-laymenu__btn:hover:not(:disabled) {
+  background: var(--rw-menu-hover, #f0f3fa);
+}
+
+.rw-laymenu__btn:disabled {
+  color: var(--rw-menu-muted, #787b86);
+  cursor: default;
+}
+
+/* Only rendered on rows that have an icon, so it starts on the same left edge as the
+   plain labels above. Inherits the row's colour so it dims with the label. */
+.rw-laymenu__ico {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: inherit;
+}
+
+.rw-laymenu__ico svg {
+  width: 17px;
+  height: 17px;
+}
+
+.rw-laymenu__lbl {
+  flex: 1;
+  min-width: 0;
+}
+
+.rw-laymenu__key {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--rw-menu-key, #9aa0ab);
+  white-space: nowrap;
+}
+
+.rw-laymenu__btn:disabled .rw-laymenu__key {
+  color: var(--rw-menu-muted, #787b86);
+  opacity: 0.7;
+}
