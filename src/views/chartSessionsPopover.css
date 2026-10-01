@@ -67,3 +67,46 @@
 .rw-sesspop[data-chart-theme='dark'] .rw-tv-session__flag {
   box-shadow: 0 0 0 1.5px #50535e;
 }
+
+/* A stand-in for the library's tooltip, which cannot reach these flags: the panel is portaled to
+   the parent document while that handler lives inside the chart frame. The volume pill above opens
+   the real one, so the numbers here are copied from the library's `.common-tooltip` rules to keep
+   the two indistinguishable — 13px over an 18px line at weight 400, 3px by 8px of padding, a 2px
+   radius, a 310px ceiling before the text wraps, and a 4px gap from the anchor.
+   Right-aligned rather than centred because the panel is pinned near the window's right edge, and
+   a tooltip this wide centred on the last flag would run off-screen; growing leftwards there is
+   always room for. */
+.rw-sesspop .rw-tv-session::after {
+  content: attr(data-rw-tip);
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: max-content;
+  max-width: 310px;
+  padding: 3px 8px;
+  border-radius: 2px;
+  background: #2e2e2e;
+  color: #f2f2f2;
+  font: 400 13px/18px var(--rw-tv-ui-font);
+  text-align: start;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s linear;
+}
+
+/* Lifts the hovered flag over its neighbours so a later sibling cannot paint across the tooltip. */
+.rw-sesspop .rw-tv-session:hover {
+  z-index: 1;
+}
+
+.rw-sesspop .rw-tv-session:hover::after {
+  opacity: 1;
+}
+
+/* The library pitches its tooltip a shade lighter on the dark palette so it still separates from
+   the surface behind it; these are the two values it resolves to. */
+.rw-sesspop[data-chart-theme='dark'] .rw-tv-session::after {
+  background: #3d3d3d;
+}

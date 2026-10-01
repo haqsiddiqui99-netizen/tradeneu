@@ -220,7 +220,7 @@
   background: var(--rw-menu-active-hover);
 }
 
-/* TradingView-style “UPDATE INTERVAL” popover (replay dock) */
+/* Replay dock step list — a narrow column of intervals, no header or footer chrome. */
 .rw-intmenu--replay {
   /* Match TV charting library interval dropdown typography */
   --rw-tv-int-font: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
@@ -228,51 +228,24 @@
   font-size: 14px;
   font-weight: 400;
   line-height: 18px;
-  min-width: 220px;
-  max-width: 260px;
+  /* Sized by its longest step rather than a fixed floor: the labels are short and abbreviated,
+     so a floor wide enough for the worst case left a column of dead white to the right of every
+     row. `10 min` sets the width now. */
+  min-width: 0;
+  max-width: 180px;
   /* Hard ceiling; JS caps further to available space above/below the dock. */
   max-height: min(420px, 60vh);
   padding: 0;
   border-radius: 6px;
+  /* Surface is pinned per chart theme rather than taken from `--rw-menu-bg` like the default
+     variant: this list follows the chart's theme, that variable follows the app's, and when the
+     two disagreed the panel took one theme's background and the other's ink. */
+  background: #ffffff;
+  border-color: transparent;
   color: #131722;
   box-shadow:
     0 0 0 1px rgba(19, 23, 34, 0.08),
     0 8px 28px rgba(19, 23, 34, 0.14);
-}
-
-.rw-intmenu--replay .rw-intmenu__tv-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 12px 8px;
-  border-bottom: 1px solid rgba(19, 23, 34, 0.08);
-}
-
-.rw-intmenu--replay .rw-intmenu__tv-title {
-  font-family: var(--rw-tv-int-font);
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0.06em;
-  line-height: 16px;
-  text-transform: uppercase;
-  color: #787b86;
-}
-
-.rw-intmenu--replay .rw-intmenu__tv-help {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  padding: 0;
-  border: 1px solid #787b86;
-  border-radius: 50%;
-  background: transparent;
-  color: #787b86;
-  font: 400 11px/1 var(--rw-tv-int-font);
-  cursor: help;
 }
 
 .rw-intmenu--replay .rw-intmenu__scroll {
@@ -283,15 +256,38 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* A short window caps this list and a platform scrollbar then claims 16px of a panel only
+     ~80px wide, which is most of the gap the labels were meant to sit in. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(19, 23, 34, 0.25) transparent;
 }
 
-.rw-intmenu--replay .rw-intmenu__tv-head,
-.rw-intmenu--replay .rw-intmenu__tv-foot {
-  flex: 0 0 auto;
+.rw-intmenu--replay .rw-intmenu__scroll::-webkit-scrollbar {
+  width: 6px;
 }
 
+.rw-intmenu--replay .rw-intmenu__scroll::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(19, 23, 34, 0.25);
+}
+
+.rw-intmenu--replay .rw-intmenu__scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.rw-intmenu--replay[data-chart-theme='dark'] .rw-intmenu__scroll {
+  scrollbar-color: rgba(209, 212, 220, 0.3) transparent;
+}
+
+.rw-intmenu--replay[data-chart-theme='dark'] .rw-intmenu__scroll::-webkit-scrollbar-thumb {
+  background: rgba(209, 212, 220, 0.3);
+}
+
+/* Left gutter is the tick's lane, so the labels stay on one baseline whether or not the row
+   is the current step. */
 .rw-intmenu--replay .rw-intmenu__btn {
-  padding: 8px 14px;
+  position: relative;
+  padding: 8px 12px 8px 28px;
   font-family: var(--rw-tv-int-font);
   font-size: 14px;
   font-weight: 400;
@@ -302,95 +298,58 @@
 }
 
 .rw-intmenu--replay .rw-intmenu__btn--active {
-  background: #2a2e39;
-  color: #ffffff;
+  background: transparent;
+  color: #2962ff;
   font-weight: 400;
 }
 
 .rw-intmenu--replay .rw-intmenu__btn--active:hover:not(:disabled) {
-  background: #363a45;
-  color: #ffffff;
+  background: var(--rw-menu-hover, rgba(19, 23, 34, 0.06));
+  color: #2962ff;
   filter: none;
 }
 
-.rw-intmenu--replay .rw-intmenu__tv-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px 12px;
-  border-top: 1px solid rgba(19, 23, 34, 0.08);
-}
-
-.rw-intmenu--replay .rw-intmenu__tv-auto-label {
-  font-family: var(--rw-tv-int-font);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 18px;
-  color: #131722;
-}
-
-.rw-intmenu--replay .rw-intmenu__tv-toggle {
-  position: relative;
-  width: 34px;
-  height: 18px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: #b2b5be;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s ease;
-}
-
-.rw-intmenu--replay .rw-intmenu__tv-toggle::after {
+.rw-intmenu--replay .rw-intmenu__btn--active::before {
   content: '';
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(19, 23, 34, 0.25);
-  transition: transform 0.15s ease;
+  left: 11px;
+  top: 50%;
+  width: 9px;
+  height: 5px;
+  margin-top: -3px;
+  border: solid currentColor;
+  border-width: 0 0 1.6px 1.6px;
+  transform: rotate(-45deg);
 }
 
-.rw-intmenu--replay .rw-intmenu__tv-toggle--on {
-  background: #2962ff;
+/* The panel is portaled to <body>, so it is never a descendant of `.rw-root` and a
+   `.rw-root[data-chart-theme]` prefix can never match it. `syncChartThemeToElement` stamps the
+   attribute onto the panel itself on open, so the dark theme has to be read from there — with
+   the prefixed form the light ink above simply stayed put on a dark surface. */
+.rw-intmenu--replay[data-chart-theme='dark'] {
+  background: var(--rw-tv-surface-dark);
+  color: var(--rw-tv-popup-ink);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 8px 28px rgba(0, 0, 0, 0.6);
 }
 
-.rw-intmenu--replay .rw-intmenu__tv-toggle--on::after {
-  transform: translateX(16px);
+.rw-intmenu--replay[data-chart-theme='dark'] .rw-intmenu__btn {
+  color: var(--rw-tv-popup-ink);
 }
 
-.rw-root[data-chart-theme='dark'] .rw-intmenu--replay {
-  color: #d1d4dc;
+.rw-intmenu--replay[data-chart-theme='dark'] .rw-intmenu__btn:hover:not(:disabled) {
+  background: var(--rw-tv-popup-hover);
 }
 
-.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__tv-title,
-.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__tv-help {
-  color: #787b86;
-  border-color: #787b86;
+.rw-intmenu--replay[data-chart-theme='dark'] .rw-intmenu__btn--active {
+  background: transparent;
+  color: #2962ff;
 }
 
-.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__btn {
-  color: #d1d4dc;
-}
-
-.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__btn--active {
-  background: #2962ff;
-  color: #ffffff;
-}
-
-.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__btn--active:hover:not(:disabled) {
-  background: #1e53e5;
-  color: #ffffff;
-}
-
-.rw-root[data-chart-theme='dark'] .rw-intmenu--replay .rw-intmenu__tv-auto-label {
-  color: #d1d4dc;
+.rw-intmenu--replay[data-chart-theme='dark'] .rw-intmenu__btn--active:hover:not(:disabled) {
+  background: var(--rw-tv-popup-hover);
+  color: #2962ff;
 }
 
 .rw-replay-dock__interval--open .rw-replay-dock__interval-chev,

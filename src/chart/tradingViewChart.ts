@@ -148,6 +148,8 @@ export type TradingViewChartHandle = {
   chartBarTimeSecAtIndex: (barIndex: number) => number | null
   /** Last bar index TV currently holds in the series (feed may be truncated at the cursor). */
   seriesLastBarIndex: () => number
+  /** First bar index TV currently holds — earlier history may have been trimmed off. */
+  seriesFirstBarIndex: () => number
   plotXForWallTimeMs: (timeMs: number, plotOffsetX: number) => number | null
   hostPointForWallTimeMs: (
     timeMs: number,
@@ -342,7 +344,8 @@ type TvWidgetApi = {
   remove: () => void
   removeButton: (buttonIdOrElement: string | HTMLElement) => void
   setSymbol: (symbol: string, interval: string, callback?: () => void) => void
-  changeTheme: (theme: TvTheme) => void
+  /** `disableUndo` is what keeps a palette swap from becoming an undoable chart edit. */
+  changeTheme: (theme: TvTheme, options?: { disableUndo: boolean }) => void
   onChartReady: (cb: () => void) => void
   applyOverrides: (overrides: Record<string, unknown>) => void
   activeChart: () => TvChartApi
@@ -404,6 +407,14 @@ function tvIframeDocument(mount: HTMLElement): Document | null {
  */
 /** Used until the widget's own header and footer can be measured; matches CL v32 defaults. */
 const TV_CHROME_INSET_FALLBACK = { top: 42, bottom: 39 }
+
+/**
+ * The single dark surface colour, shared by the chart pane, the widget's own header and
+ * footer, and the app chrome around them (`--rw-chart` in chart-themes.css). TradingView's
+ * stock dark is #131722, which read as navy next to the app's panels — one value keeps the
+ * whole workspace flat. Keep this in step with `--rw-chart`.
+ */
+const TV_DARK_SURFACE = '#0f0f0f'
 
 const TV_HAIRLINE_FALLBACK_FROM_BOTTOM_PX = 100
 const TV_HAIRLINE_SEARCH_MAX_FROM_BOTTOM_PX = 160
@@ -867,6 +878,7 @@ function applyIconHeaderButton(el: HTMLElement, iconHtml: string, title: string,
     // Opts into TradingView's own tooltip (dark pill under the button) instead of the
     // browser's native one; its handler is delegated, so `title` is all it needs.
     slot.classList.add('apply-common-tooltip')
+    if (slot.ownerDocument) ensureThemeHeaderCss(slot.ownerDocument)
   }
   if (id === 'layout') {
     // Icon + name + chevron, so it needs to grow past the square icon-button box.
@@ -905,6 +917,7 @@ const iconHeaderButtonBoundSlots = new WeakSet<HTMLElement>()
 const REPLAY_HEADER_CSS_ID = 'rw-tv-replay-header-css'
 const GOTO_HEADER_CSS_ID = 'rw-tv-goto-header-css'
 const SESSION_HEADER_CSS_ID = 'rw-tv-session-header-css'
+const THEME_HEADER_CSS_ID = 'rw-tv-theme-header-css'
 const AXIS_HAIRLINE_KILL_CSS_ID = 'rw-tv-axis-hairline-kill-css'
 const INDICATORS_DIALOG_CSS_ID = 'rw-tv-indicators-dialog-css'
 const TV_BACK_PAD_CSS_ID = 'rw-tv-back-pad-css'
@@ -1032,6 +1045,44 @@ function ensureGoToHeaderCss(doc: Document) {
 }
 /* The ::before carries the highlight — don't dim the label on top of it. */
 [data-rw-tv-btn="goto"].rw-tv-header-btn:hover { opacity: 1 !important; }
+`
+}
+
+/** Mirrors the theme toggle's hover pill from `tv-header-overrides.css`, for when that sheet lags. */
+function ensureThemeHeaderCss(doc: Document) {
+  let style = doc.getElementById(THEME_HEADER_CSS_ID) as HTMLStyleElement | null
+  if (!style) {
+    style = doc.createElement('style')
+    style.id = THEME_HEADER_CSS_ID
+    ;(doc.head ?? doc.documentElement).appendChild(style)
+  }
+  style.textContent = `
+[data-rw-tv-btn="theme"].rw-tv-header-btn {
+  position: relative !important;
+  z-index: 0 !important;
+  min-width: 38px !important;
+  height: 38px !important;
+}
+[data-rw-tv-btn="theme"].rw-tv-header-btn::before {
+  content: '';
+  position: absolute;
+  inset: var(--tv-toolbar-explicit-hover-margin, 2px);
+  border-radius: var(--tv-toolbar-explicit-hover-border-radius, 6px);
+  background-color: transparent;
+  pointer-events: none;
+  z-index: -1;
+}
+[data-rw-tv-btn="theme"].rw-tv-header-btn:hover::before,
+[data-rw-tv-btn="theme"].rw-tv-header-btn:active::before {
+  background-color: var(
+    --tv-color-toolbar-button-background-hover,
+    var(--color-toolbar-button-background-hover, #f0f3fa)
+  );
+}
+[data-rw-tv-btn="theme"].rw-tv-header-btn.rw-tv-header-btn--icon:hover {
+  opacity: 1 !important;
+  color: var(--tv-color-toolbar-button-text-hover, var(--color-toolbar-button-text-hover, inherit)) !important;
+}
 `
 }
 
@@ -1456,8 +1507,14 @@ function ensureTvBackPadCss(doc: Document) {
   box-sizing: border-box !important;
   background-color: #ffffff !important;
 }
-html.theme-dark .layout__area--top {
-  background-color: #131722 !important;
+/* TradingView's stock dark chrome is #131722; repaint its header and the bottom controls
+   bar so the widget matches the one dark surface the rest of the workspace uses. */
+html.theme-dark .layout__area--top,
+html.theme-dark .chart-controls-bar,
+html.theme-dark .layout__area--center,
+html.theme-dark .chart-container,
+html.theme-dark body {
+  background-color: ${TV_DARK_SURFACE} !important;
 }
 `
 }
@@ -2244,7 +2301,7 @@ export async function createTradingViewChart(
       // Parent `use_localstorage_for_settings` is off; re-enable stars in Indicators dialog.
       'items_favoriting',
     ],
-    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css?v=laysetup-1`,
+    custom_css_url: `${chartingLibraryBaseUrl()}tv-header-overrides.css?v=themehover-1`,
     // Throttles `onAutoSaveNeeded`, which drives the "unsaved changes" state on the
     // layout menu's Save item; the 5s default made the item feel stuck.
     auto_save_delay: 1,
@@ -2254,7 +2311,7 @@ export async function createTradingViewChart(
     overrides: {
       ...(opts.theme === 'dark'
         ? {
-            'paneProperties.background': '#131722',
+            'paneProperties.background': TV_DARK_SURFACE,
             'paneProperties.backgroundType': 'solid',
           }
         : {
@@ -2606,6 +2663,7 @@ export async function createTradingViewChart(
       disposed ? null : (widget as unknown as import('./tradingViewReplayChart').TvReplayWidgetApi),
     replayFeed: datafeedBundle.replayFeed,
     isDisposed: () => disposed,
+    getIframeDocument: () => (disposed ? null : tvIframeDocument(mount)),
   })
 
   return {
@@ -2775,9 +2833,16 @@ export async function createTradingViewChart(
 
     applyTheme(theme) {
       currentTheme = theme
-      widget.changeTheme(theme)
+      // `disableUndo` keeps the swap out of the library's undo stack. Without it the stack gained
+      // an "apply chart theme" entry, and undoing that put the widget's own chrome back to the
+      // other palette while the pane background stayed — that one comes from `applyOverrides`
+      // below, which the stack does not track — so the toolbars went light around a still-dark
+      // chart. Our shell and the stored preference are not the library's to move either, and they
+      // sat on the old value too. The palette is an app preference with its own toggle rather than
+      // an edit to the chart, so it has no business in a stack meant for drawings and studies.
+      widget.changeTheme(theme, { disableUndo: true })
       // Theme swap restores default axis line colors — re-hide optional lines.
-      const bg = theme === 'dark' ? '#131722' : '#ffffff'
+      const bg = theme === 'dark' ? TV_DARK_SURFACE : '#ffffff'
       chartChromeOverrides['scalesProperties.lineColor'] = bg
       chartChromeOverrides['paneProperties.separatorColor'] = bg
       try {
@@ -3074,6 +3139,10 @@ export async function createTradingViewChart(
 
     seriesLastBarIndex() {
       return replayCtrl?.seriesLastBarIndex() ?? 0
+    },
+
+    seriesFirstBarIndex() {
+      return replayCtrl?.seriesFirstBarIndex() ?? 0
     },
 
     plotXForWallTimeMs(timeMs, plotOffsetX) {

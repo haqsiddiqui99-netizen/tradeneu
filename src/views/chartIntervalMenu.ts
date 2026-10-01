@@ -36,13 +36,30 @@ const ICON_STAR_ON =
 /** Defer single-click favorite so double-click-to-unfavorite does not add then remove. */
 const FAV_CLICK_DELAY_MS = 250
 
+/** Steps the replay dock list shows before the rest are reached by scrolling. */
+const REPLAY_VISIBLE_ROWS = 7
+
+/**
+ * Height that shows exactly `rows` steps and cuts the next one off, so the list reads as a fixed
+ * window with more below rather than as everything there is. Measured from a rendered row instead
+ * of a constant, because the row height follows the menu's type.
+ */
+function visibleRowsHeight(scroll: HTMLElement, rows: number): number {
+  const row = scroll.querySelector<HTMLElement>('.rw-intmenu__btn')
+  const rowH = row?.getBoundingClientRect().height ?? 0
+  if (!rowH) return 0
+  const cs = getComputedStyle(scroll)
+  const padding = Number.parseFloat(cs.paddingTop) + Number.parseFloat(cs.paddingBottom)
+  return Math.round(rowH * rows + (Number.isFinite(padding) ? padding : 0))
+}
+
 function positionPanel(anchor: HTMLElement, panel: HTMLElement, variant: 'default' | 'replay' = 'default') {
   const r = anchor.getBoundingClientRect()
   const pad = variant === 'replay' ? 6 : 4
   const toolbarClearance = 48
   const edgePad = 8
   const minScrollH = 100
-  const panelW = panel.offsetWidth || (variant === 'replay' ? 220 : 154)
+  const panelW = panel.offsetWidth || (variant === 'replay' ? 84 : 154)
   const left =
     variant === 'replay'
       ? r.left + r.width / 2 - panelW / 2
@@ -53,9 +70,6 @@ function positionPanel(anchor: HTMLElement, panel: HTMLElement, variant: 'defaul
   panel.style.maxHeight = ''
   if (scroll) scroll.style.maxHeight = ''
 
-  const head = panel.querySelector<HTMLElement>('.rw-intmenu__tv-head')
-  const foot = panel.querySelector<HTMLElement>('.rw-intmenu__tv-foot')
-  const chromeH = (head?.offsetHeight ?? 0) + (foot?.offsetHeight ?? 0)
   const naturalH = panel.scrollHeight || panel.offsetHeight || 120
 
   const spaceAbove = Math.max(0, r.top - toolbarClearance - pad)
@@ -75,10 +89,16 @@ function positionPanel(anchor: HTMLElement, panel: HTMLElement, variant: 'defaul
 
   const avail = openBelow ? spaceBelow : spaceAbove
   // Hard-cap to available space so the menu never overlaps the replay bar / toolbar.
-  const maxPanelH = avail > 0 ? avail : minScrollH
+  let maxPanelH = avail > 0 ? avail : minScrollH
+  if (variant === 'replay' && scroll) {
+    // Set here rather than in CSS because the inline height below would override a stylesheet
+    // ceiling; a cramped window still wins, since it may not even have room for seven.
+    const rowsCap = visibleRowsHeight(scroll, REPLAY_VISIBLE_ROWS)
+    if (rowsCap > 0) maxPanelH = Math.min(maxPanelH, rowsCap)
+  }
   panel.style.maxHeight = `${maxPanelH}px`
   if (scroll) {
-    scroll.style.maxHeight = `${Math.max(48, maxPanelH - chromeH)}px`
+    scroll.style.maxHeight = `${Math.max(48, maxPanelH)}px`
     scroll.scrollTop = 0
   }
 
@@ -128,13 +148,10 @@ export function createChartIntervalMenu(opts: {
   items?: IntervalPick[]
   /** Dynamic compact list — preferred over `items` when both are set (rebuilds on each open). */
   getItems?: () => IntervalPick[] | null | undefined
-  /** `replay` = TradingView-style UPDATE INTERVAL popover under the replay dock pill. */
+  /** `replay` = compact step list under the replay dock pill. */
   variant?: 'default' | 'replay'
   /** Show “Add custom interval…” row (TradingView-style). */
   showCustomInterval?: boolean
-  /** TradingView “Auto select interval” (replay variant). */
-  getAutoSelectInterval?: () => boolean
-  setAutoSelectInterval?: (on: boolean) => void
   /** Extra documents/elements that should dismiss the menu (e.g. TV iframe / chart). */
   getDismissTargets?: () => Array<Document | EventTarget | null | undefined>
 }): ChartIntervalMenuApi {
@@ -144,51 +161,9 @@ export function createChartIntervalMenu(opts: {
   root.setAttribute('role', 'listbox')
   root.setAttribute('aria-label', opts.variant === 'replay' ? 'Update interval' : 'Chart interval')
 
-  let footEl: HTMLElement | null = null
-  if (opts.variant === 'replay') {
-    const head = document.createElement('div')
-    head.className = 'rw-intmenu__tv-head'
-    head.innerHTML =
-      '<span class="rw-intmenu__tv-title">Update interval</span>' +
-      '<button type="button" class="rw-intmenu__tv-help" title="Replay step interval. When Auto select is on, this follows the chart interval." aria-label="About update interval">?</button>'
-    root.appendChild(head)
-  }
-
   const scroll = document.createElement('div')
   scroll.className = 'rw-intmenu__scroll'
   root.appendChild(scroll)
-
-  if (opts.variant === 'replay' && opts.getAutoSelectInterval && opts.setAutoSelectInterval) {
-    footEl = document.createElement('div')
-    footEl.className = 'rw-intmenu__tv-foot'
-    const label = document.createElement('span')
-    label.className = 'rw-intmenu__tv-auto-label'
-    label.textContent = 'Auto select interval'
-    const toggle = document.createElement('button')
-    toggle.type = 'button'
-    toggle.className = 'rw-intmenu__tv-toggle'
-    toggle.setAttribute('role', 'switch')
-    const syncToggle = () => {
-      const on = opts.getAutoSelectInterval!()
-      toggle.classList.toggle('rw-intmenu__tv-toggle--on', on)
-      toggle.setAttribute('aria-checked', on ? 'true' : 'false')
-      toggle.title = on
-        ? 'Auto select on — replay follows the chart interval'
-        : 'Auto select off — pick a replay step manually'
-    }
-    syncToggle()
-    toggle.addEventListener('click', (e) => {
-      e.stopPropagation()
-      const next = !opts.getAutoSelectInterval!()
-      opts.setAutoSelectInterval!(next)
-      syncToggle()
-    })
-    footEl.appendChild(label)
-    footEl.appendChild(toggle)
-    root.appendChild(footEl)
-    // Keep syncToggle reachable when rebuilding is not needed for foot.
-    ;(footEl as HTMLElement & { __syncToggle?: () => void }).__syncToggle = syncToggle
-  }
 
   const expandedSections = new Set<string>(['seconds', 'minutes'])
   const isCompact =
@@ -285,7 +260,15 @@ export function createChartIntervalMenu(opts: {
     const btn = document.createElement('button')
     btn.type = 'button'
     btn.className = 'rw-intmenu__btn'
-    btn.textContent = item.label
+    // The dock lists steps by pill — `1m`, `10m`, `1h`, `1D` — so a row reads the same as the
+    // button that opens it and as the chart's own interval. The prose stays as the accessible
+    // name, since `1D` alone does not say "day" to a screen reader.
+    if (opts.variant === 'replay') {
+      btn.textContent = item.pill
+      btn.setAttribute('aria-label', item.label)
+    } else {
+      btn.textContent = item.label
+    }
     btn.dataset.pill = item.pill
     if (item.stepSec != null) btn.dataset.step = String(item.stepSec)
     if (item.tickCount != null) btn.dataset.ticks = String(item.tickCount)
@@ -499,10 +482,6 @@ export function createChartIntervalMenu(opts: {
     ensureExpandedForSelection()
     syncSectionOpenState()
     syncDisabledAndActive()
-    const footSync = footEl
-      ? (footEl as HTMLElement & { __syncToggle?: () => void }).__syncToggle
-      : undefined
-    footSync?.()
     syncChartThemeToElement(root)
     document.body.appendChild(root)
     root.classList.add('rw-intmenu--open')

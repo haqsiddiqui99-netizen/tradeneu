@@ -769,12 +769,14 @@
   transform: scale(0.98);
 }
 
+/* Matched to the chart's candle colours (TradingView's stock #089981 / #F23645) so the ticket
+   reads as the same up/down language as the series it trades against. */
 .rw-trade-btn--buy {
-  background: #0d9f8a;
+  background: #089981;
 }
 
 .rw-trade-btn--sell {
-  background: #f77c7c;
+  background: #f23645;
 }
 
 /* Chart / Trade view toggle — swaps which half of the workspace is maximized.
@@ -853,13 +855,13 @@
 /* The chevron sits right beside the grip and is the more important control
    (open/close), so it reads a bit larger than the grip glyph. */
 .rw-view-toggle__btn[data-rw-trade-dock-toggle] {
-  width: 28px;
-  height: 26px;
+  width: 34px;
+  height: 28px;
 }
 
 .rw-view-toggle__btn[data-rw-trade-dock-toggle] .sx-ico {
-  width: 17px;
-  height: 17px;
+  width: 22px;
+  height: 22px;
 }
 
 .rw-view-toggle__btn:hover:not(:disabled) {
@@ -892,7 +894,7 @@
 
 /* Match the bar-replay drag grip's dark-theme ink (same value it uses elsewhere in the app). */
 .rw-root[data-chart-theme='dark'] .rw-view-toggle__btn--grip {
-  color: #787b86;
+  color: #d1d4dc;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-view-toggle__btn:hover:not(:disabled) {
@@ -933,15 +935,17 @@
   min-width: 0;
 }
 
-/* Compact trigger pill: replaces the 3 inline stat columns, expands to a popover on click. */
+/* Compact trigger pill: replaces the 3 inline stat columns, expands to a popover on click.
+   Carries both the equity and the unrealised delta, so it stands at the 30px height of the
+   order-type and scalper controls beside it rather than the shorter inline-stat height. */
 .rw-trade-stats__trigger {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 24px;
-  padding: 0 8px;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
   border: 1px solid #8a90a0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: #fff;
   color: #11141c;
   box-shadow: 0 1px 2px rgba(19, 23, 34, 0.04);
@@ -962,31 +966,23 @@
 }
 
 .rw-trade-stats__trigger-ico svg {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
 }
 
 .rw-trade-stats__trigger .rw-trade-stats__val {
-  font-size: 11.5px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.rw-trade-stats__trigger-chevron {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #787b86;
-  transition: transform 0.15s ease;
-}
-
-.rw-trade-stats__trigger-chevron svg {
-  width: 10px;
-  height: 10px;
-}
-
-.rw-trade-stats__popover--open ~ .rw-trade-stats__trigger .rw-trade-stats__trigger-chevron,
-.rw-trade-stats__trigger[aria-expanded='true'] .rw-trade-stats__trigger-chevron {
-  transform: rotate(180deg);
+/* Dot between the equity and the unrealised delta — a shape rather than a glyph, so it keeps
+   its size and vertical centring whatever the surrounding font metrics do. */
+.rw-trade-stats__trigger-sep {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #b2b5be;
+  flex-shrink: 0;
 }
 
 .rw-trade-stats__popover {
@@ -996,12 +992,16 @@
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  min-width: 150px;
-  padding: 8px 10px;
-  border-radius: 9px;
+  gap: 15px;
+  min-width: 232px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  /* TradingView's dialog typography, as with the menus. The figures below keep their bold —
+     that contrast against the labels is what makes the rows readable — but the family and the
+     label size come from the same place as everything else that opens over the chart. */
+  font-family: var(--rw-tv-ui-font);
   background: #ffffff;
-  border: 1px solid rgba(19, 23, 34, 0.08);
+  border: 1px solid rgba(19, 23, 34, 0.06);
   box-shadow: 0 10px 28px rgba(19, 23, 34, 0.16), 0 2px 8px rgba(19, 23, 34, 0.08);
   opacity: 0;
   transform: translateY(4px) scale(0.98);
@@ -1020,19 +1020,25 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 24px;
 }
 
 .rw-trade-stats__popover .rw-trade-stats__lbl {
-  font-size: 11px;
-  font-weight: 400;
+  font-size: var(--rw-tv-popup-font-size);
+  font-weight: var(--rw-tv-popup-font-weight);
   color: #787b86;
   letter-spacing: 0;
 }
 
+/* Equity is the headline the pill itself shows, so its label carries the body ink while the
+   two PnL rows below it stay secondary. */
+.rw-trade-stats__popover .rw-trade-stats__lbl--head {
+  color: #131722;
+}
+
 .rw-trade-stats__popover .rw-trade-stats__val {
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: var(--rw-tv-popup-font-size);
+  font-weight: 700;
   letter-spacing: 0;
 }
 
@@ -1101,7 +1107,9 @@
   color: #d6d9e2;
 }
 
-/* Hidden values keep their box width so the footer does not reflow, and show dashes instead. */
+/* Hidden values keep their box width so the footer does not reflow, and swap in the bulleted
+   mask the JS stashed on the element — which preserves the `$`, grouping commas and decimal
+   point, so the figure stays recognisable as money without disclosing it. */
 .rw-trade-stats--hidden .rw-trade-stats__val {
   position: relative;
   color: transparent;
@@ -1109,11 +1117,16 @@
 }
 
 .rw-trade-stats--hidden .rw-trade-stats__val::after {
-  content: '------';
+  content: attr(data-rw-mask);
   position: absolute;
   inset: 0;
   color: #4b5160;
-  letter-spacing: 0.04em;
+}
+
+/* A masked figure carries no direction, so the up/down tinting must not leak through. */
+.rw-trade-stats--hidden .rw-trade-stats__val--up::after,
+.rw-trade-stats--hidden .rw-trade-stats__val--down::after {
+  color: #4b5160;
 }
 
 .rw-manual-pos {
@@ -1167,7 +1180,9 @@
   color: #b4b9c6;
 }
 
-.rw-root[data-chart-theme='dark'] .rw-trade-stats--hidden .rw-trade-stats__val::after {
+.rw-root[data-chart-theme='dark'] .rw-trade-stats--hidden .rw-trade-stats__val::after,
+.rw-root[data-chart-theme='dark'] .rw-trade-stats--hidden .rw-trade-stats__val--up::after,
+.rw-root[data-chart-theme='dark'] .rw-trade-stats--hidden .rw-trade-stats__val--down::after {
   color: #b4b9c6;
 }
 
@@ -1178,7 +1193,7 @@
 
 .rw-root[data-chart-theme='dark'] .rw-trade-stats__trigger {
   border-color: rgba(255, 255, 255, 0.28);
-  background: #1e222d;
+  background: var(--rw-chart);
   color: #e6e8ee;
   box-shadow: none;
 }
@@ -1188,23 +1203,49 @@
   border-color: rgba(255, 255, 255, 0.4);
 }
 
-.rw-root[data-chart-theme='dark'] .rw-trade-stats__trigger-ico,
-.rw-root[data-chart-theme='dark'] .rw-trade-stats__trigger-chevron {
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__trigger-ico {
   color: #b4b9c6;
 }
 
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__trigger-sep {
+  background: #5d6270;
+}
+
 .rw-root[data-chart-theme='dark'] .rw-trade-stats__popover {
-  background: #1e222d;
-  border-color: rgba(255, 255, 255, 0.14);
+  background: var(--rw-tv-surface-dark);
+  border-color: rgba(255, 255, 255, 0.1);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-trade-stats__popover .rw-trade-stats__lbl {
-  color: #b4b9c6;
+  color: var(--rw-tv-popup-ink-muted);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__popover .rw-trade-stats__lbl--head {
+  color: var(--rw-tv-popup-ink);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-trade-stats__popover .rw-trade-stats__val {
-  color: #e6e8ee;
+  color: var(--rw-tv-popup-ink);
+}
+
+/* The two rules below restate the theme-agnostic up/down and hidden treatments, because the
+   dark `__val` overrides above outweigh them on specificity and would otherwise flatten a
+   green PnL to plain ink and leave a masked figure's real digits showing through. Order
+   matters: these have to stay after the rules they are correcting. */
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__val--up,
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__popover .rw-trade-stats__val--up {
+  color: #089981;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__val--down,
+.rw-root[data-chart-theme='dark'] .rw-trade-stats__popover .rw-trade-stats__val--down {
+  color: #f23645;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-stats--hidden .rw-trade-stats__val,
+.rw-root[data-chart-theme='dark'] .rw-trade-stats--hidden .rw-trade-stats__popover .rw-trade-stats__val {
+  color: transparent;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-pos-row {

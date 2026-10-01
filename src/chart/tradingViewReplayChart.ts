@@ -73,6 +73,8 @@ export type TvLockedViewport = {
   to: number
   barSpacing?: number
   rightOffset?: number
+  /** TV's own last-bar index when captured — rightOffset is only meaningful against it. */
+  tvBaseIndex?: number
 }
 
 export type TvReplayChartController = {
@@ -128,6 +130,8 @@ export type TvReplayChartController = {
   chartBarTimeSecAtIndex: (barIndex: number) => number | null
   /** Last bar index TV currently holds in the series (feed may be truncated at the cursor). */
   seriesLastBarIndex: () => number
+  /** First bar index TV currently holds — earlier history may have been trimmed off. */
+  seriesFirstBarIndex: () => number
   /** Plot X in chart-host pixels for wall-clock tick time (sub-minute). */
   plotXForWallTimeMs: (timeMs: number, plotOffsetX: number) => number | null
   /** Chart-host pixel for tick overlay (time + price). */
@@ -178,6 +182,8 @@ export function createTvReplayChartController(opts: {
   getWidget: () => TvReplayWidgetApi | null
   replayFeed: TvReplayFeedController
   isDisposed: () => boolean
+  /** TradingView's own document — the reset bridge paints into it. */
+  getIframeDocument?: () => Document | null
 }): TvReplayChartController {
   let lastPastCount = -1
   let refreshTimer: ReturnType<typeof setTimeout> | null = null
@@ -250,6 +256,147 @@ export function createTvReplayChartController(opts: {
     if (force) pendingFullRefreshForce = true
   }
 
+  /**
+   * Hold the frame that is already on screen over the plot while TradingView refills itself.
+   *
+   * Dropping a candle — stepping replay back, seeking, swapping the step interval — can only
+   * be done by resetting the series, and the reset empties the chart before the datafeed has
+   * answered. TradingView requires that answer to be asynchronous, so at least one frame is
+   * painted with nothing in it, which is the flash a trader sees on every step back. The gap
+   * cannot be closed, but it can be covered: the pixels from just before the reset are a
+   * perfect stand-in for a step that only removes the rightmost candle, and two frames is far
+   * too short for the difference to register.
+   *
+   * The plot is held as copied pixels because a cloned canvas does not bring its bitmap along;
+   * the legend is held as a cloned node because copied pixels cannot carry DOM text. Both live
+   * inside TradingView's own document, so they can be positioned against the plot without
+   * depending on anything about our side of the iframe.
+   */
+  let resetBridgeEl: HTMLCanvasElement | null = null
+  let resetBridgeTimer: ReturnType<typeof setTimeout> | null = null
+  let frozenLegend: { el: HTMLElement; clone: HTMLElement; visibility: string } | null = null
+
+  const thawLegend = () => {
+    if (!frozenLegend) return
+    const { el, clone, visibility } = frozenLegend
+    frozenLegend = null
+    el.style.visibility = visibility
+    clone.remove()
+  }
+
+  const hideResetBridge = () => {
+    if (resetBridgeTimer) {
+      clearTimeout(resetBridgeTimer)
+      resetBridgeTimer = null
+    }
+    if (resetBridgeEl) resetBridgeEl.style.display = 'none'
+    thawLegend()
+  }
+
+  /**
+   * Outermost legend block — the symbol line, the OHLC readout and any study rows.
+   *
+   * Matched on the class prefix and narrowed to the element no other match contains, because
+   * TradingView's class names carry a per-build hash that cannot be relied on. Missing it is
+   * harmless: the legend then blinks as it did before rather than anything breaking.
+   */
+  const legendRoot = (doc: Document): HTMLElement | null => {
+    const hits = [...doc.querySelectorAll<HTMLElement>('[class*="legend-"]')]
+    return hits.find((el) => !hits.some((other) => other !== el && other.contains(el))) ?? null
+  }
+
+  /**
+   * The legend is DOM text, so unlike the plot it cannot be bridged with copied pixels — the
+   * canvas snapshot holds the candles but the OHLC readout renders above it and still empties
+   * for that frame. A clone carries its text along, so the reset is covered by standing a copy
+   * in the same place and hiding the original underneath; showing both would let the emptied
+   * values peek out between the copy's glyphs.
+   */
+  const freezeLegend = (doc: Document) => {
+    thawLegend()
+    const el = legendRoot(doc)
+    const parent = el?.parentElement
+    if (!el || !parent) return
+    const r = el.getBoundingClientRect()
+    if (!r.width || !r.height) return
+    const clone = el.cloneNode(true) as HTMLElement
+    clone.style.position = 'fixed'
+    clone.style.left = `${r.x}px`
+    clone.style.top = `${r.y}px`
+    clone.style.width = `${r.width}px`
+    clone.style.height = `${r.height}px`
+    clone.style.margin = '0'
+    clone.style.pointerEvents = 'none'
+    clone.style.zIndex = '41'
+    clone.setAttribute('aria-hidden', 'true')
+    // Beside the original rather than on the body: the legend's colours come from rules keyed on
+    // an ancestor, so a copy parked elsewhere in the document loses the theme and renders its
+    // text near-black — invisible on a dark chart. Kept as `fixed` so placement still comes from
+    // the measured rect and not from wherever the parent happens to put it.
+    parent.insertBefore(clone, el.nextSibling)
+    frozenLegend = { el, clone, visibility: el.style.visibility }
+    el.style.visibility = 'hidden'
+  }
+
+  /** Largest canvas rect in the document — TradingView's main plot. */
+  const mainPlotCanvases = (doc: Document): { rect: DOMRect; canvases: HTMLCanvasElement[] } | null => {
+    let rect: DOMRect | null = null
+    for (const c of doc.querySelectorAll('canvas')) {
+      const r = c.getBoundingClientRect()
+      if (r.width < 40 || r.height < 40) continue
+      if (!rect || r.width * r.height > rect.width * rect.height) rect = r
+    }
+    if (!rect) return null
+    const target = rect
+    const canvases = [...doc.querySelectorAll('canvas')].filter((c) => {
+      const r = c.getBoundingClientRect()
+      return Math.abs(r.x - target.x) < 1 && Math.abs(r.y - target.y) < 1 && Math.abs(r.width - target.width) < 1
+    })
+    return canvases.length ? { rect: target, canvases } : null
+  }
+
+  const showResetBridge = () => {
+    const doc = opts.getIframeDocument?.()
+    if (!doc?.body) return
+    try {
+      const plot = mainPlotCanvases(doc)
+      if (!plot) return
+      const { rect, canvases } = plot
+      const dpr = doc.defaultView?.devicePixelRatio || 1
+      let el = resetBridgeEl
+      if (!el || !el.isConnected) {
+        el = doc.createElement('canvas')
+        el.style.position = 'fixed'
+        el.style.pointerEvents = 'none'
+        el.style.zIndex = '40'
+        doc.body.appendChild(el)
+        resetBridgeEl = el
+      }
+      el.width = Math.max(1, Math.round(rect.width * dpr))
+      el.height = Math.max(1, Math.round(rect.height * dpr))
+      el.style.left = `${rect.x}px`
+      el.style.top = `${rect.y}px`
+      el.style.width = `${rect.width}px`
+      el.style.height = `${rect.height}px`
+      const g = el.getContext('2d')
+      if (!g) return
+      g.clearRect(0, 0, el.width, el.height)
+      for (const src of canvases) {
+        if (src === el || !src.width || !src.height) continue
+        g.drawImage(src, 0, 0, el.width, el.height)
+      }
+      el.style.display = 'block'
+      freezeLegend(doc)
+      const view = doc.defaultView ?? window
+      view.requestAnimationFrame(() => view.requestAnimationFrame(hideResetBridge))
+      // The rAF pair does the work; this only guarantees the chart is never left behind a
+      // stale image if the frames stop coming (background tab, teardown mid-reset).
+      resetBridgeTimer = setTimeout(hideResetBridge, 400)
+    } catch {
+      hideResetBridge()
+    }
+  }
+
   const doFullRefresh = () => {
     if (opts.isDisposed()) return
     lastRefreshAt = Date.now()
@@ -262,10 +409,12 @@ export function createTvReplayChartController(opts: {
     pendingFullRefresh = false
     pendingFullRefreshForce = false
     try {
+      showResetBridge()
       opts.replayFeed.requestSubscriberReset()
       w.resetCache()
       c.resetData()
     } catch {
+      hideResetBridge()
       markPendingFullRefresh(true)
     }
   }
@@ -462,6 +611,40 @@ export function createTvReplayChartController(opts: {
     }, 80)
   }
 
+  /**
+   * Index of the last bar in TradingView's own series.
+   *
+   * rightOffset counts bar slots back from that bar, so it only describes the same window while
+   * the series ends in the same place — which is why a window cannot be carried across a data
+   * change without this. Our own bar indices are not a substitute: the feed caps every response,
+   * so TV holds a moving window of our array rather than all of it, and the two drift apart.
+   * Not on the public time scale API, so it is read off the chart's own model and treated as
+   * optional — callers fall back to leaving the offset alone.
+   */
+  const tvBaseIndex = (): number | null => {
+    try {
+      const view = opts.getIframeDocument?.()?.defaultView as unknown as
+        | { chartWidget?: unknown }
+        | null
+        | undefined
+      const widget = view?.chartWidget as { model?: unknown } | undefined
+      if (!widget) return null
+      const model = (
+        typeof widget.model === 'function' ? (widget.model as () => unknown)() : widget.model
+      ) as { timeScale?: unknown } | undefined
+      const scale = (
+        typeof model?.timeScale === 'function'
+          ? (model.timeScale as () => unknown)()
+          : model?.timeScale
+      ) as { baseIndex?: unknown } | undefined
+      if (typeof scale?.baseIndex !== 'function') return null
+      const idx = (scale.baseIndex as () => unknown)()
+      return typeof idx === 'number' && Number.isFinite(idx) ? idx : null
+    } catch {
+      return null
+    }
+  }
+
   const readLockedViewport = (): TvLockedViewport | null => {
     const c = chart()
     if (!c?.getVisibleRange) return null
@@ -474,6 +657,7 @@ export function createTvReplayChartController(opts: {
         to: normalizeChartTimeSec(r.to),
         barSpacing: ts.barSpacing?.(),
         rightOffset: ts.rightOffset?.(),
+        tvBaseIndex: tvBaseIndex() ?? undefined,
       }
     } catch {
       return null
@@ -481,6 +665,35 @@ export function createTvReplayChartController(opts: {
   }
 
   const RESTORE_VIEWPORT_TIMEOUT_MS = 2500
+
+  /**
+   * Bar slots between the series' new end and the captured right edge.
+   *
+   * A scissors cut drops every bar to the right of the pick. `rightOffset` is measured from
+   * whatever bar TradingView currently calls last, and after `resetData` that index is rebased
+   * onto the window `getBars` just returned — not the old series. Adding `savedBase - nowBase`
+   * therefore counts bars that were loaded past the edge and never on screen, and the chart
+   * scrolls. Our own bar list does not rebase, so the slot count from the new end to the bar
+   * that sat on the old edge is the offset that leaves that edge, and every candle still in
+   * view, where it was.
+   */
+  const rightOffsetKeepingCapturedEdge = (saved: TvLockedViewport): number | null => {
+    const period = opts.replayFeed.getBarPeriodSec()
+    if (!Number.isFinite(period) || period <= 0 || !Number.isFinite(saved.to)) return null
+    const bars = opts.replayFeed.getAllBars()
+    if (!bars.length) return null
+    const edgeSec = normalizeChartTimeSec(saved.to)
+    const edgeIdx = opts.replayFeed.findBarIndexAtOrBeforeTimeSec(edgeSec)
+    const edgeBar = bars[edgeIdx]
+    if (!edgeBar) return null
+    const newLast = lastSeriesBarIndex()
+    const lastBar = bars[Math.max(0, Math.min(newLast, bars.length - 1))]
+    if (!lastBar) return null
+    // Series still reaches the captured edge — a pan into history, or nothing was removed.
+    if (lastBar.time / 1000 + period * 0.51 >= edgeSec) return null
+    const frac = Math.max(0, (edgeSec - edgeBar.time / 1000) / period)
+    return edgeIdx - newLast + frac
+  }
 
   const restoreVisibleRangeLocked = async (saved: TvLockedViewport) => {
     const c = chart()
@@ -492,8 +705,28 @@ export function createTvReplayChartController(opts: {
       if (saved.barSpacing != null && Number.isFinite(saved.barSpacing)) {
         ts.setBarSpacing(saved.barSpacing)
       }
+      const pinnedOffset = rightOffsetKeepingCapturedEdge(saved)
+      if (pinnedOffset != null && Number.isFinite(pinnedOffset)) {
+        ts.setRightOffset(pinnedOffset)
+        // The anchor was taken before the cut, so its last bar is the old series end and every
+        // later play step would see a rewind and give up. Recapture against the bar we just
+        // pinned so playback fills the empty space instead of scrolling.
+        if (playbackOffsetAnchor) capturePlaybackOffsetAnchor()
+        return
+      }
       if (saved.rightOffset != null && Number.isFinite(saved.rightOffset)) {
-        ts.setRightOffset(saved.rightOffset)
+        // Re-base the scroll position against wherever TV's series now ends. Bars dropped off
+        // the right — a scissors cut — pull the window along with them unless the offset grows
+        // to match, so replaying the captured value unchanged is what shifts the chart.
+        const savedBase = saved.tvBaseIndex
+        const nowBase = tvBaseIndex()
+        const drift =
+          savedBase != null && nowBase != null && Number.isFinite(savedBase) ? savedBase - nowBase : 0
+        ts.setRightOffset(saved.rightOffset + drift)
+        // Spacing and a re-based offset already pin the window exactly. setVisibleRange would
+        // refit the captured span to the resized series and undo that, so stop here. Repeat
+        // calls recompute the same offset, which keeps the retry burst idempotent.
+        if (drift !== 0) return
       }
       await Promise.race([
         c.setVisibleRange({
@@ -886,6 +1119,26 @@ export function createTvReplayChartController(opts: {
     if (!allTv.length) return 0
     if (opts.replayFeed.useTvFullSeriesMaskMode()) return allTv.length - 1
     return Math.max(0, Math.min(opts.replayFeed.getRevealedCount(), allTv.length) - 1)
+  }
+
+  /**
+   * Index of the first bar TV currently has. Not always 0: getBars caps each response and
+   * filters it to the window TV asked for, and both trim from the front, so early history we
+   * hold may never have reached the chart. Bars before this draw no candle.
+   */
+  const firstSeriesBarIndex = (): number => {
+    const allTv = opts.replayFeed.getAllBars()
+    if (!allTv.length) return 0
+    const servedMs = opts.replayFeed.getServedFirstBarTimeMs()
+    if (servedMs == null) return 0
+    let lo = 0
+    let hi = allTv.length - 1
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (allTv[mid]!.time < servedMs) lo = mid + 1
+      else hi = mid
+    }
+    return allTv[lo]!.time < servedMs ? 0 : lo
   }
 
   /**
@@ -2075,6 +2328,10 @@ export function createTvReplayChartController(opts: {
       return lastSeriesBarIndex()
     },
 
+    seriesFirstBarIndex() {
+      return firstSeriesBarIndex()
+    },
+
     plotXForWallTimeMs(timeMs, plotOffsetX = 0) {
       const plotX = plotXForWallTimeMs(timeMs)
       return plotX == null ? null : plotXToHostX(plotX, plotOffsetX)
@@ -2105,6 +2362,10 @@ export function createTvReplayChartController(opts: {
       cancelViewportRestoreTimers()
       cancelIncrementalViewportRaf()
       clearCursorTimer()
+      hideResetBridge()
+      thawLegend()
+      resetBridgeEl?.remove()
+      resetBridgeEl = null
     },
   }
 }

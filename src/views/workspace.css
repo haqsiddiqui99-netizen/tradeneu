@@ -18,6 +18,20 @@
   animation: rw-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Held on the root only for the frame the palette flips in. Controls that animate their own
+   hover colours — the order-type caret, the scalper button, the trade-dock carets, the balance
+   chip, the positions tabs — otherwise crossfade between palettes over 120-160ms, and the
+   footer's top shadow over the full shutter duration, while every untransitioned surface around
+   them switches at once. That lag between neighbours is what reads as a blink. */
+.rw-root--theme-swap,
+.rw-root--theme-swap::before,
+.rw-root--theme-swap::after,
+.rw-root--theme-swap *,
+.rw-root--theme-swap *::before,
+.rw-root--theme-swap *::after {
+  transition: none !important;
+}
+
 .rw-rpanel {
   display: none !important;
 }
@@ -2139,13 +2153,16 @@ button.rw-legend-status-btn:focus-visible {
   height: 48px;
   padding: 0 14px 0 4px;
   border: 1px solid rgba(19, 23, 34, 0.1);
-  border-radius: 12px;
+  border-radius: 0;
   background: #ffffff;
-  /* FXReplay-style soft under-bar shade (elevation). */
+  /* Sits higher off the chart than the non-TV floating bar above, which keeps the lighter
+     original values. Same three-layer shape — a hairline ring, one wide ambient blur and a
+     tighter contact shadow — so the card still reads as lifted evenly rather than as a strip
+     with shadow pooled under its bottom edge; only the opacities are carrying the extra depth. */
   box-shadow:
-    0 1px 2px rgba(19, 23, 34, 0.06),
-    0 4px 12px rgba(19, 23, 34, 0.1),
-    0 10px 28px rgba(19, 23, 34, 0.12);
+    0 0 0 1px rgba(19, 23, 34, 0.06),
+    0 10px 30px rgba(19, 23, 34, 0.26),
+    0 3px 8px rgba(19, 23, 34, 0.14);
   align-items: center;
   gap: 6px;
   pointer-events: auto;
@@ -2153,12 +2170,13 @@ button.rw-legend-status-btn:focus-visible {
 }
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar {
-  background: #1e222d;
+  background: #0f0f0f;
   border: 1px solid rgba(255, 255, 255, 0.12);
+  /* Mirrors the light elevation's shape at the opacities a black shadow needs to register. */
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.25),
-    0 4px 12px rgba(0, 0, 0, 0.35),
-    0 10px 28px rgba(0, 0, 0, 0.4);
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 10px 30px rgba(0, 0, 0, 0.7),
+    0 3px 8px rgba(0, 0, 0, 0.5);
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv {
@@ -2189,6 +2207,21 @@ button.rw-legend-status-btn:focus-visible {
   color: #0b0e14;
 }
 
+/* The rule above sets near-black ink, which on the dark bar read as a disabled control.
+   Needs the floating-bar selector's own weight to win — the generic
+   `[data-chart-theme='dark'] .rw-replay-dock__drag` override is less specific and lost. */
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__drag {
+  color: #d1d4dc;
+}
+
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__drag:hover {
+  color: #ffffff;
+}
+
 /* Select + playback controls — same inset rounded-rect chip geometry. */
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-wrap,
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__transport-anchor {
@@ -2216,27 +2249,34 @@ button.rw-legend-status-btn:focus-visible {
   border-radius: 0;
 }
 
+/* The speed slot holds a slider, so unlike its chip neighbours it needs a run of width rather
+   than a square, and `overflow` has to stay visible for the value bubble above the bar. */
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__transport
   > .rw-replay-dock__speed-wrap {
   box-sizing: border-box;
-  flex: 0 0 var(--rw-tv-chip-h);
-  width: var(--rw-tv-chip-h);
-  min-width: var(--rw-tv-chip-h);
-  max-width: var(--rw-tv-chip-h);
+  /* 15 speed stops land ~6px apart at this length — tight, but the value bubble reports the
+     exact speed while dragging, so the track does not have to be self-indexing. */
+  flex: 0 0 92px;
+  width: 92px;
+  min-width: 92px;
+  max-width: 92px;
   height: var(--rw-tv-chip-h);
-  margin: 0;
+  margin: 0 8px;
   border: none;
-  border-radius: var(--rw-tv-chip-r);
+  border-radius: 0;
   box-shadow: none;
   align-self: center;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Icon chips — square rounded rect (same shape as marked play button). */
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__transport
   > .rw-replay-dock__tico[data-rw='play'],
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__transport
+  > .rw-replay-dock__tico[data-rw='back'],
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__transport
   > .rw-replay-dock__tico[data-rw='fwd'] {
@@ -2406,46 +2446,53 @@ button.rw-legend-status-btn:focus-visible {
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico {
   width: var(--rw-tv-chip-h);
   height: var(--rw-tv-chip-h);
+  /* The shared TV rule stretches chips to the full bar, and the dock's own `align-items: center`
+     cannot undo that — every other control in the row sets `center` on itself. A chip that sits
+     directly in the bar rather than inside the transport group has nothing else to re-centre it,
+     so without this it rides a few pixels high of its neighbours. */
+  align-self: center;
   justify-content: center;
   border-radius: var(--rw-tv-chip-r);
 }
 
+/* Transport and interval chips read as rectangles rather than the near-pill 12px the dock sets
+   for its wider controls — at 36px square that radius rounds a third of each side away. Set as
+   the variable the ~20 idle/hover/pressed/theme rules for these chips already resolve, so the
+   shape stays in one place instead of being restated at every state. The Select bar group and
+   the sync switch are deliberately pill-shaped and keep the dock's value. */
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico,
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  align-self: center;
-  flex: 0 0 var(--rw-tv-chip-h);
-  width: var(--rw-tv-chip-h);
-  min-width: var(--rw-tv-chip-h);
-  max-width: var(--rw-tv-chip-h);
-  height: var(--rw-tv-chip-h);
-  min-height: var(--rw-tv-chip-h);
-  margin: 0;
-  padding: 0;
-  gap: 0;
-  border-radius: var(--rw-tv-chip-r);
-  overflow: hidden;
+  --rw-tv-chip-r: 4px;
+}
+
+/* The chip reads as the closed state of its own dropdown, so it takes the list's typography
+   rather than the dock's label rule above — same stack, size, weight and leading, which is why
+   the value stops looking heavier than the row it points at. Stack mirrors `.rw-intmenu--replay`
+   in chartIntervalMenu.css; both exist to match the TradingView interval dropdown. */
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval {
+  font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico .sx-ico,
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico svg,
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico--end .sx-ico,
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico--end svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__play-ico {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-ico .sx-ico,
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-ico svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__select-chev .sx-ico,
@@ -2471,6 +2518,8 @@ button.rw-legend-status-btn:focus-visible {
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__tico[data-rw='play'],
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='back'],
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__tico[data-rw='fwd'],
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval,
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico--end {
@@ -2485,6 +2534,8 @@ button.rw-legend-status-btn:focus-visible {
   .rw-replay-dock__speed-btn:hover:not([aria-expanded='true']),
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__tico[data-rw='play']:hover:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='back']:hover:not(:disabled),
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__tico[data-rw='fwd']:hover:not(:disabled),
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval:hover,
@@ -2531,6 +2582,10 @@ button.rw-legend-status-btn:focus-visible {
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__tico[data-rw='play'][aria-pressed='true']:hover:not(:disabled),
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='back']:active:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='back'].rw-replay-dock__tico--pressed,
+.rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__tico[data-rw='fwd']:active:not(:disabled),
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__tico[data-rw='fwd'].rw-replay-dock__tico--pressed,
@@ -2572,6 +2627,9 @@ button.rw-legend-status-btn:focus-visible {
 .rw-root[data-chart-theme='dark']
   .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__tico[data-rw='play']:not(.rw-replay-dock__play--active):not([aria-pressed='true']),
+.rw-root[data-chart-theme='dark']
+  .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+  .rw-replay-dock__tico[data-rw='back'],
 .rw-root[data-chart-theme='dark']
   .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
   .rw-replay-dock__tico[data-rw='fwd'],
@@ -2703,18 +2761,19 @@ button.rw-legend-status-btn:focus-visible {
   color: var(--rw-tv-ctrl-active-fg, #ffffff);
 }
 
-/* Speed wrap stretches inside the chip; menu lives on the outer anchor. */
+/* Holds the speed slider. `overflow` must stay visible so the value bubble can sit above the
+   bar, and the width is fixed because a range input has no intrinsic size to flex from. */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-wrap {
   position: relative;
   display: inline-flex;
-  align-items: stretch;
-  align-self: stretch;
-  flex: 0 0 auto;
-  width: auto;
-  height: auto;
+  align-items: center;
+  align-self: center;
+  flex: 0 0 92px;
+  width: 92px;
+  height: 28px;
   min-height: 0;
-  margin: 0;
-  overflow: hidden;
+  margin: 0 8px;
+  overflow: visible;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport-anchor {
@@ -2824,24 +2883,33 @@ body.rw-replay-dock-dragging * {
   cursor: move !important;
 }
 
-/* While dragging the replay bar — dim the chart (FXReplay-style); dock stays bright above. */
-.rw-chart-canvas::after {
+/* While dragging the replay bar — dim the workspace (FXReplay-style); dock stays bright above.
+   Carried by the root rather than the chart canvas so it reaches the trade panel too: that panel
+   is `.rw-chart-footer-tv`, a sibling of the chart wrap, so a scrim inside the canvas stopped at
+   the chart's bottom edge and left the footer lit. The root is the nearest ancestor of both, and
+   because it opens its own stacking context the footer's z-index 10 falls under this while the
+   dock's 46 stays over it. */
+.rw-root::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 40;
-  background: rgba(19, 23, 34, 0.34);
+  /* Matched off FXReplay's own scrim, sampled from a screenshot of it mid-drag: its dimmed chart
+     reads rgb(230, 230, 230) over a white base, which is plain black at a tenth opacity and no
+     hue at all. The previous navy at 0.34 was both three times heavier and blue-cast, which is
+     why the neutral one beside it looked warm by comparison. */
+  background: rgba(0, 0, 0, 0.1);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.14s ease;
 }
 
-.rw-chart-canvas.rw-chart-canvas--dock-dragging::after,
-body.rw-replay-dock-dragging .rw-chart-canvas::after {
+.rw-root:has(.rw-chart-canvas--dock-dragging)::after,
+body.rw-replay-dock-dragging .rw-root::after {
   opacity: 1;
 }
 
-.rw-root[data-chart-theme='dark'] .rw-chart-canvas::after {
+.rw-root[data-chart-theme='dark']::after {
   background: rgba(0, 0, 0, 0.48);
 }
 
@@ -2883,16 +2951,21 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   border-radius: 7px;
 }
 
+/* Unlike its icon-only chip neighbours this one carries a step pill and a caret, so it takes the
+   width it needs rather than the fixed square they use — the chip height still sets the shape.
+   The floor is wider than that square because a pill and its caret crowd 36px, and a longer pill
+   such as `10m` grows past the floor again. */
 .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__interval {
   box-sizing: border-box;
-  flex: 0 0 var(--rw-tv-chip-h, 36px);
-  width: var(--rw-tv-chip-h, 36px);
-  min-width: var(--rw-tv-chip-h, 36px);
-  max-width: var(--rw-tv-chip-h, 36px);
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 52px;
+  max-width: none;
   height: var(--rw-tv-chip-h, 36px);
   min-height: var(--rw-tv-chip-h, 36px);
   margin: 0;
-  padding: 0;
+  padding: 0 5px 0 8px;
+  gap: 1px;
   border-radius: var(--rw-tv-chip-r, 12px);
   display: inline-flex;
   align-items: center;
@@ -3322,13 +3395,13 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   overflow: hidden;
 }
 
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__tico,
-.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__speed-wrap {
+/* The speed slot is a slider now, not a chip, so it is deliberately not in this divider list —
+   a rule between the track and the transport buttons would read as a stray tick mark. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__tico {
   border-right: 1px solid var(--rw-tv-panel-border, #b2b5be);
 }
 
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__tico,
-.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__speed-wrap {
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__transport > .rw-replay-dock__tico {
   border-right-color: rgba(209, 212, 220, 0.18);
 }
 
@@ -3383,6 +3456,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 /* Play nests icons in spans — match skip’s direct-SVG centering so glyphs don’t sit low. */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'],
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='back'],
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'],
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start'] {
   display: inline-flex;
@@ -3415,11 +3489,21 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 }
 
 /* Skip / last bar — solid triangle (+ bars); don't stroke filled shapes. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='back'] path:first-child,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'] path:first-child,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end path:first-child,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end rect {
   fill: currentColor;
   stroke: none;
+}
+
+/* The bar-pick glyph is drawn for the labelled control it shares an icon with, where a light
+   stroke sits well beside text. Standing alone next to the transport it reads a size smaller,
+   because those glyphs are solid triangles whose 1.5 stroke scales with the 18→22px box to about
+   1.83px, while this one pins its stroke at 1.4px and has no fill to carry weight. The boxes and
+   ink heights already match, so weight is the whole of the difference. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--pick path {
+  stroke-width: 1.85px;
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .sx-ico--replay-tv {
@@ -3468,6 +3552,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 /* Inner transport buttons — group outline owns the chrome.
  * Keep border-right so play|skip get the same divider as speed|play. */
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'],
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='back'],
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'],
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start'] {
   border-top: none;
@@ -3480,6 +3565,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 }
 
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play']:hover:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='back']:hover:not(:disabled),
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:hover:not(:disabled),
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start']:hover:not(:disabled) {
   background: var(--rw-tv-ctrl-fill-hover);
@@ -3500,7 +3586,18 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   color: #ffffff;
 }
 
+/* The bar-picker shortcut holds its fill for as long as the picker is open, the way play does
+   while playback runs, rather than flashing on press — it opens a mode, not a one-shot. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--pick[aria-pressed='true'],
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--pick[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--rw-tv-ctrl-active-fill, #131722);
+  border-color: var(--rw-tv-ctrl-active-fill, #131722);
+  color: var(--rw-tv-ctrl-active-fg, #f0f3fa);
+}
+
 /* Skip / Last bar — same black press chrome as play/pause. */
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='back']:active:not(:disabled),
+.rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='back'].rw-replay-dock__tico--pressed,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:active:not(:disabled),
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'].rw-replay-dock__tico--pressed,
 .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:active:not(:disabled),
@@ -3511,6 +3608,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 }
 
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play']:hover:not(:disabled),
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='back']:hover:not(:disabled),
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:hover:not(:disabled),
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='start']:hover:not(:disabled),
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:hover:not(:disabled) {
@@ -3518,6 +3616,8 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   color: var(--rw-tv-ctrl-fg);
 }
 
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='back']:active:not(:disabled),
+.rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='back'].rw-replay-dock__tico--pressed,
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:active:not(:disabled),
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'].rw-replay-dock__tico--pressed,
 .rw-root[data-chart-theme='dark'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:active:not(:disabled),
@@ -3756,10 +3856,16 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   appearance: none;
 }
 
+/* Travelled portion in accent, remainder in grey. `--rw-speed-fill` is the thumb centre in px,
+   set by the dock's slider sync — WebKit offers no way to style the filled side on its own. */
 .rw-replay-dock__speed::-webkit-slider-runnable-track {
   height: 3px;
   border-radius: 999px;
-  background: #e0e3eb;
+  background: linear-gradient(
+    to right,
+    #2962ff 0 var(--rw-speed-fill, 0px),
+    #e0e3eb var(--rw-speed-fill, 0px) 100%
+  );
 }
 
 .rw-replay-dock__speed::-webkit-slider-thumb {
@@ -3777,6 +3883,13 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   height: 3px;
   border-radius: 999px;
   background: #e0e3eb;
+}
+
+/* Firefox exposes the filled side as its own pseudo-element, so it needs no gradient. */
+.rw-replay-dock__speed::-moz-range-progress {
+  height: 3px;
+  border-radius: 999px;
+  background: #2962ff;
 }
 
 .rw-replay-dock__speed::-moz-range-thumb {
@@ -4055,6 +4168,72 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   opacity: var(--rw-disabled-opacity);
   cursor: default;
   pointer-events: none;
+}
+
+/* While sync is engaged the chart header owns the replay step, so this button is out of
+   service. `:disabled` above already makes it inert; this only deepens the dim, because the
+   house 0.72 still reads as a live control against the near-black replay bar. Doubled class
+   to match that rule's weight — it has to win, and it has to stay after it. */
+.rw-replay-dock__interval.rw-replay-dock__interval--locked {
+  opacity: 0.45;
+}
+
+/* Sync-timeframe switch: on = the replay step follows the chart header. */
+.rw-replay-dock__sync {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 24px;
+  margin: 0 2px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #c4c8d2;
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+
+.rw-replay-dock__sync:hover {
+  background: #b4b9c6;
+}
+
+.rw-replay-dock__sync--on,
+.rw-replay-dock__sync--on:hover {
+  background: #22ab94;
+}
+
+.rw-replay-dock__sync-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(19, 23, 34, 0.28);
+  transition: transform 0.16s ease;
+}
+
+/* 44 track − 3 inset × 2 − 18 knob = 20px of travel. */
+.rw-replay-dock__sync--on .rw-replay-dock__sync-knob {
+  transform: translateX(20px);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-replay-dock__sync {
+  background: #434651;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-replay-dock__sync:hover {
+  background: #4f535f;
+}
+
+/* Restated at dark-theme weight so the two rules above cannot outrank the on state. */
+.rw-root[data-chart-theme='dark'] .rw-replay-dock__sync--on,
+.rw-root[data-chart-theme='dark'] .rw-replay-dock__sync--on:hover {
+  background: #22ab94;
 }
 
 .rw-replay-dock__interval-chev {
@@ -6333,7 +6512,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 .rw-root[data-chart-theme='dark'] .rw-foot,
 .rw-root[data-chart-theme='dark'] .rw-foot__bar {
-  background: #0c0e14;
+  background: var(--rw-chart);
   border-top-color: #2a2e39;
 }
 
@@ -6518,7 +6697,11 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 }
 
 .rw-root[data-chart-theme='dark'] .rw-replay-dock__speed::-webkit-slider-runnable-track {
-  background: #434651;
+  background: linear-gradient(
+    to right,
+    #2962ff 0 var(--rw-speed-fill, 0px),
+    #434651 var(--rw-speed-fill, 0px) 100%
+  );
 }
 
 .rw-root[data-chart-theme='dark'] .rw-replay-dock__speed::-moz-range-track {
@@ -7026,10 +7209,13 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__speed-btn[aria-expanded='true']:focus-visible,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'].rw-replay-dock__play--active,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='play'][aria-pressed='true'],
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='back']:active:not(:disabled),
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='back'].rw-replay-dock__tico--pressed,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd']:active:not(:disabled),
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico[data-rw='fwd'].rw-replay-dock__tico--pressed,
 .rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end:active:not(:disabled),
-.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end.rw-replay-dock__tico--pressed {
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--end.rw-replay-dock__tico--pressed,
+.rw-root[data-chart-theme='light'] .rw-chart-replay-dock.rw-replay-dock--tv .rw-replay-dock__tico--pick[aria-pressed='true'] {
   background: var(--rw-tv-ctrl-active-fill, #131722);
   color: #f0f3fa;
   border: none;
@@ -9040,14 +9226,14 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 }
 
 .rw-root[data-chart-theme='dark'] .rw-order-book {
-  background: #1e222d;
+  background: var(--rw-chart);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-order-book__tabs,
 .rw-root[data-chart-theme='dark'] .rw-order-book__pager,
 .rw-root[data-chart-theme='dark'] .rw-order-book__historical-viz {
-  background: #1e222d;
+  background: var(--rw-chart);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -9072,8 +9258,10 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   background-image: radial-gradient(circle at center, #2f8bff 0 3.6px, transparent 4px);
 }
 
+/* The strip itself stays on the flat surface; only the selected tab lifts off it, so the
+   panel reads as one black field rather than a grey tray. */
 .rw-root[data-chart-theme='dark'] .rw-order-book__tabs {
-  background: rgba(255, 255, 255, 0.06);
+  background: transparent;
   border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -9114,7 +9302,9 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 }
 
 .rw-root[data-chart-theme='dark'] .rw-order-book__table thead th {
-  background: #252a36;
+  /* Sticky, so it has to stay opaque — but it takes the chart fill and leans on its bottom
+     border to separate from the rows, rather than introducing another tone. */
+  background: var(--rw-chart);
   color: #e3e6ee;
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
@@ -9295,6 +9485,10 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   background: #ffffff;
   box-shadow: 0 18px 44px rgba(17, 24, 39, 0.18);
   animation: rw-order-type-in 0.14s ease;
+  /* Declared here as well as on the rows, which is how the other popovers over the chart do it:
+     the rows were the only thing carrying the family, so anything added to this list later would
+     silently fall back to the app's Inter. */
+  font-family: var(--rw-tv-ui-font);
 }
 
 .rw-order-type__menu[hidden] {
@@ -9333,16 +9527,20 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   min-width: 0;
 }
 
+/* TradingView's dialog typography, like the portaled menus — this list opens over the chart and
+   is the same kind of surface, so it should not be the one dropdown still set in our Inter. */
 .rw-order-type__opt-label {
   color: #11141c;
-  font: 400 13.5px var(--rw-font, sans-serif);
-  letter-spacing: 0.02em;
+  font-family: var(--rw-tv-ui-font);
+  font-size: var(--rw-tv-popup-font-size);
+  font-weight: var(--rw-tv-popup-font-weight);
 }
 
 .rw-order-type__opt-hint {
   color: #6b7180;
-  font: 400 11px var(--rw-font, sans-serif);
-  letter-spacing: 0.03em;
+  font-family: var(--rw-tv-ui-font);
+  font-size: 12px;
+  font-weight: var(--rw-tv-popup-font-weight);
 }
 
 .rw-order-type__check {
@@ -9372,7 +9570,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 .rw-root[data-chart-theme='dark'] .rw-order-type__btn {
   border-color: rgba(255, 255, 255, 0.28);
-  background: #1e222d;
+  background: var(--rw-chart);
   color: #e6e8ee;
   box-shadow: none;
 }
@@ -9388,7 +9586,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 .rw-root[data-chart-theme='dark'] .rw-order-type__caret {
   border-left-color: rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   color: #b4b9c6;
 }
 
@@ -9399,21 +9597,21 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 }
 
 .rw-root[data-chart-theme='dark'] .rw-order-type__menu {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: #1e222d;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--rw-tv-surface-dark);
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-order-type__opt:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--rw-tv-popup-hover);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-order-type__opt-label {
-  color: #e6e8ee;
+  color: var(--rw-tv-popup-ink);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-order-type__opt-hint {
-  color: #9aa0ae;
+  color: var(--rw-tv-popup-ink-muted);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-order-type__opt--active {
@@ -9664,7 +9862,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 .rw-root[data-chart-theme='dark'] .rw-qty--fxr {
   border-color: rgba(255, 255, 255, 0.28);
-  background: #1e222d;
+  background: var(--rw-chart);
   box-shadow: none;
 }
 
@@ -9681,9 +9879,11 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   color: #e6e8ee;
 }
 
+/* No fill of its own — the box stays one flat black field and the left divider alone marks
+   where the stepper starts. */
 .rw-root[data-chart-theme='dark'] .rw-qty--fxr .rw-qty__stepper {
   border-left-color: rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-qty--fxr .rw-qty__btn + .rw-qty__btn {
@@ -9773,15 +9973,17 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
     0 2px 8px rgba(17, 24, 39, 0.06);
 }
 
+/* Kept in step with the base floating TV card above — same square edge, same elevation — so
+   the fxr variant is only ever a layout override, never a different-looking card. */
 .rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar {
   border: 1px solid rgba(19, 23, 34, 0.1);
   height: 48px;
   padding: 0 14px 0 4px;
-  border-radius: 12px;
+  border-radius: 0;
   box-shadow:
-    0 1px 2px rgba(19, 23, 34, 0.06),
-    0 4px 12px rgba(19, 23, 34, 0.1),
-    0 10px 28px rgba(19, 23, 34, 0.12);
+    0 0 0 1px rgba(19, 23, 34, 0.04),
+    0 8px 28px rgba(19, 23, 34, 0.11),
+    0 2px 6px rgba(19, 23, 34, 0.05);
 }
 
 .rw-root--fxr .rw-chart-replay-dock.rw-replay-dock--floating .rw-replay-dock__scrub-wrap {

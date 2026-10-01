@@ -7,8 +7,10 @@
   display: none;
   flex-direction: column;
   padding: var(--rw-space-1) 0;
-  font-family: var(--rw-font);
-  font-size: 13px;
+  /* TradingView's dialog typography rather than our app's Inter — this hangs off the library's
+     own header, so it is read as part of it. */
+  font-family: var(--rw-tv-ui-font);
+  font-size: var(--rw-tv-popup-font-size);
   /* Fallbacks matter: the tokens are only defined for menus registered in
      menu-portal.css, and without them `color` inherits the app shell's pale text and the
      whole menu reads as disabled. */
@@ -39,8 +41,10 @@
   border: none;
   background: transparent;
   color: var(--rw-menu-text, #131722);
-  font: 400 13px/1.25 var(--rw-font);
-  letter-spacing: -0.01em;
+  font-family: var(--rw-tv-ui-font);
+  font-size: var(--rw-tv-popup-font-size);
+  font-weight: var(--rw-tv-popup-font-weight);
+  line-height: 1.25;
   text-align: left;
   cursor: pointer;
   transition: background var(--rw-transition-fast);

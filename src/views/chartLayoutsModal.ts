@@ -12,8 +12,20 @@ export type ChartLayoutsModalApi = {
 type SortMode = 'recent' | 'name'
 
 const ICO_SEARCH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65"><circle cx="10.5" cy="10.5" r="6.25"/><path d="M15.2 15.2 21 21" stroke-linecap="round"/></svg>`
-const ICO_SORT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 20l-3-3M7 20l3-3"/><path d="M17 20V4M17 4l-3 3M17 4l3 3"/></svg>`
-const ICO_TRASH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V5h4v2M8 7l.7 12.2h6.6L16 7"/></svg>`
+/** An arrow beside descending bars, as the reference draws it, rather than two opposed arrows. */
+const ICO_SORT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16M6 20l-3-3M6 20l3-3"/><path d="M12 6h9M12 12h6M12 18h3"/></svg>`
+/**
+ * A lidded can with three ribs down it, traced off the reference: the handle splays from a 2.6-wide
+ * flat top out to the lid, the lid overhangs the can on both sides, and the can narrows by 0.7 a
+ * side on the way down so it reads as a bucket rather than a box.
+ *
+ * Two places knowingly depart from the reference. Its lid is a hollow capsule, but at the 19px this
+ * renders at that capsule's interior would come to a third of a pixel, so the lid is one bar of the
+ * same weight instead. Its strokes are also only a twentieth of the glyph's width, which would land
+ * near half a pixel here, so the weight stays with the search and sort glyphs beside it; the ribs
+ * are spaced 3 apart, which leaves them clear of each other and of the walls at that weight.
+ */
+const ICO_TRASH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.15 5.9 10.7 3h2.6l1.55 2.9"/><path d="M5 5.9h14"/><path d="M6.2 7.3 6.9 21h10.2l.7-13.7"/><path d="M9 9.8v8.6M12 9.8v8.6M15 9.8v8.6"/></svg>`
 
 function escapeHtml(value: string): string {
   return value

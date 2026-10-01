@@ -106,18 +106,29 @@ export function createChartLayoutSetupMenu(opts: {
     </div>`
   }).join('')
 
+  /**
+   * Every one of these settings describes how one chart follows another, so they are only
+   * reachable when the layouts they apply to are. Locked alongside them rather than left live,
+   * which would leave five working switches that can never take effect.
+   */
+  const syncLocked = opts.maxCharts !== null && opts.maxCharts < 2
+
   const syncHtml = SYNC_ROWS.map(
     (row) => `<div class="rw-laysetup__sync">
       <span class="rw-laysetup__sync-lbl">${row.label}</span>
       <span class="rw-laysetup__info" title="${escapeHtml(row.info)}" aria-label="${escapeHtml(row.info)}">${ICO_INFO}</span>
-      <button type="button" class="rw-laysetup__tgl" data-rw-sync="${row.key}" role="switch" aria-label="${escapeHtml(`Sync ${row.label.toLowerCase()}`)}"></button>
+      <button type="button" class="rw-laysetup__tgl" data-rw-sync="${row.key}" role="switch" aria-label="${escapeHtml(`Sync ${row.label.toLowerCase()}`)}"${syncLocked ? ' aria-disabled="true"' : ''}></button>
     </div>`,
   ).join('')
 
   root.innerHTML = `
     <div class="rw-laysetup__grid">${gridHtml}</div>
-    <div class="rw-laysetup__head">Sync in layout</div>
-    <div class="rw-laysetup__syncs">${syncHtml}</div>
+    <div class="rw-laysetup__head">Sync in layout${
+      syncLocked
+        ? `<span class="rw-laysetup__lock" title="Split-screen layouts are not available yet">${ICO_LOCK}</span>`
+        : ''
+    }</div>
+    <div class="rw-laysetup__syncs"${syncLocked ? ' data-locked="true"' : ''}>${syncHtml}</div>
   `
 
   function paint() {
@@ -156,6 +167,13 @@ export function createChartLayoutSetupMenu(opts: {
     const tgl = target.closest<HTMLElement>('[data-rw-sync]')
     if (!tgl) return
     e.stopPropagation()
+    if (syncLocked) {
+      // Two is the count that would bring these back, so the caller explains the lock in the
+      // same terms as the rows above. `aria-disabled` rather than `disabled` is what lets the
+      // click arrive here at all — a disabled button would swallow it and say nothing.
+      opts.onLocked?.(2)
+      return
+    }
     const key = tgl.dataset.rwSync as keyof ChartLayoutSync
     opts.onToggleSync(key, !opts.getSync()[key])
     paint()

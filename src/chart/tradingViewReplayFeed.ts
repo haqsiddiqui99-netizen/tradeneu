@@ -64,6 +64,8 @@ export class TvReplayFeedController {
   private tvFullSeriesMaskMode = false
   /** Anchor historical firstDataRequest at session start (not chart tail). */
   private historicalAnchorIndex = 0
+  /** Earliest bar timestamp ever served to TV — the start of the series it can draw. */
+  private servedFirstBarTimeMs: number | null = null
 
   setTvFullSeriesReplay(enabled: boolean) {
     this.tvFullSeriesReplay = enabled
@@ -161,6 +163,7 @@ export class TvReplayFeedController {
     this.state.pickSplitIndex = null
     this.state.resolution = resolution
     this.state.barPeriodSec = barPeriodSec ?? tvResolutionPeriodSec(resolution)
+    this.servedFirstBarTimeMs = null
     this.notify()
   }
 
@@ -265,6 +268,31 @@ export class TvReplayFeedController {
     this.notify()
   }
 
+  /**
+   * Identity of everything {@link getBarsForRequest} reads, so callers can tell two identical
+   * requests apart when the answer has moved underneath them. Stepping replay backwards resets
+   * the TradingView series, and TV then re-asks for the very same window it asked for a moment
+   * ago — same symbol, resolution and period. Anything that dedupes or caches on the request
+   * alone will hand back bars cut for the old reveal count, and when that answer is empty TV
+   * takes it as "no data here" and stops asking. Derived rather than a counter each mutator has
+   * to remember to bump.
+   */
+  barsRevision(): string {
+    const bars = this.state.allBars
+    const first = bars.length ? bars[0]!.time : 0
+    const last = bars.length ? bars[bars.length - 1]!.time : 0
+    return [
+      bars.length,
+      first,
+      last,
+      this.state.revealedCount,
+      this.state.pickSplitIndex ?? -1,
+      this.state.resolution,
+      this.historicalAnchorIndex,
+      this.useTvFullSeriesMaskMode() ? 1 : 0,
+    ].join(':')
+  }
+
   getBarsForRequest(ticker: string, periodParams: TvPeriodParams): TvBar[] {
     if (!this.state.allBars.length) return []
 
@@ -279,12 +307,29 @@ export class TvReplayFeedController {
     const source =
       isFuture ? future : this.useTvFullSeriesMaskMode() ? this.state.allBars : past
 
-    return filterTvBarsStrictlyInPeriod(
+    const served = filterTvBarsStrictlyInPeriod(
       source,
       periodParams,
       true,
       this.historicalAnchorIndex,
     )
+
+    // Requests are capped and window-filtered, and both drop history from the front, so the
+    // series TradingView draws can start later than allBars does. Remember how far back it has
+    // actually been given: anything earlier has no candle on screen, however many bars we hold.
+    if (!isFuture && served.length) {
+      const first = served[0]!.time
+      if (this.servedFirstBarTimeMs == null || first < this.servedFirstBarTimeMs) {
+        this.servedFirstBarTimeMs = first
+      }
+    }
+
+    return served
+  }
+
+  /** Earliest bar timestamp handed to TradingView, or null before the first request. */
+  getServedFirstBarTimeMs(): number | null {
+    return this.servedFirstBarTimeMs
   }
 
   findBarIndexAtOrBeforeTimeSec(timeSec: number, maxIndex?: number): number {

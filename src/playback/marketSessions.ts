@@ -150,7 +150,11 @@ export function sessionHeaderStripHtml(
   const volume = tradingVolumeLevel(unixSec)
   const volumeLabel = `${volume[0].toUpperCase()}${volume.slice(1)}`
   const volumeTitle = tradingVolumeTitle(unixSec).replace(/"/g, '&quot;')
-  return `<span class="rw-tv-sessions"><span class="rw-tv-volume" data-level="${volume}" data-expanded="${expanded ? 'true' : 'false'}" title="${volumeTitle}"><span class="rw-tv-volume__dot" aria-hidden="true"></span><span class="rw-tv-volume__label">${volumeLabel}</span><span class="rw-tv-volume__chev" aria-hidden="true">${VOLUME_CHEVRON}</span></span></span>`
+  // `apply-common-tooltip` hands the title to the library's own dark tooltip, the one the rest of
+  // the header uses — the pill renders inside the chart frame, so that handler reaches it. A bare
+  // title fell through to the browser's native tooltip, which looked nothing like the layout chip
+  // sitting right next to it.
+  return `<span class="rw-tv-sessions"><span class="rw-tv-volume apply-common-tooltip" data-level="${volume}" data-expanded="${expanded ? 'true' : 'false'}" title="${volumeTitle}"><span class="rw-tv-volume__dot" aria-hidden="true"></span><span class="rw-tv-volume__label">${volumeLabel}</span><span class="rw-tv-volume__chev" aria-hidden="true">${VOLUME_CHEVRON}</span></span></span>`
 }
 
 /** The four session flags, for the panel the volume pill opens. */
@@ -162,6 +166,12 @@ export function sessionFlagsHtml(
     const status = sessionChipStatus(id, unixSec)
     const title = sessionChipTitle(id, unixSec).replace(/"/g, '&quot;')
     const src = `${assetUrl(HEADER_SESSION_FLAG[id])}?v=${FLAG_ASSET_VERSION}`
-    return `<span class="rw-tv-session" data-status="${status}" title="${title}"><img class="rw-tv-session__flag" src="${src}" alt="${HEADER_SESSION_LABEL[id]}" width="18" height="18" decoding="async" draggable="false"/><span class="rw-tv-session__dot" aria-hidden="true"></span></span>`
+    // These render into a panel portaled to the parent document, out of reach of the library's
+    // tooltip handler, so the text is carried on a data attribute for the CSS tooltip in
+    // `chartSessionsPopover.css` to draw. It cannot stay on `title` as well or the browser would
+    // stack its own native tooltip on top of that one. `aria-label` keeps the description for
+    // screen readers, which is what `title` had been doing, and the flag drops to decorative
+    // because the span now carries the full label.
+    return `<span class="rw-tv-session" data-status="${status}" data-rw-tip="${title}" role="img" aria-label="${title}"><img class="rw-tv-session__flag" src="${src}" alt="" width="18" height="18" decoding="async" draggable="false"/><span class="rw-tv-session__dot" aria-hidden="true"></span></span>`
   }).join('')
 }

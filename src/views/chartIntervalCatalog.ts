@@ -121,10 +121,7 @@ export function normalizeChartPillForReplayDock(chartPill: string): string {
 }
 
 function replayDockPickFromPill(pill: string): IntervalPick | null {
-  const hit = findIntervalPickByPill(normalizeChartPillForReplayDock(pill))
-  if (!hit) return null
-  // Full labels for TV-style “UPDATE INTERVAL” menu (dock button still shows pill).
-  return { ...hit, label: hit.label }
+  return findIntervalPickByPill(normalizeChartPillForReplayDock(pill))
 }
 
 /**

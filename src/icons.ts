@@ -87,8 +87,13 @@ export const icons = {
   spark: svg(
     '<path d="M12 3l1.2 4.2L17.4 8l-4.2.8L12 13l-1.2-4.2L6.6 8l4.2-.8L12 3zM19 14l.7 2.3L22 17l-2.3.7L19 20l-.7-2.3L16 17l2.3-.7L19 14zM5 16l.5 1.5L7 18l-1.5.5L5 20l-.5-1.5L3 18l1.5-.5L5 16z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/>',
   ),
+  /**
+   * Crescent traced as two arcs off one circle (r 9.5 about 12,12) rather than the usual
+   * single-arc moon: tips at roughly 1 and 4:30 leave a narrower mouth, and the inner arc's
+   * own smaller radius bows deep enough to give the left limb a full, even weight.
+   */
   moon: svg(
-    '<path d="M21 14.5A8.5 8.5 0 019.5 3a8.5 8.5 0 1011.5 11.5z" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"/>',
+    '<path d="M14.9 3A9.5 9.5 0 1 0 20 17.2A7.6 7.6 0 0 1 14.9 3z" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round" stroke-linecap="round"/>',
   ),
   sun: svg(
     '<circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.65"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 6.34L4.93 4.93M19.07 19.07l-1.41-1.41M19.07 4.93l-1.41 1.41M6.34 17.66l-1.41 1.41" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>',
@@ -214,9 +219,9 @@ export const icons = {
   replayTvStepFwd: svgReplayTv(
     '<path d="M4.5 3.75v10.5L12 9 4.5 3.75Z" fill="currentColor"/><path d="M13.75 3.75v10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/>',
   ),
-  /** Previous bar — vertical bar + outline triangle. */
+  /** Previous bar — exact mirror of {@link replayTvStepFwd} about the 9px centre line. */
   replayTvStepBack: svgReplayTv(
-    '<path d="M5 4.75v8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M12.75 4.5 7 9l5.75 4.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none" vector-effect="non-scaling-stroke"/>',
+    '<path d="M13.5 3.75v10.5L6 9 13.5 3.75Z" fill="currentColor"/><path d="M4.25 3.75v10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/>',
   ),
   /** Floating replay bar — drag grip (2×3 solid dots). */
   replayDragGrip: svg(

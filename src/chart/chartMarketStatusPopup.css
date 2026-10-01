@@ -120,12 +120,12 @@
 }
 
 .rw-root[data-chart-theme='dark'] .rw-market-status-pop {
-  background: #1e222d;
-  border-color: #2a2e39;
-  color: #d1d4dc;
+  background: var(--rw-tv-surface-dark);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--rw-tv-popup-ink);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
 .rw-root[data-chart-theme='dark'] .rw-market-status-pop__detail {
-  color: #d1d4dc;
+  color: var(--rw-tv-popup-ink);
 }

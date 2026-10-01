@@ -5,7 +5,7 @@
 }
 
 #view-chart[data-chart-theme='dark'] {
-  background: #09090b;
+  background: #0f0f0f;
 }
 
 .rw-root {
@@ -16,10 +16,17 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-.rw-root[data-chart-theme='dark'] {
-  --rw-bg: #131722;
-  --rw-panel: #1e222d;
-  --rw-chart: #131722;
+/* The second selector is for surfaces portaled to <body>: they stamp the attribute on
+   themselves rather than inheriting it, so a `.rw-root` prefix never reaches them and every
+   `var(--rw-panel, #fff)` in their CSS quietly resolved to its light literal — a white dialog
+   over a dark chart. They need the tokens bound to the element that carries the attribute. */
+.rw-root[data-chart-theme='dark'],
+.rw-scalper-dlg[data-chart-theme='dark'] {
+  /* One flat surface across the chart, its footer and the trade panel. Mirrors
+     TV_DARK_SURFACE in tradingViewChart.ts, which paints the widget to match. */
+  --rw-bg: #0f0f0f;
+  --rw-panel: #0f0f0f;
+  --rw-chart: #0f0f0f;
   --rw-border: #2a2e39;
   --rw-border-strong: #363a45;
   --rw-text: #787b86;
@@ -28,13 +35,16 @@
   --rw-accent: #2962ff;
   --rw-green: #089981;
   --rw-red: #f23645;
-  --rw-toolbar: #1e222d;
+  /* Footer chrome reads as a continuation of the chart, not a separate tray, so it shares
+     the chart fill. Only floating surfaces (--rw-panel) sit above it on their own tone. */
+  --rw-toolbar: var(--rw-chart);
   --rw-hover: #2a2e39;
   --rw-control-bg: var(--rw-panel);
   --rw-control-text: var(--rw-bright);
 }
 
-.rw-root[data-chart-theme='light'] {
+.rw-root[data-chart-theme='light'],
+.rw-scalper-dlg[data-chart-theme='light'] {
   --rw-bg: #ffffff;
   --rw-panel: #ffffff;
   --rw-chart: #ffffff;

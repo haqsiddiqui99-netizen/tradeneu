@@ -8,43 +8,55 @@
   background: transparent;
 }
 
+/* Transparent rather than the usual scrim: the chart behind stays exactly as it was, which is how
+   the reference opens this one. The backdrop is still there, so the dialog keeps swallowing clicks
+   aimed past it — it just no longer repaints the workspace to announce itself. */
 .rw-layouts-dlg::backdrop {
-  background: rgba(19, 23, 34, 0.45);
+  background: transparent;
 }
 
+/* Sizing and rhythm measured off the reference: a 508px content column, a 68px title band, a
+   44px search band, and 55px list rows, with the body text at 14px over 11px. */
 .rw-layouts {
+  /* Far lighter than the shared `--rw-menu-sep`, which reads as a rule rather than the hairline
+     the reference uses between its bands. Kept local so the other portaled menus are untouched. */
+  --rw-layouts-sep: #f0f0f0;
+
   display: flex;
   flex-direction: column;
-  width: min(420px, calc(100vw - 24px));
-  max-height: min(560px, calc(100vh - 80px));
+  width: min(510px, calc(100vw - 24px));
+  max-height: min(580px, calc(100vh - 80px));
   background: var(--rw-menu-bg, #fff);
   color: var(--rw-menu-text, #131722);
   border: 1px solid var(--rw-menu-border, #e0e3eb);
   border-radius: var(--rw-radius-lg, 8px);
   box-shadow: 0 8px 28px rgba(19, 23, 34, 0.18);
-  font-family: var(--rw-font);
-  font-size: 13px;
+  /* The library's own UI stack rather than the app's Inter. Measuring the reference settled it:
+     rendering its strings in Inter comes out 11-15% narrower than the screenshot on the lines full
+     of digits, because Inter's figures are much tighter, while this stack lands within 2%. */
+  font-family: var(--rw-tv-ui-font);
+  font-size: 14px;
 }
 
 .rw-layouts__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--rw-menu-sep, #e0e3eb);
-  font: 600 15px/1.2 var(--rw-font);
+  padding: 20px 20px 18px;
+  border-bottom: 1px solid var(--rw-layouts-sep);
+  font: 600 20px/1.25 var(--rw-tv-ui-font);
 }
 
 .rw-layouts__x {
-  width: 30px;
-  height: 30px;
-  margin: -4px -6px -4px 0;
+  width: 34px;
+  height: 34px;
+  margin: -6px -8px -6px 0;
   padding: 0;
   border: none;
   border-radius: var(--rw-radius-sm, 4px);
   background: transparent;
   color: var(--rw-menu-muted, #787b86);
-  font: 300 22px/1 var(--rw-font);
+  font: 300 26px/1 var(--rw-tv-ui-font);
   cursor: pointer;
 }
 
@@ -53,40 +65,43 @@
   color: var(--rw-menu-text, #131722);
 }
 
+/* The reference draws no field here at all — just the magnifier, the caret and a hairline closing
+   the band off, so the search reads as part of the dialog's chrome rather than as a control dropped
+   into it. That removes the box, which in turn lets the icon sit as a plain flex child instead of
+   being absolutely placed against the input's padding. */
 .rw-layouts__search {
-  position: relative;
   display: flex;
   align-items: center;
-  padding: 10px 14px 8px;
+  gap: 10px;
+  height: 44px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--rw-layouts-sep);
 }
 
 .rw-layouts__search-ico {
-  position: absolute;
-  left: 24px;
   display: flex;
+  flex-shrink: 0;
   color: var(--rw-menu-muted, #787b86);
   pointer-events: none;
 }
 
 .rw-layouts__search-ico svg {
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
 }
 
 .rw-layouts__search-input {
-  width: 100%;
-  height: 34px;
-  padding: 0 10px 0 32px;
-  border: 1px solid var(--rw-menu-border, #e0e3eb);
-  border-radius: var(--rw-radius-sm, 4px);
-  background: var(--rw-menu-bg, #fff);
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--rw-menu-text, #131722);
-  font: 400 13px/1 var(--rw-font);
-  transition: border-color var(--rw-transition-fast, 0.1s ease);
+  font: 400 14px/1 var(--rw-tv-ui-font);
 }
 
 .rw-layouts__search-input:focus {
-  border-color: var(--rw-accent, #2962ff);
   outline: none;
 }
 
@@ -98,16 +113,18 @@
   appearance: none;
 }
 
+/* No rule under this one in the reference: the band under the search closes off the chrome, and the
+   column header belongs to the list below it rather than to a third section of its own. */
 .rw-layouts__col {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
-  padding: 6px 14px;
-  border-bottom: 1px solid var(--rw-menu-sep, #e0e3eb);
+  padding: 16px 20px 6px;
 }
 
 .rw-layouts__col-lbl {
-  font: 600 11px/1.2 var(--rw-font);
+  font: 600 11px/1.2 var(--rw-tv-ui-font);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--rw-menu-muted, #787b86);
@@ -117,8 +134,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: none;
   border-radius: var(--rw-radius-sm, 4px);
@@ -128,8 +145,8 @@
 }
 
 .rw-layouts__sort svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .rw-layouts__sort:hover {
@@ -150,7 +167,7 @@
 
 .rw-layouts__empty {
   margin: 0;
-  padding: 24px 14px;
+  padding: 28px 20px;
   text-align: center;
   color: var(--rw-menu-muted, #787b86);
 }
@@ -161,8 +178,8 @@
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto auto;
   align-items: center;
-  gap: 1px 8px;
-  padding: 7px 14px;
+  gap: 2px 8px;
+  padding: 9px 20px;
   cursor: pointer;
   transition: background var(--rw-transition-fast, 0.1s ease);
 }
@@ -176,10 +193,12 @@
   outline-offset: -2px;
 }
 
+/* A flat neutral charcoal, sampled from the reference's own selected row, rather than the shared
+   `--rw-menu-active-bg` — that one is faintly blue, which stood out against a dialog this size. */
 .rw-layouts__row--active,
 .rw-layouts__row--active:hover {
-  background: var(--rw-menu-active-bg, #2a2e39);
-  color: var(--rw-menu-active-text, #f0f3fa);
+  background: #2e2e2e;
+  color: #f2f2f2;
 }
 
 .rw-layouts__name {
@@ -187,7 +206,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 500 13px/1.35 var(--rw-font);
+  font: 500 14px/1.4 var(--rw-tv-ui-font);
 }
 
 .rw-layouts__meta {
@@ -195,7 +214,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 400 11px/1.35 var(--rw-font);
+  font: 400 11px/1.4 var(--rw-tv-ui-font);
   color: var(--rw-menu-muted, #787b86);
 }
 
@@ -210,8 +229,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: none;
   border-radius: var(--rw-radius-sm, 4px);
@@ -222,8 +241,8 @@
 }
 
 .rw-layouts__del svg {
-  width: 15px;
-  height: 15px;
+  width: 19px;
+  height: 19px;
 }
 
 .rw-layouts__row:hover .rw-layouts__del,
@@ -236,10 +255,47 @@
   color: var(--rw-danger, #ef5350);
 }
 
+/* The list is the only part that scrolls, and the reference keeps a visible slim bar there rather
+   than an overlay one, so the rows never slide under a hidden gutter. */
+.rw-layouts__body {
+  scrollbar-width: thin;
+  scrollbar-color: #c4c4c4 transparent;
+}
+
+.rw-layouts__body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.rw-layouts__body::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: #c4c4c4;
+  background-clip: content-box;
+}
+
+.rw-layouts-dlg[data-chart-theme='dark'] .rw-layouts {
+  --rw-layouts-sep: rgba(255, 255, 255, 0.08);
+}
+
 .rw-layouts-dlg[data-chart-theme='dark'] .rw-layouts__search-input {
-  background: #1e222d;
-  border-color: #2a2e39;
   color: #d1d4dc;
+}
+
+/* Pitched a step above the dark panel for the same reason the light one sits below the white: the
+   selected row has to separate from the surface, and #2e2e2e would nearly vanish against it. */
+.rw-layouts-dlg[data-chart-theme='dark'] .rw-layouts__row--active,
+.rw-layouts-dlg[data-chart-theme='dark'] .rw-layouts__row--active:hover {
+  background: #3a3a3a;
+  color: #ededed;
+}
+
+.rw-layouts-dlg[data-chart-theme='dark'] .rw-layouts__body {
+  scrollbar-color: #4a4a4a transparent;
+}
+
+.rw-layouts-dlg[data-chart-theme='dark'] .rw-layouts__body::-webkit-scrollbar-thumb {
+  background: #4a4a4a;
+  background-clip: content-box;
 }
 
 /* Name prompt shared by Rename... and Make a copy... */

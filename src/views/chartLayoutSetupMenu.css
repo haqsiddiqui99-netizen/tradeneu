@@ -8,7 +8,11 @@
   max-height: calc(100vh - 80px);
   overflow-y: auto;
   padding: var(--rw-space-1) 0 var(--rw-space-2);
-  font-family: var(--rw-font);
+  /* TradingView's dialog typography, not our app's Inter — this opens over the library's chart
+     and is read side by side with its own panels. */
+  font-family: var(--rw-tv-ui-font);
+  font-size: var(--rw-tv-popup-font-size);
+  font-weight: var(--rw-tv-popup-font-weight);
   /* Fallbacks matter: the tokens are only defined for menus registered in menu-portal.css. */
   color: var(--rw-menu-text, #131722);
   background: var(--rw-menu-bg, #ffffff);
@@ -41,7 +45,7 @@
 .rw-laysetup__num {
   flex: 0 0 14px;
   color: var(--rw-menu-muted, #787b86);
-  font-size: 13px;
+  font-size: var(--rw-tv-popup-font-size);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -114,17 +118,31 @@
 }
 
 .rw-laysetup__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: var(--rw-space-3) var(--rw-space-3) var(--rw-space-1);
-  color: var(--rw-menu-muted, #787b86);
+  color: var(--rw-tv-popup-ink-heading, var(--rw-menu-muted, #787b86));
+  /* TradingView sets its section headings apart with the uppercasing and the muted ink alone —
+     no extra weight or tracking — so "SYNC IN LAYOUT" matches "CANDLES" in its Settings dialog. */
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-weight: var(--rw-tv-popup-font-weight);
   text-transform: uppercase;
 }
 
 .rw-laysetup__syncs {
   display: flex;
   flex-direction: column;
+}
+
+/* Dimmed as a block, with the lock up on the heading instead of per row — each row already ends
+   in a toggle, and a second glyph beside it read as another control. */
+.rw-laysetup__syncs[data-locked='true'] {
+  opacity: 0.55;
+}
+
+.rw-laysetup__syncs[data-locked='true'] .rw-laysetup__tgl {
+  cursor: not-allowed;
 }
 
 .rw-laysetup__sync {
@@ -135,7 +153,7 @@
 }
 
 .rw-laysetup__sync-lbl {
-  font-size: 13px;
+  font-size: var(--rw-tv-popup-font-size);
 }
 
 .rw-laysetup__info {
@@ -188,6 +206,11 @@
 }
 
 .rw-laysetup[data-chart-theme='dark'] {
+  /* A flat neutral grey, a step lighter than the shared popup surface the other menus take from
+     `--rw-menu-bg`. This panel is mostly outlined glyphs on empty space, and on the darker
+     surface the thin strokes and the row rules had too little to sit against. Overridden here
+     rather than in the shared palette so only this panel lifts. */
+  --rw-menu-bg: #252525;
   --rw-laysetup-tgl-off: #434651;
   --rw-laysetup-tgl-on: #2962ff;
   --rw-laysetup-info-ink: #1e222d;

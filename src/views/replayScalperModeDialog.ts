@@ -78,7 +78,7 @@ export function createReplayScalperModeDialog(opts: {
       </div>
       <footer class="rw-scalper__foot">
         <button type="button" class="rw-scalper__discard" data-scalper-discard>Discard</button>
-        <button type="button" class="rw-scalper__save" data-scalper-save>${icons.floppyDisk}<span>Save</span></button>
+        <button type="button" class="rw-scalper__save" data-scalper-save>Save</button>
       </footer>
     </div>
   `

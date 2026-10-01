@@ -15,22 +15,22 @@ export type ReplayState = {
 }
 
 /**
- * TradingView-style discrete playback speeds, ascending (slowest → fastest).
- * Values are “updates per second”: <1 means one update every N seconds.
- * Displayed in the dock menu as 10x … 0.1x.
+ * Discrete playback speeds, ascending: every step up to 10x, then even steps only to 20x.
+ * Values are “updates per second”. Past 10x a single bar's difference is imperceptible, so the
+ * coarser tail keeps the slider's stops far enough apart to be separately selectable.
  */
-export const REPLAY_BARS_PER_SEC = [0.1, 0.2, 1 / 3, 0.5, 1, 3, 5, 7, 10] as readonly number[]
+export const REPLAY_BARS_PER_SEC = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20] as readonly number[]
 
 /** Index of the neutral 1x speed (used as the default / reset speed). */
-export const REPLAY_DEFAULT_SPEED_INDEX = 4
+export const REPLAY_DEFAULT_SPEED_INDEX = 0
 
-/** Compact multiplier label, e.g. 10x, 1x, 0.5x, 0.3x. */
+/** Compact multiplier label, e.g. 20x, 3x, 1x. */
 export function replaySpeedX(barsPerSec: number): string {
   const x = barsPerSec >= 1 ? Math.round(barsPerSec) : Math.round(barsPerSec * 10) / 10
   return `${x}x`
 }
 
-/** Descriptive rate label, e.g. “10 upd per 1 sec”, “1 upd per 2 sec”. */
+/** Descriptive rate label, e.g. “10 upd per 1 sec”. */
 export function replaySpeedDetail(barsPerSec: number): string {
   if (barsPerSec >= 1) return `${Math.round(barsPerSec)} upd per 1 sec`
   return `1 upd per ${Math.round(1 / barsPerSec)} sec`

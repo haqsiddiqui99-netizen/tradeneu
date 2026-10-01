@@ -495,7 +495,7 @@
 [data-chart-theme='dark'] .rw-place-order__select-trigger { background: #1e222d; color: #b8bdc9; }
 [data-chart-theme='dark'] .rw-place-order__select-menu {
   border-color: rgba(255, 255, 255, 0.1);
-  background: #1e222d;
+  background: var(--rw-tv-surface-dark);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 34px -10px rgba(0, 0, 0, 0.6);
 }
 [data-chart-theme='dark'] .rw-place-order__journal { color: #e6e8ee !important; }

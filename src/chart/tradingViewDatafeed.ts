@@ -269,6 +269,7 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
   let lastGetBarsAt = 0
   let lastGetBarsPayload: { bars: TvBar[]; nextTime?: number } | null = null
   let getBarsBurst = 0
+  let getBarsBurstKey = ''
   let getBarsBurstResetTimer: ReturnType<typeof setTimeout> | null = null
   const lazyFetchState = { inflight: null as Promise<boolean> | null }
   const inflightGetBars = new Map<string, Promise<{ bars: TvBar[]; nextTime?: number }>>()
@@ -317,7 +318,10 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
     },
 
     getBars(symbolInfo, resolution, periodParams, onResult, onError) {
-      const reqKey = `${symbolInfo.ticker}|${resolution}|${periodParams.from}|${periodParams.to}|${periodParams.countBack}|${periodParams.firstDataRequest ? 1 : 0}`
+      // The replay revision is part of the request's identity, not just its window: a rewind
+      // resets the series and TV re-asks for the same window, and reusing the previous answer
+      // would cut bars for the reveal count we just left.
+      const reqKey = `${symbolInfo.ticker}|${resolution}|${periodParams.from}|${periodParams.to}|${periodParams.countBack}|${periodParams.firstDataRequest ? 1 : 0}|${replayFeed.barsRevision()}`
       const now = Date.now()
       if (reqKey === lastGetBarsKey && now - lastGetBarsAt < 120 && lastGetBarsPayload) {
         const cached = lastGetBarsPayload
@@ -334,6 +338,17 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
         return
       }
 
+      // The budget is per reveal revision, not per wall-clock window. A replay rewind resets
+      // the series and TradingView walks back over the window asking for it again, so a trader
+      // stepping back a few candles in a row can spend a shared budget on work that is entirely
+      // legitimate — and the guard's answer, an empty result with a nextTime, reads to TV as
+      // "nothing here ever" and empties the chart for good. Requests worth choking are the ones
+      // that repeat without the data having moved, and those still share a revision.
+      const burstKey = `${symbolInfo.ticker}|${resolution}|${replayFeed.barsRevision()}`
+      if (burstKey !== getBarsBurstKey) {
+        getBarsBurstKey = burstKey
+        getBarsBurst = 0
+      }
       getBarsBurst += 1
       if (!getBarsBurstResetTimer) {
         getBarsBurstResetTimer = setTimeout(() => {

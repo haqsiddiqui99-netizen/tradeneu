@@ -3,6 +3,43 @@
 :root {
   --rw-font: Inter, 'Trebuchet MS', Roboto, Ubuntu, 'Helvetica Neue', Arial, sans-serif;
 
+  /* TradingView's own UI stack, for chrome that sits beside the library's native dialogs and
+     has to read as the same product rather than as our app's Inter. The real family is measured
+     off the library at runtime and published as `--rw-tv-header-font-family`; this wraps it so
+     the fallback stack is written once instead of at every call site. */
+  --rw-tv-ui-font: var(
+    --rw-tv-header-font-family,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Trebuchet MS',
+    Roboto,
+    Ubuntu,
+    sans-serif
+  );
+
+  /* Dark surface for popovers and dialogs: a flat charcoal with equal red, green and blue, so
+     it carries no tint at all. Both earlier values leaned blue — `#1e222d` plainly, then
+     `#1e2024` faintly — and beside the library's own dialogs even the faint cast read as a
+     different panel. */
+  --rw-tv-surface-dark: #252525;
+
+  /* The rest of that same palette, read off the library's own `--color-popup-*` variables so
+     our popovers are not just the right shade of panel with the wrong ink on it. TradingView
+     paints its dialogs and its dropdowns from one set, hence one set here too.
+     `hover` doubles as the keycap/chip fill, `hint` is for keyboard shortcuts and offsets. */
+  --rw-tv-popup-ink: #dbdbdb;
+  --rw-tv-popup-ink-muted: #808080;
+  --rw-tv-popup-ink-hint: #636363;
+  --rw-tv-popup-hover: #2e2e2e;
+  /* Section headings sit a shade above the secondary ink — measured off "CANDLES" in the
+     Settings dialog, which is lighter than the body's secondary text. */
+  --rw-tv-popup-ink-heading: #8c8c8c;
+
+  /* Body copy in those dialogs. Section headings drop to 11px and stay at this weight rather
+     than going semibold — TradingView leans on the uppercasing and the muted ink instead. */
+  --rw-tv-popup-font-size: 14px;
+  --rw-tv-popup-font-weight: 400;
+
   /* Spacing */
   --rw-space-1: 4px;
   --rw-space-2: 8px;

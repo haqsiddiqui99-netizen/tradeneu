@@ -7,8 +7,10 @@
   display: none;
   flex-direction: column;
   padding: 6px;
-  font-family: var(--rw-tv-header-font-family, var(--rw-font));
-  font-size: var(--rw-tv-header-font-size, 13px);
+  font-family: var(--rw-tv-ui-font);
+  /* Sized against TradingView's dialog body rather than its header: this is a panel of rows to
+     read, not a toolbar label, and `--rw-tv-header-font-size` tracks the toolbar. */
+  font-size: var(--rw-tv-popup-font-size);
   color: var(--rw-menu-text);
   background: var(--rw-menu-bg);
   border: 1px solid var(--rw-menu-border);
@@ -52,10 +54,11 @@
 
 .rw-goto-menu__grouplabel {
   padding: 5px 10px 6px;
-  color: var(--rw-menu-muted);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
+  color: var(--rw-tv-popup-ink-heading, var(--rw-menu-muted));
+  /* Matches "CANDLES" in TradingView's Settings dialog: 11px, body weight, no extra tracking —
+     the uppercasing and the muted ink are what mark it as a heading. */
+  font-size: 11px;
+  font-weight: var(--rw-tv-popup-font-weight);
   text-transform: uppercase;
 }
 
@@ -71,10 +74,9 @@
   background: transparent;
   color: var(--rw-menu-text);
   font-family: inherit;
-  font-size: var(--rw-tv-header-font-size, 13px);
-  font-weight: 450;
+  font-size: var(--rw-tv-popup-font-size);
+  font-weight: var(--rw-tv-popup-font-weight);
   line-height: 1.3;
-  letter-spacing: var(--rw-tv-header-letter-spacing, normal);
   text-align: left;
   cursor: pointer;
   transition:

@@ -136,6 +136,14 @@
   opacity: 0.58;
 }
 
+/* The off track is a fixed mid grey rather than a token, so that it reads as a control instead
+   of as the card behind it. That value glares against the dark panel, so dark needs its own —
+   pitched a step above the card for the same reason. Kept to the unchecked state so the green
+   on-state below, which works on both themes, is left alone. */
+[data-chart-theme='dark'] .rw-scalper__switch[aria-checked='false'] {
+  background: #4a4a4a;
+}
+
 .rw-scalper__field-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 138px;
@@ -164,6 +172,12 @@
 .rw-scalper__field:focus-within {
   border-color: #2962ff;
   box-shadow: 0 0 0 2px rgba(41, 98, 255, 0.12);
+}
+
+/* Hover darkens the border on light, so on dark it has to lighten it instead — the light value
+   would otherwise brighten the edge past the focus ring. */
+[data-chart-theme='dark'] .rw-scalper__field:hover {
+  border-color: #3f4550;
 }
 
 .rw-scalper__input {
@@ -344,6 +358,12 @@
   font-size: 12px;
 }
 
+/* A red dark enough to carry on white is unreadable on the dark panel — the translucent red
+   behind it barely lifts off the surface, so the text has to come up to meet it. */
+[data-chart-theme='dark'] .rw-scalper__error {
+  color: #ff8a95;
+}
+
 .rw-scalper__foot {
   display: flex;
   justify-content: flex-end;
@@ -351,48 +371,40 @@
   padding: 14px 24px 18px;
 }
 
+/* Sized to the 40px rhythm the fields and unit toggles above already use, and set in the
+   dialog's own family rather than a second hardcoded Inter stack. */
 .rw-scalper__discard,
 .rw-scalper__save {
-  height: 29px;
-  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 24px;
   border: 0;
   border-radius: 999px;
-  font: 400 11px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+  font: 500 15px var(--rw-tv-header-font-family, var(--rw-font, sans-serif));
   cursor: pointer;
 }
 
+/* Discard carries no fill: only one of these two is the action being offered, and giving the
+   other a filled pill of its own made them compete. Its hover fill comes from the theme token,
+   so it reads the same way on both palettes without a second rule. */
 .rw-scalper__discard {
-  background: #c9ced9;
+  background: transparent;
   color: var(--rw-bright, #131722);
 }
 
 .rw-scalper__discard:hover {
-  background: #bdc2cf;
+  background: var(--rw-hover, #f0f3fa);
 }
 
 .rw-scalper__save {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   background: #0b70f0;
   color: #fff;
 }
 
-.rw-scalper__save svg {
-  width: 14px;
-  height: 14px;
-}
-
 .rw-scalper__save:hover {
   background: #0963d6;
-}
-
-[data-chart-theme='dark'] .rw-scalper__discard {
-  background: rgba(255, 255, 255, 0.16);
-}
-[data-chart-theme='dark'] .rw-scalper__discard:hover {
-  background: rgba(255, 255, 255, 0.22);
 }
 
 /* Sits beside the order-type box in the trade bar, so it matches that control's
@@ -421,12 +433,14 @@
   color: #11141c;
 }
 
+/* The artwork is a 2:1 upright rocket, so the box is sized to roughly that ratio — a square
+   box would letterbox it down to ~8px wide and read much smaller than the old square icon. */
 .rw-scalper-mode-btn__ico {
-  width: 17px;
-  height: 17px;
+  width: 11px;
+  height: 21px;
   background-color: currentColor;
-  -webkit-mask: url('/icons/scalper-rocket.png?v=2') center / contain no-repeat;
-  mask: url('/icons/scalper-rocket.png?v=2') center / contain no-repeat;
+  -webkit-mask: url('/icons/scalper-rocket.png?v=3') center / contain no-repeat;
+  mask: url('/icons/scalper-rocket.png?v=3') center / contain no-repeat;
 }
 
 .rw-scalper-mode-btn.rw-scalper-mode-btn--active {
@@ -435,16 +449,18 @@
   color: #2962ff;
 }
 
+/* The rocket is a PNG mask tinted with `currentColor`, and its artwork is thin, so a mid grey
+   washes out against the black bar — it needs near-white ink to read at 17px. */
 .rw-root[data-chart-theme='dark'] .rw-scalper-mode-btn {
   border-color: rgba(255, 255, 255, 0.28);
-  background: #1e222d;
-  color: #b4b9c6;
+  background: var(--rw-chart);
+  color: #e6e8ee;
   box-shadow: none;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-scalper-mode-btn:hover {
   border-color: rgba(255, 255, 255, 0.4);
-  color: #e6e8ee;
+  color: #ffffff;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-scalper-mode-btn.rw-scalper-mode-btn--active {

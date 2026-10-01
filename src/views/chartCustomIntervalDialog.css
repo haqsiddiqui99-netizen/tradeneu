@@ -280,7 +280,7 @@
 }
 
 .rw-cint-dlg[data-chart-theme='dark'] .rw-cint__type-list {
-  background: #1e222d;
+  background: var(--rw-tv-surface-dark);
   border-color: #2a2e39;
 }
 
