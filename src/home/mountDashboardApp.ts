@@ -1,5 +1,6 @@
 import './traderLocal.css'
 import './dashboardTheme.css'
+import './homeDesk.css'
 import './surrealHero.css'
 import {
   Chart,
@@ -645,7 +646,7 @@ import { openSessionSummaryDialog } from '../views/sessionSummaryDialog'
 const LS_LOCALE = 'suplexity-dash-locale'
 const LS_SESSION_FILTER = 'suplexity-dash-session-filter'
 const LS_SESSION_SORT = 'suplexity-dash-session-sort'
-const LS_THEME = 'suplexity-dash-theme'
+const LS_THEME = 'suplexity-dash-theme-v2'
 const LS_ACCOUNT_TIER = 'suplexity-account-tier'
 const LS_PULSE_RANGE = 'suplexity-dash-pulse-range'
 const LS_TESTING_TAB = 'suplexity-dash-testing-tab'
@@ -1140,7 +1141,7 @@ function readDashTheme(): DashboardThemeMode {
   } catch {
     /* noop */
   }
-  return 'light'
+  return 'dark'
 }
 
 function writeDashTheme(mode: DashboardThemeMode) {
@@ -1501,7 +1502,7 @@ function buildDashTopbarHtml(): string {
           <div class="sx-dash-bar__brand" aria-hidden="true">
             <span class="sx-dash-side__mono">TN</span>
             <span class="sx-dash-side__name">
-              <span class="sx-dash-side__name-trade">TRADE</span><span class="sx-dash-side__name-neu">NEU</span>
+              <span class="sx-dash-side__name-trade">Trade</span><span class="sx-dash-side__name-neu">neu</span>
         </span>
           </div>
           <span class="sr-only">Tradeneu Premium Backtesting</span>
@@ -1860,8 +1861,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   appendElementsFromHtml(
     root,
     `
-<div class="flex h-full min-h-0 flex-col overflow-hidden bg-[#f0f0f0] text-slate-800" id="sx-app-root" data-dashboard-theme="light">
-  <div id="view-dash" class="sx-dash relative flex min-h-0 flex-1 flex-col overflow-hidden font-sans text-slate-800 selection:bg-indigo-500/20">
+<div class="sx-desk dark flex h-full min-h-0 flex-col overflow-hidden bg-[#07080b] text-slate-800" id="sx-app-root" data-dashboard-theme="dark">
+  <div id="view-dash" class="sx-desk sx-dash relative flex min-h-0 flex-1 flex-col overflow-hidden font-sans text-slate-800 selection:bg-white/15">
     <div class="sx-dash__mesh" aria-hidden="true"></div>
     <div class="sx-dash__noise" aria-hidden="true"></div>
     <div class="sx-dash__orb sx-dash__orb--a" aria-hidden="true"></div>

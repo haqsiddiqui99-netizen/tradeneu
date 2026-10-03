@@ -135,6 +135,23 @@ export const en = {
   'landing.why.card3Desc':
     'Instead of a bare win rate, get a breakdown of what specifically pushed your losing trades into the red.',
   'landing.footer': 'Tradeneu · Practice on the past, trade the present.',
+  'landing.how.title': 'Replay the tape. Decide without the ending.',
+  'landing.how.sub': 'The same sequence you use on a live chart — except the future stays hidden until you ask for the next bar.',
+  'landing.how.step1Title': 'Choose the market and the window',
+  'landing.how.step1Desc': 'XAUUSD, forex, indices. Set the start and end. The session opens on history, not on a blank demo account.',
+  'landing.how.step2Title': 'Advance one bar at a time',
+  'landing.how.step2Desc': 'Play, step, or jump. Candles to the right of the cursor stay hidden, so the entry is made before the outcome exists.',
+  'landing.how.step3Title': 'Read the result, not a score',
+  'landing.how.step3Desc': 'Fills, stops and the equity path are kept with the session, so a losing trade can be examined instead of remembered.',
+  'landing.markets.title': 'The markets the desk already replays',
+  'landing.markets.sub': 'Spot metals and FX from Dukascopy. Indices and the rest of the book from Twelve Data when a symbol isn’t on Dukascopy.',
+  'landing.terminal.live': 'Replay',
+  'landing.terminal.cursor': 'Cursor',
+  'landing.terminal.hidden': 'Hidden',
+  'landing.stat.trades': 'Trades',
+  'landing.stat.drawdown': 'Max drawdown',
+  'landing.final.title': 'Open a session on a date you already lived through.',
+  'landing.final.sub': 'No card. The first replay is the product.',
 
   // ——— Performance section ———
   'perf.title': 'Performance',
@@ -1372,7 +1389,7 @@ export const en = {
   'billing.plan.premium': 'Premium Plan',
 
   // ——— Account Settings: Account tab ———
-  'acct.profile.title': 'PROFILE',
+  'acct.profile.title': 'Account',
   'acct.profile.subtitle': 'How you appear inside Tradeneu.',
   'acct.profile.guestNote': 'Guest mode · stored in this browser only',
   'acct.profile.displayName': 'Display name',
@@ -1383,7 +1400,7 @@ export const en = {
   'acct.profile.claimUsername': 'Create an account to claim one',
   'acct.signedIn': 'Signed in',
   'acct.loading': 'Loading…',
-  'acct.regional.title': 'REGIONAL',
+  'acct.regional.title': 'Regional',
   'acct.regional.subtitle': 'Applied across every chart, session, and replay clock.',
   'acct.regional.timezone': 'Timezone',
   'acct.regional.timezoneHint': 'Used for session date labels and replay clocks.',

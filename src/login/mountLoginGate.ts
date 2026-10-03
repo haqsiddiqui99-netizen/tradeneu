@@ -4,6 +4,7 @@ import { fetchAuthServerStatus, loginUser, registerUser } from '../auth/authApi'
 import { clearAllAuthSessions, getAuthUser, GUEST_AUTH_EMAIL, mirrorServerUser, setGuestLoginSession } from '../auth/authSession'
 import { registerGuestSession } from '../guest/guestSessionApi'
 import { writeDisplayName } from '../home/dashboardUserPrefs'
+import { resolveAppPath } from '../appPaths'
 import { openLegalDocModal } from '../legal/legalDocModal'
 import {
   buildFullMobile,
@@ -58,6 +59,16 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
       </div>
     </div>
 
+    <div class="sx-login__stage">
+      <aside class="sx-login__aside">
+        <a class="sx-login__home" href="${resolveAppPath('landing')}">
+          <span class="sx-login__mark" aria-hidden="true"></span>
+          Tradeneu
+        </a>
+        <p class="sx-login__kicker">Backtesting desk</p>
+        <p class="sx-login__aside-title">The tape is the same one you left.</p>
+        <p class="sx-login__aside-copy">Sign in to open a replay. The future stays hidden until you step the next bar.</p>
+      </aside>
     <div class="sx-login__shell">
       <div class="sx-login__ai-border" aria-hidden="true">
         <div class="sx-login__ai-ring"></div>
@@ -65,7 +76,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
       <div class="sx-login__ai-glow" aria-hidden="true"></div>
       <form class="sx-login__panel" id="sx-login-form">
         <div class="sx-login__head">
-          <div class="sx-login__brand" id="sx-login-title">TRADENEU</div>
+          <div class="sx-login__brand" id="sx-login-title">Tradeneu</div>
           <h2 class="sx-login__heading" data-sx-login-heading>Welcome back</h2>
           <p class="sx-login__signup">
             <span data-sx-login-prompt>First time here?</span>
@@ -161,6 +172,7 @@ export function mountLoginGate(root: HTMLElement, onEnter?: () => void): void {
           </div>
         </div>
       </form>
+    </div>
     </div>
   `
 

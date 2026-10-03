@@ -5,31 +5,29 @@
    the bottom re-points the same tokens, matching the palette used by the
    Strategy and Subscription pages. */
 .sx-acct {
-  --bg: #f1f5f9;
+  --bg: transparent;
   --panel: #ffffff;
-  --raise: #f8fafc;
-  --raise2: #f1f5f9;
-  --line: #e2e8f0;
-  --line2: #cbd5e1;
-  --tx: #0f172a;
-  --dim: #64748b;
-  --dimmer: #94a3b8;
-  --accent: #334155;
-  --accent-tx: #ffffff;
-  --accent-hover: #1e293b;
-  /* Progress fill is kept off --accent so it stays readable when the accent is
-     close in value to the track. */
-  --meter: #334155;
-  --link: #2563eb;
-  --ok: #16a34a;
-  --danger: #dc2626;
+  --raise: #f3f4f6;
+  --raise2: rgba(17, 18, 20, 0.05);
+  --line: rgba(17, 18, 20, 0.08);
+  --line2: rgba(17, 18, 20, 0.16);
+  --tx: #111214;
+  --dim: #5c6370;
+  --dimmer: #8b919a;
+  --accent: #111214;
+  --accent-tx: #f4f5f7;
+  --accent-hover: #111214;
+  --meter: #111214;
+  --link: #111214;
+  --ok: #1f9d72;
+  --danger: #d2544a;
 
   display: flex;
   flex-direction: column;
   min-height: 0;
   background: var(--bg);
   color: var(--tx);
-  font-family: 'Segoe UI Variable', 'Segoe UI', Inter, -apple-system, Roboto, sans-serif;
+  font-family: Inter, 'Segoe UI', sans-serif;
 }
 
 /* Several components below set an explicit `display`, which outranks the user
@@ -42,9 +40,9 @@
 .sx-acct--embedded {
   height: auto;
   overflow: visible;
-  border: 1px solid var(--line);
-  border-radius: 1.25rem;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* ——— Header ——— */
@@ -53,9 +51,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 16px;
-  padding: 18px 24px 14px;
-  background: var(--panel);
-  border-radius: 1.25rem 1.25rem 0 0;
+  padding: 4px 0 14px;
+  background: transparent;
+  border-radius: 0;
 }
 
 .sx-acct:not(.sx-acct--embedded) .sx-acct__head {
@@ -97,10 +95,10 @@
 }
 
 .sx-acct__title {
-  margin: 2px 0 0;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
 }
 
 .sx-acct__email {
@@ -120,8 +118,8 @@
 .sx-acct__tabs {
   display: flex;
   gap: 2px;
-  padding: 0 16px;
-  background: var(--panel);
+  padding: 0;
+  background: transparent;
   border-bottom: 1px solid var(--line);
   /* Scrolls rather than wraps on narrow screens, but without a scrollbar
      eating into the 42px strip — the tabs are swipeable and all six fit at
@@ -139,15 +137,15 @@
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
-  height: 46px;
-  padding: 0 14px;
+  height: 40px;
+  padding: 0 12px;
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--dim);
-  font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 17px;
-  font-weight: 400;
+  font-family: Inter, 'Segoe UI', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -172,7 +170,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 22px 24px 28px;
+  padding: 18px 0 28px;
 }
 
 .sx-acct__panel[hidden] {
@@ -188,9 +186,10 @@
 
 .sx-acct-card {
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--panel);
-  padding: 18px;
+  padding: 16px 18px;
+  box-shadow: none;
 }
 
 .sx-acct-card--span {
@@ -212,14 +211,38 @@
 
 .sx-acct-card__title {
   margin: 0;
-  font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 16px;
-  font-weight: 550;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  /* Darker than --dim so the section labels read clearly at this small size
-     and light weight, rather than needing boldness to stay legible. */
+  font-family: Inter, 'Segoe UI', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-transform: none;
   color: var(--tx);
+}
+
+.sx-acct-account {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: end;
+}
+
+.sx-acct-account .sx-acct-identity {
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 0;
+  gap: 8px;
+}
+
+.sx-acct-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 18px;
+}
+
+.sx-acct-label-row .sx-acct-linkbtn {
+  margin-top: 0;
 }
 
 .sx-acct-card__lead {
@@ -245,6 +268,11 @@
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
+.sx-acct-fields--2 > .sx-acct-actions {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+}
+
 .sx-acct-fields--3 {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
@@ -257,8 +285,8 @@
 }
 
 .sx-acct-label {
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 14px;
+  font-family: Inter, 'Segoe UI', sans-serif;
+  font-size: 13px;
   font-weight: 500;
   color: var(--tx);
 }
@@ -283,7 +311,7 @@
   height: 38px;
   padding: 0 11px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--raise);
   color: var(--tx);
   font: inherit;
@@ -325,7 +353,7 @@
   width: 38px;
   height: 38px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--panel);
   color: var(--dim);
   cursor: pointer;
@@ -356,7 +384,7 @@
   min-height: 38px;
   padding: 0 15px;
   border: 1px solid var(--line2);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--panel);
   color: var(--tx);
   font: inherit;
@@ -411,7 +439,7 @@
   flex: 0 0 auto;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 8px;
   background: var(--raise2);
   color: var(--dim);
   font-size: 20px;
@@ -512,7 +540,7 @@
   height: 22px;
   padding: 0 9px;
   border: 1px solid var(--line);
-  border-radius: 99px;
+  border-radius: 8px;
   background: var(--raise2);
   color: var(--dim);
   font-size: 11px;
@@ -616,7 +644,7 @@
   margin-top: 16px;
   padding: 13px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: 8px;
   background: var(--raise);
   cursor: pointer;
 }
@@ -795,7 +823,7 @@
   width: 280px;
   padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--panel);
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.14);
 }
@@ -858,7 +886,7 @@
   margin-top: 16px;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--raise);
 }
 
@@ -922,7 +950,7 @@
   height: 36px;
   padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--panel);
   color: var(--tx);
   font: inherit;
@@ -978,7 +1006,7 @@
   display: inline-flex;
   padding: 3px;
   border: 1px solid var(--line);
-  border-radius: 99px;
+  border-radius: 8px;
   background: var(--raise);
 }
 
@@ -986,7 +1014,7 @@
   height: 28px;
   padding: 0 14px;
   border: 0;
-  border-radius: 99px;
+  border-radius: 6px;
   background: transparent;
   color: var(--dim);
   font: inherit;
@@ -1016,7 +1044,7 @@
   gap: 10px;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--raise);
 }
 
@@ -1210,7 +1238,7 @@
   height: 38px;
   padding: 0 11px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--raise);
   color: var(--tx);
   font: inherit;
@@ -1236,7 +1264,7 @@
   overflow-y: scroll;
   padding: 5px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: 8px;
   background: var(--panel);
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.14);
   font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
@@ -1307,7 +1335,7 @@
   gap: 13px;
   padding: 13px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: 8px;
   background: var(--raise);
 }
 
@@ -1378,7 +1406,7 @@
   justify-items: center;
   padding: 28px 16px;
   border: 1px dashed var(--line2);
-  border-radius: 12px;
+  border-radius: 8px;
   color: var(--dim);
   text-align: center;
 }
@@ -1408,34 +1436,28 @@
 
 /* ——— Dark theme ——— */
 #sx-app-root[data-dashboard-theme='dark'] .sx-acct {
-  --bg: #000000;
-  --panel: #121212;
-  --raise: #1a1a1a;
-  --raise2: #242424;
-  --line: #2a2a2a;
-  --line2: #3a3a3a;
-  --tx: #f1f1f1;
-  --dim: #9a9a9a;
-  --dimmer: #6b6b6b;
-  /* Same grey the sidebar uses for the active nav item, so the primary action
-     here reads as part of the same system. */
-  --accent: #6b7280;
-  --accent-tx: #ffffff;
-  --accent-hover: #7c8391;
-  --meter: #6b7280;
-  --link: #38bdf8;
-  --ok: #4ade80;
-  --danger: #e5615e;
+  --bg: transparent;
+  --panel: #0e1014;
+  --raise: #07080b;
+  --raise2: rgba(255, 255, 255, 0.05);
+  --line: rgba(255, 255, 255, 0.08);
+  --line2: rgba(255, 255, 255, 0.16);
+  --tx: #eceef2;
+  --dim: #8d939c;
+  --dimmer: #5e656e;
+  --accent: #f4f5f7;
+  --accent-tx: #111214;
+  --accent-hover: #f4f5f7;
+  --meter: #f4f5f7;
+  --link: #eceef2;
+  --ok: #7dcea9;
+  --danger: #e08a84;
 
-  /* Keeps the tab strip's own scrollbar and the native form controls dark. */
   color-scheme: dark;
 }
 
-/* Matches the lift the sidebar gives its active item. */
 #sx-app-root[data-dashboard-theme='dark'] .sx-acct-btn--primary {
-  box-shadow:
-    0 6px 16px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: none;
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-acct--embedded {
@@ -1453,10 +1475,15 @@
 }
 
 @media (max-width: 720px) {
+  .sx-acct-account {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
   .sx-acct__head,
   .sx-acct__body {
-    padding-left: 14px;
-    padding-right: 14px;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .sx-acct__tabs {

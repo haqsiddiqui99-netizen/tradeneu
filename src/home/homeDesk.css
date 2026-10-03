@@ -1,0 +1,1570 @@
+/* Homepage desk. Matches the landing and login: near-black, hairline panels,
+   one solid button. Scoped to .sx-desk so the chart workspace is untouched.
+   The theme toggle still swaps the two palettes below. */
+
+#sx-app-root.sx-desk {
+  --desk-bg: #f3f4f6;
+  --desk-panel: #ffffff;
+  --desk-line: rgba(17, 18, 20, 0.08);
+  --desk-line-strong: rgba(17, 18, 20, 0.16);
+  --desk-text: #111214;
+  --desk-muted: #5c6370;
+  --desk-faint: #8b919a;
+  --desk-up: #1f9d72;
+  --desk-down: #d2544a;
+  --desk-btn: #111214;
+  --desk-btn-ink: #f4f5f7;
+  --desk-hover: rgba(17, 18, 20, 0.05);
+  --desk-font: Inter, 'Segoe UI', sans-serif;
+  background: var(--desk-bg) !important;
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] {
+  --desk-bg: #07080b;
+  --desk-panel: #0e1014;
+  --desk-line: rgba(255, 255, 255, 0.08);
+  --desk-line-strong: rgba(255, 255, 255, 0.16);
+  --desk-text: #eceef2;
+  --desk-muted: #8d939c;
+  --desk-faint: #5e656e;
+  --desk-up: #7dcea9;
+  --desk-down: #e08a84;
+  --desk-btn: #f4f5f7;
+  --desk-btn-ink: #111214;
+  --desk-hover: rgba(255, 255, 255, 0.06);
+}
+
+#sx-app-root.sx-desk .sx-dash {
+  background: var(--desk-bg) !important;
+  color: var(--desk-text) !important;
+  font-family: var(--desk-font) !important;
+}
+
+#sx-app-root.sx-desk .sx-dash__mesh,
+#sx-app-root.sx-desk .sx-dash__noise,
+#sx-app-root.sx-desk .sx-dash__orb {
+  display: none;
+}
+
+/* ── Shell ──────────────────────────────────────────────────────────────── */
+
+#sx-app-root.sx-desk .sx-dash-side {
+  background: var(--desk-bg);
+  border-right: 1px solid var(--desk-line);
+  box-shadow: none;
+  font-family: var(--desk-font);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-side__account {
+  border-bottom-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-dash-side__username,
+#sx-app-root.sx-desk .sx-dash-side__name-trade,
+#sx-app-root.sx-desk .sx-dash-side__name-neu {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-side__mono {
+  border-radius: 5px;
+  background: var(--desk-panel);
+  border: 1px solid var(--desk-line-strong);
+  color: var(--desk-text);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__link {
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+  font-weight: 500;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__link:hover {
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-side__link--active,
+#sx-app-root.sx-desk .sx-dash-side__link--active:hover {
+  background: var(--desk-hover);
+  color: var(--desk-text);
+  box-shadow: none;
+  border-radius: 8px;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__link--active::before {
+  display: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-bar {
+  border-bottom: 1px solid var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-dash-bar__burger,
+#sx-app-root.sx-desk .sx-dash-bar__icon,
+#sx-app-root.sx-desk .sx-dash-bar__locale,
+#sx-app-root.sx-desk .sx-dash-bar__upgrade {
+  background: transparent;
+  border-color: var(--desk-line);
+  color: var(--desk-muted);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-bar__icon:hover,
+#sx-app-root.sx-desk .sx-dash-bar__upgrade:hover,
+#sx-app-root.sx-desk .sx-dash-bar__locale:hover {
+  background: var(--desk-hover);
+  border-color: var(--desk-line-strong);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-bar__crumb-here {
+  color: var(--desk-text);
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+
+#sx-app-root.sx-desk .sx-dash-hero {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0.25rem 0 1.75rem;
+}
+
+#sx-app-root.sx-desk .sx-dash-hero__eyebrow {
+  color: var(--desk-faint);
+  font-family: var(--desk-font);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+#sx-app-root.sx-desk .sx-dash-hero__title {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-weight: 560;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+#sx-app-root.sx-desk .sx-dash-hero__sub,
+#sx-app-root.sx-desk .sx-dash-hero__note {
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-dash-hero-btn {
+  border-radius: 8px;
+  font-family: var(--desk-font);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-hero-btn--primary {
+  background: var(--desk-btn);
+  border-color: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sx-dash-hero-btn--primary:hover {
+  background: var(--desk-btn);
+  border-color: var(--desk-btn);
+  filter: brightness(0.92);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-hero-btn--primary:hover {
+  filter: brightness(1.06);
+}
+
+#sx-app-root.sx-desk .sx-dash-hero-btn--ghost {
+  background: transparent;
+  border-color: var(--desk-line-strong);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-hero-btn--ghost:hover {
+  background: var(--desk-hover);
+  border-color: var(--desk-line-strong);
+}
+
+#sx-app-root.sx-desk .sx-dash-hero__card {
+  background: var(--desk-panel);
+  border-color: var(--desk-line);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-hero-card__symbol {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-dash-hero-card__meta {
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-dash-hero-card__balance.is-profit,
+#sx-app-root.sx-desk .sx-spark.is-profit {
+  color: var(--desk-up);
+}
+
+#sx-app-root.sx-desk .sx-dash-hero-card__balance.is-loss,
+#sx-app-root.sx-desk .sx-spark.is-loss {
+  color: var(--desk-down);
+}
+
+/* ── First run ──────────────────────────────────────────────────────────── */
+
+#sx-app-root.sx-desk .sx-dash-onboard {
+  border-top-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-dash-onboard__title,
+#sx-app-root.sx-desk .sx-dash-step__title,
+#sx-app-root.sx-desk .sx-dash-quick-card__symbol {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-dash-onboard__hint,
+#sx-app-root.sx-desk .sx-dash-step__desc,
+#sx-app-root.sx-desk .sx-dash-quick-card__name,
+#sx-app-root.sx-desk .sx-dash-quick-card__source,
+#sx-app-root.sx-desk .sx-dash-browse__label,
+#sx-app-root.sx-desk .sx-dash-perf-empty__text {
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-dash-step__desc strong,
+#sx-app-root.sx-desk .sx-dash-perf-empty__text strong {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-step__num {
+  background: transparent;
+  border: 1px solid var(--desk-line-strong);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-step:not(:last-child) .sx-dash-step__num::after {
+  background: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-dash-quick-card,
+#sx-app-root.sx-desk .sx-dash-creator,
+#sx-app-root.sx-desk .sx-dash-browse__chip {
+  background: var(--desk-panel);
+  border-color: var(--desk-line);
+  box-shadow: none;
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-dash-quick-card:hover,
+#sx-app-root.sx-desk .sx-dash-browse__chip:hover {
+  border-color: var(--desk-line-strong);
+  background: var(--desk-panel);
+  box-shadow: none;
+  transform: none;
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-quick-card__cat {
+  border-color: var(--desk-line);
+  color: var(--desk-faint);
+}
+
+#sx-app-root.sx-desk .sx-dash-quick-card__go {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-creator__search,
+#sx-app-root.sx-desk .sx-dash-creator__pill,
+#sx-app-root.sx-desk .sx-kbd {
+  background: transparent;
+  border-color: var(--desk-line);
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-dash-creator__pill.is-on,
+#sx-app-root.sx-desk .sx-dash-creator__row.is-on {
+  background: var(--desk-hover);
+  border-color: var(--desk-line-strong);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-creator__caption,
+#sx-app-root.sx-desk .sx-dash-creator__label {
+  color: var(--desk-faint);
+}
+
+/* ── Performance ────────────────────────────────────────────────────────── */
+
+#sx-app-root.sx-desk .sx-dash-performance__head h2 {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-weight: 560;
+  letter-spacing: -0.03em;
+}
+
+#sx-app-root.sx-desk .sx-dash-performance__head p {
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-dash-pulse__range {
+  background: transparent;
+  border-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-dash-pulse__range-btn {
+  color: var(--desk-faint);
+  font-family: var(--desk-font);
+  font-weight: 600;
+}
+
+#sx-app-root.sx-desk .sx-dash-pulse__range-btn--active,
+#sx-app-root.sx-desk .sx-dash-pulse__range-btn[aria-pressed='true'] {
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sx-dash-pulse--pro,
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-item,
+#sx-app-root.sx-desk .sx-dash-graph {
+  background: var(--desk-panel);
+  border-color: var(--desk-line);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-item:hover,
+#sx-app-root.sx-desk .sx-dash-graph:hover {
+  box-shadow: none;
+  transform: none;
+  border-color: var(--desk-line-strong);
+}
+
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-label,
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-meta,
+#sx-app-root.sx-desk .sx-dash-graph__title {
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-value {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-value--ok {
+  color: var(--desk-up);
+}
+
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-value--warn {
+  color: var(--desk-down);
+}
+
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-foot {
+  border-top-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-icon,
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-icon--blue,
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-icon--green,
+#sx-app-root.sx-desk .sx-dash-pulse__kpi-icon--gold {
+  background: transparent;
+  border: 1px solid var(--desk-line);
+  color: var(--desk-muted);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-recent-sessions {
+  border-radius: 0.5rem;
+  background: var(--desk-panel);
+  border-color: var(--desk-line);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-session-row {
+  border-radius: 0.5rem;
+  background: var(--desk-panel);
+  border-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-dash-session-row [data-action='resume-session'] {
+  background: transparent;
+  border: 1px solid var(--desk-line-strong);
+  color: var(--desk-text);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-session-row [data-action='resume-session']:hover {
+  background: var(--desk-hover);
+}
+
+#sx-app-root.sx-desk .sx-dash-session-row [data-action='session-summary'] {
+  background: transparent;
+  border-color: var(--desk-line);
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-dash-session-row [data-action='session-summary']:hover {
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-recent-sessions__banner {
+  background: var(--desk-hover);
+  border-color: var(--desk-line);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-recent-sessions__banner p,
+#sx-app-root.sx-desk .sx-dash-recent-sessions__banner span {
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-dash-partners__title {
+  color: var(--desk-faint);
+  font-family: var(--desk-font);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+#sx-app-root.sx-desk .sx-dash-partners__rule,
+#sx-app-root.sx-desk .sx-dash-partners__rule--end {
+  background: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-dash-partners__note {
+  background: var(--desk-panel);
+  border-color: var(--desk-line);
+  box-shadow: none;
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-partners__note-brand,
+#sx-app-root.sx-desk .sx-dash-partners__note-name,
+#sx-app-root.sx-desk .sx-dash-partners__tv {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-partners__note-copy {
+  color: var(--desk-muted);
+}
+
+/* ── Trades blotter ─────────────────────────────────────────────────────── */
+
+#sx-app-root.sx-desk .sxt-trades {
+  --sxt-ink-950: var(--desk-text);
+  --sxt-ink-800: var(--desk-text);
+  --sxt-ink-500: var(--desk-muted);
+  --sxt-ink-300: var(--desk-faint);
+  --sxt-paper: var(--desk-bg);
+  --sxt-surface: var(--desk-panel);
+  --sxt-line: var(--desk-line);
+  --sxt-line-soft: var(--desk-line);
+  --sxt-brand: var(--desk-text);
+  --sxt-brand-soft: var(--desk-hover);
+  --sxt-gain: var(--desk-up);
+  --sxt-loss: var(--desk-down);
+  --sxt-radius: 8px;
+  font-family: var(--desk-font);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxt-toolbar {
+  background: var(--desk-bg);
+}
+
+#sx-app-root.sx-desk .sxt-kpi-strip,
+#sx-app-root.sx-desk .sxt-table-card,
+#sx-app-root.sx-desk .sxt-headerclone__scroll,
+#sx-app-root.sx-desk .sxt-search-box,
+#sx-app-root.sx-desk .sxt-icon-btn,
+#sx-app-root.sx-desk .sxt-session-dd__btn,
+#sx-app-root.sx-desk .sxt-session-dd__menu,
+#sx-app-root.sx-desk .sxt-filterby__pill,
+#sx-app-root.sx-desk .sxt-colpicker__panel {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sxt-headerclone__scroll {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+#sx-app-root.sx-desk .sxt-table-card {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+#sx-app-root.sx-desk .sxt-spark-cell {
+  background: var(--desk-panel);
+}
+
+#sx-app-root.sx-desk .sxt-session-dd__btn,
+#sx-app-root.sx-desk .sxt-session-dd__menu,
+#sx-app-root.sx-desk .sxt-icon-btn,
+#sx-app-root.sx-desk .sxt-filterby__pill {
+  border-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sxt-session-dd__btn:hover,
+#sx-app-root.sx-desk .sxt-icon-btn:hover,
+#sx-app-root.sx-desk .sxt-filterby__pill:hover,
+#sx-app-root.sx-desk .sxt-page-btns button:hover:not(:disabled):not(.sxt-page-btn--active) {
+  background: var(--desk-hover);
+  border-color: var(--desk-line-strong);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxt-session-dd__item--active {
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxt-export-btn,
+#sx-app-root.sx-desk .sxt-page-btns button {
+  border-radius: 8px;
+}
+
+#sx-app-root.sx-desk .sxt-export-btn,
+#sx-app-root.sx-desk .sxt-filter-count,
+#sx-app-root.sx-desk .sxt-filterby__pill.sx-dash-trades-filter-tab--active,
+#sx-app-root.sx-desk .sxt-page-btns button.sxt-page-btn--active {
+  background: var(--desk-btn);
+  border-color: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sxt-page-btns button.sxt-page-btn--active:hover:not(:disabled) {
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sxt-headerclone,
+#sx-app-root.sx-desk .sxt-headerclone__table thead tr.sxt-col-row th,
+#sx-app-root.sx-desk .sxt-table thead tr.sxt-col-row th {
+  background: var(--desk-panel);
+}
+
+#sx-app-root.sx-desk .sxt-headerclone__table thead tr.sxt-col-row th,
+#sx-app-root.sx-desk .sxt-table thead tr.sxt-col-row th {
+  font-family: var(--desk-font);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--desk-muted);
+  border-bottom-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sxt-table tbody td {
+  border-bottom-color: var(--desk-line);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxt-table tbody tr:hover td {
+  background: var(--desk-hover);
+}
+
+#sx-app-root.sx-desk .sxt-action-btn {
+  background: transparent;
+  border-color: var(--desk-line);
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sxt-action-btn:hover {
+  background: var(--desk-hover);
+  border-color: var(--desk-line-strong);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxt-link-btn {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxt-empty {
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxt-colpicker__row input:checked::after,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxt-colpicker__search-row > input[type='checkbox']:checked::after,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxt-colpicker__search-row > input[type='checkbox']:indeterminate::after {
+  border-color: #111214;
+}
+
+/* ── Trades filters drawer ──────────────────────────────────────────────── */
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel {
+  background: var(--desk-panel);
+  border-color: var(--desk-line);
+  box-shadow: -16px 0 40px rgba(0, 0, 0, 0.18);
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel button,
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel input,
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel label {
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__head,
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__foot,
+#sx-app-root.sx-desk .sx-dash-trades-accordion,
+#sx-app-root.sx-desk .sxt-tagsfilter__divider {
+  border-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__title {
+  color: var(--desk-text);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__close {
+  color: var(--desk-muted);
+  border-radius: 8px;
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__close:hover {
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__tabs .sx-dash-trades-filter-tab {
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--desk-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__tabs .sx-dash-trades-filter-tab--active,
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__tabs .sx-dash-trades-filter-tab[aria-selected='true'] {
+  background: var(--desk-hover);
+  border-color: var(--desk-line-strong);
+  color: var(--desk-text);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__search,
+#sx-app-root.sx-desk .sxt-tagsfilter__trigger,
+#sx-app-root.sx-desk .sxt-tagsfilter__panel,
+#sx-app-root.sx-desk .sxt-tagsfilter__panel-searchbox,
+#sx-app-root.sx-desk .sx-dash-trades-date-range input[type='date'],
+#sx-app-root.sx-desk .sx-dash-trades-text-filter input[type='text'] {
+  background: var(--desk-panel);
+  border-color: var(--desk-line);
+  border-radius: 8px;
+  color: var(--desk-text);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__search input,
+#sx-app-root.sx-desk .sxt-tagsfilter__panel-searchbox input,
+#sx-app-root.sx-desk .sx-dash-trades-date-range input[type='date'],
+#sx-app-root.sx-desk .sx-dash-trades-text-filter input[type='text'] {
+  color: var(--desk-text);
+  font-size: 0.875rem;
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__search,
+#sx-app-root.sx-desk .sx-dash-trades-filters-panel__search input::placeholder,
+#sx-app-root.sx-desk .sxt-tagsfilter__trigger-placeholder,
+#sx-app-root.sx-desk .sxt-tagsfilter__trigger i,
+#sx-app-root.sx-desk .sxt-tagsfilter__panel-searchbox i,
+#sx-app-root.sx-desk .sx-dash-trades-accordion__head i,
+#sx-app-root.sx-desk .sx-dash-trades-accordion__empty,
+#sx-app-root.sx-desk .sxt-tagsfilter__empty,
+#sx-app-root.sx-desk .sxt-tagsfilter__group-label,
+#sx-app-root.sx-desk .sxt-tagsfilter__divider span,
+#sx-app-root.sx-desk .sx-dash-trades-date-range label {
+  color: var(--desk-faint);
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-accordion__head {
+  font-family: var(--desk-font);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-accordion__badge {
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-checkbox {
+  color: var(--desk-text);
+  font-size: 0.8125rem;
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-checkbox input,
+#sx-app-root.sx-desk .sxt-tagsfilter__panel-search > input[type='checkbox'] {
+  border-color: var(--desk-line-strong);
+  background: var(--desk-panel);
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-checkbox input:checked,
+#sx-app-root.sx-desk .sxt-tagsfilter__panel-search > input[type='checkbox']:checked {
+  background: var(--desk-btn);
+  border-color: var(--desk-btn);
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-checkbox input:checked::after,
+#sx-app-root.sx-desk .sxt-tagsfilter__panel-search > input[type='checkbox']:checked::after {
+  border-color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sxt-tagsfilter__label,
+#sx-app-root.sx-desk .sxt-tagsfilter__mode--active,
+#sx-app-root.sx-desk .sxt-tagsfilter__trigger {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxt-tagsfilter__modes {
+  background: var(--desk-hover);
+  border-radius: 8px;
+}
+
+#sx-app-root.sx-desk .sxt-tagsfilter__mode {
+  color: var(--desk-muted);
+  border-radius: 6px;
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sxt-tagsfilter__mode--active {
+  background: var(--desk-panel);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sxt-tagsfilter__item:hover,
+#sx-app-root.sx-desk .sx-dash-trades-pill:hover {
+  background: var(--desk-hover);
+  border-color: var(--desk-line-strong);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxt-tagsfilter__divider span {
+  background: var(--desk-panel);
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-pill {
+  border-radius: 8px;
+  border-color: var(--desk-line);
+  background: var(--desk-panel);
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+  font-size: 0.8125rem;
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-pill--active {
+  background: var(--desk-btn);
+  border-color: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-clear {
+  color: var(--desk-down);
+  font-family: var(--desk-font);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-apply {
+  border-radius: 8px;
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+  box-shadow: none;
+  font-family: var(--desk-font);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+#sx-app-root.sx-desk .sx-dash-trades-filters-apply:hover {
+  filter: none;
+  background: var(--desk-btn);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-trades-filters-apply:hover {
+  filter: brightness(1.06);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='light'] .sx-dash-trades-filters-apply:hover {
+  filter: brightness(0.92);
+}
+
+/* ── Analytics: Performance, Drawdown, Simulation ───────────────────────── */
+
+#sx-app-root.sx-desk .sxa-analytics {
+  --sxa-ink-950: var(--desk-text);
+  --sxa-ink-800: var(--desk-text);
+  --sxa-ink-500: var(--desk-muted);
+  --sxa-ink-300: var(--desk-faint);
+  --sxa-line: var(--desk-line);
+  --sxa-line-soft: var(--desk-hover);
+  --sxa-surface: var(--desk-panel);
+  --sxa-brand: var(--desk-text);
+  --sxa-brand-soft: var(--desk-hover);
+  --sxa-gain: var(--desk-up);
+  --sxa-gain-soft: rgba(31, 157, 114, 0.1);
+  --sxa-loss: var(--desk-down);
+  --sxa-loss-soft: rgba(210, 84, 74, 0.1);
+  --sxa-radius: 8px;
+  font-family: var(--desk-font);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxa-analytics {
+  --sxa-gain-soft: rgba(125, 206, 169, 0.12);
+  --sxa-loss-soft: rgba(224, 138, 132, 0.12);
+}
+
+#sx-app-root.sx-desk .sxa-tab-nav__btn,
+#sx-app-root.sx-desk .sxa-chip,
+#sx-app-root.sx-desk .sxa-section-title,
+#sx-app-root.sx-desk .sxa-section-title--sim-header,
+#sx-app-root.sx-desk .sxa-tab-row__btn,
+#sx-app-root.sx-desk .sxa-metric-dd__btn,
+#sx-app-root.sx-desk .sxa-metric-dd__item,
+#sx-app-root.sx-desk .sxa-card-head h3,
+#sx-app-root.sx-desk .sxa-kpi-value,
+#sx-app-root.sx-desk .sxa-rr-value {
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sxa-tab-nav {
+  background: transparent;
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+#sx-app-root.sx-desk .sxa-tab-nav__btn {
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sxa-tab-nav__btn--active {
+  background: var(--desk-hover);
+  color: var(--desk-text);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sxa-filter-bar,
+#sx-app-root.sx-desk .sxa-card,
+#sx-app-root.sx-desk .sxa-kpi-strip,
+#sx-app-root.sx-desk .sxa-wl-card {
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sxa-section-title,
+#sx-app-root.sx-desk .sxa-section-title--sim-header {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxa-kpi-label,
+#sx-app-root.sx-desk .sxa-rr-label,
+#sx-app-root.sx-desk .sxa-a-label,
+#sx-app-root.sx-desk .sxa-mc-field label {
+  color: var(--desk-muted);
+  font-weight: 500;
+}
+
+#sx-app-root.sx-desk .sxa-kpi {
+  border-right-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sxa-chip,
+#sx-app-root.sx-desk .sxa-breakeven-box,
+#sx-app-root.sx-desk .sxa-breakeven-box__input,
+#sx-app-root.sx-desk .sxa-tab-row,
+#sx-app-root.sx-desk .sxa-tab-row__btn,
+#sx-app-root.sx-desk .sxa-chart-type-toggle,
+#sx-app-root.sx-desk .sxa-chart-type-toggle__btn,
+#sx-app-root.sx-desk .sxa-metric-dd__btn,
+#sx-app-root.sx-desk .sxa-metric-dd__menu,
+#sx-app-root.sx-desk .sxa-mc-num,
+#sx-app-root.sx-desk .sxa-prompt-modal__input {
+  border-color: var(--desk-line);
+  border-radius: 8px;
+}
+
+#sx-app-root.sx-desk .sxa-chip:hover,
+#sx-app-root.sx-desk .sxa-metric-dd__btn:hover,
+#sx-app-root.sx-desk .sxa-mc-num:hover {
+  border-color: var(--desk-line-strong);
+  background: var(--desk-hover);
+}
+
+#sx-app-root.sx-desk .sxa-count-badge,
+#sx-app-root.sx-desk .sxa-apply-btn,
+#sx-app-root.sx-desk .sxa-apply-btn:hover,
+#sx-app-root.sx-desk .sxa-breakeven-box__submit,
+#sx-app-root.sx-desk .sxa-breakeven-box__submit:hover,
+#sx-app-root.sx-desk .sxa-export-btn,
+#sx-app-root.sx-desk .sxa-run-btn,
+#sx-app-root.sx-desk .sxa-tag-chip--active,
+#sx-app-root.sx-desk .sxa-month-cell--ytd,
+#sx-app-root.sx-desk .sxa-cal-day--selected,
+#sx-app-root.sx-desk .sxa-cal-day--selected:hover,
+#sx-app-root.sx-desk [data-sxa-mc-run],
+#sx-app-root.sx-desk [data-sxa-rr-add-new],
+#sx-app-root.sx-desk [data-sxa-sl-add-new] {
+  background: var(--desk-btn);
+  border-color: var(--desk-btn);
+  color: var(--desk-btn-ink);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk [data-sxa-mc-run]:hover,
+#sx-app-root.sx-desk [data-sxa-rr-add-new]:hover,
+#sx-app-root.sx-desk [data-sxa-sl-add-new]:hover,
+#sx-app-root.sx-desk .sxa-export-btn:hover {
+  filter: brightness(0.94);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] [data-sxa-mc-run]:hover,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] [data-sxa-rr-add-new]:hover,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] [data-sxa-sl-add-new]:hover,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxa-export-btn:hover {
+  filter: brightness(1.06);
+}
+
+#sx-app-root.sx-desk [data-sxa-mc-reset],
+#sx-app-root.sx-desk [data-sxa-export-csv],
+#sx-app-root.sx-desk [data-sxa-cal-prev],
+#sx-app-root.sx-desk [data-sxa-cal-next] {
+  background: transparent;
+  border: 1px solid var(--desk-line);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk [data-sxa-mc-reset]:hover,
+#sx-app-root.sx-desk [data-sxa-export-csv]:hover,
+#sx-app-root.sx-desk [data-sxa-cal-prev]:hover,
+#sx-app-root.sx-desk [data-sxa-cal-next]:hover {
+  background: var(--desk-hover);
+  border-color: var(--desk-line-strong);
+  filter: none;
+}
+
+#sx-app-root.sx-desk .sxa-apply-btn,
+#sx-app-root.sx-desk .sxa-run-btn,
+#sx-app-root.sx-desk .sxa-export-btn,
+#sx-app-root.sx-desk .sxa-breakeven-box__submit {
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+#sx-app-root.sx-desk .sxa-active-group,
+#sx-app-root.sx-desk .sxa-active-pill {
+  border-radius: 8px;
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxa-active-group__item + .sxa-active-group__item {
+  border-left-color: var(--desk-line-strong);
+}
+
+#sx-app-root.sx-desk .sxa-tab-row__btn--active,
+#sx-app-root.sx-desk .sxa-chart-type-toggle__btn--active,
+#sx-app-root.sx-desk .sxa-chart-type-toggle__btn--active.sx-dash-pulse__kpi-info {
+  background: var(--desk-hover) !important;
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxa-how-link {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxa-how-popover {
+  background: var(--desk-text);
+  color: var(--desk-bg);
+  border-radius: 8px;
+}
+
+#sx-app-root.sx-desk .sxa-mp-checkbox {
+  border-color: var(--desk-line-strong);
+  background: var(--desk-panel);
+}
+
+#sx-app-root.sx-desk .sxa-mp-checkbox--checked {
+  background: var(--desk-btn);
+  border-color: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sxa-mc-num:focus-within,
+#sx-app-root.sx-desk .sxa-prompt-modal__input:focus,
+#sx-app-root.sx-desk .sxa-breakeven-box__input:focus {
+  border-color: var(--desk-line-strong);
+  box-shadow: none;
+  outline: none;
+}
+
+#sx-app-root.sx-desk .sxa-clear-link:hover {
+  color: var(--desk-down);
+}
+
+/* ── Strategy: intake and the three paths ───────────────────────────────── */
+
+#sx-app-root.sx-desk .sx-strat-page--embedded {
+  border: 0;
+  border-radius: 0;
+  background: var(--desk-bg);
+  color: var(--desk-text);
+  box-shadow: none;
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-head,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__head {
+  border-bottom-color: var(--desk-line);
+  background: transparent;
+  border-radius: 0;
+}
+
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-title,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-hero-title,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__title {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-hero {
+  background: transparent;
+}
+
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-hero-subtitle,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__subtitle,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card-desc {
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card {
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  background: var(--desk-panel);
+  color: var(--desk-text);
+  box-shadow: none;
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card:hover {
+  border-color: var(--desk-line-strong);
+  background: var(--desk-panel);
+  transform: none;
+}
+
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card-icon,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card-icon--blue,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card-icon--violet,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card-icon--green {
+  border-radius: 8px;
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card-title {
+  font-weight: 600;
+}
+
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card-link,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card-link--blue,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card-link--violet,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__intake-card-link--green {
+  color: var(--desk-text);
+  font-weight: 600;
+}
+
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__btn {
+  border-color: var(--desk-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__btn--primary,
+#sx-app-root.sx-desk .sx-strat-page--embedded .sx-strat-page__btn--ai {
+  background: var(--desk-btn);
+  border-color: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+/* I have a strategy */
+#sx-app-root.sx-desk .sx-strat-obj {
+  background: var(--desk-bg);
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-strat-obj__back {
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-strat-obj__back:hover,
+#sx-app-root.sx-desk .sx-strat-obj__lead,
+#sx-app-root.sx-desk .sx-strat-obj__choice,
+#sx-app-root.sx-desk .sx-strat-obj__textarea,
+#sx-app-root.sx-desk .sx-strat-obj__file-name,
+#sx-app-root.sx-desk .sx-strat-obj__q-prompt,
+#sx-app-root.sx-desk .sx-strat-obj__opt,
+#sx-app-root.sx-desk .sx-strat-obj__building-title {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-strat-obj__lead-icon,
+#sx-app-root.sx-desk .sx-strat-obj__building-icon,
+#sx-app-root.sx-desk .sx-strat-obj__opt--suggest .sx-strat-obj__opt-label {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-strat-obj__choice,
+#sx-app-root.sx-desk .sx-strat-obj__composer,
+#sx-app-root.sx-desk .sx-strat-obj__file,
+#sx-app-root.sx-desk .sx-strat-obj__opt,
+#sx-app-root.sx-desk .sx-strat-obj__bubble,
+#sx-app-root.sx-desk .sx-strat-obj__opts {
+  background: var(--desk-panel);
+  border-color: var(--desk-line);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-strat-obj__choice:hover,
+#sx-app-root.sx-desk .sx-strat-obj__opt:hover,
+#sx-app-root.sx-desk .sx-strat-obj__attach:hover {
+  border-color: var(--desk-line-strong);
+  background: var(--desk-hover);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-strat-obj__choice-icon,
+#sx-app-root.sx-desk .sx-strat-obj__opt-key {
+  background: var(--desk-hover);
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-strat-obj__opt.is-picked {
+  background: var(--desk-hover);
+}
+
+#sx-app-root.sx-desk .sx-strat-obj__opt.is-picked .sx-strat-obj__opt-key,
+#sx-app-root.sx-desk .sx-strat-obj__send,
+#sx-app-root.sx-desk .sx-strat-obj__send:hover:not(:disabled),
+#sx-app-root.sx-desk .sx-strat-obj__continue,
+#sx-app-root.sx-desk .sx-strat-obj__continue:hover {
+  background: var(--desk-btn);
+  border-color: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sx-strat-obj__textarea::placeholder,
+#sx-app-root.sx-desk .sx-strat-obj__count,
+#sx-app-root.sx-desk .sx-strat-obj__hint,
+#sx-app-root.sx-desk .sx-strat-obj__q-hint,
+#sx-app-root.sx-desk .sx-strat-obj__building-sub {
+  color: var(--desk-faint);
+}
+
+#sx-app-root.sx-desk .sx-strat-obj__count.is-over {
+  color: var(--desk-down);
+}
+
+/* I need a strategy */
+#sx-app-root.sx-desk .sx-sgen {
+  --sx-sgen-accent: var(--desk-btn);
+  --sx-sgen-accent-2: var(--desk-btn);
+  --sx-sgen-card: var(--desk-panel);
+  --sx-sgen-page: var(--desk-bg);
+  --sx-sgen-border: var(--desk-line);
+  --sx-sgen-text: var(--desk-text);
+  --sx-sgen-muted: var(--desk-muted);
+  --sx-sgen-good: var(--desk-up);
+  --sx-sgen-warn: var(--desk-down);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-sgen__continue,
+#sx-app-root.sx-desk .sx-sgen__add,
+#sx-app-root.sx-desk .sx-sgen__other-send {
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+  border-radius: 8px;
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-sgen__card,
+#sx-app-root.sx-desk .sx-sgen__match,
+#sx-app-root.sx-desk .sx-sgen__opt {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-sgen__rail-seg {
+  border-radius: 8px;
+}
+
+#sx-app-root.sx-desk .sx-sgen__back:hover,
+#sx-app-root.sx-desk .sx-sgen__opt:hover {
+  background: var(--desk-hover);
+}
+
+/* I want in-built strategy */
+#sx-app-root.sx-desk .sx-manual-strat {
+  --bg: var(--desk-bg);
+  --panel: var(--desk-panel);
+  --raise: var(--desk-hover);
+  --raise2: var(--desk-hover);
+  --line: var(--desk-line);
+  --line2: var(--desk-line-strong);
+  --tx: var(--desk-text);
+  --dim: var(--desk-muted);
+  --dimmer: var(--desk-faint);
+  --gold: var(--desk-btn);
+  --gold-soft: var(--desk-hover);
+  --long: var(--desk-up);
+  --short: var(--desk-down);
+  --sans: var(--desk-font);
+  border-radius: 0;
+  font-family: var(--desk-font);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-manual-strat .btn-primary,
+#sx-app-root.sx-desk .sx-manual-strat .btn-primary:hover,
+#sx-app-root.sx-desk .sx-manual-strat .btn-chart,
+#sx-app-root.sx-desk .sx-manual-strat .btn-chart:hover,
+#sx-app-root.sx-desk .sx-manual-strat .btn-save,
+#sx-app-root.sx-desk .sx-manual-strat .btn-save:hover {
+  background: var(--desk-btn);
+  border-color: var(--desk-btn);
+  color: var(--desk-btn-ink);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-manual-strat .btn-chart i,
+#sx-app-root.sx-desk .sx-manual-strat .btn-save i {
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sx-manual-strat .btn {
+  border-radius: 8px;
+  font-family: var(--desk-font);
+}
+
+/* Billing — same desk surface as the rest of the dashboard. */
+#sx-app-root.sx-desk .sx-billing,
+#sx-app-root.sx-desk .sx-billing-dialog {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-billing__head h1,
+#sx-app-root.sx-desk .sx-billing-invoices h2,
+#sx-app-root.sx-desk .sx-billing-card__head h2,
+#sx-app-root.sx-desk .sx-billing-dialog__panel h3,
+#sx-app-root.sx-desk .sx-billing-summary h3 {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+#sx-app-root.sx-desk .sx-billing__head h1 {
+  font-size: 1.35rem;
+}
+
+#sx-app-root.sx-desk .sx-billing__head p,
+#sx-app-root.sx-desk .sx-billing-card__head p,
+#sx-app-root.sx-desk .sx-billing-card__date,
+#sx-app-root.sx-desk .sx-billing__loading,
+#sx-app-root.sx-desk .sx-billing-summary__eyebrow,
+#sx-app-root.sx-desk .sx-billing-summary p,
+#sx-app-root.sx-desk .sx-billing-invoice span,
+#sx-app-root.sx-desk .sx-billing-invoice b,
+#sx-app-root.sx-desk .sx-billing-savedcard__copy span,
+#sx-app-root.sx-desk .sx-billing-address__copy p span,
+#sx-app-root.sx-desk .sx-billing-transaction__copy span,
+#sx-app-root.sx-desk .sx-billing__empty,
+#sx-app-root.sx-desk .sx-billing-dialog__panel header p {
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-billing-summary,
+#sx-app-root.sx-desk .sx-billing-invoices,
+#sx-app-root.sx-desk .sx-billing-card {
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  background: var(--desk-panel);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-billing-plan {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #111214;
+  color: #f4f5f7;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-plan {
+  border-color: var(--desk-line-strong);
+  background: #16181d;
+}
+
+#sx-app-root.sx-desk .sx-billing-plan::after {
+  opacity: 0;
+}
+
+#sx-app-root.sx-desk .sx-billing-plan__brand,
+#sx-app-root.sx-desk .sx-billing-plan__number,
+#sx-app-root.sx-desk .sx-billing-plan__footer strong {
+  color: #f4f5f7;
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-billing-plan__number {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+#sx-app-root.sx-desk .sx-billing-plan__brand span {
+  border: 1px solid rgba(244, 245, 247, 0.28);
+  border-radius: 5px;
+  background: transparent;
+  color: #f4f5f7;
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-billing-plan__tier {
+  border-radius: 8px;
+  border-color: rgba(244, 245, 247, 0.22);
+  background: transparent;
+  color: #f4f5f7;
+  font-family: var(--desk-font);
+  font-weight: 600;
+}
+
+#sx-app-root.sx-desk .sx-billing-plan__scheme {
+  filter: none;
+  color: rgba(244, 245, 247, 0.85);
+}
+
+#sx-app-root.sx-desk .sx-billing-summary__icon,
+#sx-app-root.sx-desk .sx-billing__empty-icon,
+#sx-app-root.sx-desk .sx-billing-savedcard__icon {
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  background: var(--desk-hover);
+  color: var(--desk-text);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-billing__btn,
+#sx-app-root.sx-desk .sx-billing-invoices > header button,
+#sx-app-root.sx-desk .sx-billing__text-btn {
+  border-radius: 8px;
+  font-family: var(--desk-font);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-billing__btn--dark,
+#sx-app-root.sx-desk .sx-billing__btn--dark:hover {
+  border-color: var(--desk-btn);
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sx-billing__btn--ghost,
+#sx-app-root.sx-desk .sx-billing__btn--ghost:hover {
+  border-color: var(--desk-line);
+  background: transparent;
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-billing-invoices > header button,
+#sx-app-root.sx-desk .sx-billing__text-btn {
+  border-color: var(--desk-line);
+  background: transparent;
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-billing__text-btn--danger,
+#sx-app-root.sx-desk .sx-billing-address__actions button:first-child {
+  color: var(--desk-down);
+}
+
+#sx-app-root.sx-desk .sx-billing-invoice,
+#sx-app-root.sx-desk .sx-billing-savedcard,
+#sx-app-root.sx-desk .sx-billing-address {
+  border-color: var(--desk-line);
+  border-radius: 8px;
+  background: transparent;
+}
+
+#sx-app-root.sx-desk .sx-billing-savedcard,
+#sx-app-root.sx-desk .sx-billing-address {
+  background: var(--desk-hover);
+}
+
+#sx-app-root.sx-desk .sx-billing-invoice button,
+#sx-app-root.sx-desk .sx-billing-address__actions button,
+#sx-app-root.sx-desk .sx-billing-address__copy p,
+#sx-app-root.sx-desk .sx-billing-address__copy strong,
+#sx-app-root.sx-desk .sx-billing__empty strong,
+#sx-app-root.sx-desk .sx-billing-savedcard__copy strong,
+#sx-app-root.sx-desk .sx-billing-transaction__copy strong,
+#sx-app-root.sx-desk .sx-billing-dialog__panel label {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-billing-savedcard__edit {
+  border-radius: 8px;
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-billing-savedcard__edit:hover {
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-billing-transaction__mark {
+  border-color: var(--desk-down);
+  color: var(--desk-down);
+}
+
+#sx-app-root.sx-desk .sx-billing-transaction__mark--in {
+  border-color: var(--desk-up);
+  color: var(--desk-up);
+}
+
+#sx-app-root.sx-desk .sx-billing-transaction > b {
+  color: var(--desk-down);
+}
+
+#sx-app-root.sx-desk .sx-billing-transaction > .sx-billing-transaction__amount--in {
+  color: var(--desk-up);
+}
+
+#sx-app-root.sx-desk .sx-billing__empty {
+  border-color: var(--desk-line);
+  border-radius: 8px;
+}
+
+#sx-app-root.sx-desk .sx-billing-dialog__backdrop {
+  background: rgba(7, 8, 11, 0.48);
+}
+
+#sx-app-root.sx-desk .sx-billing-dialog__panel {
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  background: var(--desk-panel);
+  color: var(--desk-text);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-billing-dialog__x {
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-billing-dialog__panel input,
+#sx-app-root.sx-desk .sx-billing-dialog__panel select,
+#sx-app-root.sx-desk .sx-billing-dialog__panel textarea {
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  background: var(--desk-bg);
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-billing-dialog__panel input:focus,
+#sx-app-root.sx-desk .sx-billing-dialog__panel select:focus,
+#sx-app-root.sx-desk .sx-billing-dialog__panel textarea:focus {
+  border-color: var(--desk-text);
+  box-shadow: none;
+}
+
+/* Dark billing rules in billingPage.css load later and tie these selectors.
+   The extra theme attribute lets the desk tokens win. */
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-dialog {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing__head p,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-card__head p,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-card__date,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-dialog__panel header p {
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-summary,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-invoices,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-card,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-dialog__panel {
+  border-color: var(--desk-line);
+  background: var(--desk-panel);
+  color: var(--desk-text);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-address,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-savedcard {
+  border-color: var(--desk-line);
+  background: var(--desk-hover);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-address__copy p,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-address__actions button,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-invoice button,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing__empty strong,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-dialog__panel label {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-dialog__panel input,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-dialog__panel select,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-dialog__panel textarea {
+  border-color: var(--desk-line);
+  background: var(--desk-bg);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-savedcard__icon {
+  border-color: var(--desk-line);
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-savedcard__edit {
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-savedcard__edit:hover {
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}

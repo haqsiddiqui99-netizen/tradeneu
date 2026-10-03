@@ -154,18 +154,6 @@ function escapeAttr(s: string): string {
   return escapeHtml(s).replace(/'/g, '&#39;')
 }
 
-function formatMoney(n: number): string {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(n)
-  } catch {
-    return `$${Math.round(n)}`
-  }
-}
-
 function formatMemberSince(ms: number): string {
   try {
     return new Date(ms).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
@@ -397,8 +385,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     <header class="sx-acct__head">
       ${opts.onBack ? `<button type="button" class="sx-acct__back" data-sx-acct-back aria-label="${te('acct.backAria')}" data-i18n-aria-label="acct.backAria"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span data-i18n="acct.back">${te('acct.back')}</span></button>` : ''}
       <div class="sx-acct__head-copy">
-        <p class="sx-acct__eyebrow" data-i18n="acct.eyebrow">${te('acct.eyebrow')}</p>
-        <h1 class="sx-acct__title"><span data-i18n="acct.title">${te('acct.title')}</span><span class="sx-acct__email">${escapeHtml(email)}</span></h1>
+        <h1 class="sx-acct__title"><span data-i18n="acct.title">${te('acct.title')}</span></h1>
       </div>
       ${opts.showAdminLink && opts.adminHref ? `<div class="sx-acct__head-actions"><a class="sx-acct-btn" href="${escapeAttr(opts.adminHref)}">Admin</a></div>` : ''}
     </header>
@@ -421,112 +408,91 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     <div class="sx-acct__body">
       <section class="sx-acct__panel" role="tabpanel" id="sx-acct-panel-account" aria-labelledby="sx-acct-tab-account" data-sx-acct-panel="account" hidden tabindex="0">
         <div class="sx-acct__grid">
-          <div class="sx-acct__col">
-            <div class="sx-acct-card">
-              <div class="sx-acct-card__head">
-                <h2 class="sx-acct-card__title" data-i18n="acct.profile.title">${te('acct.profile.title')}</h2>
-                <p class="sx-acct-card__lead" data-i18n="acct.profile.subtitle">${te('acct.profile.subtitle')}</p>
-              </div>
+          <div class="sx-acct-card sx-acct-card--span">
+            <div class="sx-acct-card__head">
+              <h2 class="sx-acct-card__title" data-i18n="acct.profile.title">${te('acct.profile.title')}</h2>
+            </div>
+            <div class="sx-acct-account">
               <div class="sx-acct-identity">
                 <div class="sx-acct-avatar-wrap">
                   <div class="sx-acct-avatar" data-sx-acct-dp-preview>${avatarMarkup(initials, avatarUrl)}</div>
                   <button type="button" class="sx-acct-avatar-edit" data-sx-acct-dp-change aria-label="Change photo" title="Change photo"><i class="fa-solid fa-camera" aria-hidden="true"></i></button>
                 </div>
-                <div class="sx-acct-identity__copy">
-                  <p class="sx-acct-identity__name" data-sx-acct-name-display>${escapeHtml(displayName)}</p>
-                  <p class="sx-acct-identity__meta" data-i18n="${isGuest ? 'acct.profile.guestNote' : 'acct.signedIn'}">${isGuest ? te('acct.profile.guestNote') : te('acct.signedIn')}</p>
-                  <button type="button" class="sx-acct-linkbtn" data-sx-acct-dp-remove ${avatarUrl ? '' : 'hidden'}>Remove photo</button>
-                </div>
+                <button type="button" class="sx-acct-linkbtn" data-sx-acct-dp-remove ${avatarUrl ? '' : 'hidden'}>Remove photo</button>
               </div>
               <input type="file" accept="image/png,image/jpeg,image/webp" hidden data-sx-acct-dp-file />
-              <div class="sx-acct-fields">
+              <div class="sx-acct-fields sx-acct-fields--3">
                 <div class="sx-acct-field">
                   <label class="sx-acct-label" for="sx-acct-displayname" data-i18n="acct.profile.displayName">${te('acct.profile.displayName')}</label>
                   <input id="sx-acct-displayname" class="sx-acct-input" type="text" maxlength="48" value="${escapeAttr(displayName)}" autocomplete="nickname" data-sx-acct-username />
-                  <p class="sx-acct-hint" data-i18n="acct.profile.displayNameHint">${te('acct.profile.displayNameHint')}</p>
                 </div>
                 <div class="sx-acct-field">
                   <label class="sx-acct-label" for="sx-acct-handle" data-i18n="acct.profile.username">${te('acct.profile.username')}</label>
                   <input id="sx-acct-handle" class="sx-acct-input" type="text" maxlength="32" spellcheck="false" autocapitalize="none" autocomplete="username" placeholder="${isGuest ? te('acct.profile.claimUsername') : te('acct.loading')}" data-i18n-placeholder="${isGuest ? 'acct.profile.claimUsername' : 'acct.loading'}" ${isGuest ? 'disabled' : ''} data-sx-acct-handle />
-                  <p class="sx-acct-hint" data-sx-acct-handle-hint data-i18n="${isGuest ? 'acct.profile.usernameHintGuest' : 'acct.profile.usernameHintRules'}">${isGuest ? te('acct.profile.usernameHintGuest') : te('acct.profile.usernameHintRules')}</p>
                 </div>
-              </div>
-            </div>
-
-            <div class="sx-acct-card">
-              <div class="sx-acct-card__head">
-                <h2 class="sx-acct-card__title">Email</h2>
-                <p class="sx-acct-card__lead">The address you sign in with and receive account notices at.</p>
-              </div>
-              <div class="sx-acct-fields">
                 <div class="sx-acct-field">
-                  <label class="sx-acct-label" for="sx-acct-email">Email address</label>
+                  <div class="sx-acct-label-row">
+                    <label class="sx-acct-label" for="sx-acct-email">Email</label>
+                    ${isGuest ? '' : `<button type="button" class="sx-acct-linkbtn" data-sx-acct-email-open>Change</button>`}
+                  </div>
                   <input id="sx-acct-email" class="sx-acct-input" type="email" value="${escapeAttr(email)}" readonly data-sx-acct-email-current />
                 </div>
               </div>
-              ${
-                isGuest
-                  ? `<p class="sx-acct-hint">Placeholder address for guest mode. Create an account to set a real one.</p>`
-                  : `<div class="sx-acct-actions">
-                <button type="button" class="sx-acct-btn" data-sx-acct-email-open><i class="fa-regular fa-envelope" aria-hidden="true"></i>Change email</button>
-              </div>
-              <div class="sx-acct-fields" data-sx-acct-email-form hidden>
+            </div>
+            <p class="sx-acct-hint" data-sx-acct-handle-hint hidden></p>
+            ${
+              isGuest
+                ? ''
+                : `<div class="sx-acct-fields sx-acct-fields--2" data-sx-acct-email-form hidden>
                 <div class="sx-acct-field">
-                  <label class="sx-acct-label" for="sx-acct-email-new">New email address</label>
+                  <label class="sx-acct-label" for="sx-acct-email-new">New email</label>
                   <input id="sx-acct-email-new" class="sx-acct-input" type="email" autocomplete="email" data-sx-acct-email-new />
                 </div>
                 <div class="sx-acct-field">
-                  <label class="sx-acct-label" for="sx-acct-email-pass">Confirm with your password</label>
+                  <label class="sx-acct-label" for="sx-acct-email-pass">Current password</label>
                   <div class="sx-acct-input-row">
                     <input id="sx-acct-email-pass" class="sx-acct-input" type="password" autocomplete="current-password" data-sx-acct-email-pass />
                     <button type="button" class="sx-acct-icon-btn" data-sx-acct-pass-toggle="email" aria-label="Show password" title="Show password">${eyeIcon}</button>
                   </div>
-                  <p class="sx-acct-hint">Email is how you sign in and reset your password, so it needs your password to change.</p>
                 </div>
                 <div class="sx-acct-actions">
                   <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-email-save>Update email</button>
                   <button type="button" class="sx-acct-btn" data-sx-acct-email-cancel>Cancel</button>
                 </div>
               </div>`
-              }
-              <p class="sx-acct-saved" data-sx-acct-email-msg aria-live="polite"></p>
+            }
+            <p class="sx-acct-saved" data-sx-acct-email-msg aria-live="polite"></p>
+          </div>
+
+          <div class="sx-acct-card sx-acct-card--span">
+            <div class="sx-acct-card__head">
+              <h2 class="sx-acct-card__title" data-i18n="acct.regional.title">${te('acct.regional.title')}</h2>
+            </div>
+            <div class="sx-acct-fields sx-acct-fields--2">
+              <div class="sx-acct-field">
+                <label class="sx-acct-label" for="sx-acct-timezone" data-i18n="acct.regional.timezone">${te('acct.regional.timezone')}</label>
+                <select id="sx-acct-timezone" class="sx-acct-select" data-sx-acct-timezone>
+                  ${SETTINGS_TIMEZONE_OPTIONS.map((z) => `<option value="${z.id}">${escapeHtml(z.label)}</option>`).join('')}
+                </select>
+              </div>
+              <div class="sx-acct-field">
+                <span class="sx-acct-label" id="sx-acct-locale-label" data-i18n="acct.regional.language">${te('acct.regional.language')}</span>
+                <div class="sx-acct-locale" data-sx-acct-locale-picker>
+                  <button type="button" class="sx-acct-locale__trigger" id="sx-acct-locale-trigger" aria-labelledby="sx-acct-locale-label" aria-haspopup="listbox" aria-expanded="false">
+                    <span data-sx-acct-locale-value>English (EN)</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                  </button>
+                  <div class="sx-acct-locale__menu" id="sx-acct-locale-menu" hidden role="listbox" aria-labelledby="sx-acct-locale-label"></div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="sx-acct__col">
-            <div class="sx-acct-card">
-              <div class="sx-acct-card__head">
-                <h2 class="sx-acct-card__title" data-i18n="acct.regional.title">${te('acct.regional.title')}</h2>
-                <p class="sx-acct-card__lead" data-i18n="acct.regional.subtitle">${te('acct.regional.subtitle')}</p>
-              </div>
-              <div class="sx-acct-fields">
-                <div class="sx-acct-field">
-                  <label class="sx-acct-label" for="sx-acct-timezone" data-i18n="acct.regional.timezone">${te('acct.regional.timezone')}</label>
-                  <select id="sx-acct-timezone" class="sx-acct-select" data-sx-acct-timezone>
-                    ${SETTINGS_TIMEZONE_OPTIONS.map((z) => `<option value="${z.id}">${escapeHtml(z.label)}</option>`).join('')}
-                  </select>
-                  <p class="sx-acct-hint" data-i18n="acct.regional.timezoneHint">${te('acct.regional.timezoneHint')}</p>
-                </div>
-                <div class="sx-acct-field">
-                  <span class="sx-acct-label" id="sx-acct-locale-label" data-i18n="acct.regional.language">${te('acct.regional.language')}</span>
-                  <div class="sx-acct-locale" data-sx-acct-locale-picker>
-                    <button type="button" class="sx-acct-locale__trigger" id="sx-acct-locale-trigger" aria-labelledby="sx-acct-locale-label" aria-haspopup="listbox" aria-expanded="false">
-                      <span data-sx-acct-locale-value>English (EN)</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-                    </button>
-                    <div class="sx-acct-locale__menu" id="sx-acct-locale-menu" hidden role="listbox" aria-labelledby="sx-acct-locale-label"></div>
-                  </div>
-                  <p class="sx-acct-hint" data-i18n="acct.regional.languageHint">${te('acct.regional.languageHint')}</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="sx-acct-savebar">
-              <p class="sx-acct-saved" data-sx-acct-account-saved aria-live="polite"></p>
-              <div class="sx-acct-savebar__actions">
-                ${isGuest ? `<a class="sx-acct-btn" href="${resolveAppPath('login')}" data-i18n="acct.createAccount">${te('acct.createAccount')}</a>` : ''}
-                <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-save-account data-i18n="acct.saveChanges">${te('acct.saveChanges')}</button>
-              </div>
+          <div class="sx-acct-savebar sx-acct-card--span">
+            <p class="sx-acct-saved" data-sx-acct-account-saved aria-live="polite"></p>
+            <div class="sx-acct-savebar__actions">
+              ${isGuest ? `<a class="sx-acct-btn" href="${resolveAppPath('login')}" data-i18n="acct.createAccount">${te('acct.createAccount')}</a>` : ''}
+              <button type="button" class="sx-acct-btn sx-acct-btn--primary" data-sx-acct-save-account data-i18n="acct.saveChanges">${te('acct.saveChanges')}</button>
             </div>
           </div>
         </div>
@@ -537,7 +503,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Password</h2>
-              <p class="sx-acct-card__lead">${isGuest ? 'Guest sessions live only in this browser.' : 'Choose something you do not reuse elsewhere.'}</p>
             </div>
             ${
               isGuest
@@ -595,7 +560,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Where your data lives</h2>
-              <p class="sx-acct-card__lead">Tradeneu keeps sessions, strategies, and journals in this browser.</p>
             </div>
             <ul class="sx-acct-checklist">
               <li><i class="fa-solid fa-check" aria-hidden="true"></i> Market data is fetched locally and never leaves your machine</li>
@@ -611,7 +575,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card sx-acct-card--span">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Signed-in devices</h2>
-              <p class="sx-acct-card__lead">Every browser currently holding a session for this account. Signing one out ends its session immediately.</p>
             </div>
             <div data-sx-acct-devices></div>
           </div>
@@ -623,7 +586,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Current plan</h2>
-              <p class="sx-acct-card__lead">${escapeHtml(PLAN_BLURBS[tier])}</p>
             </div>
             <div class="sx-acct-plan-now">
               <span class="sx-acct-plan-now__name">${escapeHtml(planLabel)}</span>
@@ -648,7 +610,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Entitlement</h2>
-              <p class="sx-acct-card__lead">What your plan allows and how much of it you have used.</p>
             </div>
             <div class="sx-acct-usage">
               <div class="sx-acct-usage__top">
@@ -663,15 +624,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
               <div><dt>Data retention</dt><dd>${escapeHtml(planLimits.retention)}</dd></div>
               <div><dt>Trades / session</dt><dd>${escapeHtml(planLimits.trades)}</dd></div>
             </dl>
-            <p class="sx-acct-hint" style="margin-top:14px">
-              ${
-                tier === 'pro'
-                  ? 'You are on Premium Plan — nothing here is capped. Manage billing, pause, or cancel below.'
-                  : tier === 'intermediate'
-                    ? 'You are on Ultra Plan. Premium removes every cap and adds seconds data and futures.'
-                    : 'Upgrade when you need more sessions, charts, and analytics.'
-              }
-            </p>
           </div>
 
           <div class="sx-acct-card sx-acct-card--span" data-sx-acct-plans>
@@ -802,13 +754,11 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
                 }
               </article>
             </div>
-            <p class="sx-acct-hint" style="margin-top:14px">Taxes may apply at checkout. Plan changes take effect immediately; the new cycle starts on your next renewal.</p>
           </div>
 
           <div class="sx-acct-card sx-acct-card--span">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Compare plans</h2>
-              <p class="sx-acct-card__lead">Every limit side by side. Your current plan is highlighted.</p>
             </div>
             ${comparisonHtml(tier)}
           </div>
@@ -816,7 +766,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card sx-acct-card--span" data-sx-acct-billing-card>
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Billing &amp; invoices</h2>
-              <p class="sx-acct-card__lead">Payments recorded against this account.</p>
             </div>
             <div data-sx-acct-billing><p class="sx-acct-hint">Loading billing history…</p></div>
           </div>
@@ -828,20 +777,17 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card sx-acct-card--span">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">New session defaults</h2>
-              <p class="sx-acct-card__lead">Pre-filled every time you create a backtesting session.</p>
             </div>
             <div class="sx-acct-fields sx-acct-fields--3">
               <div class="sx-acct-field">
                 <label class="sx-acct-label" for="sx-acct-balance">Default account balance</label>
                 <input id="sx-acct-balance" class="sx-acct-input" type="number" min="1000" max="10000000" step="1000" value="${readDefaultSessionBalance()}" data-sx-acct-balance />
-                <p class="sx-acct-hint">Currently ${formatMoney(readDefaultSessionBalance())}.</p>
               </div>
               <div class="sx-acct-field">
                 <label class="sx-acct-label" for="sx-acct-interval">Default timeframe</label>
                 <select id="sx-acct-interval" class="sx-acct-select" data-sx-acct-interval>
                   ${SETTINGS_INTERVAL_OPTIONS.map((p) => `<option value="${p}"${p === defaultInterval ? ' selected' : ''}>${p}</option>`).join('')}
                 </select>
-                <p class="sx-acct-hint">Timeframe a new chart opens on.</p>
               </div>
               <div class="sx-acct-field">
                 <label class="sx-acct-label" for="sx-acct-strategy">Default strategy</label>
@@ -854,14 +800,12 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
                     )
                     .join('')}
                 </select>
-                <p class="sx-acct-hint">Loaded into the chart's strategy picker.</p>
               </div>
             </div>
             <label class="sx-acct-toggle" for="sx-acct-confirm-close">
               <input id="sx-acct-confirm-close" type="checkbox" data-sx-acct-confirm-close ${readConfirmCloseTrade() ? 'checked' : ''} />
               <span>
                 <strong>Confirm before closing trades</strong>
-                <em>Ask for confirmation when closing paper positions in replay.</em>
               </span>
             </label>
             <div class="sx-acct-actions">
@@ -877,13 +821,11 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Trading costs</h2>
-              <p class="sx-acct-card__lead">Applied to every backtest run so results match your broker.</p>
             </div>
             <div class="sx-acct-fields">
               <div class="sx-acct-field">
-                <label class="sx-acct-label" for="sx-acct-commission">Commission per trade</label>
+                <label class="sx-acct-label" for="sx-acct-commission">Commission per trade (USD)</label>
                 <input id="sx-acct-commission" class="sx-acct-input" type="number" min="0" max="1000" step="0.5" value="${readDefaultCommission()}" data-sx-acct-commission />
-                <p class="sx-acct-hint">US dollars, round-trip. Deducted from each trade's net P&amp;L.</p>
               </div>
               <div class="sx-acct-field">
                 <label class="sx-acct-label" for="sx-acct-slippage-mode">Spread / slippage</label>
@@ -891,7 +833,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
                   <option value="auto"${slippageMode === 'auto' ? ' selected' : ''}>Automatic per symbol</option>
                   <option value="fixed"${slippageMode === 'fixed' ? ' selected' : ''}>Fixed for all symbols</option>
                 </select>
-                <p class="sx-acct-hint">Added to buy fills and subtracted from sell fills.</p>
               </div>
               <div class="sx-acct-field" data-sx-acct-slippage-fixed-field ${slippageMode === 'fixed' ? '' : 'hidden'}>
                 <label class="sx-acct-label" for="sx-acct-slippage-fixed">Fixed slippage (price units)</label>
@@ -907,7 +848,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Automatic slippage</h2>
-              <p class="sx-acct-card__lead">What "Automatic per symbol" resolves to.</p>
             </div>
             <table class="sx-acct-table">
               <thead><tr><th scope="col">Instrument</th><th scope="col">Example</th><th scope="col">Slippage</th></tr></thead>
@@ -927,7 +867,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card sx-acct-card--span">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Sessions</h2>
-              <p class="sx-acct-card__lead">Everything stored for ${escapeHtml(displayName)} in this browser.</p>
             </div>
             <dl class="sx-acct-stats">
               <div><dt>Total sessions</dt><dd>${stats?.total ?? 0}</dd></div>
@@ -946,7 +885,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
           <div class="sx-acct-card sx-acct-card--span">
             <div class="sx-acct-card__head">
               <h2 class="sx-acct-card__title">Recycle bin</h2>
-              <p class="sx-acct-card__lead">Deleted sessions stay here for ${deletedSessionRetentionDays()} days, then clear themselves.</p>
             </div>
             <div data-sx-acct-deleted></div>
           </div>
@@ -1499,9 +1437,16 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
 
   function setHandleHint(text: string, tone: 'help' | 'ok' | 'error' = 'help') {
     if (!handleHint) return
+    if (tone !== 'error' || !text) {
+      handleHint.hidden = true
+      handleHint.textContent = ''
+      handleHint.classList.remove('is-error', 'is-ok')
+      return
+    }
+    handleHint.hidden = false
     handleHint.textContent = text
-    handleHint.classList.toggle('is-error', tone === 'error')
-    handleHint.classList.toggle('is-ok', tone === 'ok')
+    handleHint.classList.add('is-error')
+    handleHint.classList.remove('is-ok')
   }
 
   if (!isGuest && handleInput) {
@@ -1799,7 +1744,7 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
     if (!deletedHost) return
     const rows: DeletedSession[] = listDeletedSessions()
     if (!rows.length) {
-      deletedHost.innerHTML = `<div class="sx-acct-empty"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><strong>Nothing in the bin</strong><span>Sessions you delete show up here so you can put them back.</span></div>`
+      deletedHost.innerHTML = `<div class="sx-acct-empty"><i class="fa-regular fa-trash-can" aria-hidden="true"></i><strong>Nothing in the bin</strong><span>Kept for ${deletedSessionRetentionDays()} days after you delete a session.</span></div>`
       return
     }
     deletedHost.innerHTML = `<div class="sx-acct-rows">${rows
