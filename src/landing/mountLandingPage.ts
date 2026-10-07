@@ -63,6 +63,38 @@ function compareTables(): string {
 
 const MARK = tradeneuMarkSvg('sx-land__mark')
 
+const CHEVRON = `<svg class="sx-land-drop__chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`
+
+function navDrop(
+  id: string,
+  label: string,
+  items: Array<[string, string, string, string]>,
+  pricing = false,
+): string {
+  const links = items
+    .map(
+      ([href, icon, title, detail]) => `
+        <a class="sx-land-drop__item" href="${href}" ${pricing ? 'data-land-pricing' : 'data-land-home'}>
+          <span class="sx-land-drop__ico" aria-hidden="true">${icon}</span>
+          <span>
+            <strong>${title}</strong>
+            <span>${detail}</span>
+          </span>
+        </a>`,
+    )
+    .join('')
+  return `
+    <div class="sx-land-drop${pricing ? ' sx-land-drop--end' : ''}" data-land-drop="${id}">
+      <button type="button" class="sx-land-drop__btn" aria-expanded="false" aria-haspopup="true">
+        <span>${label}</span>
+        ${CHEVRON}
+      </button>
+      <div class="sx-land-drop__panel" hidden>
+        ${links}
+      </div>
+    </div>`
+}
+
 /**
  * Public marketing page. Static on purpose: no session store and no charting
  * library. The app window in the hero is a drawn example, labelled as one, so a
@@ -145,16 +177,29 @@ export function mountLandingPage(root: HTMLElement): void {
         <span class="sx-land__word">Tradeneu</span>
       </a>
       <nav class="sx-land__links" aria-label="Tradeneu">
-        <a href="#product" data-land-home data-i18n="landing.nav.product">${te('landing.nav.product')}</a>
-        <a href="#markets" data-land-home data-i18n="landing.nav.markets">${te('landing.nav.markets')}</a>
-        <a href="#pricing" data-land-pricing data-i18n="landing.nav.pricing">${te('landing.nav.pricing')}</a>
+        ${navDrop('product', te('landing.nav.product'), [
+          ['#product', ICON_STEP, 'Bar replay', 'Advance one candle at a time. The bars ahead stay hidden.'],
+          ['#product', ICON_CHART, 'Session journal', 'Entries, exits and stops are kept with the replay.'],
+          ['#product', ICON_TARGET, 'Why it lost', 'A plain-language read of what pushed a trade into the red.'],
+          ['#product', ICON_PLAY, 'Practice desk', 'The same sequence as a live chart, opened on history.'],
+        ])}
+        ${navDrop('markets', te('landing.nav.markets'), [
+          ['#markets', ICON_CHART, 'Metals', 'XAUUSD gold, replayed from Dukascopy history.'],
+          ['#markets', ICON_CHART, 'FX', 'EURUSD, GBPUSD and USDJPY on the same desk.'],
+          ['#markets', ICON_CHART, 'Indices', 'NAS100 and the rest of the index book.'],
+          ['#markets', ICON_CHART, 'Crypto', 'BTCUSD when you want a different tape.'],
+        ])}
+        ${navDrop('pricing', te('landing.nav.pricing'), [
+          ['#pricing', ICON_TARGET, 'Beginner', 'Free for everyone. A short book to start replaying.'],
+          ['#pricing', ICON_CHART, 'Intermediate', `$${PRICING.monthly.intermediate.label} a month. More sessions, charts and AI.`],
+          ['#pricing', ICON_STEP, 'Pro', `$${PRICING.monthly.pro.label} a month. Unlimited replay, charts and AI.`],
+        ], true)}
       </nav>
       <div class="sx-land__nav-actions">
         <a class="sx-land__signin" href="${loginPath}">
           ${ICON_USER}
           <span data-i18n="landing.nav.signIn">${te('landing.nav.signIn')}</span>
         </a>
-        <a class="sx-land-btn sx-land-btn--accent" href="${loginPath}" data-i18n="landing.cta">${te('landing.cta')}</a>
       </div>
     </div>
   </header>
@@ -171,10 +216,6 @@ export function mountLandingPage(root: HTMLElement): void {
           <a class="sx-land-btn sx-land-btn--solid sx-land-btn--lg" href="${loginPath}">
             <span data-i18n="landing.cta">${te('landing.cta')}</span>
             ${ICON_ARROW}
-          </a>
-          <a class="sx-land-btn sx-land-btn--glass sx-land-btn--lg" href="#product">
-            ${ICON_PLAY}
-            <span data-i18n="landing.sampleCta">${te('landing.sampleCta')}</span>
           </a>
         </div>
         <p class="sx-land-hero__note" data-i18n="landing.note">${te('landing.note')}</p>
@@ -328,12 +369,47 @@ function wireLandingNav(root: HTMLElement): void {
     land.classList.toggle('is-pricing', on)
     if (on) window.scrollTo(0, 0)
   }
-  root.querySelector('[data-land-pricing]')?.addEventListener('click', (event) => {
-    event.preventDefault()
-    showPricing(true)
+  const closeDrops = () => {
+    root.querySelectorAll<HTMLElement>('[data-land-drop]').forEach((drop) => {
+      drop.classList.remove('is-open')
+      drop.querySelector('button')?.setAttribute('aria-expanded', 'false')
+      const panel = drop.querySelector<HTMLElement>('.sx-land-drop__panel')
+      if (panel) panel.hidden = true
+    })
+  }
+  root.querySelectorAll<HTMLElement>('[data-land-drop]').forEach((drop) => {
+    const button = drop.querySelector('button')
+    const panel = drop.querySelector<HTMLElement>('.sx-land-drop__panel')
+    button?.addEventListener('click', (event) => {
+      event.stopPropagation()
+      const open = !drop.classList.contains('is-open')
+      closeDrops()
+      if (!open || !panel || !button) return
+      drop.classList.add('is-open')
+      button.setAttribute('aria-expanded', 'true')
+      panel.hidden = false
+    })
+  })
+  root.addEventListener('click', (event) => {
+    if (!(event.target instanceof Node) || !root.querySelector('[data-land-drop].is-open')?.contains(event.target)) {
+      closeDrops()
+    }
+  })
+  root.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeDrops()
+  })
+  root.querySelectorAll('[data-land-pricing]').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault()
+      closeDrops()
+      showPricing(true)
+    })
   })
   root.querySelectorAll('[data-land-home]').forEach((link) => {
-    link.addEventListener('click', () => showPricing(false))
+    link.addEventListener('click', () => {
+      closeDrops()
+      showPricing(false)
+    })
   })
   root.querySelectorAll<HTMLButtonElement>('[data-cycle]').forEach((button) => {
     button.addEventListener('click', () => {
