@@ -1,4 +1,5 @@
 import './billingPage.css'
+import { tradeneuBrandHtml } from '../brand/tradeneuMark'
 import type { AuthUser } from '../auth/authSession'
 import {
   fetchMyBilling,
@@ -357,7 +358,7 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
       <article class="sx-billing-plan">
         <div class="sx-billing-plan__top">
           <div class="sx-billing-plan__brand">
-            <span>TN</span><strong>TRADENEU</strong>
+            ${tradeneuBrandHtml()}
           </div>
           <span class="sx-billing-plan__tier">${escapeHtml(planName(tier))}</span>
         </div>

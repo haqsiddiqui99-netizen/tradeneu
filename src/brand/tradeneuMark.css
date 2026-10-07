@@ -1,0 +1,40 @@
+.sx-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: inherit;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.sx-brand__mark {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: currentColor;
+}
+
+.sx-brand__word {
+  color: inherit;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+
+/* Silver word only on dark surfaces. Light mode keeps a solid dark name. */
+.sx-billing-plan .sx-brand__word,
+.rw-chart-loading__brand .sx-brand__word,
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-bar__brand .sx-brand__word {
+  background: linear-gradient(180deg, #ffffff 8%, #c5cad3 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-dash-bar__brand .sx-brand__word {
+  background: none;
+  color: #111214;
+  -webkit-text-fill-color: #111214;
+}

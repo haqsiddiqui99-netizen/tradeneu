@@ -2,6 +2,7 @@ import './traderLocal.css'
 import './dashboardTheme.css'
 import './homeDesk.css'
 import './surrealHero.css'
+import { tradeneuBrandHtml } from '../brand/tradeneuMark'
 import {
   Chart,
   LineController,
@@ -1499,11 +1500,8 @@ function buildDashTopbarHtml(): string {
             <i class="fa-solid fa-bars" aria-hidden="true"></i>
           </label>
 
-          <div class="sx-dash-bar__brand" aria-hidden="true">
-            <span class="sx-dash-side__mono">TN</span>
-            <span class="sx-dash-side__name">
-              <span class="sx-dash-side__name-trade">Trade</span><span class="sx-dash-side__name-neu">neu</span>
-        </span>
+          <div class="sx-dash-bar__brand">
+            ${tradeneuBrandHtml()}
           </div>
           <span class="sr-only">Tradeneu Premium Backtesting</span>
 

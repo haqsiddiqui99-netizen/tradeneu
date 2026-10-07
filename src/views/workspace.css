@@ -4896,10 +4896,14 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 .rw-chart-loading__brand {
   margin: 0;
-  font: 700 2.35rem/1 var(--rw-font);
-  letter-spacing: 0.01em;
-  color: #ffffff;
-  text-transform: lowercase;
+  color: #f4f6f8;
+  font-size: 1.65rem;
+  text-transform: none;
+}
+
+.rw-chart-loading__brand .sx-brand__mark {
+  width: 34px;
+  height: 34px;
 }
 
 .rw-chart-loading__bar {

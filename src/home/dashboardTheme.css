@@ -4512,11 +4512,14 @@ a.sx-dash-account__item {
   }
 }
 
-.sx-dash-bar__brand .sx-dash-side__mono {
-  height: 2.1rem;
-  width: 2.1rem;
-  border-radius: 0.65rem;
-  font-size: 0.85rem;
+.sx-dash-bar__brand .sx-brand {
+  font-size: 1.15rem;
+  color: #0f172a;
+}
+
+.sx-dash-bar__brand .sx-brand__mark {
+  width: 26px;
+  height: 26px;
 }
 
 .sx-dash-bar__brand .sx-dash-side__name {
@@ -5613,6 +5616,10 @@ a.sx-dash-account__item {
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-side__name-trade {
   color: #fafafa;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-bar__brand .sx-brand {
+  color: #f4f6f8;
 }
 
 #sx-app-root[data-dashboard-theme='dark'] .sx-dash-side__name-neu {

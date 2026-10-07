@@ -1,3 +1,5 @@
+import { tradeneuMarkSvg } from '../brand/tradeneuMark'
+
 export type CheckoutPlan = 'intermediate' | 'pro'
 export type CheckoutCycle = 'monthly' | 'quarterly' | 'yearly'
 export type CheckoutPaymentMethod = 'upi' | 'card' | 'paypal'
@@ -126,7 +128,7 @@ export function createCheckoutOverlay(opts: MountCheckoutOverlayOptions): {
     <div class="sx-checkout__shell" data-sx-checkout-shell>
       <header class="sx-checkout__top">
         <div class="sx-checkout__brand">
-          <span class="sx-checkout__logo" aria-hidden="true">TN</span>
+          <span class="sx-checkout__logo" aria-hidden="true">${tradeneuMarkSvg()}</span>
           <div>
             <p class="sx-checkout__product">Tradeneu checkout</p>
             <p class="sx-checkout__eyebrow" data-sx-checkout-order-line>Pro · $19.00 · Monthly</p>

@@ -890,14 +890,15 @@ body.sx-checkout-open {
 .sx-checkout__logo {
   display: grid;
   place-items: center;
-  width: 2.15rem;
-  height: 2.15rem;
-  border-radius: 0.65rem;
-  background: linear-gradient(135deg, #334155, #1E293B);
-  color: #fff;
-  font-size: 0.7rem;
-  font-weight: 800;
+  width: 1.7rem;
+  height: 1.7rem;
   flex-shrink: 0;
+  color: #0f172a;
+}
+
+.sx-checkout__logo .sx-brand__mark {
+  width: 1.7rem;
+  height: 1.7rem;
 }
 
 .sx-checkout__product {

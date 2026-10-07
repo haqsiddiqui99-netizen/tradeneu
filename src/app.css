@@ -1,4 +1,5 @@
 @import './sessionModal.css';
+@import './brand/tradeneuMark.css';
 
 @tailwind base;
 @tailwind components;

@@ -130,21 +130,12 @@
 .sx-billing-plan__brand {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  font-size: 0.7rem;
+  font-size: 0.95rem;
 }
 
-.sx-billing-plan__brand span {
-  display: inline-flex;
-  height: 1.5rem;
-  width: 1.5rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.45rem;
-  background: #fff;
-  color: #172033;
-  font-size: 0.55rem;
-  font-weight: 800;
+.sx-billing-plan__brand .sx-brand__mark {
+  width: 20px;
+  height: 20px;
 }
 
 .sx-billing-plan__tier {

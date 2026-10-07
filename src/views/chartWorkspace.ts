@@ -1,4 +1,5 @@
 import './workspace.css'
+import { tradeneuBrandHtml } from '../brand/tradeneuMark'
 import './symbolSearchModal.css'
 import '../chart/chartPositionOverlay.css'
 import { icons } from '../icons'
@@ -759,7 +760,7 @@ export function mountChartWorkspace(
         <div class="rw-chart-loading" data-rw-chart-loading hidden aria-live="polite" aria-busy="false">
           <div class="rw-chart-loading__veil" aria-hidden="true"></div>
           <div class="rw-chart-loading__panel">
-            <p class="rw-chart-loading__brand" aria-hidden="true">trade neu</p>
+            <p class="rw-chart-loading__brand" aria-hidden="true">${tradeneuBrandHtml()}</p>
             <div
               class="rw-chart-loading__bar"
               role="progressbar"
