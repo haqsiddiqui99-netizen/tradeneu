@@ -25,6 +25,8 @@ import {
   buildSessionModalHealthMessage,
 } from './data/sessionModalHealth'
 import { readDefaultSessionBalance } from './home/dashboardUserPrefs'
+import { formatChartLayoutMeta, getChartLayout, listChartLayouts } from './chart/chartLayoutStore'
+import { listAllStrategies, strategySelectLabel } from './strategy/strategyCatalog'
 
 export type { SessionCreatedPayload } from './sessionTypes'
 
@@ -137,7 +139,7 @@ export type SessionModalOpenOpts = {
   draft?: Partial<
     Pick<
       SessionCreatedPayload,
-      'name' | 'balance' | 'assets' | 'layout' | 'sessionType' | 'startDate' | 'endDate' | 'propRules'
+      'name' | 'balance' | 'assets' | 'layout' | 'strategyId' | 'sessionType' | 'startDate' | 'endDate' | 'propRules'
     >
   >
   /**
@@ -169,9 +171,21 @@ const CATEGORY_ORDER: AssetCategory[] = [
   'stocks',
 ]
 
+const BALANCE_PRESETS = [10_000, 50_000, 100_000, 250_000] as const
+
+function escapeSessionText(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 export function createSessionModal(options?: {
   onSessionCreate?: (payload: SessionCreatedPayload) => void
   onSessionUpdate?: (id: string, payload: SessionCreatedPayload) => void
+  /** Leave the dialog and open the strategy builder. */
+  onCreateStrategy?: () => void
 }) {
   let editingSessionId: string | null = null
   const wrap = el(`
@@ -185,18 +199,29 @@ export function createSessionModal(options?: {
         tabindex="-1"
       >
         <div class="sx-modal__head">
-          <h2 class="sx-modal__title" id="sx-modal-title">Create a quick session</h2>
+          <div class="sx-modal__titles">
+            <h2 class="sx-modal__title" id="sx-modal-title">Create a quick session</h2>
+            <p class="sx-modal__lead" id="sx-modal-lead">A paper account on real history. The bars ahead stay hidden until you step forward.</p>
+          </div>
           <div class="sx-modal__head-right">
-            <button type="button" class="sx-modal__advanced">Advanced session</button>
             <button type="button" class="sx-modal__close" aria-label="Close dialog">${icons.close}</button>
           </div>
         </div>
 
         <div class="sx-modal__seg" role="group" aria-label="Session type">
-          <button type="button" class="sx-modal__seg-btn sx-modal__seg-btn--on" data-seg="backtest">Backtesting session</button>
+          <button type="button" class="sx-modal__seg-btn sx-modal__seg-btn--on" data-seg="backtest">
+            <span class="sx-modal__seg-ico" aria-hidden="true">${icons.play}</span>
+            <span class="sx-modal__seg-copy">
+              <strong>Backtesting</strong>
+              <small>Replay one window and journal the trades you take.</small>
+            </span>
+          </button>
           <button type="button" class="sx-modal__seg-btn" data-seg="prop">
-            <span>Target Challenge</span>
-            <span class="sx-pro-mini" title="Pro feature">${icons.bolt}<span>Pro</span></span>
+            <span class="sx-modal__seg-ico" aria-hidden="true">${icons.bolt}</span>
+            <span class="sx-modal__seg-copy">
+              <strong>Target challenge <span class="sx-pro-mini" title="Pro feature"><span>Pro</span></span></strong>
+              <small>Same replay, with a profit target and loss limits.</small>
+            </span>
           </button>
         </div>
 
@@ -217,17 +242,42 @@ export function createSessionModal(options?: {
               <p class="sx-field-error" id="sx-session-name-err" hidden>This field is required.</p>
             </div>
 
-            <div class="sx-field">
-              <label class="sx-label sx-label--required" for="sx-session-balance">Account Balance</label>
+            <div class="sx-choice-card">
+              <label class="sx-label sx-label--required" for="sx-session-balance">Account balance</label>
+              <div class="sx-bal-presets" role="group" aria-label="Common balances">
+                <button type="button" data-bal="10000">$10K</button>
+                <button type="button" data-bal="50000">$50K</button>
+                <button type="button" data-bal="100000">$100K</button>
+                <button type="button" data-bal="250000">$250K</button>
+                <button type="button" data-bal="custom">Custom</button>
+              </div>
               <div class="sx-input-wrap sx-input-wrap--prefix">
-                <span class="sx-input__prefix" aria-hidden="true">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-                    <path d="M12 7v10M10 10h2.2a1.8 1.8 0 000-3.6H10M10 14h2.4a2 2 0 010 4H10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                  </svg>
-                </span>
+                <span class="sx-input__prefix sx-input__prefix--money" aria-hidden="true">$</span>
                 <input type="text" id="sx-session-balance" class="sx-input sx-input--with-prefix" inputmode="numeric" value="100000" />
               </div>
+            </div>
+
+            <div class="sx-choice-card">
+              <label class="sx-label" id="sx-strategy-label">Strategy</label>
+              <div class="sx-laypick" id="sx-stratpick">
+                <button
+                  type="button"
+                  class="sx-laypick__trigger is-empty"
+                  id="sx-strategy-trigger"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-labelledby="sx-strategy-label"
+                >
+                  <span id="sx-strategy-current">Select a strategy or create new one</span>
+                  <span class="sx-laypick__chev" aria-hidden="true">${icons.chevronDown}</span>
+                </button>
+                <div class="sx-laypick__panel sx-laypick__panel--below" id="sx-strategy-panel" hidden>
+                  <input type="text" class="sx-laypick__search" id="sx-strategy-search" placeholder="Search strategies" autocomplete="off" aria-label="Search strategies" />
+                  <div class="sx-laypick__list" id="sx-strategy-list" role="listbox" aria-labelledby="sx-strategy-label"></div>
+                </div>
+                <input type="hidden" id="sx-session-strategy" value="" />
+              </div>
+              <button type="button" class="sx-strategy-create" id="sx-create-strategy">+ Create new strategy</button>
             </div>
 
             <div class="sx-prop-rules" id="sx-prop-rules" hidden>
@@ -361,27 +411,35 @@ export function createSessionModal(options?: {
               </div>
             </div>
 
-            <div class="sx-field">
-              <label class="sx-label sx-label--optional" for="sx-session-layout">
-                Select Chart Layout (Optional)
-                <span class="sx-label__info" title="Layout presets for your workspace">${icons.info}</span>
-              </label>
-              <div class="sx-select-wrap">
-                <select id="sx-session-layout" class="sx-input sx-input--select">
-                  <option value="">Default layout</option>
-                  <option value="1">Single chart</option>
-                  <option value="2">Two charts</option>
-                  <option value="4">Four charts</option>
-                </select>
-                <span class="sx-select-chevron" aria-hidden="true">${icons.chevronDown}</span>
+            <div class="sx-field sx-laypick" id="sx-laypick">
+              <label class="sx-label" id="sx-layout-label">Chart layout</label>
+              <button
+                type="button"
+                class="sx-laypick__trigger"
+                id="sx-layout-trigger"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                aria-labelledby="sx-layout-label"
+              >
+                <span id="sx-layout-current">No layouts yet</span>
+                <span class="sx-laypick__chev" aria-hidden="true">${icons.chevronDown}</span>
+              </button>
+              <div class="sx-laypick__panel" id="sx-layout-panel" hidden>
+                <input type="text" class="sx-laypick__search" id="sx-layout-search" placeholder="Search layouts" autocomplete="off" aria-label="Search layouts" />
+                <div class="sx-laypick__list" id="sx-layout-list" role="listbox" aria-labelledby="sx-layout-label"></div>
               </div>
+              <input type="hidden" id="sx-session-layout" value="" />
+              <p class="sx-field-hint">Layouts you save from the chart while replaying.</p>
             </div>
           </div>
         </div>
 
         <div class="sx-modal__foot">
-          <button type="button" class="sx-modal__cancel">Cancel</button>
-          <button type="button" class="sx-modal__submit" disabled>Create session</button>
+          <p class="sx-modal__summary" id="sx-session-summary"></p>
+          <div class="sx-modal__foot-actions">
+            <button type="button" class="sx-modal__cancel">Cancel</button>
+            <button type="button" class="sx-modal__submit" disabled>Create session</button>
+          </div>
         </div>
       </div>
     </div>
@@ -392,7 +450,6 @@ export function createSessionModal(options?: {
   const backdrop = wrap.querySelector('[data-close="backdrop"]')!
   const panel = wrap.querySelector('.sx-modal__panel') as HTMLElement
   const btnClose = wrap.querySelector('.sx-modal__close')!
-  const btnAdvanced = wrap.querySelector('.sx-modal__advanced')!
   const btnCancel = wrap.querySelector('.sx-modal__cancel')!
   const btnSubmit = wrap.querySelector('.sx-modal__submit') as HTMLButtonElement
   const segBtns = wrap.querySelectorAll<HTMLButtonElement>('.sx-modal__seg-btn')
@@ -402,7 +459,18 @@ export function createSessionModal(options?: {
   const propProfitInput = wrap.querySelector('#sx-prop-profit') as HTMLInputElement
   const propDrawdownInput = wrap.querySelector('#sx-prop-drawdown') as HTMLInputElement
   const propDailyInput = wrap.querySelector('#sx-prop-daily') as HTMLInputElement
-  const layoutSelect = wrap.querySelector('#sx-session-layout') as HTMLSelectElement
+  const layoutSelect = wrap.querySelector('#sx-session-layout') as HTMLInputElement
+  const layoutTrigger = wrap.querySelector('#sx-layout-trigger') as HTMLButtonElement
+  const layoutPanel = wrap.querySelector('#sx-layout-panel') as HTMLElement
+  const layoutList = wrap.querySelector('#sx-layout-list') as HTMLElement
+  const layoutSearch = wrap.querySelector('#sx-layout-search') as HTMLInputElement
+  const layoutCurrent = wrap.querySelector('#sx-layout-current') as HTMLElement
+  const strategySelect = wrap.querySelector('#sx-session-strategy') as HTMLInputElement
+  const strategyTrigger = wrap.querySelector('#sx-strategy-trigger') as HTMLButtonElement
+  const strategyPanel = wrap.querySelector('#sx-strategy-panel') as HTMLElement
+  const strategyList = wrap.querySelector('#sx-strategy-list') as HTMLElement
+  const strategySearch = wrap.querySelector('#sx-strategy-search') as HTMLInputElement
+  const strategyCurrent = wrap.querySelector('#sx-strategy-current') as HTMLElement
   const nameErr = wrap.querySelector('#sx-session-name-err')!
   const assetsErr = wrap.querySelector('#sx-session-assets-err')!
 
@@ -855,6 +923,7 @@ export function createSessionModal(options?: {
       b.classList.toggle('sx-modal__seg-btn--on', on)
     })
     if (propRulesWrap) propRulesWrap.hidden = type !== 'prop'
+    syncSubmit()
   }
 
   function readPropRulesFromForm(): SessionCreatedPayload['propRules'] {
@@ -935,8 +1004,141 @@ export function createSessionModal(options?: {
     return nameInput.value.trim().length > 0 && assetValid() && datesValid()
   }
 
+  const summaryEl = wrap.querySelector('#sx-session-summary') as HTMLElement | null
+
+  function balanceNumber(): number {
+    const n = Number(String(balanceInput.value).replace(/[^\d.]/g, ''))
+    return Number.isFinite(n) ? n : NaN
+  }
+
+  function syncBalPresets() {
+    const n = balanceNumber()
+    const preset = BALANCE_PRESETS.find((amount) => amount === n)
+    wrap.querySelectorAll<HTMLButtonElement>('[data-bal]').forEach((button) => {
+      const key = button.dataset.bal
+      const on = key === 'custom' ? preset == null : Number(key) === n
+      button.classList.toggle('is-on', on)
+    })
+  }
+
+  function renderLayoutMenu() {
+    const layouts = listChartLayouts()
+    const q = layoutSearch.value.trim().toLowerCase()
+    const rows = layouts.filter((layout) => !q || layout.name.toLowerCase().includes(q))
+    const selected = getChartLayout(layoutSelect.value)
+    layoutCurrent.textContent = selected?.name ?? (layouts.length ? 'Select a layout' : 'No layouts yet')
+    layoutTrigger.classList.toggle('is-empty', !selected)
+    if (!rows.length) {
+      layoutList.innerHTML = `<p class="sx-laypick__empty">${
+        layouts.length ? 'No matching layouts.' : 'No layouts yet. Save one from the chart while you replay.'
+      }</p>`
+      return
+    }
+    layoutList.innerHTML = rows
+      .map((layout) => {
+        const on = layout.id === layoutSelect.value ? ' is-on' : ''
+        return `<button type="button" class="sx-laypick__row${on}" data-layout-id="${escapeSessionText(layout.id)}" role="option" aria-selected="${layout.id === layoutSelect.value}">
+          <strong>${escapeSessionText(layout.name)}</strong>
+          <span>${escapeSessionText(formatChartLayoutMeta(layout))}</span>
+        </button>`
+      })
+      .join('')
+  }
+
+  function closeLayoutPanel() {
+    layoutPanel.hidden = true
+    layoutTrigger.setAttribute('aria-expanded', 'false')
+  }
+
+  function fillStrategies(selectedId: string) {
+    const strategies = listAllStrategies()
+    strategySelect.value = strategies.some((strategy) => strategy.id === selectedId) ? selectedId : ''
+    renderStrategyMenu()
+  }
+
+  function renderStrategyMenu() {
+    const strategies = listAllStrategies()
+    const q = strategySearch.value.trim().toLowerCase()
+    const selected = strategies.find((strategy) => strategy.id === strategySelect.value)
+    strategyCurrent.textContent = selected ? strategySelectLabel(selected) : 'Select a strategy or create new one'
+    strategyTrigger.classList.toggle('is-empty', !selected)
+    const rows = strategies.filter((strategy) => {
+      if (!q) return true
+      return strategySelectLabel(strategy).toLowerCase().includes(q) || strategy.name.toLowerCase().includes(q)
+    })
+    const clearOn = strategySelect.value ? '' : ' is-on'
+    const clearRow = q
+      ? ''
+      : `<button type="button" class="sx-laypick__row${clearOn}" data-strategy-id="" role="option" aria-selected="${!strategySelect.value}">
+      <strong>Select a strategy or create new one</strong>
+    </button>`
+    if (!rows.length) {
+      strategyList.innerHTML =
+        clearRow +
+        `<p class="sx-laypick__empty">${strategies.length ? 'No matching strategies.' : 'No strategies yet.'}</p>`
+      return
+    }
+    strategyList.innerHTML =
+      clearRow +
+      rows
+        .map((strategy) => {
+          const on = strategy.id === strategySelect.value ? ' is-on' : ''
+          return `<button type="button" class="sx-laypick__row${on}" data-strategy-id="${escapeSessionText(strategy.id)}" role="option" aria-selected="${strategy.id === strategySelect.value}">
+            <strong>${escapeSessionText(strategySelectLabel(strategy))}</strong>
+          </button>`
+        })
+        .join('')
+  }
+
+  function closeStrategyPanel() {
+    strategyPanel.hidden = true
+    strategyTrigger.setAttribute('aria-expanded', 'false')
+  }
+
+  function sessionSpanLabel(): string {
+    const start = new Date(startDateInput.value)
+    const end = new Date(endDateInput.value)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return ''
+    const minutes = Math.round((end.getTime() - start.getTime()) / 60000)
+    if (minutes < 60 * 36) {
+      const hours = Math.max(1, Math.round(minutes / 60))
+      return hours === 1 ? '1 hour' : `${hours} hours`
+    }
+    const days = Math.max(1, Math.round(minutes / (60 * 24)))
+    return days === 1 ? '1 day' : `${days} days`
+  }
+
+  function syncSummary() {
+    if (!summaryEl) return
+    if (!canSubmit()) {
+      const missing: string[] = []
+      if (!nameInput.value.trim()) missing.push('a name')
+      if (!assetValid()) missing.push('a market')
+      if (!datesValid()) missing.push('a valid date range')
+      const list =
+        missing.length < 2
+          ? (missing[0] ?? '')
+          : `${missing.slice(0, -1).join(', ')} and ${missing[missing.length - 1]}`
+      summaryEl.textContent = list ? `Still needs ${list}.` : ''
+      summaryEl.classList.add('is-wait')
+      return
+    }
+    const kind = (wrap.querySelector('.sx-modal__seg-btn--on') as HTMLButtonElement | null)?.dataset.seg === 'prop'
+      ? 'Challenge'
+      : 'Replay'
+    const strategyName = strategySelect.value ? strategyCurrent.textContent?.trim() : ''
+    const markets = selectedSymbols.join(', ')
+    const amount = balanceNumber()
+    const money = Number.isFinite(amount)
+      ? amount.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+      : balanceInput.value.trim()
+    summaryEl.textContent = [kind, strategyName, markets, money, sessionSpanLabel()].filter(Boolean).join(' · ')
+    summaryEl.classList.remove('is-wait')
+  }
+
   function syncSubmit() {
     btnSubmit.disabled = !canSubmit()
+    syncSummary()
   }
 
   nameInput.addEventListener('input', () => {
@@ -947,8 +1149,84 @@ export function createSessionModal(options?: {
     if (!nameInput.value.trim()) showNameError()
   })
 
-  balanceInput.addEventListener('input', syncSubmit)
-  layoutSelect.addEventListener('change', syncSubmit)
+  balanceInput.addEventListener('input', () => {
+    syncBalPresets()
+    syncSubmit()
+  })
+  wrap.querySelectorAll<HTMLButtonElement>('[data-bal]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (button.dataset.bal === 'custom') {
+        balanceInput.focus()
+        balanceInput.select()
+        return
+      }
+      balanceInput.value = button.dataset.bal ?? balanceInput.value
+      syncBalPresets()
+      syncSubmit()
+    })
+  })
+  strategyTrigger.addEventListener('click', () => {
+    const open = strategyPanel.hidden
+    if (!open) {
+      closeStrategyPanel()
+      return
+    }
+    closeLayoutPanel()
+    strategySearch.value = ''
+    renderStrategyMenu()
+    strategyPanel.hidden = false
+    strategyTrigger.setAttribute('aria-expanded', 'true')
+    strategySearch.focus()
+  })
+  strategySearch.addEventListener('input', renderStrategyMenu)
+  strategySearch.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      closeStrategyPanel()
+    }
+  })
+  strategyList.addEventListener('click', (event) => {
+    const row = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-strategy-id]')
+    if (!row) return
+    strategySelect.value = row.dataset.strategyId ?? ''
+    renderStrategyMenu()
+    closeStrategyPanel()
+    syncSubmit()
+  })
+  layoutTrigger.addEventListener('click', () => {
+    const open = layoutPanel.hidden
+    if (!open) {
+      closeLayoutPanel()
+      return
+    }
+    closeStrategyPanel()
+    layoutSearch.value = ''
+    renderLayoutMenu()
+    layoutPanel.hidden = false
+    layoutTrigger.setAttribute('aria-expanded', 'true')
+    layoutSearch.focus()
+  })
+  layoutSearch.addEventListener('input', renderLayoutMenu)
+  layoutSearch.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      closeLayoutPanel()
+    }
+  })
+  layoutList.addEventListener('click', (event) => {
+    const row = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-layout-id]')
+    if (!row) return
+    layoutSelect.value = row.dataset.layoutId ?? ''
+    renderLayoutMenu()
+    closeLayoutPanel()
+    syncSubmit()
+  })
+  wrap.querySelector('#sx-create-strategy')?.addEventListener('click', () => {
+    close()
+    options?.onCreateStrategy?.()
+  })
 
   wrap.querySelector('#sx-request-asset')?.addEventListener('click', () => {
     window.alert('Request asset — link this to your intake form or support channel when ready.')
@@ -1004,6 +1282,7 @@ export function createSessionModal(options?: {
     const maxDt = barCoverage.maxDatetimeLocal
     const s = startDateInput.value
     const e = endDateInput.value
+    wrap.querySelectorAll('[data-date-quick]').forEach((item) => item.classList.remove('is-on'))
     if (s && e) {
       const ds = new Date(s)
       const de = new Date(e)
@@ -1020,6 +1299,7 @@ export function createSessionModal(options?: {
 
   endDateInput.addEventListener('input', () => {
     if (randomEndCb.checked || endDateInput.disabled) return
+    wrap.querySelectorAll('[data-date-quick]').forEach((item) => item.classList.remove('is-on'))
     clearDatesError()
     randomEndCb.checked = false
     setAutoEndOn(false)
@@ -1056,6 +1336,7 @@ export function createSessionModal(options?: {
       else if (q === '1w') next = endFromStartPlusDays(start, 7, maxDt)
       else if (q === '1m') next = endFromStartPlusOneMonth(start, maxDt)
       else return
+      wrap.querySelectorAll('[data-date-quick]').forEach((item) => item.classList.toggle('is-on', item === btn))
       assignEndValue(next)
       syncDateControlsDisabledState()
       syncSubmit()
@@ -1063,6 +1344,7 @@ export function createSessionModal(options?: {
   })
 
   randomEndCb.addEventListener('change', () => {
+    wrap.querySelectorAll('[data-date-quick]').forEach((item) => item.classList.remove('is-on'))
     clearDatesError()
     if (!randomEndCb.checked) {
       syncDateControlsDisabledState()
@@ -1076,6 +1358,7 @@ export function createSessionModal(options?: {
   })
 
   autoEndSwitch.addEventListener('click', () => {
+    wrap.querySelectorAll('[data-date-quick]').forEach((item) => item.classList.remove('is-on'))
     if (autoEndSwitch.disabled) return
     const next = autoEndSwitch.getAttribute('aria-checked') !== 'true'
     setAutoEndOn(next)
@@ -1099,6 +1382,8 @@ export function createSessionModal(options?: {
     editingSessionId = null
     closeSessionDatetimePicker()
     closeAssetPanel()
+    closeLayoutPanel()
+    closeStrategyPanel()
     wrap.setAttribute('hidden', '')
     document.body.classList.remove('sx-modal-open')
     document.removeEventListener('keydown', onKey)
@@ -1116,18 +1401,35 @@ export function createSessionModal(options?: {
         closeAssetPanel()
         return
       }
+      if (!layoutPanel.hidden) {
+        e.preventDefault()
+        closeLayoutPanel()
+        return
+      }
+      if (!strategyPanel.hidden) {
+        e.preventDefault()
+        closeStrategyPanel()
+        return
+      }
       e.preventDefault()
       close()
     }
   }
 
   const modalTitle = wrap.querySelector('#sx-modal-title') as HTMLElement | null
+  const modalLead = wrap.querySelector('#sx-modal-lead') as HTMLElement | null
 
   function open(opts?: SessionModalOpenOpts) {
     editingSessionId = opts?.editSessionId?.trim() || null
     if (modalTitle) {
       modalTitle.textContent = editingSessionId ? 'Edit session' : 'Create a quick session'
     }
+    if (modalLead) {
+      modalLead.textContent = editingSessionId
+        ? 'Change the market, the window, or the paper balance. The replay keeps the bars ahead hidden.'
+        : 'A paper account on real history. The bars ahead stay hidden until you step forward.'
+    }
+    btnSubmit.textContent = editingSessionId ? 'Save session' : 'Create session'
     const d = opts?.draft
     const seg: 'backtest' | 'prop' =
       d?.sessionType === 'prop' || opts?.sessionType === 'prop' ? 'prop' : 'backtest'
@@ -1135,7 +1437,14 @@ export function createSessionModal(options?: {
     applyPropRulesToForm(d?.propRules)
     nameInput.value = d?.name?.trim() ?? ''
     balanceInput.value = d?.balance?.trim() || String(readDefaultSessionBalance())
-    layoutSelect.value = d?.layout ?? ''
+    const requestedLayout = d?.layout?.trim() ?? ''
+    layoutSelect.value = getChartLayout(requestedLayout) ? requestedLayout : ''
+    layoutSearch.value = ''
+    renderLayoutMenu()
+    closeLayoutPanel()
+    fillStrategies(d?.strategyId?.trim() ?? '')
+    syncBalPresets()
+    wrap.querySelectorAll('[data-date-quick]').forEach((item) => item.classList.remove('is-on'))
     barCoverage = fallbackBarCoverage()
     applyDateBounds()
     clearAssetSelection()
@@ -1192,9 +1501,6 @@ export function createSessionModal(options?: {
   backdrop.addEventListener('click', close)
   btnClose.addEventListener('click', close)
   btnCancel.addEventListener('click', close)
-  btnAdvanced.addEventListener('click', () => {
-    window.alert('Advanced session — open a fuller wizard when you build it.')
-  })
 
   btnSubmit.addEventListener('click', () => {
     if (!nameInput.value.trim()) {
@@ -1239,7 +1545,8 @@ export function createSessionModal(options?: {
       name: nameInput.value.trim(),
       balance: balanceInput.value.trim(),
       assets: selectedSymbols.join(','),
-      layout: layoutSelect.value || null,
+      layout: getChartLayout(layoutSelect.value) ? layoutSelect.value : null,
+      strategyId: strategySelect.value || undefined,
       sessionType: sessionType === 'prop' ? 'prop' : 'backtest',
       startDate: s,
       endDate: e,
@@ -1253,7 +1560,12 @@ export function createSessionModal(options?: {
     close()
   })
 
-  panel.addEventListener('click', (e) => e.stopPropagation())
+  panel.addEventListener('click', (e) => {
+    e.stopPropagation()
+    const hit = e.target as HTMLElement
+    if (!hit.closest('#sx-laypick')) closeLayoutPanel()
+    if (!hit.closest('#sx-stratpick')) closeStrategyPanel()
+  })
 
   renderAssetList()
   syncDateControlsDisabledState()

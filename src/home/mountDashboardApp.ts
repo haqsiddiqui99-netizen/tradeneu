@@ -592,6 +592,7 @@ import { clearAllAuthSessions, getAuthUser, GUEST_AUTH_EMAIL } from '../auth/aut
 import { mountAiChatPanel } from '../ai/aiChatPanel'
 import { primarySessionSymbol } from '../sessionTypes'
 import { fetchMlHealth } from '../ml/mlApi'
+import { getChartLayout, setActiveChartLayoutId } from '../chart/chartLayoutStore'
 import { createSessionModal } from '../sessionModal'
 import type { SessionCreatedPayload } from '../sessionTypes'
 import { mountStockApp } from '../stocks/mountStockApp'
@@ -2415,6 +2416,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     activeSessionId = session.id
     setLastSessionId(session.id)
     touchSessionOpened(session.id)
+    if (session.layout && getChartLayout(session.layout)) setActiveChartLayoutId(session.layout)
     const payload = sessionToPayload(session)
     lastSessionPayload = payload
     saveSessionDraft(payload)
@@ -5221,8 +5223,14 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       openChartWithPayload(payload)
     },
     onSessionUpdate(id, payload) {
-      updateSession(id, payload)
+      updateSession(id, {
+        ...payload,
+        lastStrategyId: payload.strategyId || undefined,
+      })
       syncRecentSessionsUi()
+    },
+    onCreateStrategy() {
+      navigate({ view: 'strategy' })
     },
   })
 

@@ -5,7 +5,10 @@ export type SessionCreatedPayload = {
   balance: string
   /** Comma-separated symbols; the first symbol drives the chart data feed. */
   assets: string
+  /** Saved chart-layout id from the replay workspace, or null when none is chosen. */
   layout: string | null
+  /** Strategy to load when the session opens. Empty means the chart default. */
+  strategyId?: string
   sessionType: 'backtest' | 'prop'
   /**
    * Backtest range; filters bars after load. Use `YYYY-MM-DDTHH:mm` (local) from the session

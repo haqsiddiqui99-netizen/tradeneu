@@ -139,6 +139,7 @@ export function createSession(payload: SessionCreatedPayload): StoredSession {
     createdAt: now,
     updatedAt: now,
     lastOpenedAt: now,
+    lastStrategyId: payload.strategyId || undefined,
   }
   const next = sortSessions([session, ...readRawSessions()])
   writeRawSessions(next)
@@ -327,6 +328,7 @@ export function sessionToPayload(session: StoredSession): SessionCreatedPayload 
     balance: session.balance,
     assets: session.assets,
     layout: session.layout,
+    strategyId: session.lastStrategyId || session.strategyId,
     sessionType: session.sessionType,
     startDate: session.startDate,
     endDate: session.endDate,
