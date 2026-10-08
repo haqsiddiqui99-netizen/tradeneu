@@ -192,7 +192,6 @@ import {
 } from '../replay/replayScalperMode'
 import { replayInstrumentSizing } from '../replay/replayInstrumentSizing'
 import { confirmDialog } from './confirmDialog'
-import { createChartMarketPanel, type ChartMarketPanelApi } from './chartMarketPanel'
 import { showBacktestResultDialog } from './backtestResultDialog'
 import { mountChartPositionOverlay } from '../chart/chartPositionOverlay'
 import type { SessionBacktestSnapshot, SessionReplaySnapshot } from '../data/sessionStore'
@@ -809,22 +808,6 @@ export function mountChartWorkspace(
           </div>
           <div class="rw-chart-vol" aria-live="polite"></div>
           <div class="rw-watermark">Tradeneu</div>
-          <button
-            type="button"
-            class="rw-chart-edge"
-            data-rw-chart-edge="left"
-            aria-expanded="true"
-            title="Hide drawing toolbar"
-            aria-label="Hide drawing toolbar"
-          >${icons.chevronRight}</button>
-          <button
-            type="button"
-            class="rw-chart-edge"
-            data-rw-chart-edge="right"
-            aria-expanded="false"
-            title="Show side panel"
-            aria-label="Show side panel"
-          >${icons.chevronRight}</button>
           <div class="rw-chart-nav-hoverzone" data-rw-chart-nav-hoverzone aria-label="Chart zoom and pan">
             <div class="rw-chart-float rw-chart-float--nav" role="toolbar" aria-label="Chart zoom, pan, and reset">
               <button type="button" class="rw-chart-float__btn" data-chart-nav="zoom-out" title="Zoom out">${icons.chartNavMinus}</button>
@@ -1524,14 +1507,10 @@ export function mountChartWorkspace(
   const btnJournalExport: HTMLButtonElement | null = null
   const backtestState = { result: null as BacktestResult | null, highlightTradeNum: undefined as number | undefined }
 
-  /** Assigned once the chart wrap exists; the panel mirrors the active symbol. */
-  let marketPanel: ChartMarketPanelApi | null = null
-
   function paintSymbolPanel(symbol: string, _feed: string) {
     const m = symbolPanelMeta(symbol)
     currentFullName = m.fullName
     if (symbolToolbarLabel) symbolToolbarLabel.textContent = formatLegendSymbol(symbol, m.fullName)
-    marketPanel?.refresh()
   }
 
   let switchChartSymbolImpl: ((symbol: string) => void) | null = null
@@ -1927,79 +1906,6 @@ export function mountChartWorkspace(
   cleanupFns.push(() => {
     clearReplayToastTimers()
   })
-
-  const edgeToggleLeft = host.querySelector('[data-rw-chart-edge="left"]') as HTMLButtonElement | null
-  const edgeToggleRight = host.querySelector('[data-rw-chart-edge="right"]') as HTMLButtonElement | null
-
-  /** The chevron mirrors TradingView's own toolbar state, which it can change on its own
-   *  (responsive collapse at narrow widths, or its built-in hide control). */
-  function syncEdgeToggles() {
-    if (edgeToggleRight) {
-      const open = marketPanel?.isOpen() ?? false
-      const label = open ? 'Hide market panel' : 'Show market panel'
-      edgeToggleRight.setAttribute('aria-expanded', open ? 'true' : 'false')
-      edgeToggleRight.title = label
-      edgeToggleRight.setAttribute('aria-label', label)
-    }
-    if (!edgeToggleLeft) return
-    // Only the TradingView chart has a drawing toolbar to fold away.
-    const available = !!state.tvChart
-    edgeToggleLeft.hidden = !available
-    const open = available && state.tvChart!.isDrawingToolbarVisible()
-    const label = open ? 'Hide drawing toolbar' : 'Show drawing toolbar'
-    edgeToggleLeft.setAttribute('aria-expanded', open ? 'true' : 'false')
-    edgeToggleLeft.title = label
-    edgeToggleLeft.setAttribute('aria-label', label)
-  }
-
-  if (edgeToggleLeft) {
-    const onEdgeLeft = () => {
-      state.tvChart?.toggleDrawingToolbar()
-      // TradingView animates the fold — read the settled width, not the mid-flight one.
-      window.setTimeout(syncEdgeToggles, 450)
-    }
-    edgeToggleLeft.addEventListener('click', onEdgeLeft)
-    // TradingView folds the toolbar away on its own once the chart gets narrow.
-    const onEdgeResize = () => syncEdgeToggles()
-    window.addEventListener('resize', onEdgeResize)
-    cleanupFns.push(() => {
-      edgeToggleLeft.removeEventListener('click', onEdgeLeft)
-      window.removeEventListener('resize', onEdgeResize)
-    })
-    edgeToggleLeft.hidden = true
-  }
-  const chartWrapEl = host.querySelector('.rw-chart-wrap') as HTMLElement | null
-  marketPanel =
-    edgeToggleRight && chartWrapEl
-      ? createChartMarketPanel({
-          mount: chartWrapEl,
-          getSymbol: () => currentChartSymbol,
-          onPickSymbol: (symbol) => applySymbolPick(symbol),
-          onToggle: () => {
-            syncEdgeToggles()
-            // The chart lost or gained a column — let it re-measure once layout settles.
-            requestAnimationFrame(() => {
-              if (state.disposed) return
-              state.tvChart?.resize()
-              state.trading?.chart.resize(chartHost.clientWidth, chartHost.clientHeight)
-              state.redrawDrawings?.()
-            })
-          },
-        })
-      : null
-  cleanupFns.push(() => {
-    marketPanel?.dispose()
-    marketPanel = null
-  })
-
-  if (edgeToggleRight && marketPanel) {
-    const onEdgeRight = () => marketPanel?.toggle()
-    edgeToggleRight.addEventListener('click', onEdgeRight)
-    cleanupFns.push(() => edgeToggleRight.removeEventListener('click', onEdgeRight))
-  } else if (edgeToggleRight) {
-    edgeToggleRight.hidden = true
-  }
-  syncEdgeToggles()
 
   bindReplayDockDrag()
 
@@ -4967,7 +4873,6 @@ export function mountChartWorkspace(
       void state.tvChart?.whenChartReady().then(() => {
         if (state.disposed) return
         bindTvOverlayObserver()
-        syncEdgeToggles()
         bindChartLayoutSignals()
       })
       /* Iframe may appear slightly after ready — retry bind a few times. */
@@ -8059,7 +7964,16 @@ export function mountChartWorkspace(
 
     function updateReplayMaskPlotClip() {
       if (!replayMaskOverlay || !state.tvChart) return
-      applyPlotClipVars(replayMaskOverlay, state.tvChart.getPlotClipInsets(chartHost))
+      const clip = state.tvChart.getPlotClipInsets(chartHost)
+      if (!clip) {
+        applyPlotClipVars(replayMaskOverlay, clip)
+        return
+      }
+      // Never paint the future-bar wash over the price ladder.
+      applyPlotClipVars(replayMaskOverlay, {
+        ...clip,
+        right: Math.max(SELECT_BAR_PRICE_AXIS_RIGHT_MIN_PX, clip.right),
+      })
     }
 
     /**

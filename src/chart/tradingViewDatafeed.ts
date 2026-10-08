@@ -141,10 +141,24 @@ function catalogExchange(asset: CatalogAsset): string {
   return catalogMarketDataLabel(asset.symbol)
 }
 
+/**
+ * Smallest price step is `minmov / pricescale`.
+ * A stock-style 0.01 step folds a 1-minute EURUSD window (a few pips) onto one
+ * label, so the right-hand ladder shows only "1.18".
+ */
+function priceScaleForSymbol(symbol: string, category: AssetCategory | undefined): number {
+  const s = symbol.trim().toUpperCase()
+  if (category === 'forex') return s.endsWith('JPY') ? 1_000 : 100_000
+  if (category === 'metals' || /^(XAU|XAG|GC|SI)/.test(s) || /GOLD|SILVER/.test(s)) return 1_000
+  // Currency futures are quoted like the spot pair.
+  if (s === '6E' || s === '6B' || s === '6A' || s === '6C') return 100_000
+  if (s === '6J') return 1_000_000
+  return 100
+}
+
 function symbolInfoFor(symbol: string, exchangeOverride?: string): TvLibrarySymbolInfo {
   const s = symbol.trim().toUpperCase()
   const asset = findAsset(s)
-  const isGold = /XAU|GOLD/i.test(s)
   const exchange =
     exchangeOverride?.trim() ||
     (asset ? catalogExchange(asset) : catalogMarketDataLabel(s))
@@ -157,7 +171,7 @@ function symbolInfoFor(symbol: string, exchangeOverride?: string): TvLibrarySymb
     timezone: resolveChartTimezone(),
     exchange,
     minmov: 1,
-    pricescale: isGold ? 1000 : 100,
+    pricescale: priceScaleForSymbol(s, asset?.category),
     has_intraday: true,
     has_seconds: true,
     seconds_multipliers: ['1', '5', '10', '15', '20', '30'],

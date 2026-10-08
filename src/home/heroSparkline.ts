@@ -23,34 +23,56 @@ export const HERO_EXAMPLE_WINRATE = '58%'
  * meaningful, and a dashed break-even line marks where the session went
  * underwater.
  */
-export function buildHeroSparkSvg(points: number[]): string {
+let sparkSeq = 0
+
+export function buildHeroSparkSvg(points: number[], opts?: { marker?: string }): string {
   if (points.length === 0) return ''
   const width = 100
-  const height = 36
+  const height = 48
+  const padY = 6
   const series = points.length === 1 ? [0, points[0]!] : points
   const min = Math.min(...series, 0)
   const max = Math.max(...series, 0)
   const span = max - min || 1
   const stepX = width / (series.length - 1)
-  const coords = series.map((v, i) => {
+  const pairs = series.map((v, i) => {
     const x = i * stepX
-    const y = height - ((v - min) / span) * height
-    return `${x.toFixed(2)},${y.toFixed(2)}`
+    const y = padY + (height - padY * 2) - ((v - min) / span) * (height - padY * 2)
+    return { x, y }
   })
-  const line = coords.join(' ')
-  const zeroY = height - ((0 - min) / span) * height
+  const line = pairs.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ')
+  const zeroY = padY + (height - padY * 2) - ((0 - min) / span) * (height - padY * 2)
+  const last = pairs[pairs.length - 1]!
   const closing = series[series.length - 1] ?? 0
   const tone = closing < 0 ? 'is-loss' : closing > 0 ? 'is-profit' : 'is-flat'
-  const gradientId = `sx-spark-grad-${tone}`
+  const id = `sx-spark-${++sparkSeq}`
+  const grids = [0.28, 0.55, 0.82]
+    .map((t) => {
+      const y = (padY + (height - padY * 2) * t).toFixed(2)
+      return `<line class="sx-spark__grid" x1="0" y1="${y}" x2="${width}" y2="${y}" />`
+    })
+    .join('')
+  const marker = opts?.marker
+    ? `<svg class="sx-spark__tag" x="${Math.max(0, last.x - 18).toFixed(2)}" y="${Math.max(0, last.y - 14).toFixed(2)}" width="16" height="7" viewBox="0 0 36 14" preserveAspectRatio="xMidYMid meet">
+        <rect width="36" height="14" rx="7" fill="currentColor" />
+        <text x="18" y="10" text-anchor="middle" fill="#fff" font-size="8" font-family="Inter, Segoe UI, sans-serif" font-weight="700">${opts.marker.replace(/[&<>]/g, '')}</text>
+      </svg>`
+    : ''
   return `<svg class="sx-spark ${tone}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
       <defs>
-        <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="currentColor" stop-opacity="0.3" />
+        <linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="currentColor" stop-opacity="0.45" />
           <stop offset="100%" stop-color="currentColor" stop-opacity="0" />
         </linearGradient>
       </defs>
-      <polygon class="sx-spark__fill" fill="url(#${gradientId})" points="0,${height} ${line} ${width},${height}" />
+      ${grids}
+      <polygon class="sx-spark__fill" fill="url(#${id})" points="0,${height} ${line} ${width},${height}" />
       <line class="sx-spark__zero" x1="0" y1="${zeroY.toFixed(2)}" x2="${width}" y2="${zeroY.toFixed(2)}" />
       <polyline class="sx-spark__line" points="${line}" />
+      <svg class="sx-spark__dot" x="${(last.x - 2.2).toFixed(2)}" y="${(last.y - 2.6).toFixed(2)}" width="4.4" height="5.2" viewBox="0 0 12 12" preserveAspectRatio="xMidYMid meet">
+        <circle cx="6" cy="6" r="5" fill="currentColor" opacity="0.28" />
+        <circle cx="6" cy="6" r="2.4" fill="#fff" />
+      </svg>
+      ${marker}
     </svg>`
 }

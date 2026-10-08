@@ -40,32 +40,47 @@ export function mountStrategyPage(root: HTMLElement, opts?: MountStrategyPageOpt
   shell.className = opts?.embedded ? 'sx-strat-page sx-strat-page--embedded' : 'sx-strat-page'
   shell.innerHTML = `
     <div class="sx-strat-page__intake" data-sx-strat-view="intake">
-      <header class="sx-strat-page__intake-head">
-        ${opts?.onBack ? `<button type="button" class="sx-strat-page__back" data-sx-strat-back aria-label="${te('strategy.backToDashboard')}" data-i18n-aria-label="strategy.backToDashboard"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span data-i18n="nav.dashboard">${te('nav.dashboard')}</span></button>` : ''}
-        <h1 class="sx-strat-page__intake-title" data-i18n="strategy.title">${te('strategy.title')}</h1>
-      </header>
+      ${opts?.onBack ? `<header class="sx-strat-page__intake-head"><button type="button" class="sx-strat-page__back" data-sx-strat-back aria-label="${te('strategy.backToDashboard')}" data-i18n-aria-label="strategy.backToDashboard"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span data-i18n="nav.dashboard">${te('nav.dashboard')}</span></button></header>` : ''}
       <div class="sx-strat-page__intake-hero">
-        <h2 class="sx-strat-page__intake-hero-title" data-i18n="strategy.intake.heroTitle">${te('strategy.intake.heroTitle')}</h2>
-        <p class="sx-strat-page__intake-hero-subtitle" data-i18n="strategy.intake.heroSubtitle">${te('strategy.intake.heroSubtitle')}</p>
-        <div class="sx-strat-page__intake-cards">
-          <button type="button" class="sx-strat-page__intake-card" data-sx-strat-intake-pick="have">
-            <span class="sx-strat-page__intake-card-icon sx-strat-page__intake-card-icon--blue"><i class="fa-regular fa-file-lines" aria-hidden="true"></i></span>
-            <span class="sx-strat-page__intake-card-title" data-i18n="strategy.intake.have.title">${te('strategy.intake.have.title')}</span>
-            <span class="sx-strat-page__intake-card-link sx-strat-page__intake-card-link--blue" data-i18n="strategy.intake.have.link">${te('strategy.intake.have.link')}</span>
-            <span class="sx-strat-page__intake-card-desc" data-i18n="strategy.intake.have.desc">${te('strategy.intake.have.desc')}</span>
-          </button>
-          <button type="button" class="sx-strat-page__intake-card" data-sx-strat-intake-pick="need">
-            <span class="sx-strat-page__intake-card-icon sx-strat-page__intake-card-icon--violet"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></span>
-            <span class="sx-strat-page__intake-card-title" data-i18n="strategy.intake.need.title">${te('strategy.intake.need.title')}</span>
-            <span class="sx-strat-page__intake-card-link sx-strat-page__intake-card-link--violet" data-i18n="strategy.intake.need.link">${te('strategy.intake.need.link')}</span>
-            <span class="sx-strat-page__intake-card-desc" data-i18n="strategy.intake.need.desc">${te('strategy.intake.need.desc')}</span>
-          </button>
-          <button type="button" class="sx-strat-page__intake-card" data-sx-strat-intake-pick="builtin">
-            <span class="sx-strat-page__intake-card-icon sx-strat-page__intake-card-icon--green"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></span>
-            <span class="sx-strat-page__intake-card-title" data-i18n="strategy.intake.builtin.title">${te('strategy.intake.builtin.title')}</span>
-            <span class="sx-strat-page__intake-card-link sx-strat-page__intake-card-link--green" data-i18n="strategy.intake.builtin.link">${te('strategy.intake.builtin.link')}</span>
-            <span class="sx-strat-page__intake-card-desc" data-i18n="strategy.intake.builtin.desc">${te('strategy.intake.builtin.desc')}</span>
-          </button>
+        <div class="sx-strat-stage">
+          <div class="sx-strat-stage__copy">
+            <p class="sx-strat-stage__kicker" data-i18n="strategy.intake.kicker">${te('strategy.intake.kicker')}</p>
+            <h2 class="sx-strat-page__intake-hero-title">
+              <span class="sx-strat-page__intake-hero-lead" data-i18n="strategy.intake.heroLead">${te('strategy.intake.heroLead')}</span>
+              <span class="sx-strat-page__intake-hero-accent" data-i18n="strategy.intake.heroAccent">${te('strategy.intake.heroAccent')}</span>
+            </h2>
+            <p class="sx-strat-page__intake-hero-subtitle" data-i18n="strategy.intake.heroSubtitle">${te('strategy.intake.heroSubtitle')}</p>
+          </div>
+          <div class="sx-strat-page__intake-cards">
+            <button type="button" class="sx-strat-page__intake-card sx-strat-path sx-strat-path--lead" data-sx-strat-intake-pick="need">
+              <span class="sx-strat-path__mark" aria-hidden="true">01</span>
+              <span class="sx-strat-path__main">
+                <span class="sx-strat-path__badge" data-i18n="strategy.intake.need.badge">${te('strategy.intake.need.badge')}</span>
+                <span class="sx-strat-page__intake-card-title" data-i18n="strategy.intake.need.title">${te('strategy.intake.need.title')}</span>
+                <span class="sx-strat-page__intake-card-link" data-i18n="strategy.intake.need.link">${te('strategy.intake.need.link')}</span>
+                <span class="sx-strat-page__intake-card-desc" data-i18n="strategy.intake.need.desc">${te('strategy.intake.need.desc')}</span>
+              </span>
+              <span class="sx-strat-path__arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
+            </button>
+            <button type="button" class="sx-strat-page__intake-card sx-strat-path" data-sx-strat-intake-pick="have">
+              <span class="sx-strat-path__mark" aria-hidden="true">02</span>
+              <span class="sx-strat-path__main">
+                <span class="sx-strat-page__intake-card-title" data-i18n="strategy.intake.have.title">${te('strategy.intake.have.title')}</span>
+                <span class="sx-strat-page__intake-card-link" data-i18n="strategy.intake.have.link">${te('strategy.intake.have.link')}</span>
+                <span class="sx-strat-page__intake-card-desc" data-i18n="strategy.intake.have.desc">${te('strategy.intake.have.desc')}</span>
+              </span>
+              <span class="sx-strat-path__arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
+            </button>
+            <button type="button" class="sx-strat-page__intake-card sx-strat-path" data-sx-strat-intake-pick="builtin">
+              <span class="sx-strat-path__mark" aria-hidden="true">03</span>
+              <span class="sx-strat-path__main">
+                <span class="sx-strat-page__intake-card-title" data-i18n="strategy.intake.builtin.title">${te('strategy.intake.builtin.title')}</span>
+                <span class="sx-strat-page__intake-card-link" data-i18n="strategy.intake.builtin.link">${te('strategy.intake.builtin.link')}</span>
+                <span class="sx-strat-page__intake-card-desc" data-i18n="strategy.intake.builtin.desc">${te('strategy.intake.builtin.desc')}</span>
+              </span>
+              <span class="sx-strat-path__arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -99,27 +99,50 @@ function sxEquityTooltipHandler(context: { chart: Chart; tooltip: TooltipModel<'
 const SX_EQUITY_GAIN = '#4caf50'
 const SX_EQUITY_LOSS = '#e5484d'
 const SX_EQUITY_ZERO = '#9aa1ac'
+const SX_VIOLET = '#c084fc'
+const SX_VIOLET_BAR = '#a855f7'
+const SX_VIOLET_LOSS = '#f0abfc'
+
+function sxDashIsDark(): boolean {
+  return document.getElementById('sx-app-root')?.getAttribute('data-dashboard-theme') === 'dark'
+}
+
+function sxEquityGain(): string {
+  return sxDashIsDark() ? SX_VIOLET : SX_EQUITY_GAIN
+}
+
+function sxEquityLoss(): string {
+  return sxDashIsDark() ? SX_VIOLET_LOSS : SX_EQUITY_LOSS
+}
+
+function sxDashBarColor(): string {
+  return sxDashIsDark() ? SX_VIOLET_BAR : '#4caf50'
+}
+
+function sxDashGridColor(zero: boolean): string {
+  if (!sxDashIsDark()) return zero ? '#9aa0ac' : '#d7dae1'
+  return zero ? 'rgba(246, 242, 251, 0.28)' : 'rgba(192, 132, 252, 0.16)'
+}
 
 // Chart.js draws axis tick labels straight onto <canvas>, so they can't pick up CSS colors
 // automatically the way DOM text does. This mirrors `.sx-dash-graph__title`'s own color
 // tokens (`#475467` light / `#a1a1aa` dark, see dashboardTheme.css) so the "Time Invested",
 // "Equity Curve", "Win Rate" and "Trades by symbol" chart axes stay legible in both themes.
 function sxDashAxisLabelColor(): string {
-  const dark = document.getElementById('sx-app-root')?.getAttribute('data-dashboard-theme') === 'dark'
-  return dark ? '#a1a1aa' : '#475467'
+  return sxDashIsDark() ? '#c4b5d4' : '#475467'
 }
 
 function sxEquityPointColor(values: (number | null)[], idx: number): string {
   const v = values[idx]
-  if (typeof v !== 'number') return SX_EQUITY_GAIN
-  if (v === 0) return SX_EQUITY_ZERO
-  return v < 0 ? SX_EQUITY_LOSS : SX_EQUITY_GAIN
+  if (typeof v !== 'number') return sxEquityGain()
+  if (v === 0) return sxDashIsDark() ? '#ddd6fe' : SX_EQUITY_ZERO
+  return v < 0 ? sxEquityLoss() : sxEquityGain()
 }
 
 function sxEquitySegmentColor(values: (number | null)[], ctx: { p0DataIndex: number; p1DataIndex: number }): string {
   const y0 = values[ctx.p0DataIndex]
   const y1 = values[ctx.p1DataIndex]
-  return (typeof y0 === 'number' && y0 < 0) || (typeof y1 === 'number' && y1 < 0) ? SX_EQUITY_LOSS : SX_EQUITY_GAIN
+  return (typeof y0 === 'number' && y0 < 0) || (typeof y1 === 'number' && y1 < 0) ? sxEquityLoss() : sxEquityGain()
 }
 
 function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<typeof computeEquityCurveSeries>) {
@@ -165,15 +188,15 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
         datasets: [
           {
             data: cumulative,
-            borderColor: SX_EQUITY_GAIN,
-            backgroundColor: SX_EQUITY_GAIN,
+            borderColor: sxEquityGain(),
+            backgroundColor: sxDashIsDark() ? 'rgba(192, 132, 252, 0.28)' : sxEquityGain(),
             pointBackgroundColor: pointColors,
             pointBorderColor: pointColors,
             pointRadius,
             pointHoverRadius: 6,
-            borderWidth: 2,
-            tension: 0,
-            fill: false,
+            borderWidth: 2.5,
+            tension: sxDashIsDark() ? 0.35 : 0,
+            fill: sxDashIsDark() ? 'origin' : false,
             segment: {
               borderColor: (ctx) => sxEquitySegmentColor(cumulative, ctx),
             },
@@ -199,7 +222,7 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
             // `drawTicks` is off so no tick stubs poke out to the left of the
             // y-axis line into the label gutter.
             grid: {
-              color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+              color: (ctx) => sxDashGridColor(ctx.tick?.value === 0),
               lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
               drawTicks: false,
             },
@@ -219,6 +242,10 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
     chart.data.labels = equity.labels
     const dataset = chart.data.datasets[0]!
     dataset.data = cumulative
+    dataset.borderColor = sxEquityGain()
+    dataset.backgroundColor = sxDashIsDark() ? 'rgba(192, 132, 252, 0.28)' : sxEquityGain()
+    dataset.fill = sxDashIsDark() ? 'origin' : false
+    ;(dataset as { tension?: number }).tension = sxDashIsDark() ? 0.35 : 0
     dataset.pointBackgroundColor = pointColors
     dataset.pointBorderColor = pointColors
     ;(dataset as any).segment = {
@@ -294,8 +321,8 @@ function syncActivityBarChart(
         datasets: [
           {
             data: hours,
-            backgroundColor: '#4caf50',
-            borderRadius: 0,
+            backgroundColor: sxDashBarColor(),
+            borderRadius: sxDashIsDark() ? 8 : 0,
             borderSkipped: false,
             barPercentage: 0.5,
             categoryPercentage: 0.7,
@@ -334,7 +361,7 @@ function syncActivityBarChart(
             // `drawTicks` is off so no tick stubs poke out to the left of the
             // y-axis line into the label gutter.
             grid: {
-              color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+              color: (ctx) => sxDashGridColor(ctx.tick?.value === 0),
               lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
               drawTicks: false,
             },
@@ -354,6 +381,8 @@ function syncActivityBarChart(
   } else {
     chart.data.labels = labels
     chart.data.datasets[0]!.data = hours
+    chart.data.datasets[0]!.backgroundColor = sxDashBarColor()
+    chart.data.datasets[0]!.borderRadius = sxDashIsDark() ? 8 : 0
     ;(chart as Chart & { $sxFullLabels?: string[] }).$sxFullLabels = fullLabels
     const yScale = chart.options.scales?.y as { suggestedMax?: number; ticks?: { stepSize?: number; color?: string } }
     if (yScale) {
@@ -396,7 +425,7 @@ function syncSymbolsBarChart(
           {
             label: 'Wins',
             data: winValues,
-            backgroundColor: '#2e9e35',
+            backgroundColor: sxDashIsDark() ? SX_VIOLET : '#2e9e35',
             borderRadius: (ctx) => {
               const lossesVal = Number(ctx.chart.data.datasets[1]?.data[ctx.dataIndex] ?? 0)
               return lossesVal > 0 ? { topLeft: 6, bottomLeft: 6, topRight: 0, bottomRight: 0 } : 6
@@ -408,7 +437,7 @@ function syncSymbolsBarChart(
           {
             label: 'Losses',
             data: lossValues,
-            backgroundColor: '#9ca3af',
+            backgroundColor: sxDashIsDark() ? 'rgba(246, 242, 251, 0.22)' : '#9ca3af',
             borderRadius: (ctx) => {
               const winsVal = Number(ctx.chart.data.datasets[0]?.data[ctx.dataIndex] ?? 0)
               return winsVal > 0 ? { topLeft: 0, bottomLeft: 0, topRight: 6, bottomRight: 6 } : 6
@@ -444,7 +473,7 @@ function syncSymbolsBarChart(
             // other vertical gridline is dotted for less visual noise. Chart.js
             // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
             grid: {
-              color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+              color: (ctx) => sxDashGridColor(ctx.tick?.value === 0),
               lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
             },
             border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
@@ -463,7 +492,9 @@ function syncSymbolsBarChart(
   } else {
     chart.data.labels = labels
     chart.data.datasets[0]!.data = winValues
+    chart.data.datasets[0]!.backgroundColor = sxDashIsDark() ? SX_VIOLET : '#2e9e35'
     chart.data.datasets[1]!.data = lossValues
+    chart.data.datasets[1]!.backgroundColor = sxDashIsDark() ? 'rgba(246, 242, 251, 0.22)' : '#9ca3af'
     const xScale = chart.options.scales?.x as { suggestedMax?: number; ticks?: { stepSize?: number; color?: string } }
     if (xScale) {
       xScale.suggestedMax = suggestedMax
@@ -493,7 +524,7 @@ function syncWinRateBarChart(canvas: HTMLCanvasElement, points: { label: string;
         datasets: [
           {
             data: values,
-            backgroundColor: '#2e9e35',
+            backgroundColor: sxDashBarColor(),
             borderRadius: 6,
             borderSkipped: false,
             barPercentage: 0.5,
@@ -524,7 +555,7 @@ function syncWinRateBarChart(canvas: HTMLCanvasElement, points: { label: string;
             // `drawTicks` is off so no tick stubs poke out to the left of the
             // y-axis line into the label gutter.
             grid: {
-              color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
+              color: (ctx) => sxDashGridColor(ctx.tick?.value === 0),
               lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
               drawTicks: false,
             },
@@ -543,6 +574,7 @@ function syncWinRateBarChart(canvas: HTMLCanvasElement, points: { label: string;
   } else {
     chart.data.labels = labels
     chart.data.datasets[0]!.data = values
+    chart.data.datasets[0]!.backgroundColor = sxDashBarColor()
     const yScale = chart.options.scales?.y as { ticks?: { color?: string } }
     if (yScale?.ticks) yScale.ticks.color = axisColor
     const xScale = chart.options.scales?.x as { ticks?: { color?: string } }
@@ -620,13 +652,6 @@ import {
 import { ASSET_PILLS, catalogMarketDataLabel, findAsset, type AssetCategory } from '../assetCatalog'
 import { readDisplayName, readUserAvatar } from './dashboardUserPrefs'
 import {
-  buildHeroSparkSvg,
-  HERO_EXAMPLE_CURVE,
-  HERO_EXAMPLE_NET,
-  HERO_EXAMPLE_PRICE,
-  HERO_EXAMPLE_WINRATE,
-} from './heroSparkline'
-import {
   buildDashboardPerfChartSvg,
   computeEquityCurveSeries,
   describeDashboardPerfChartPeriod,
@@ -648,7 +673,7 @@ import { openSessionSummaryDialog } from '../views/sessionSummaryDialog'
 const LS_LOCALE = 'suplexity-dash-locale'
 const LS_SESSION_FILTER = 'suplexity-dash-session-filter'
 const LS_SESSION_SORT = 'suplexity-dash-session-sort'
-const LS_THEME = 'suplexity-dash-theme-v2'
+const LS_THEME = 'suplexity-dash-theme-v3'
 const LS_ACCOUNT_TIER = 'suplexity-account-tier'
 const LS_PULSE_RANGE = 'suplexity-dash-pulse-range'
 const LS_TESTING_TAB = 'suplexity-dash-testing-tab'
@@ -1566,12 +1591,6 @@ function buildDashTopbarHtml(): string {
  */
 const DASH_QUICK_START_SYMBOLS = ['XAUUSD', 'EURUSD', 'SPX'] as const
 
-/** Assets shown in the session-creator illustration next to steps 2 and 3. */
-const DASH_PREVIEW_SYMBOLS = ['XAUUSD', 'EURUSD'] as const
-
-/** Steps whose text sits beside the illustration rather than full width. */
-const DASH_TUTORIAL_STEP_COUNT = 5
-
 function buildDashQuickStartCardsHtml(): string {
   return DASH_QUICK_START_SYMBOLS.map((symbol) => {
     const asset = findAsset(symbol)
@@ -1610,92 +1629,10 @@ function buildDashBrowseChipsHtml(): string {
 }
 
 /**
- * Static picture of the session creator, so steps 2 and 3 can point at something
- * concrete before the trader has ever opened it. Inert and `aria-hidden` — the
- * step text carries the same information for screen readers.
- */
-function buildDashCreatorPreviewHtml(): string {
-  const pills = ASSET_PILLS.map(
-    (p, i) =>
-      `<span class="sx-dash-creator__pill${i === 0 ? ' is-on' : ''}">${escapeHtml(p.label)}</span>`,
-  ).join('')
-
-  const rows = DASH_PREVIEW_SYMBOLS.map((symbol, i) => {
-    const asset = findAsset(symbol)
-    if (!asset) return ''
-    const source = catalogMarketDataLabel(symbol)
-    return `
-                      <div class="sx-dash-creator__row${i === 0 ? ' is-on' : ''}">
-                        <span class="sx-dash-creator__row-main">
-                          <span class="sx-dash-creator__row-symbol">${symbol}</span>
-                          <span class="sx-dash-creator__row-name">${escapeHtml(asset.name)}</span>
-                        </span>
-                        <span class="sx-dash-creator__row-source">${source ? escapeHtml(source) : ''}</span>
-                      </div>`
-  }).join('')
-
-  const { start, end } = dashPreviewDateRange()
-
-  return `
-              <aside class="sx-dash-creator" aria-hidden="true">
-                <p class="sx-dash-creator__caption" data-i18n="dash.tutorial.previewTitle">${te('dash.tutorial.previewTitle')}</p>
-                <p class="sx-dash-creator__search" data-i18n="dash.tutorial.previewSearch">${te('dash.tutorial.previewSearch')}</p>
-                <div class="sx-dash-creator__pills">${pills}</div>
-                <p class="sx-dash-creator__label" data-i18n="dash.tutorial.previewRecent">${te('dash.tutorial.previewRecent')}</p>
-                <div class="sx-dash-creator__rows">${rows}
-                </div>
-                <div class="sx-dash-creator__dates">
-                  <div class="sx-dash-creator__field">
-                    <span class="sx-dash-creator__field-label" data-i18n="dash.tutorial.previewStartDate">${te('dash.tutorial.previewStartDate')}</span>
-                    <span class="sx-dash-creator__field-value" data-sx-preview-start>${escapeHtml(start)}</span>
-                  </div>
-                  <div class="sx-dash-creator__field">
-                    <span class="sx-dash-creator__field-label" data-i18n="dash.tutorial.previewEndDate">${te('dash.tutorial.previewEndDate')}</span>
-                    <span class="sx-dash-creator__field-value" data-sx-preview-end>${escapeHtml(end)}</span>
-                  </div>
-                </div>
-                <p class="sx-dash-creator__submit" data-i18n="dash.tutorial.previewSubmit">${te('dash.tutorial.previewSubmit')}</p>
-              </aside>`
-}
-
-/**
- * A recent two-week window for the illustration's date fields, so the mock never
- * shows a range that has drifted into the past relative to today.
- */
-function dashPreviewDateRange(): { start: string; end: string } {
-  const fmt = new Intl.DateTimeFormat(activeLocaleTag(), {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-  const end = new Date()
-  end.setDate(end.getDate() - 30)
-  const start = new Date(end)
-  start.setDate(start.getDate() - 16)
-  return { start: fmt.format(start), end: fmt.format(end) }
-}
-
-/**
  * First-run only: a market picker so the trader doesn't have to face an empty
- * session form, then a walkthrough of what a replay actually involves. Both are
- * hidden as soon as they have a session, since by then their own data says more.
+ * session form. Hidden as soon as they have a session.
  */
 function buildDashFirstRunSectionsHtml(): string {
-  const steps = Array.from({ length: DASH_TUTORIAL_STEP_COUNT }, (_, i) => i + 1)
-    .map((n) => {
-      const titleKey = `dash.tutorial.step${n}Title` as MessageKey
-      const descKey = `dash.tutorial.step${n}Desc` as MessageKey
-      return `
-                    <li class="sx-dash-step">
-                      <span class="sx-dash-step__num" aria-hidden="true">${n}</span>
-                      <div class="sx-dash-step__body">
-                        <h3 class="sx-dash-step__title" data-i18n="${titleKey}">${te(titleKey)}</h3>
-                        <p class="sx-dash-step__desc" data-i18n-rich="${descKey}">${tRich(descKey)}</p>
-                      </div>
-                    </li>`
-    })
-    .join('')
-
   return `
             <div class="sx-dash-onboard" data-sx-dash-onboard hidden>
               <section class="sx-dash-onboard__block" aria-labelledby="sx-dash-quick-title">
@@ -1707,18 +1644,6 @@ function buildDashFirstRunSectionsHtml(): string {
                 </ul>
                 <div class="sx-dash-browse" role="group" aria-label="${te('dash.quickStart.browseAria')}" data-i18n-aria-label="dash.quickStart.browseAria">
                   <span class="sx-dash-browse__label" data-i18n="dash.quickStart.browseLabel">${te('dash.quickStart.browseLabel')}</span>${buildDashBrowseChipsHtml()}
-                </div>
-              </section>
-
-              <section class="sx-dash-onboard__block" aria-labelledby="sx-dash-tutorial-title">
-                <header class="sx-dash-onboard__head">
-                  <h2 class="sx-dash-onboard__title" id="sx-dash-tutorial-title" data-i18n="dash.tutorial.title">${te('dash.tutorial.title')}</h2>
-                  <p class="sx-dash-onboard__hint" data-i18n="dash.tutorial.hint">${te('dash.tutorial.hint')}</p>
-                </header>
-                <div class="sx-dash-tutorial">
-                  <ol class="sx-dash-steps">${steps}
-                  </ol>
-                  ${buildDashCreatorPreviewHtml()}
                 </div>
               </section>
             </div>`
@@ -1745,36 +1670,46 @@ function buildDashPerfPlaceholderHtml(): string {
 function buildDashboardPageHeadHtml(): string {
   return `
             <section class="sx-dash-hero" data-sx-dash-hero>
+              <div class="sx-desk-stage">
               <div class="sx-dash-hero__copy">
-                <p class="sx-dash-hero__eyebrow" data-i18n="dash.title">${te('dash.title')}</p>
-                <h1 class="sx-dash-hero__title" data-sx-hero-title>${te('dash.hero.emptyTitle')}</h1>
+                <h1 class="sx-dash-hero__title">
+                  <span class="sx-dash-hero__title-lead" data-sx-hero-title>${te('dash.hero.emptyLead')}</span>
+                  <span class="sx-dash-hero__accent" data-sx-hero-accent>${te('dash.hero.emptyAccent')}</span>
+                </h1>
                 <p class="sx-dash-hero__sub" data-sx-hero-sub>${te('dash.hero.emptySub')}</p>
-                <div class="sx-dash-hero__actions">
-                  <button type="button" data-action="backtest" class="sx-dash-hero-btn sx-dash-hero-btn--primary" data-i18n="dash.hero.startSession">${te('dash.hero.startSession')}</button>
-                  <button type="button" data-action="resume-session" class="sx-dash-hero-btn sx-dash-hero-btn--ghost" data-sx-hero-resume hidden></button>
-                  <button type="button" class="sx-dash-hero-btn sx-dash-hero-btn--ghost" data-sx-hero-walkthrough data-i18n="dash.hero.walkthroughCta" hidden>${te('dash.hero.walkthroughCta')}</button>
-                </div>
                 <p class="sx-dash-hero__note" data-sx-hero-note data-i18n="dash.hero.firstRunNote" hidden>${te('dash.hero.firstRunNote')}</p>
               </div>
-
-              <aside class="sx-dash-hero__card" data-sx-hero-card hidden aria-label="${te('dash.hero.cardAria')}" data-i18n-aria-label="dash.hero.cardAria">
-                <div class="sx-dash-hero-card__head">
-                  <span class="sx-dash-hero-card__symbol" data-sx-hero-symbol>—</span>
-                  <span class="sx-dash-hero-card__balance" data-sx-hero-balance>—</span>
-                </div>
-                <p class="sx-dash-hero-card__meta" data-sx-hero-meta></p>
-                <div class="sx-dash-hero-card__spark" data-sx-hero-spark role="img" aria-label="${te('dash.hero.equityAria')}" data-i18n-aria-label="dash.hero.equityAria"></div>
-                <div class="sx-dash-hero-card__stats">
-                  <div class="sx-dash-hero-stat">
-                    <span class="sx-dash-hero-stat__label" data-i18n="dash.hero.netResult">${te('dash.hero.netResult')}</span>
-                    <strong class="sx-dash-hero-stat__value" data-sx-hero-net>—</strong>
-                  </div>
-                  <div class="sx-dash-hero-stat">
-                    <span class="sx-dash-hero-stat__label" data-i18n="dash.hero.winRate">${te('dash.hero.winRate')}</span>
-                    <strong class="sx-dash-hero-stat__value" data-sx-hero-win>—</strong>
-                  </div>
-                </div>
-              </aside>
+              <div class="sx-dash-hero__paths">
+                <button type="button" class="sx-dash-path sx-dash-path--lead" data-action="resume-session" data-sx-hero-resume hidden>
+                  <span class="sx-dash-path__mark" aria-hidden="true">01</span>
+                  <span class="sx-dash-path__main">
+                    <span class="sx-dash-path__badge" data-i18n="dash.hero.pathResumeBadge">${te('dash.hero.pathResumeBadge')}</span>
+                    <span class="sx-dash-path__title" data-sx-hero-resume-title>${te('dash.hero.resumeSession', { name: '' })}</span>
+                    <span class="sx-dash-path__link" data-sx-hero-resume-link>${te('dash.hero.pathResumeLink')}</span>
+                    <span class="sx-dash-path__desc" data-sx-hero-resume-desc></span>
+                  </span>
+                  <span class="sx-dash-path__arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
+                </button>
+                <button type="button" class="sx-dash-path" data-action="backtest" data-sx-hero-new>
+                  <span class="sx-dash-path__mark" data-sx-hero-new-mark aria-hidden="true">02</span>
+                  <span class="sx-dash-path__main">
+                    <span class="sx-dash-path__title" data-sx-hero-new-title>${te('dash.hero.pathNewTitle')}</span>
+                    <span class="sx-dash-path__link" data-sx-hero-new-link>${te('dash.hero.pathNewLink')}</span>
+                    <span class="sx-dash-path__desc" data-sx-hero-new-desc>${te('dash.hero.pathNewDesc')}</span>
+                  </span>
+                  <span class="sx-dash-path__arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
+                </button>
+                <button type="button" class="sx-dash-path" data-action="open-strategy">
+                  <span class="sx-dash-path__mark" data-sx-hero-strategy-mark aria-hidden="true">03</span>
+                  <span class="sx-dash-path__main">
+                    <span class="sx-dash-path__title" data-i18n="dash.hero.pathStrategyTitle">${te('dash.hero.pathStrategyTitle')}</span>
+                    <span class="sx-dash-path__link" data-i18n="dash.hero.pathStrategyLink">${te('dash.hero.pathStrategyLink')}</span>
+                    <span class="sx-dash-path__desc" data-i18n="dash.hero.pathStrategyDesc">${te('dash.hero.pathStrategyDesc')}</span>
+                  </span>
+                  <span class="sx-dash-path__arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
+                </button>
+              </div>
+              </div>
             </section>`
 }
 
@@ -1892,12 +1827,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
             ${buildDashFirstRunSectionsHtml()}
 
-            <section class="sx-dash-performance" aria-labelledby="sx-dash-performance-title">
+            <section class="sx-dash-performance" aria-label="${te('perf.title')}">
               <header class="sx-dash-performance__head">
-          <div>
-                  <h2 id="sx-dash-performance-title" data-i18n="perf.title">${te('perf.title')}</h2>
-                  <p data-i18n="perf.subtitle">${te('perf.subtitle')}</p>
-          </div>
                 ${buildPulseRangeHtml()}
         </header>
 
@@ -4832,18 +4763,17 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const hero = root.querySelector<HTMLElement>('[data-sx-dash-hero]')
     if (!hero) return
     const titleEl = hero.querySelector<HTMLElement>('[data-sx-hero-title]')
+    const accentEl = hero.querySelector<HTMLElement>('[data-sx-hero-accent]')
     const subEl = hero.querySelector<HTMLElement>('[data-sx-hero-sub]')
     const resumeBtn = hero.querySelector<HTMLButtonElement>('[data-sx-hero-resume]')
-    const card = hero.querySelector<HTMLElement>('[data-sx-hero-card]')
-
+    const newBtn = hero.querySelector<HTMLButtonElement>('[data-sx-hero-new]')
     const noteEl = hero.querySelector<HTMLElement>('[data-sx-hero-note]')
+    const countEl = hero.querySelector<HTMLElement>('[data-sx-hero-count]')
     const sessions = listSessions()
     const lastId = getLastSessionId()
     const session = (lastId ? getSession(lastId) : null) ?? sessions[0] ?? null
     const firstRun = session == null
 
-    // First run only: quick-start markets and the tutorial below the hero, and a
-    // Performance section that explains itself instead of drawing empty charts.
     const onboard = root.querySelector<HTMLElement>('[data-sx-dash-onboard]')
     if (onboard) onboard.hidden = !firstRun
     root
@@ -4852,131 +4782,70 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     hero.classList.toggle('is-first-run', firstRun)
     if (noteEl) noteEl.hidden = !firstRun
 
-    const walkthroughBtn = hero.querySelector<HTMLButtonElement>('[data-sx-hero-walkthrough]')
-    if (walkthroughBtn) walkthroughBtn.hidden = !firstRun
-
-    // The primary button carries data-i18n so a language switch re-translates it,
-    // which means the attribute has to move with the text or translateDom will
-    // put the other state's label back.
-    const primaryBtn = hero.querySelector<HTMLElement>('.sx-dash-hero-btn--primary')
-    if (primaryBtn) {
-      const key: MessageKey = firstRun ? 'dash.hero.firstRunCta' : 'dash.hero.startSession'
-      primaryBtn.textContent = translate(key)
-      primaryBtn.setAttribute('data-i18n', key)
+    if (countEl) {
+      countEl.hidden = firstRun
+      countEl.textContent = firstRun ? '' : tCount('unit.sessions', sessions.length)
     }
 
+    if (accentEl) accentEl.hidden = false
     if (firstRun) {
-      if (titleEl) titleEl.textContent = translate('dash.hero.emptyTitle')
+      if (titleEl) titleEl.textContent = translate('dash.hero.emptyLead')
+      if (accentEl) accentEl.textContent = translate('dash.hero.emptyAccent')
       if (subEl) subEl.textContent = translate('dash.hero.emptySub')
-      if (resumeBtn) {
-        resumeBtn.hidden = true
-        resumeBtn.removeAttribute('data-session-id')
+    } else {
+      if (titleEl) titleEl.textContent = translate('dash.hero.resumeTitle')
+      if (accentEl) accentEl.textContent = translate('dash.hero.resumeAccent')
+      if (subEl) {
+        subEl.textContent = translate('dash.hero.resumeSub', {
+          sessions: tCount('unit.sessions', sessions.length),
+        })
       }
-      // The card stays on screen as a worked example of what a finished
-      // session looks like, rather than leaving a blank column.
-      if (card) {
-        card.hidden = false
-        card.classList.add('is-example')
-        card.setAttribute('aria-label', translate('dash.hero.exampleAria'))
-        card.setAttribute('data-i18n-aria-label', 'dash.hero.exampleAria')
-        const symbolEl = card.querySelector<HTMLElement>('[data-sx-hero-symbol]')
-        const balanceEl = card.querySelector<HTMLElement>('[data-sx-hero-balance]')
-        const metaEl = card.querySelector<HTMLElement>('[data-sx-hero-meta]')
-        const sparkEl = card.querySelector<HTMLElement>('[data-sx-hero-spark]')
-        const netEl = card.querySelector<HTMLElement>('[data-sx-hero-net]')
-        const winEl = card.querySelector<HTMLElement>('[data-sx-hero-win]')
-        if (symbolEl) symbolEl.textContent = translate('dash.hero.exampleSymbol')
-        if (balanceEl) {
-          balanceEl.textContent = HERO_EXAMPLE_PRICE
-          balanceEl.classList.remove('is-loss')
-          balanceEl.classList.add('is-profit')
-        }
-        if (metaEl) metaEl.textContent = translate('dash.hero.exampleMeta')
-        if (sparkEl) sparkEl.innerHTML = buildHeroSparkSvg([...HERO_EXAMPLE_CURVE])
-        if (netEl) {
-          netEl.textContent = HERO_EXAMPLE_NET
-          netEl.classList.remove('is-loss')
-          netEl.classList.add('is-profit')
-        }
-        if (winEl) winEl.textContent = HERO_EXAMPLE_WINRATE
-      }
+    }
+
+    const newTitle = hero.querySelector<HTMLElement>('[data-sx-hero-new-title]')
+    const newLink = hero.querySelector<HTMLElement>('[data-sx-hero-new-link]')
+    const newDesc = hero.querySelector<HTMLElement>('[data-sx-hero-new-desc]')
+    const newMark = hero.querySelector<HTMLElement>('[data-sx-hero-new-mark]')
+    const strategyMark = hero.querySelector<HTMLElement>('[data-sx-hero-strategy-mark]')
+    if (newBtn) newBtn.classList.toggle('sx-dash-path--lead', firstRun)
+    if (newMark) newMark.textContent = firstRun ? '01' : '02'
+    if (strategyMark) strategyMark.textContent = firstRun ? '02' : '03'
+    if (newTitle) newTitle.textContent = translate(firstRun ? 'dash.hero.pathFirstTitle' : 'dash.hero.pathNewTitle')
+    if (newLink) newLink.textContent = translate(firstRun ? 'dash.hero.pathFirstLink' : 'dash.hero.pathNewLink')
+    if (newDesc) newDesc.textContent = translate(firstRun ? 'dash.hero.pathFirstDesc' : 'dash.hero.pathNewDesc')
+
+    if (!resumeBtn) return
+    if (firstRun || !session) {
+      resumeBtn.hidden = true
+      resumeBtn.removeAttribute('data-session-id')
       return
     }
 
-    if (card) {
-      card.classList.remove('is-example')
-      card.setAttribute('aria-label', translate('dash.hero.cardAria'))
-      card.setAttribute('data-i18n-aria-label', 'dash.hero.cardAria')
-    }
-    if (titleEl) titleEl.textContent = translate('dash.hero.resumeTitle')
-    if (subEl) {
-      subEl.textContent = translate('dash.hero.resumeSub', {
-        sessions: tCount('unit.sessions', sessions.length),
-      })
-    }
-    if (resumeBtn) {
-      resumeBtn.hidden = false
-      resumeBtn.setAttribute('data-session-id', session.id)
-      resumeBtn.textContent = translate('dash.hero.resumeSession', { name: session.name })
-    }
-    if (!card) return
-
-    // A session can carry two records of its results: the replay journal, which
-    // has per-trade P&L and so can draw a real curve, and a backtest snapshot,
-    // which only has totals. Whichever was written last is what the trader saw.
     const bt = session.lastBacktest
     const replay = session.replayState
     const closed = replay?.account.closedTrades ?? []
     const useReplay = closed.length > 0 && (bt == null || (replay?.savedAt ?? 0) >= bt.ranAt)
-
     const netPnl = useReplay ? closed.reduce((sum, trade) => sum + trade.pnl, 0) : bt?.netPnl ?? 0
     const tradeCount = useReplay ? closed.length : bt?.totalTrades ?? 0
-    let winRate = useReplay ? (closed.filter((tr) => tr.pnl > 0).length / closed.length) * 100 : null
-    if (winRate == null && bt != null && Number.isFinite(bt.winRate)) winRate = bt.winRate
-
     const initialBalance = parseSessionBalanceNumber(session.balance)
-    const symbolEl = card.querySelector<HTMLElement>('[data-sx-hero-symbol]')
-    const balanceEl = card.querySelector<HTMLElement>('[data-sx-hero-balance]')
-    const metaEl = card.querySelector<HTMLElement>('[data-sx-hero-meta]')
-    const sparkEl = card.querySelector<HTMLElement>('[data-sx-hero-spark]')
-    const netEl = card.querySelector<HTMLElement>('[data-sx-hero-net]')
-    const winEl = card.querySelector<HTMLElement>('[data-sx-hero-win]')
+    const equity = initialBalance != null ? formatDashMoney(initialBalance + netPnl) : ''
+    const status =
+      tradeCount > 0
+        ? translate('dash.hero.lastSession', { trades: tCount('unit.trades', tradeCount) })
+        : translate('dash.hero.lastSessionNoTrades')
 
-    card.hidden = false
-    if (symbolEl) {
-      symbolEl.textContent = translate('dash.hero.replayLabel', {
+    resumeBtn.hidden = false
+    resumeBtn.setAttribute('data-session-id', session.id)
+    const resumeTitle = hero.querySelector<HTMLElement>('[data-sx-hero-resume-title]')
+    const resumeLink = hero.querySelector<HTMLElement>('[data-sx-hero-resume-link]')
+    const resumeDesc = hero.querySelector<HTMLElement>('[data-sx-hero-resume-desc]')
+    if (resumeTitle) resumeTitle.textContent = translate('dash.hero.resumeSession', { name: session.name })
+    if (resumeLink) {
+      resumeLink.textContent = translate('dash.hero.replayLabel', {
         symbol: primarySessionSymbol(session.assets),
       })
     }
-    if (balanceEl) {
-      balanceEl.textContent = initialBalance != null ? formatDashMoney(initialBalance + netPnl) : '—'
-      balanceEl.classList.toggle('is-loss', netPnl < 0)
-      balanceEl.classList.toggle('is-profit', netPnl > 0)
-    }
-    if (metaEl) {
-      metaEl.textContent =
-        tradeCount > 0
-          ? translate('dash.hero.lastSession', { trades: tCount('unit.trades', tradeCount) })
-          : translate('dash.hero.lastSessionNoTrades')
-    }
-    if (sparkEl) {
-      // closedTrades is appended in close order, so a running total over it is
-      // the session's real equity curve. It starts at 0 so the first trade's
-      // move is visible. A backtest snapshot only has a total: 0 → net.
-      let running = 0
-      const curve = useReplay
-        ? [0, ...closed.map((trade) => (running += trade.pnl))]
-        : tradeCount > 0
-          ? [0, netPnl]
-          : []
-      sparkEl.innerHTML = buildHeroSparkSvg(curve)
-    }
-    if (netEl) {
-      netEl.textContent = tradeCount > 0 ? formatDashMoney(netPnl) : '—'
-      netEl.classList.toggle('is-loss', tradeCount > 0 && netPnl < 0)
-      netEl.classList.toggle('is-profit', tradeCount > 0 && netPnl > 0)
-    }
-    if (winEl) winEl.textContent = formatDashboardWinRate(winRate)
+    if (resumeDesc) resumeDesc.textContent = equity ? `${status} · ${equity}` : status
   }
 
   function syncSessionPulse() {
@@ -5619,21 +5488,9 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       return
     }
 
-    const walkthroughBtn = t.closest<HTMLButtonElement>('[data-sx-hero-walkthrough]')
-    if (walkthroughBtn && root.contains(walkthroughBtn)) {
-      // No video yet — take them to the step-by-step walkthrough further down the
-      // page, which is the same tour in written form. Scroll only the dashboard's
-      // own content viewport, not native scrollIntoView — which walks every
-      // scrollable ancestor (including the window/body) and knocks the sticky
-      // topbar/sidebar out of place (see sxHighlightTradeRowByKey above).
-      const titleEl = root.querySelector<HTMLElement>('#sx-dash-tutorial-title')
-      const scrollHost = root.querySelector<HTMLElement>('.sx-dash-shell__scroll')
-      if (titleEl && scrollHost) {
-        const hostRect = scrollHost.getBoundingClientRect()
-        const titleRect = titleEl.getBoundingClientRect()
-        const delta = titleRect.top - hostRect.top
-        scrollHost.scrollBy({ top: delta, behavior: 'smooth' })
-      }
+    const openStrategyBtn = t.closest<HTMLButtonElement>('[data-action="open-strategy"]')
+    if (openStrategyBtn && root.contains(openStrategyBtn)) {
+      navigate({ view: 'strategy' })
       return
     }
 

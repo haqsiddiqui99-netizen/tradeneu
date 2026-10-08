@@ -307,6 +307,7 @@ type TvPriceScaleApi = {
   setMode?: (mode: number) => void
   isAutoScale?: () => boolean
   setAutoScale?: (on: boolean) => void
+  setVisible?: (visible: boolean) => void
 }
 
 type TvChartApi = {
@@ -622,7 +623,20 @@ function measureTvPlotLayout(
   }
   const plotOffsetX = Math.round(best.left - hostRect.left)
   const plotWidth = Math.round(best.width)
-  const right = Math.max(0, Math.round(hostRect.width - plotOffsetX - plotWidth))
+  let right = Math.max(0, Math.round(hostRect.width - plotOffsetX - plotWidth))
+  // The main canvas often spans the price scale, which reports a 0 right inset and lets the
+  // replay wash paint over the price ladder. A tall, narrow canvas flush to the host's right
+  // edge is that scale — keep the wash to its left.
+  let scaleInset: number | null = null
+  for (const canvas of doc.querySelectorAll('canvas')) {
+    const r = canvas.getBoundingClientRect()
+    if (r.height < 100 || r.width < 40 || r.width > 180) continue
+    const gapFromHostRight = hostRect.right - r.right
+    if (gapFromHostRight < -4 || gapFromHostRight > 28) continue
+    const inset = Math.round(hostRect.right - r.left)
+    if (scaleInset == null || inset > scaleInset) scaleInset = inset
+  }
+  if (scaleInset != null) right = Math.max(right, scaleInset)
   const canvasBottom = Math.max(0, Math.round(hostRect.bottom - best.bottom))
   const bottom =
     hairlineFromHostBottom != null
@@ -2266,6 +2280,9 @@ export async function createTradingViewChart(
     'mainSeriesProperties.showPrevClosePriceLine': false,
     // Axis border / pane separator (not a price line).
     'scalesProperties.lineColor': opts.theme === 'dark' ? '#131722' : '#ffffff',
+    'scalesProperties.textColor': opts.theme === 'dark' ? '#d1d4dc' : '#131722',
+    'scalesProperties.fontSize': 12,
+    'scalesProperties.showSeriesLastValue': true,
     'paneProperties.separatorColor': opts.theme === 'dark' ? '#131722' : '#ffffff',
   }
 
@@ -2561,6 +2578,7 @@ export async function createTradingViewChart(
       try {
         const chart = widget.activeChart()
         chart.applyOverrides?.(chartChromeOverrides)
+        mainPriceScale()?.setVisible?.(true)
         // If bid/ask lines were toggled on in chart settings, turn them off.
         try {
           const bidAskOn = (
@@ -2844,6 +2862,7 @@ export async function createTradingViewChart(
       // Theme swap restores default axis line colors — re-hide optional lines.
       const bg = theme === 'dark' ? TV_DARK_SURFACE : '#ffffff'
       chartChromeOverrides['scalesProperties.lineColor'] = bg
+      chartChromeOverrides['scalesProperties.textColor'] = theme === 'dark' ? '#d1d4dc' : '#131722'
       chartChromeOverrides['paneProperties.separatorColor'] = bg
       try {
         widget.applyOverrides({
@@ -2901,6 +2920,13 @@ export async function createTradingViewChart(
         if (symbol) currentSymbol = symbol
         const resolution = chart?.resolution?.()
         if (resolution) currentResolution = resolution
+        try {
+          widget.applyOverrides(chartChromeOverrides)
+          chart?.applyOverrides?.(chartChromeOverrides)
+          mainPriceScale()?.setVisible?.(true)
+        } catch {
+          /* ignore */
+        }
         return true
       } catch (err) {
         console.warn('[TradingView] load() failed', err)
