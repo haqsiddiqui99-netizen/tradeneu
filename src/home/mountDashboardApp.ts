@@ -96,8 +96,8 @@ function sxEquityTooltipHandler(context: { chart: Chart; tooltip: TooltipModel<'
   tipEl.style.top = `${posY + tooltip.caretY}px`
 }
 
-const SX_EQUITY_GAIN = '#4caf50'
-const SX_EQUITY_LOSS = '#e5484d'
+const SX_EQUITY_GAIN = '#6d5ce8'
+const SX_EQUITY_LOSS = '#d2544a'
 const SX_EQUITY_ZERO = '#9aa1ac'
 const SX_VIOLET = '#c084fc'
 const SX_VIOLET_BAR = '#a855f7'
@@ -116,7 +116,27 @@ function sxEquityLoss(): string {
 }
 
 function sxDashBarColor(): string {
-  return sxDashIsDark() ? SX_VIOLET_BAR : '#4caf50'
+  return sxDashIsDark() ? SX_VIOLET_BAR : SX_EQUITY_GAIN
+}
+
+/** Area under the equity line. Dark stays a single violet wash. Light splits
+ *  violet above zero and rose below it, so a profit month and a loss month read apart. */
+function sxEquityAreaFill(chart: Chart): string | CanvasGradient {
+  if (sxDashIsDark()) return 'rgba(192, 132, 252, 0.28)'
+  const scale = chart.scales?.y
+  const area = chart.chartArea
+  if (!scale || !area || area.bottom <= area.top) return 'rgba(109, 92, 232, 0.22)'
+  const zero = scale.getPixelForValue(0)
+  const span = area.bottom - area.top
+  const stop = Math.min(1, Math.max(0, (zero - area.top) / span))
+  const gradient = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom)
+  gradient.addColorStop(0, 'rgba(109, 92, 232, 0.32)')
+  gradient.addColorStop(stop, 'rgba(109, 92, 232, 0.06)')
+  if (stop < 0.999) {
+    gradient.addColorStop(Math.min(1, stop + 0.001), 'rgba(210, 84, 74, 0.06)')
+    gradient.addColorStop(1, 'rgba(210, 84, 74, 0.28)')
+  }
+  return gradient
 }
 
 function sxDashGridColor(zero: boolean): string {
@@ -189,14 +209,14 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
           {
             data: cumulative,
             borderColor: sxEquityGain(),
-            backgroundColor: sxDashIsDark() ? 'rgba(192, 132, 252, 0.28)' : sxEquityGain(),
+            backgroundColor: (ctx) => sxEquityAreaFill(ctx.chart),
             pointBackgroundColor: pointColors,
             pointBorderColor: pointColors,
             pointRadius,
             pointHoverRadius: 6,
             borderWidth: 2.5,
-            tension: sxDashIsDark() ? 0.35 : 0,
-            fill: sxDashIsDark() ? 'origin' : false,
+            tension: 0.35,
+            fill: 'origin',
             segment: {
               borderColor: (ctx) => sxEquitySegmentColor(cumulative, ctx),
             },
@@ -243,9 +263,9 @@ function syncEquityCurveChart(canvas: HTMLCanvasElement, equity: ReturnType<type
     const dataset = chart.data.datasets[0]!
     dataset.data = cumulative
     dataset.borderColor = sxEquityGain()
-    dataset.backgroundColor = sxDashIsDark() ? 'rgba(192, 132, 252, 0.28)' : sxEquityGain()
-    dataset.fill = sxDashIsDark() ? 'origin' : false
-    ;(dataset as { tension?: number }).tension = sxDashIsDark() ? 0.35 : 0
+    dataset.backgroundColor = (ctx) => sxEquityAreaFill(ctx.chart)
+    dataset.fill = 'origin'
+    ;(dataset as { tension?: number }).tension = 0.35
     dataset.pointBackgroundColor = pointColors
     dataset.pointBorderColor = pointColors
     ;(dataset as any).segment = {
@@ -322,7 +342,7 @@ function syncActivityBarChart(
           {
             data: hours,
             backgroundColor: sxDashBarColor(),
-            borderRadius: sxDashIsDark() ? 8 : 0,
+            borderRadius: 8,
             borderSkipped: false,
             barPercentage: 0.5,
             categoryPercentage: 0.7,
@@ -382,7 +402,7 @@ function syncActivityBarChart(
     chart.data.labels = labels
     chart.data.datasets[0]!.data = hours
     chart.data.datasets[0]!.backgroundColor = sxDashBarColor()
-    chart.data.datasets[0]!.borderRadius = sxDashIsDark() ? 8 : 0
+    chart.data.datasets[0]!.borderRadius = 8
     ;(chart as Chart & { $sxFullLabels?: string[] }).$sxFullLabels = fullLabels
     const yScale = chart.options.scales?.y as { suggestedMax?: number; ticks?: { stepSize?: number; color?: string } }
     if (yScale) {
@@ -425,7 +445,7 @@ function syncSymbolsBarChart(
           {
             label: 'Wins',
             data: winValues,
-            backgroundColor: sxDashIsDark() ? SX_VIOLET : '#2e9e35',
+            backgroundColor: sxDashBarColor(),
             borderRadius: (ctx) => {
               const lossesVal = Number(ctx.chart.data.datasets[1]?.data[ctx.dataIndex] ?? 0)
               return lossesVal > 0 ? { topLeft: 6, bottomLeft: 6, topRight: 0, bottomRight: 0 } : 6
@@ -492,7 +512,7 @@ function syncSymbolsBarChart(
   } else {
     chart.data.labels = labels
     chart.data.datasets[0]!.data = winValues
-    chart.data.datasets[0]!.backgroundColor = sxDashIsDark() ? SX_VIOLET : '#2e9e35'
+    chart.data.datasets[0]!.backgroundColor = sxDashBarColor()
     chart.data.datasets[1]!.data = lossValues
     chart.data.datasets[1]!.backgroundColor = sxDashIsDark() ? 'rgba(246, 242, 251, 0.22)' : '#9ca3af'
     const xScale = chart.options.scales?.x as { suggestedMax?: number; ticks?: { stepSize?: number; color?: string } }
@@ -645,12 +665,11 @@ import {
   setLocale,
   tCount,
   te,
-  tRich,
   t as translate,
   type MessageKey,
 } from '../i18n'
-import { ASSET_PILLS, catalogMarketDataLabel, findAsset, type AssetCategory } from '../assetCatalog'
 import { readDisplayName, readUserAvatar } from './dashboardUserPrefs'
+import { buildDashboardSampleSessions } from './dashboardSamplePreview'
 import {
   buildDashboardPerfChartSvg,
   computeEquityCurveSeries,
@@ -1359,14 +1378,17 @@ function buildPartnersSectionHtml(): string {
 
 function buildRecentSessionsSectionHtml(): string {
   return `
+            <div class="sx-dash-recent-sessions-block">
+            <div class="sx-dash-partners__head">
+              <span class="sx-dash-partners__rule" aria-hidden="true"></span>
+              <h3 id="sx-dash-recent-sessions-title" class="sx-dash-partners__title" data-i18n="sessions.recent">${te('sessions.recent')}</h3>
+              <span class="sx-dash-partners__rule sx-dash-partners__rule--end" aria-hidden="true"></span>
+            </div>
             <section
               class="sx-dash-recent-sessions sx-dash-card-surface overflow-hidden rounded-[2.5rem] border border-white/[0.1] bg-[#0c0c0e] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-6 sm:py-5"
               aria-labelledby="sx-dash-recent-sessions-title"
             >
-              <div class="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <h3 id="sx-dash-recent-sessions-title" class="text-lg font-bold tracking-tight text-slate-900 dark:text-white sm:text-xl" data-i18n="sessions.recent">
-                  ${te('sessions.recent')}
-                </h3>
+              <div class="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                 <div class="flex flex-wrap items-center gap-3">
                   <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400" data-sx-sessions-count>0 out of 2 sessions</span>
                   <div
@@ -1449,7 +1471,8 @@ function buildRecentSessionsSectionHtml(): string {
                   <span class="text-slate-500" data-i18n="sessions.bannerSub">${te('sessions.bannerSub')}</span>
                 </p>
               </div>
-            </section>`
+            </section>
+            </div>`
 }
 
 const DASH_NAV_KEYS: Record<DashNavKey, MessageKey> = {
@@ -1584,84 +1607,6 @@ function buildDashTopbarHtml(): string {
 }
 
 /**
- * Markets offered as one-tap starting points on the first run. Every symbol has
- * to exist in the asset catalog: names, categories and data sources are read
- * from there so the cards can't drift from the session creator, and an unknown
- * symbol would have its prefill silently dropped by `sessionModal`.
- */
-const DASH_QUICK_START_SYMBOLS = ['XAUUSD', 'EURUSD', 'SPX'] as const
-
-function buildDashQuickStartCardsHtml(): string {
-  return DASH_QUICK_START_SYMBOLS.map((symbol) => {
-    const asset = findAsset(symbol)
-    if (!asset) return ''
-    const category = ASSET_PILLS.find((p) => p.id === asset.category)?.label ?? asset.category
-    const source = catalogMarketDataLabel(symbol)
-    return `
-                  <li>
-                    <button type="button" class="sx-dash-quick-card" data-sx-quick-symbol="${symbol}" aria-label="${te('dash.quickStart.cardAria', { symbol })}">
-                      <span class="sx-dash-quick-card__head">
-                        <span class="sx-dash-quick-card__symbol">${symbol}</span>
-                        <span class="sx-dash-quick-card__cat">${escapeHtml(category)}</span>
-                      </span>
-                      <span class="sx-dash-quick-card__name">${escapeHtml(asset.name)}</span>
-                      <span class="sx-dash-quick-card__foot">
-                        <span class="sx-dash-quick-card__source">${source ? escapeHtml(source) : ''}</span>
-                        <span class="sx-dash-quick-card__go" data-i18n="dash.quickStart.startSession">${te('dash.quickStart.startSession')}</span>
-                      </span>
-                    </button>
-                  </li>`
-  }).join('')
-}
-
-/**
- * Category shortcuts into the session creator's asset picker, for traders whose
- * market isn't one of the three cards. Labels come from `ASSET_PILLS` so they
- * read the same here as in the picker they open.
- */
-function buildDashBrowseChipsHtml(): string {
-  return ASSET_PILLS.filter((p) => p.id !== 'all')
-    .map(
-      (p) => `
-                    <button type="button" class="sx-dash-browse__chip" data-sx-browse-cat="${p.id}" aria-label="${te('dash.quickStart.browseCatAria', { category: p.label })}">${escapeHtml(p.label)}</button>`,
-    )
-    .join('')
-}
-
-/**
- * First-run only: a market picker so the trader doesn't have to face an empty
- * session form. Hidden as soon as they have a session.
- */
-function buildDashFirstRunSectionsHtml(): string {
-  return `
-            <div class="sx-dash-onboard" data-sx-dash-onboard hidden>
-              <section class="sx-dash-onboard__block" aria-labelledby="sx-dash-quick-title">
-                <header class="sx-dash-onboard__head">
-                  <h2 class="sx-dash-onboard__title" id="sx-dash-quick-title" data-i18n="dash.quickStart.title">${te('dash.quickStart.title')}</h2>
-                  <p class="sx-dash-onboard__hint" data-i18n="dash.quickStart.hint">${te('dash.quickStart.hint')}</p>
-                </header>
-                <ul class="sx-dash-onboard__grid">${buildDashQuickStartCardsHtml()}
-                </ul>
-                <div class="sx-dash-browse" role="group" aria-label="${te('dash.quickStart.browseAria')}" data-i18n-aria-label="dash.quickStart.browseAria">
-                  <span class="sx-dash-browse__label" data-i18n="dash.quickStart.browseLabel">${te('dash.quickStart.browseLabel')}</span>${buildDashBrowseChipsHtml()}
-                </div>
-              </section>
-            </div>`
-}
-
-/**
- * Stands in for the Performance charts until there's data to draw. Visibility is
- * CSS-only, driven by `is-first-run` on the section, so the KPIs and charts can
- * be swapped out without moving them into a wrapper the layout doesn't expect.
- */
-function buildDashPerfPlaceholderHtml(): string {
-  return `
-            <div class="sx-dash-perf-empty">
-              <p class="sx-dash-perf-empty__text" data-i18n-rich="dash.perfEmpty.text">${tRich('dash.perfEmpty.text')}</p>
-            </div>`
-}
-
-/**
  * Home hero: the "Backtesting" eyebrow, a headline that changes with whether
  * the trader has a session to come back to, and a preview card for that last
  * session. Copy, the resume button and the card are all filled in by
@@ -1718,20 +1663,18 @@ function buildDashGraphCardsHtml(): string {
             <div class="sx-dash-graphs">
               <div class="sx-dash-graph--full sx-dash-graphs-row">
                 <article class="sx-dash-graph">
-                  <div class="sx-dash-graph__head">
-                    <div>
-                      <h3 class="sx-dash-graph__title" data-i18n="charts.timeInvested">${te('charts.timeInvested')}</h3>
-                      <p class="sx-dash-graph__total"><strong data-sx-activity-total>—</strong> <span data-i18n="charts.spentInRange">${te('charts.spentInRange')}</span></p>
-          </div>
+                  <div class="sx-dash-graph__head sx-dash-graph__head--range">
+                    <h3 class="sx-dash-graph__title" data-i18n="charts.timeInvested">${te('charts.timeInvested')}</h3>
                     <div class="sx-dash-graph__head-right">
                       <div class="sx-dash-graph__tabs" role="tablist" aria-label="${te('charts.timeInvestedRangeAria')}" data-i18n-aria-label="charts.timeInvestedRangeAria">
-                        <button type="button" class="sx-dash-graph__tab sx-dash-graph__tab--active" data-sx-activity-range="daily" role="tab" aria-selected="true" data-i18n="charts.daily">${te('charts.daily')}</button>
-                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="weekly" role="tab" aria-selected="false" data-i18n="charts.weekly">${te('charts.weekly')}</button>
-                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="monthly" role="tab" aria-selected="false" data-i18n="charts.monthly">${te('charts.monthly')}</button>
-                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="yearly" role="tab" aria-selected="false" data-i18n="charts.yearly">${te('charts.yearly')}</button>
-              </div>
-                </div>
-              </div>
+                        <button type="button" class="sx-dash-graph__tab sx-dash-graph__tab--active" data-sx-activity-range="daily" role="tab" aria-selected="true" aria-label="${te('charts.daily')}" data-i18n-aria-label="charts.daily">D</button>
+                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="weekly" role="tab" aria-selected="false" aria-label="${te('charts.weekly')}" data-i18n-aria-label="charts.weekly">W</button>
+                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="monthly" role="tab" aria-selected="false" aria-label="${te('charts.monthly')}" data-i18n-aria-label="charts.monthly">M</button>
+                        <button type="button" class="sx-dash-graph__tab" data-sx-activity-range="yearly" role="tab" aria-selected="false" aria-label="${te('charts.yearly')}" data-i18n-aria-label="charts.yearly">Y</button>
+                      </div>
+                      <strong class="sx-dash-graph__total" data-sx-activity-total>—</strong>
+                    </div>
+                  </div>
                   <div class="sx-dash-graph__chart sx-dash-activity-chart" role="img" aria-label="${te('charts.practiceByDayAria')}" data-i18n-aria-label="charts.practiceByDayAria">
                     <canvas data-sx-activity-chart-canvas></canvas>
             </div>
@@ -1825,14 +1768,16 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           <div class="sx-dash-testing-panel sx-dash-testing-panel--dashboard" data-testing-panel="dashboard" role="tabpanel">
             ${buildDashboardPageHeadHtml()}
 
-            ${buildDashFirstRunSectionsHtml()}
-
-            <section class="sx-dash-performance" aria-label="${te('perf.title')}">
+            <section class="sx-dash-performance" aria-labelledby="sx-dash-performance-title">
               <header class="sx-dash-performance__head">
+                <div class="sx-dash-partners__head">
+                  <span class="sx-dash-partners__rule" aria-hidden="true"></span>
+                  <h2 id="sx-dash-performance-title" class="sx-dash-partners__title" data-i18n="perf.title">${te('perf.title')}</h2>
+                  <span class="sx-dash-partners__rule sx-dash-partners__rule--end" aria-hidden="true"></span>
+                </div>
+                <p class="sx-dash-perf-sample" data-sx-perf-sample hidden data-i18n="dash.perfSample.note">${te('dash.perfSample.note')}</p>
                 ${buildPulseRangeHtml()}
         </header>
-
-              ${buildDashPerfPlaceholderHtml()}
 
               ${buildSessionPulseKpiHtml({ bare: true })}
 
@@ -2088,16 +2033,22 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
   </div>
 
   <div id="sx-dash-ai-chat-backdrop" class="sx-dash-ai-chat-backdrop fixed inset-0 z-[85] bg-black/50 opacity-0 backdrop-blur-[2px] transition-opacity duration-200 pointer-events-none" aria-hidden="true"></div>
-  <aside id="sx-dash-ai-chat-drawer" class="sx-dash-ai-chat-drawer fixed bottom-0 right-0 top-0 z-[90] flex w-full max-w-md translate-x-full flex-col border-l border-white/10 bg-[#0b0814]/97 shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out pointer-events-none" aria-hidden="true" aria-labelledby="sx-dash-ai-chat-title">
-    <div class="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-      <h2 id="sx-dash-ai-chat-title" class="text-sm font-bold tracking-tight text-white">AI assistant</h2>
-      <button type="button" data-action="ai-chat-close" class="rounded-lg border border-white/12 bg-white/[0.06] px-2.5 py-1.5 text-xs font-semibold text-zinc-200 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45">Close</button>
+  <aside id="sx-dash-ai-chat-drawer" class="sx-dash-ai-chat-drawer fixed bottom-0 right-0 top-0 z-[90] flex w-full max-w-[26rem] translate-x-full flex-col transition-transform duration-200 ease-out pointer-events-none" aria-hidden="true" aria-labelledby="sx-dash-ai-chat-title">
+    <header class="sx-ai-chat__head">
+      <div class="sx-ai-chat__brand">
+        <span class="sx-ai-chat__mark" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+        <div>
+          <h2 id="sx-dash-ai-chat-title">AI assistant</h2>
+          <p>Your desk, in plain language.</p>
+        </div>
+      </div>
+      <button type="button" data-action="ai-chat-close" class="sx-ai-chat__close">Close</button>
+    </header>
+    <div class="sx-ai-chat__body" data-sx-ai-chat-body>
     </div>
-    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4 text-sm" data-sx-ai-chat-body>
-    </div>
-    <div class="border-t border-white/10 p-4">
+    <div class="sx-ai-chat__composer border-t">
       <label class="sr-only" for="sx-dash-ai-chat-input">Message to AI</label>
-      <textarea id="sx-dash-ai-chat-input" rows="2" disabled class="w-full resize-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-400 placeholder:text-zinc-600" placeholder="Message AI (coming soon)…"></textarea>
+      <textarea id="sx-dash-ai-chat-input" rows="2" disabled placeholder="Message AI (coming soon)…"></textarea>
     </div>
   </aside>
 
@@ -2790,7 +2741,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       panel.hidden = !on
     })
     if (tab === 'dashboard' || tab === 'sessions') {
-      const sessionsSection = root.querySelector<HTMLElement>('.sx-dash-recent-sessions')
+      const sessionsSection = root.querySelector<HTMLElement>('.sx-dash-recent-sessions-block')
       const targetAnchor = root.querySelector<HTMLElement>(`[data-sx-recent-sessions-anchor="${tab}"]`)
       if (sessionsSection && targetAnchor && sessionsSection.parentElement !== targetAnchor) {
         targetAnchor.appendChild(sessionsSection)
@@ -3338,28 +3289,24 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
   const sxTradesSparkChartRegistry = new WeakMap<HTMLCanvasElement, Chart<'line'>>()
 
-  const SXT_SPARK_GAIN = '#1a9d5c'
-  const SXT_SPARK_LOSS = '#e5484d'
-  const SXT_SPARK_ZERO = '#9aa1ac'
-
   function sxSparkPointColor(points: number[], idx: number): string {
     const v = points[idx]
-    if (typeof v !== 'number') return SXT_SPARK_GAIN
-    if (v === 0) return SXT_SPARK_ZERO
-    return v < 0 ? SXT_SPARK_LOSS : SXT_SPARK_GAIN
+    if (typeof v !== 'number' || v === 0) return sxDashIsDark() ? '#ddd6fe' : SX_EQUITY_ZERO
+    return v < 0 ? sxEquityLoss() : sxEquityGain()
   }
 
   function sxSparkSegmentColor(points: number[], ctx: { p0DataIndex: number; p1DataIndex: number }): string {
     const y0 = points[ctx.p0DataIndex]
     const y1 = points[ctx.p1DataIndex]
-    return (typeof y0 === 'number' && y0 < 0) || (typeof y1 === 'number' && y1 < 0) ? SXT_SPARK_LOSS : SXT_SPARK_GAIN
+    return (typeof y0 === 'number' && y0 < 0) || (typeof y1 === 'number' && y1 < 0) ? sxEquityLoss() : sxEquityGain()
   }
 
   function sxSparkFillColor(points: number[], ctx: { p0DataIndex: number; p1DataIndex: number }): string {
     const y0 = points[ctx.p0DataIndex]
     const y1 = points[ctx.p1DataIndex]
     const isLoss = (typeof y0 === 'number' && y0 < 0) || (typeof y1 === 'number' && y1 < 0)
-    return isLoss ? 'rgba(229,72,77,0.14)' : 'rgba(26,157,92,0.14)'
+    if (isLoss) return sxDashIsDark() ? 'rgba(240, 171, 252, 0.22)' : 'rgba(210, 84, 74, 0.16)'
+    return sxDashIsDark() ? 'rgba(192, 132, 252, 0.28)' : 'rgba(109, 92, 232, 0.16)'
   }
 
   const sxSparkSelectionPlugin: Plugin<'line'> = {
@@ -3471,10 +3418,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (!canvas) return
     const labels = points.map((_, i) => `T${i + 1}`)
     const bound = sxSparkAxisBound(points)
-    const axisColor = sxDashAxisLabelColor()
-    const isDarkTheme = document.getElementById('sx-app-root')?.getAttribute('data-dashboard-theme') === 'dark'
-    const gridColor = isDarkTheme ? 'rgba(255,255,255,0.08)' : '#f0f1f4'
-    const borderColor = isDarkTheme ? '#3a4150' : '#9ca3af'
+    const isDarkTheme = sxDashIsDark()
+    const axisColor = isDarkTheme ? '#c4b5d4' : '#8b919a'
+    const gridColor = isDarkTheme ? 'rgba(255,255,255,0.08)' : 'rgba(17, 18, 20, 0.06)'
+    const borderColor = isDarkTheme ? 'rgba(255,255,255,0.12)' : 'rgba(17, 18, 20, 0.1)'
     let chart = sxTradesSparkChartRegistry.get(canvas)
     if (!chart) {
       const config: ChartConfiguration<'line'> = {
@@ -3484,8 +3431,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
           datasets: [
             {
               data: points,
-              borderColor: SXT_SPARK_GAIN,
-              backgroundColor: 'rgba(26,157,92,0.14)',
+              borderColor: sxEquityGain(),
+              backgroundColor: isDarkTheme ? 'rgba(192, 132, 252, 0.28)' : 'rgba(109, 92, 232, 0.16)',
               fill: { target: 'origin' },
               tension: 0.3,
               borderWidth: 1.75,
@@ -3526,7 +3473,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
               min: -bound,
               suggestedMax: bound,
               ticks: {
-                font: { family: 'IBM Plex Mono', size: 9.5 },
+                font: { family: 'Inter, Segoe UI, sans-serif', size: 11 },
                 color: axisColor,
                 maxTicksLimit: 3,
                 stepSize: bound,
@@ -3540,7 +3487,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
               border: { display: true, color: borderColor },
             },
             x: {
-              ticks: { font: { size: 9.5 }, color: axisColor, maxRotation: 0 },
+              ticks: { font: { family: 'Inter, Segoe UI, sans-serif', size: 11 }, color: axisColor, maxRotation: 0 },
               grid: { display: false },
               border: { display: true, color: borderColor },
             },
@@ -3573,6 +3520,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const dataset = chart.data.datasets[0]
     if (dataset) {
       dataset.data = points
+      dataset.borderColor = sxEquityGain()
+      dataset.backgroundColor = isDarkTheme ? 'rgba(192, 132, 252, 0.28)' : 'rgba(109, 92, 232, 0.16)'
       dataset.pointBackgroundColor = (ctx: any) => sxSparkPointColor(points, ctx.dataIndex)
       dataset.pointBorderColor = (ctx: any) => sxSparkPointColor(points, ctx.dataIndex)
       ;(dataset as any).segment = {
@@ -4774,13 +4723,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const session = (lastId ? getSession(lastId) : null) ?? sessions[0] ?? null
     const firstRun = session == null
 
-    const onboard = root.querySelector<HTMLElement>('[data-sx-dash-onboard]')
-    if (onboard) onboard.hidden = !firstRun
-    root
-      .querySelector<HTMLElement>('.sx-dash-performance')
-      ?.classList.toggle('is-first-run', firstRun)
+    const sampleNote = root.querySelector<HTMLElement>('[data-sx-perf-sample]')
+    if (sampleNote) sampleNote.hidden = !firstRun
     hero.classList.toggle('is-first-run', firstRun)
-    if (noteEl) noteEl.hidden = !firstRun
+    if (noteEl) noteEl.hidden = true
+    if (subEl) subEl.hidden = firstRun
 
     if (countEl) {
       countEl.hidden = firstRun
@@ -4848,9 +4795,14 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     if (resumeDesc) resumeDesc.textContent = equity ? `${status} · ${equity}` : status
   }
 
+  function sessionsForDeskPreview(): StoredSession[] {
+    const sessions = listSessions()
+    return sessions.length > 0 ? sessions : buildDashboardSampleSessions()
+  }
+
   function syncSessionPulse() {
     const range = readPulseRange()
-    const sessions = listSessions()
+    const sessions = sessionsForDeskPreview()
     const pulse = computeSessionPulseStats(sessions, range, Date.now(), getLastSessionId())
     const pnlTotals = computeDashboardPerfTotals(sessions, 'backtest', range)
     const directed = pulse.longTrades + pulse.shortTrades
@@ -5060,7 +5012,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
   function syncDashboardPerf() {
     const range = readPulseRange()
-    const sessions = listSessions()
+    const sessions = sessionsForDeskPreview()
     const period = describeDashboardPerfChartPeriod(sessions, 'backtest', range, 'daily')
 
     root.querySelectorAll<HTMLElement>('[data-sx-time-chart-pan]').forEach((pan) => {
@@ -5491,23 +5443,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const openStrategyBtn = t.closest<HTMLButtonElement>('[data-action="open-strategy"]')
     if (openStrategyBtn && root.contains(openStrategyBtn)) {
       navigate({ view: 'strategy' })
-      return
-    }
-
-    const quickMarketBtn = t.closest<HTMLButtonElement>('[data-sx-quick-symbol]')
-    if (quickMarketBtn && root.contains(quickMarketBtn)) {
-      const symbol = quickMarketBtn.getAttribute('data-sx-quick-symbol')?.trim()
-      sessionModal.open({ sessionType: 'backtest', draft: symbol ? { assets: symbol } : undefined })
-      return
-    }
-
-    const browseChip = t.closest<HTMLButtonElement>('[data-sx-browse-cat]')
-    if (browseChip && root.contains(browseChip)) {
-      const cat = browseChip.getAttribute('data-sx-browse-cat')?.trim()
-      sessionModal.open({
-        sessionType: 'backtest',
-        assetCategory: (cat as AssetCategory | undefined) ?? undefined,
-      })
       return
     }
 

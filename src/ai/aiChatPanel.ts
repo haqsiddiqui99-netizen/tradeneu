@@ -95,14 +95,12 @@ export function mountAiChatPanel(opts: AiChatPanelOptions): () => void {
   body.replaceChildren()
 
   const statusEl = document.createElement('p')
-  statusEl.className =
-    'sx-ai-chat__status rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs leading-relaxed text-zinc-400'
+  statusEl.className = 'sx-ai-chat__status'
   statusEl.dataset.sxAiStatus = ''
   statusEl.textContent = 'Checking services...'
 
   const messagesEl = document.createElement('div')
-  messagesEl.className =
-    'sx-ai-chat__messages flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto'
+  messagesEl.className = 'sx-ai-chat__messages'
   messagesEl.dataset.sxAiMessages = ''
   messagesEl.setAttribute('role', 'log')
   messagesEl.setAttribute('aria-live', 'polite')
@@ -112,8 +110,7 @@ export function mountAiChatPanel(opts: AiChatPanelOptions): () => void {
 
   const sendBtn = document.createElement('button')
   sendBtn.type = 'button'
-  sendBtn.className =
-    'mt-2 w-full rounded-xl border border-sky-400/40 bg-gradient-to-r from-sky-600 to-blue-700 px-3 py-2 text-sm font-semibold text-white transition hover:brightness-110'
+  sendBtn.className = 'sx-ai-chat__send'
   sendBtn.dataset.sxAiSend = ''
   sendBtn.textContent = 'Send'
   chatFooter.appendChild(sendBtn)

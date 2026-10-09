@@ -836,9 +836,9 @@ export function mountChartWorkspace(
                 class="rw-replay-dock__tico rw-replay-dock__tico--pick"
                 data-rw-replay-pick-bar
                 aria-pressed="false"
-                title="Select starting bar on the chart"
-                aria-label="Select starting bar on the chart"
-              >${icons.replayBarSelect}</button>
+                title="Cut replay bar"
+                aria-label="Cut replay bar"
+              >${icons.scissorsSelectBar}</button>
               <div class="rw-replay-dock__transport-anchor">
                 <div class="rw-replay-dock__transport" data-rw-replay-transport>
                   <button type="button" class="rw-replay-dock__tico" data-rw="back" title="Back one candle">${icons.replayTvStepBack}</button>

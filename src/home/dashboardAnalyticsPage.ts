@@ -188,10 +188,10 @@ const sxaTypeOpts = (): { value: string; label: string }[] =>
 const sxaStrategyOpts = (): { value: string; label: string }[] =>
   SXA_STRATEGY_VALUES.map((value) => ({ value, label: translate(SXA_STRATEGY_KEYS[value]!) }))
 
-const GAIN = '#1a9d5c'
-const LOSS = '#d6455a'
+const GAIN = '#1f9d72'
+const LOSS = '#d2544a'
 const AMBER = '#b6690a'
-const BRAND = '#3652f6'
+const BRAND = '#7c3aed'
 const GRID = '#f0f1f4'
 const AXIS = '#6b7280'
 
@@ -217,6 +217,12 @@ function sxaLineColor(root: HTMLElement): string {
   return v || GRID
 }
 
+/** Faint horizontal grid so the colored series stay in front of the dots. */
+function sxaFaintGridColor(root: HTMLElement): string {
+  const theme = root.closest('[data-dashboard-theme]')?.getAttribute('data-dashboard-theme')
+  return theme === 'dark' ? 'rgba(255, 255, 255, 0.07)' : 'rgba(17, 18, 20, 0.07)'
+}
+
 // Chart.js v4 doesn't support dashing the actual y-axis gridlines out of the box (only the
 // axis border / tick marks). This tiny plugin draws them manually so we can render dotted
 // horizontal gridlines while leaving Chart.js's own grid disabled (y.grid.display: false).
@@ -227,8 +233,10 @@ const sxaDashedGridPlugin: any = {
     const yScale = chart.scales?.y
     if (!yScale) return
     const { ctx, chartArea } = chart
+    const host = chart.canvas?.closest?.('.sxa-analytics') as HTMLElement | null
+    const line = host ? getComputedStyle(host).getPropertyValue('--sxa-line').trim() : ''
     ctx.save()
-    ctx.strokeStyle = '#d7dae1'
+    ctx.strokeStyle = line || '#d7dae1'
     ctx.lineWidth = 1
     ctx.setLineDash([3, 3])
     for (const tick of yScale.ticks) {
@@ -402,13 +410,13 @@ export function buildAnalyticsPageHtml(): string {
     <div class="sxa-analytics" data-sxa-root>
       <div class="sxa-tab-nav" data-sxa-main-tabs>
         <button type="button" class="sxa-tab-nav__btn sxa-tab-nav__btn--active" data-sxa-tab="performance">
-          <i class="fa-solid fa-chart-line" aria-hidden="true"></i> <span data-i18n="analytics.tab.performance">${te('analytics.tab.performance')}</span>
+          <i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i> <span data-i18n="analytics.tab.performance">${te('analytics.tab.performance')}</span>
         </button>
         <button type="button" class="sxa-tab-nav__btn" data-sxa-tab="drawdown">
-          <i class="fa-solid fa-chart-simple" aria-hidden="true"></i> <span data-i18n="analytics.tab.drawdown">${te('analytics.tab.drawdown')}</span>
+          <i class="fa-solid fa-arrow-trend-down" aria-hidden="true"></i> <span data-i18n="analytics.tab.drawdown">${te('analytics.tab.drawdown')}</span>
         </button>
         <button type="button" class="sxa-tab-nav__btn" data-sxa-tab="simulation">
-          <i class="fa-solid fa-wave-square" aria-hidden="true"></i> <span data-i18n="analytics.tab.simulation">${te('analytics.tab.simulation')}</span>
+          <i class="fa-solid fa-dice" aria-hidden="true"></i> <span data-i18n="analytics.tab.simulation">${te('analytics.tab.simulation')}</span>
         </button>
       </div>
 
@@ -453,14 +461,14 @@ export function buildAnalyticsPageHtml(): string {
           </div>
           <div class="sxa-card">
             <div class="sxa-rr-label"><span data-i18n="analytics.averageRisk">${te('analytics.averageRisk')}</span> ${infoDot('analytics.tip.averageRisk')}</div>
-            <div class="sxa-rr-value" data-sxa-stat="avgrisk" style="font-size:24px;margin-top:6px;">\u2013</div>
+            <div class="sxa-rr-value" data-sxa-stat="avgrisk" style="margin-top:6px;">\u2013</div>
             <div class="sxa-hint" data-i18n="analytics.tip.averageRisk">${te('analytics.tip.averageRisk')}</div>
           </div>
           <div class="sxa-card">
             <div class="sxa-rr-label"><span data-i18n="analytics.winRRvsLossRR">${te('analytics.winRRvsLossRR')}</span> ${infoDot('analytics.tip.winRRvsLossRR')}</div>
             <div class="sxa-rr-row" style="margin-top:6px;">
-              <div class="sxa-rr-item"><div class="sxa-rr-label" data-i18n="analytics.outcome.wins">${te('analytics.outcome.wins')}</div><div class="sxa-rr-value" style="color:${GAIN};font-size:20px;" data-sxa-stat="winrr">\u2013</div></div>
-              <div class="sxa-rr-item"><div class="sxa-rr-label" data-i18n="analytics.outcome.losses">${te('analytics.outcome.losses')}</div><div class="sxa-rr-value" style="color:${LOSS};font-size:20px;" data-sxa-stat="lossrr">\u2013</div></div>
+              <div class="sxa-rr-item"><div class="sxa-rr-label" data-i18n="analytics.outcome.wins">${te('analytics.outcome.wins')}</div><div class="sxa-rr-value" style="color:${GAIN};" data-sxa-stat="winrr">\u2013</div></div>
+              <div class="sxa-rr-item"><div class="sxa-rr-label" data-i18n="analytics.outcome.losses">${te('analytics.outcome.losses')}</div><div class="sxa-rr-value" style="color:${LOSS};" data-sxa-stat="lossrr">\u2013</div></div>
             </div>
           </div>
         </div>
@@ -473,15 +481,15 @@ export function buildAnalyticsPageHtml(): string {
           <div class="sxa-card sxa-rr-card">
             <svg class="sxa-rr-spark" data-sxa-spark-idealrr viewBox="0 0 200 60" preserveAspectRatio="none"></svg>
             <div class="sxa-rr-label"><span data-i18n="analytics.idealAverageRR">${te('analytics.idealAverageRR')}</span> ${infoDot('analytics.tip.idealAverageRR')}</div>
-            <div class="sxa-kpi-value" data-sxa-stat="idealavgrr" style="font-size:24px;margin-top:6px;">\u2013</div>
+            <div class="sxa-kpi-value" data-sxa-stat="idealavgrr" style="margin-top:6px;">\u2013</div>
           </div>
           <div class="sxa-card">
             <div class="sxa-rr-label"><span data-i18n="analytics.maxIdealRR">${te('analytics.maxIdealRR')}</span> ${infoDot('analytics.tip.maxIdealRR')}</div>
-            <div class="sxa-kpi-value" data-sxa-stat="maxidealrr" style="font-size:24px;margin-top:6px;">\u2013</div>
+            <div class="sxa-kpi-value" data-sxa-stat="maxidealrr" style="margin-top:6px;">\u2013</div>
           </div>
           <div class="sxa-card">
             <div class="sxa-rr-label"><span data-i18n="analytics.couldHaveProfit">${te('analytics.couldHaveProfit')}</span> ${infoDot('analytics.tip.couldHaveProfit')}</div>
-            <div class="sxa-kpi-value" data-sxa-stat="couldhaveprofit" style="font-size:24px;margin-top:6px;">\u2013</div>
+            <div class="sxa-kpi-value" data-sxa-stat="couldhaveprofit" style="margin-top:6px;">\u2013</div>
             <div class="sxa-hint" data-sxa-stat="couldhaveprofithint">&nbsp;</div>
           </div>
         </div>
@@ -493,14 +501,14 @@ export function buildAnalyticsPageHtml(): string {
         <div class="sxa-grid-2">
           <div class="sxa-card">
             <div class="sxa-card-head"><h3><span data-i18n="analytics.expectancyPerTrade">${te('analytics.expectancyPerTrade')}</span> ${infoDot('analytics.tip.expectancyPerTrade')}</h3></div>
-            <div class="sxa-kpi-value" data-sxa-stat="expectancy" style="font-size:26px;">\u2013</div>
+            <div class="sxa-kpi-value" data-sxa-stat="expectancy">\u2013</div>
             <div class="sxa-exp-track"><div class="sxa-exp-seg-win" data-sxa-exp-win></div><div class="sxa-exp-seg-loss" data-sxa-exp-loss></div></div>
             <div class="sxa-exp-labels"><span class="sxa-win" data-sxa-exp-win-label>\u2013</span><span class="sxa-loss" data-sxa-exp-loss-label>\u2013</span></div>
           </div>
           <div class="sxa-card sxa-pf-card">
             <div>
               <div class="sxa-card-head" style="margin-bottom:6px;"><h3><span data-i18n="analytics.profitFactor">${te('analytics.profitFactor')}</span> ${infoDot('analytics.tip.profitFactor')}</h3></div>
-              <div class="sxa-kpi-value" data-sxa-stat="pf" style="font-size:30px;">\u2013</div>
+              <div class="sxa-kpi-value" data-sxa-stat="pf">\u2013</div>
               <div class="sxa-hint" data-i18n="analytics.profitFactorHint">${te('analytics.profitFactorHint')}</div>
             </div>
             <div class="sxa-gauge-wrap"><svg width="110" height="110" viewBox="0 0 110 110" data-sxa-pf-gauge></svg></div>
@@ -671,7 +679,7 @@ export function buildAnalyticsPageHtml(): string {
             <canvas data-sxa-mc-canvas style="margin-top:18px;"></canvas>
             <div class="sxa-mc-tooltip-panel" data-sxa-mc-tooltip></div>
           </div>
-          <div class="sxa-section-title" style="font-size:14px; margin:18px 0 10px;" data-i18n="analytics.simulationResults">${te('analytics.simulationResults')}</div>
+          <div class="sxa-section-title" style="margin:18px 0 10px;" data-i18n="analytics.simulationResults">${te('analytics.simulationResults')}</div>
           <div class="sxa-sim-stats sxa-sim-stats--wide" data-sxa-mc-stats></div>
         </div>
 
@@ -684,11 +692,12 @@ export function buildAnalyticsPageHtml(): string {
           <div class="sxa-heat-sub" data-i18n="analytics.rrSimulatorSub">${te('analytics.rrSimulatorSub')}</div>
           <div class="sxa-rr-chip-toolbar">
             <div class="sxa-rr-chip-row" data-sxa-rr-chip-row></div>
-            <button type="button" class="sxa-run-btn" data-sxa-rr-add-new style="margin-left:auto;" data-i18n="analytics.addNew">${te('analytics.addNew')}</button>
+            <button type="button" class="sxa-run-btn" data-sxa-rr-run style="margin-left:auto;">${te('analytics.mc.startSimulation')}</button>
+            <button type="button" class="sxa-run-btn" data-sxa-rr-add-new data-i18n="analytics.addNew">${te('analytics.addNew')}</button>
           </div>
           <canvas data-sxa-rr-multi-canvas></canvas>
           <div class="sxa-rr-best-line" data-sxa-rr-best-line></div>
-          <div class="sxa-section-title" style="font-size:15px; margin:18px 0 10px;" data-i18n="analytics.results">${te('analytics.results')}</div>
+          <div class="sxa-section-title" style="margin:18px 0 10px;" data-i18n="analytics.results">${te('analytics.results')}</div>
           <div style="overflow-x:auto;">
             <table class="sxa-rr-results-table" data-sxa-rr-results-table></table>
           </div>
@@ -703,12 +712,13 @@ export function buildAnalyticsPageHtml(): string {
           <div class="sxa-heat-sub" data-i18n="analytics.slSimulatorSub">${te('analytics.slSimulatorSub')}</div>
           <div class="sxa-rr-chip-toolbar">
             <div class="sxa-rr-chip-row" data-sxa-sl-chip-row></div>
-            <button type="button" class="sxa-run-btn" data-sxa-sl-add-new style="margin-left:auto;" data-i18n="analytics.addNew">${te('analytics.addNew')}</button>
+            <button type="button" class="sxa-run-btn" data-sxa-sl-run style="margin-left:auto;">${te('analytics.mc.startSimulation')}</button>
+            <button type="button" class="sxa-run-btn" data-sxa-sl-add-new data-i18n="analytics.addNew">${te('analytics.addNew')}</button>
           </div>
           <canvas data-sxa-sl-multi-canvas></canvas>
           <div class="sxa-rr-best-line" data-sxa-sl-best-line></div>
           <div class="sxa-hint" data-sxa-sl-coverage-hint style="margin-top:6px;">&nbsp;</div>
-          <div class="sxa-section-title" style="font-size:15px; margin:18px 0 10px;" data-i18n="analytics.results">${te('analytics.results')}</div>
+          <div class="sxa-section-title" style="margin:18px 0 10px;" data-i18n="analytics.results">${te('analytics.results')}</div>
           <div style="overflow-x:auto;">
             <table class="sxa-rr-results-table" data-sxa-sl-results-table></table>
           </div>
@@ -2845,17 +2855,13 @@ export function initAnalyticsPage(
                   return sxaAxisMoneyLabel(Number(v), stepAbs)
                 },
               },
-              // The zero line doubles as the chart's x-axis, so it stays solid; every
-              // other horizontal gridline is dotted for less visual noise. Chart.js
-              // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
-              // `drawTicks` is off so no tick stubs poke out to the left of the
-              // y-axis line into the label gutter.
+              // Faint dots only — the colored simulation paths should stay in front.
               grid: {
-                color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
-                lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+                color: sxaFaintGridColor(root),
+                lineWidth: 1,
                 drawTicks: false,
               },
-              border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
+              border: { display: false, dash: [2, 6] },
             },
             x: { ticks: { font: { size: 10 }, color: axisColor }, grid: { display: false }, border: { display: false } },
           },
@@ -2982,17 +2988,12 @@ export function initAnalyticsPage(
           scales: {
             y: {
               ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: axisColor },
-              // The zero line doubles as the chart's x-axis, so it stays solid; every
-              // other horizontal gridline is dotted for less visual noise. Chart.js
-              // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
-              // `drawTicks` is off so no tick stubs poke out to the left of the
-              // y-axis line into the label gutter.
               grid: {
-                color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
-                lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+                color: sxaFaintGridColor(root),
+                lineWidth: 1,
                 drawTicks: false,
               },
-              border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
+              border: { display: false, dash: [2, 6] },
             },
             x: { ticks: { font: { size: 10 }, color: axisColor, maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
           },
@@ -3160,17 +3161,12 @@ export function initAnalyticsPage(
           scales: {
             y: {
               ticks: { font: { family: 'IBM Plex Mono', size: 10.5 }, color: axisColor },
-              // The zero line doubles as the chart's x-axis, so it stays solid; every
-              // other horizontal gridline is dotted for less visual noise. Chart.js
-              // draws gridlines using the scale's `border.dash`, not `grid.borderDash`.
-              // `drawTicks` is off so no tick stubs poke out to the left of the
-              // y-axis line into the label gutter.
               grid: {
-                color: (ctx) => (ctx.tick?.value === 0 ? '#9aa0ac' : '#d7dae1'),
-                lineWidth: (ctx) => (ctx.tick?.value === 0 ? 1.25 : 1),
+                color: sxaFaintGridColor(root),
+                lineWidth: 1,
                 drawTicks: false,
               },
-              border: { display: false, dash: (ctx) => (ctx.tick?.value === 0 ? [] : [4, 4]) },
+              border: { display: false, dash: [2, 6] },
             },
             x: { ticks: { font: { size: 10 }, color: axisColor, maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
           },
@@ -3651,6 +3647,10 @@ export function initAnalyticsPage(
       }
       return
     }
+    if (t.closest('[data-sxa-rr-run]')) {
+      renderRRSimulator(getFilteredTrades())
+      return
+    }
     if (t.closest('[data-sxa-rr-add-new]')) {
       void showSxaNumberPrompt({ label: translate('analytics.promptCustomR'), placeholder: '2.75' }).then((val) => {
         if (val != null && val > 0) {
@@ -3670,6 +3670,10 @@ export function initAnalyticsPage(
         renderSlChipRow()
         renderSlSimulator(getFilteredTrades())
       }
+      return
+    }
+    if (t.closest('[data-sxa-sl-run]')) {
+      renderSlSimulator(getFilteredTrades())
       return
     }
     if (t.closest('[data-sxa-sl-add-new]')) {

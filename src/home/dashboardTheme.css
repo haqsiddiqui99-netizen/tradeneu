@@ -1614,29 +1614,9 @@ a.sx-dash-account__item {
 }
 
 #sx-app-root[data-dashboard-theme='light'] .sx-dash-ai-chat-drawer {
-  background: rgba(255, 255, 255, 0.97) !important;
-  border-left-color: rgba(15, 23, 42, 0.1) !important;
-}
-
-#sx-app-root[data-dashboard-theme='light'] .sx-dash-ai-chat-drawer [class*='border-white'] {
-  border-color: rgba(15, 23, 42, 0.1) !important;
-}
-
-#sx-app-root[data-dashboard-theme='light'] .sx-dash-ai-chat-drawer .text-white {
-  color: #0f172a !important;
-}
-
-#sx-app-root[data-dashboard-theme='light'] .sx-dash-ai-chat-drawer .text-zinc-200,
-#sx-app-root[data-dashboard-theme='light'] .sx-dash-ai-chat-drawer .text-zinc-300 {
-  color: #475569 !important;
-}
-
-#sx-app-root[data-dashboard-theme='light'] .sx-dash-ai-chat-drawer .text-zinc-400 {
-  color: #64748b !important;
-}
-
-#sx-app-root[data-dashboard-theme='light'] .sx-dash-ai-chat-drawer [class*='bg-white'] {
-  background-color: rgba(248, 250, 252, 0.92) !important;
+  background: #f7f7f5;
+  border-left: 1px solid rgba(17, 18, 20, 0.08);
+  box-shadow: -24px 0 60px rgba(17, 18, 20, 0.12);
 }
 
 #sx-app-root[data-dashboard-theme='light'] .sx-dash-sidebar .text-zinc-100,
@@ -1928,8 +1908,12 @@ a.sx-dash-account__item {
   width: 10px;
   height: 10px;
   border-radius: 2px;
-  background: #4caf50;
+  background: #6d5ce8;
   flex-shrink: 0;
+}
+
+#sx-app-root[data-dashboard-theme='dark'] .sx-dash-equity-tip__dot {
+  background: #c084fc;
 }
 
 .sx-dash-time-chart__pan {
@@ -2382,35 +2366,249 @@ a.sx-dash-account__item {
   text-transform: none !important;
 }
 
+.sx-dash-ai-chat-drawer {
+  background: #141218;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.45);
+  color: #f4f1fb;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.sx-ai-chat__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sx-ai-chat__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sx-ai-chat__mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(192, 132, 252, 0.16);
+  color: #d8b4fe;
+  font-size: 14px;
+}
+
+.sx-ai-chat__head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.sx-ai-chat__head p {
+  margin: 2px 0 0;
+  color: #a89bb8;
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+
+.sx-ai-chat__close {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f1fb;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sx-ai-chat__close:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sx-ai-chat__body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  overflow: hidden;
+  padding: 16px;
+}
+
 .sx-ai-chat__messages {
+  display: flex;
   min-height: 8rem;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
 }
 
 .sx-ai-chat__msg {
-  max-width: 92%;
-  padding: 0.55rem 0.7rem;
-  border-radius: 0.65rem;
-  font-size: 0.8125rem;
-  line-height: 1.45;
+  max-width: 88%;
+  padding: 10px 12px;
+  border-radius: 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
   white-space: pre-wrap;
 }
 
 .sx-ai-chat__msg--user {
   align-self: flex-end;
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  background: rgba(14, 165, 233, 0.15);
-  color: #e0f2fe;
+  border-bottom-right-radius: 6px;
+  background: #7c3aed;
+  color: #fff;
 }
 
 .sx-ai-chat__msg--assistant {
   align-self: flex-start;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: #d4d4d8;
+  border-bottom-left-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f1fb;
 }
 
 .sx-ai-chat__status {
-  flex-shrink: 0;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  align-self: flex-start;
+  margin: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #c4b5d4;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.sx-ai-chat__status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: #c084fc;
+  box-shadow: 0 0 0 3px rgba(192, 132, 252, 0.2);
+}
+
+.sx-ai-chat__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sx-ai-chat__composer textarea {
+  min-height: 46px;
+  flex: 1;
+  resize: none;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f1fb;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.sx-ai-chat__composer textarea::placeholder {
+  color: #8d7a9e;
+}
+
+.sx-ai-chat__send {
+  height: 46px;
+  flex: none;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 14px;
+  background: #7c3aed;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.sx-ai-chat__send:hover {
+  background: #6d28d9;
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__head {
+  border-bottom-color: rgba(17, 18, 20, 0.08);
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__mark {
+  background: #111214;
+  color: #fff;
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__head h2 {
+  color: #111214;
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__head p,
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__status {
+  color: #5c6370;
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__close {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(17, 18, 20, 0.1);
+  color: #111214;
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__status {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(17, 18, 20, 0.08);
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__status::before {
+  background: #6d5ce8;
+  box-shadow: 0 0 0 3px rgba(109, 92, 232, 0.16);
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__msg--assistant {
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 10px 24px rgba(17, 18, 20, 0.06);
+  color: #111214;
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__msg--user {
+  background: #111214;
+  color: #fff;
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__composer {
+  border-top-color: rgba(17, 18, 20, 0.08);
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__composer textarea {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(17, 18, 20, 0.1);
+  color: #111214;
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__composer textarea::placeholder {
+  color: #8b919a;
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__send {
+  background: #111214;
+}
+
+#sx-app-root[data-dashboard-theme='light'] .sx-ai-chat__send:hover {
+  background: #2a2d33;
 }
 
 /* ?? Session Pulse (home dashboard intelligence) ?? */
@@ -4513,13 +4711,13 @@ a.sx-dash-account__item {
 }
 
 .sx-dash-bar__brand .sx-brand {
-  font-size: 1.15rem;
+  font-size: 1.50rem;
   color: #0f172a;
 }
 
 .sx-dash-bar__brand .sx-brand__mark {
-  width: 26px;
-  height: 26px;
+  width: 31.2px;
+  height: 31.2px;
 }
 
 .sx-dash-bar__brand .sx-dash-side__name {
@@ -5072,24 +5270,9 @@ a.sx-dash-account__item {
   text-align: center;
 }
 
-/* Performance before the first session: explain what will appear, don't draw
-   empty axes. Visibility is class-driven so the KPIs and charts can stay where
-   the layout expects them. */
+/* First-run Performance uses the same chart cards as a lived-in desk, filled
+   with a shared sample. The empty note stays out of the layout. */
 .sx-dash-perf-empty {
-  display: none;
-  padding: 1.5rem 1.5rem;
-  border: 1px dashed rgba(15, 23, 42, 0.18);
-  border-radius: 0.75rem;
-  background: rgba(15, 23, 42, 0.015);
-}
-
-.sx-dash-performance.is-first-run .sx-dash-perf-empty {
-  display: block;
-}
-
-.sx-dash-performance.is-first-run .sx-dash-pulse__range,
-.sx-dash-performance.is-first-run [data-sx-session-pulse],
-.sx-dash-performance.is-first-run .sx-dash-graphs {
   display: none;
 }
 

@@ -1,6 +1,8 @@
 import './landingPage.css'
 import { resolveAppPath } from '../appPaths'
-import { te, translateDom, type MessageKey } from '../i18n'
+import { getLocale, setLocale, te, translateDom, type MessageKey } from '../i18n'
+import { DASH_LOCALES, isDashLocaleCode, type DashLocaleCode } from '../home/dashboardLocales'
+import { dashCodeToLocaleTag } from '../appLocale'
 import { FEATURE_GROUPS, PRICING } from '../views/planCatalog'
 import {
   HERO_EXAMPLE_CURVE,
@@ -10,30 +12,71 @@ import {
 } from '../home/heroSparkline'
 import { tradeneuMarkSvg } from '../brand/tradeneuMark'
 
-const CARD_FEATURES = {
-  free: ['2 backtesting sessions', '1 indicator', '1 week data retention'],
-  intermediate: [
-    '10 backtesting sessions',
-    '200 records per session',
-    '6 months data retention',
-    '3 indicators',
-    '2 charts',
-    'Limited AI queries',
-    'Standard market data',
-  ],
-  pro: [
-    'Unlimited backtesting sessions',
-    'Unlimited records per session',
-    'Unlimited data retention',
-    'Unlimited indicators',
-    'Unlimited charts',
-    'Unlimited AI queries',
-    'Expanded data and seconds-level intervals',
-  ],
-} as const
+const CARD_FEATURES: Record<'free' | 'intermediate' | 'pro', MessageKey[]> = {
+  free: ['landing.feat.sessions2', 'landing.feat.indicator1', 'landing.feat.retention1w'],
+  intermediate: ['landing.feat.sessions10', 'landing.feat.indicators3', 'landing.feat.retention6m', 'landing.feat.charts2'],
+  pro: ['landing.feat.sessionsUnlimited', 'landing.feat.indicatorsCharts', 'landing.feat.secondsCme', 'landing.feat.retentionUnlimited'],
+}
 
 function featureList(tier: keyof typeof CARD_FEATURES): string {
-  return `<ul class="sx-price-card__feats">${CARD_FEATURES[tier].map((item) => `<li>${item}</li>`).join('')}</ul>`
+  return `<ul class="sx-price-card__feats">${CARD_FEATURES[tier].map((key) => `<li data-i18n="${key}">${te(key)}</li>`).join('')}</ul>`
+}
+
+/** English catalog phrase → translation key. Numbers, marks, and model names stay as written. */
+const LAND_PHRASE: Record<string, MessageKey> = {
+  'Backtesting Features': 'landing.cmp.backtest',
+  'Analytics Features': 'landing.cmp.analytics',
+  'AI Features': 'landing.cmp.ai',
+  'Journal Features': 'landing.cmp.journal',
+  'Backtesting Sessions': 'landing.cmp.sessions',
+  Indicators: 'landing.cmp.indicators',
+  'Max session duration': 'landing.cmp.duration',
+  'Go to feature': 'landing.cmp.goto',
+  'Trades per session': 'landing.cmp.trades',
+  'Data retention': 'landing.cmp.retention',
+  Multichart: 'landing.cmp.multichart',
+  'Economic calendar': 'landing.cmp.calendar',
+  'Auto break even': 'landing.cmp.breakeven',
+  'Rewind price': 'landing.cmp.rewind',
+  'Seconds data': 'landing.cmp.seconds',
+  'Futures and CME data': 'landing.cmp.futures',
+  'Custom timeframes': 'landing.cmp.timeframes',
+  'Analytics dashboard': 'landing.cmp.dashboard',
+  Strategies: 'landing.cmp.strategies',
+  'Strategy analytics': 'landing.cmp.strategyAnalytics',
+  'Montecarlo Simulator': 'landing.cmp.montecarlo',
+  'RR Simulator': 'landing.cmp.rr',
+  'AI Chat Assistant': 'landing.cmp.aiChat',
+  'Strategy AI Parser ("make objective")': 'landing.cmp.aiParser',
+  'Chat model': 'landing.cmp.chatModel',
+  'Strategy parser model': 'landing.cmp.parserModel',
+  'Daily message cap': 'landing.cmp.dailyCap',
+  'Trading-only scope guard': 'landing.cmp.scopeGuard',
+  'Off-topic refusal logging': 'landing.cmp.offTopic',
+  Journal: 'landing.cmp.journalRow',
+  Screenshots: 'landing.cmp.screenshots',
+  Checklists: 'landing.cmp.checklists',
+  Unlimited: 'landing.cmp.unlimited',
+  Limited: 'landing.cmp.limited',
+  '1 Month': 'landing.cmp.month1',
+  '6 Months': 'landing.cmp.months6',
+  '3 Times Per Hour': 'landing.cmp.times3',
+  '1 Week': 'landing.cmp.week1',
+  '2 Charts': 'landing.cmp.charts2',
+  'One Country, Only Past News, No Chart Bubbles': 'landing.cmp.calendarFree',
+  'Only Two Countries': 'landing.cmp.calendarMid',
+  '150 messages / month': 'landing.cmp.msg150',
+  '400 messages / month': 'landing.cmp.msg400',
+  '10 parses / month': 'landing.cmp.parse10',
+  '40 parses / month': 'landing.cmp.parse40',
+  '15 / day': 'landing.cmp.day15',
+  '30 / day': 'landing.cmp.day30',
+}
+
+function landPhrase(value: string): string {
+  const key = LAND_PHRASE[value]
+  if (!key) return value
+  return `<span data-i18n="${key}">${te(key)}</span>`
 }
 
 function compareCell(value: string): string {
@@ -45,14 +88,14 @@ function compareCell(value: string): string {
 function compareTables(): string {
   return FEATURE_GROUPS.map(
     (group) => `
-      <h3 class="sx-price-group">${group.title}</h3>
+      <h3 class="sx-price-group">${landPhrase(group.title)}</h3>
       <div class="sx-price-table-wrap">
         <table class="sx-price-table">
           <tbody>
             ${group.rows
               .map(
                 (row) =>
-                  `<tr><th scope="row">${row.label}</th><td>${compareCell(row.free)}</td><td>${compareCell(row.mid)}</td><td>${compareCell(row.pro)}</td></tr>`,
+                  `<tr><th scope="row">${landPhrase(row.label)}</th><td>${compareCell(landPhrase(row.free))}</td><td>${compareCell(landPhrase(row.mid))}</td><td>${compareCell(landPhrase(row.pro))}</td></tr>`,
               )
               .join('')}
           </tbody>
@@ -67,8 +110,8 @@ const CHEVRON = `<svg class="sx-land-drop__chev" width="12" height="12" viewBox=
 
 function navDrop(
   id: string,
-  label: string,
-  items: Array<[string, string, string, string]>,
+  labelKey: MessageKey,
+  items: Array<[string, string, MessageKey, MessageKey]>,
   pricing = false,
 ): string {
   const links = items
@@ -77,8 +120,8 @@ function navDrop(
         <a class="sx-land-drop__item" href="${href}" ${pricing ? 'data-land-pricing' : 'data-land-home'}>
           <span class="sx-land-drop__ico" aria-hidden="true">${icon}</span>
           <span>
-            <strong>${title}</strong>
-            <span>${detail}</span>
+            <strong data-i18n="${title}">${te(title)}</strong>
+            <span data-i18n="${detail}">${te(detail)}</span>
           </span>
         </a>`,
     )
@@ -86,7 +129,7 @@ function navDrop(
   return `
     <div class="sx-land-drop${pricing ? ' sx-land-drop--end' : ''}" data-land-drop="${id}">
       <button type="button" class="sx-land-drop__btn" aria-expanded="false" aria-haspopup="true">
-        <span>${label}</span>
+        <span data-i18n="${labelKey}">${te(labelKey)}</span>
         ${CHEVRON}
       </button>
       <div class="sx-land-drop__panel" hidden>
@@ -137,24 +180,24 @@ export function mountLandingPage(root: HTMLElement): void {
     })
     .join('')
 
-  const marketList: Array<[string, string, string, string]> = [
-    ['XAUUSD', 'Gold', 'Metals', '+0.84%'],
-    ['EURUSD', 'Euro / Dollar', 'FX', '+0.12%'],
-    ['GBPUSD', 'Sterling / Dollar', 'FX', '−0.21%'],
-    ['USDJPY', 'Dollar / Yen', 'FX', '+0.37%'],
-    ['NAS100', 'Nasdaq 100', 'Index', '+1.06%'],
-    ['BTCUSD', 'Bitcoin', 'Crypto', '+2.41%'],
+  const marketList: Array<[string, MessageKey, MessageKey, string]> = [
+    ['XAUUSD', 'landing.mkt.gold', 'landing.mkt.metals', '+0.84%'],
+    ['EURUSD', 'landing.mkt.eurusd', 'landing.mkt.fx', '+0.12%'],
+    ['GBPUSD', 'landing.mkt.gbpusd', 'landing.mkt.fx', '−0.21%'],
+    ['USDJPY', 'landing.mkt.usdjpy', 'landing.mkt.fx', '+0.37%'],
+    ['NAS100', 'landing.mkt.nas', 'landing.mkt.index', '+1.06%'],
+    ['BTCUSD', 'landing.mkt.btc', 'landing.mkt.crypto', '+2.41%'],
   ]
   const markets = marketList
     .map(
       ([symbol, name, kind, chg], i) => `
             <li class="sx-land-mkt" style="--mkt-i:${i}">
               <div class="sx-land-mkt__row">
-                <span class="sx-land-mkt__kind">${kind}</span>
+                <span class="sx-land-mkt__kind" data-i18n="${kind}">${te(kind)}</span>
                 <span class="sx-land-mkt__chg${chg.startsWith('−') ? ' is-down' : ''}">${chg}</span>
               </div>
               <strong>${symbol}</strong>
-              <span class="sx-land-mkt__name">${name}</span>
+              <span class="sx-land-mkt__name" data-i18n="${name}">${te(name)}</span>
               ${miniSparkSvg(i + 3, !chg.startsWith('−'))}
             </li>`,
     )
@@ -163,7 +206,7 @@ export function mountLandingPage(root: HTMLElement): void {
   const tickerItems = marketList
     .map(
       ([symbol, , kind]) =>
-        `<li><strong>${symbol}</strong><span>${kind}</span></li>`,
+        `<li><strong>${symbol}</strong><span data-i18n="${kind}">${te(kind)}</span></li>`,
     )
     .join('')
 
@@ -177,27 +220,28 @@ export function mountLandingPage(root: HTMLElement): void {
         <span class="sx-land__word">Tradeneu</span>
       </a>
       <nav class="sx-land__links" aria-label="Tradeneu">
-        ${navDrop('product', te('landing.nav.product'), [
-          ['#product', ICON_STEP, 'Bar replay', 'Advance one candle at a time. The bars ahead stay hidden.'],
-          ['#product', ICON_CHART, 'Session journal', 'Entries, exits and stops are kept with the replay.'],
-          ['#product', ICON_TARGET, 'Why it lost', 'A plain-language read of what pushed a trade into the red.'],
-          ['#product', ICON_PLAY, 'Practice desk', 'The same sequence as a live chart, opened on history.'],
+        ${navDrop('product', 'landing.nav.product', [
+          ['#product', ICON_STEP, 'landing.drop.replayTitle', 'landing.drop.replayDesc'],
+          ['#product', ICON_CHART, 'landing.drop.journalTitle', 'landing.drop.journalDesc'],
+          ['#product', ICON_TARGET, 'landing.drop.whyTitle', 'landing.drop.whyDesc'],
+          ['#product', ICON_PLAY, 'landing.drop.deskTitle', 'landing.drop.deskDesc'],
         ])}
-        ${navDrop('markets', te('landing.nav.markets'), [
-          ['#markets', ICON_CHART, 'Metals', 'XAUUSD gold, replayed from Dukascopy history.'],
-          ['#markets', ICON_CHART, 'FX', 'EURUSD, GBPUSD and USDJPY on the same desk.'],
-          ['#markets', ICON_CHART, 'Indices', 'NAS100 and the rest of the index book.'],
-          ['#markets', ICON_CHART, 'Crypto', 'BTCUSD when you want a different tape.'],
+        ${navDrop('markets', 'landing.nav.markets', [
+          ['#markets', ICON_CHART, 'landing.drop.metalsTitle', 'landing.drop.metalsDesc'],
+          ['#markets', ICON_CHART, 'landing.drop.fxTitle', 'landing.drop.fxDesc'],
+          ['#markets', ICON_CHART, 'landing.drop.indicesTitle', 'landing.drop.indicesDesc'],
+          ['#markets', ICON_CHART, 'landing.drop.cryptoTitle', 'landing.drop.cryptoDesc'],
         ])}
-        ${navDrop('pricing', te('landing.nav.pricing'), [
-          ['#pricing', ICON_TARGET, 'Beginner', 'Free for everyone. A short book to start replaying.'],
-          ['#pricing', ICON_CHART, 'Intermediate', `$${PRICING.monthly.intermediate.label} a month. More sessions, charts and AI.`],
-          ['#pricing', ICON_STEP, 'Pro', `$${PRICING.monthly.pro.label} a month. Unlimited replay, charts and AI.`],
+        ${navDrop('pricing', 'landing.nav.pricing', [
+          ['#pricing', ICON_TARGET, 'landing.price.beginner', 'landing.drop.beginnerDesc'],
+          ['#pricing', ICON_CHART, 'landing.price.intermediate', 'landing.drop.intermediateDesc'],
+          ['#pricing', ICON_STEP, 'landing.price.pro', 'landing.drop.proDesc'],
         ], true)}
       </nav>
       <div class="sx-land__nav-actions">
-        <a class="sx-land__signin" href="${loginPath}">
-          ${ICON_USER}
+        ${landLocaleHtml()}
+        <a class="sx-land__signin" href="${loginPath}" data-land-login>
+          <span class="sx-land__signin-ico">${ICON_USER}</span>
           <span data-i18n="landing.nav.signIn">${te('landing.nav.signIn')}</span>
         </a>
       </div>
@@ -213,7 +257,7 @@ export function mountLandingPage(root: HTMLElement): void {
         </h1>
         <p class="sx-land-hero__sub" data-i18n="landing.heroSub">${te('landing.heroSub')}</p>
         <div class="sx-land-hero__actions">
-          <a class="sx-land-btn sx-land-btn--solid sx-land-btn--lg" href="${loginPath}">
+          <a class="sx-land-btn sx-land-btn--solid sx-land-btn--lg" href="${loginPath}" data-land-login>
             <span data-i18n="landing.cta">${te('landing.cta')}</span>
             ${ICON_ARROW}
           </a>
@@ -283,7 +327,7 @@ export function mountLandingPage(root: HTMLElement): void {
       <span class="sx-land-pill" data-i18n="landing.final.pill">${te('landing.final.pill')}</span>
       <h2 data-i18n="landing.final.title">${te('landing.final.title')}</h2>
       <p data-i18n="landing.final.sub">${te('landing.final.sub')}</p>
-      <a class="sx-land-btn sx-land-btn--solid sx-land-btn--lg" href="${loginPath}">
+      <a class="sx-land-btn sx-land-btn--solid sx-land-btn--lg" href="${loginPath}" data-land-login>
         <span data-i18n="landing.cta">${te('landing.cta')}</span>
         ${ICON_ARROW}
       </a>
@@ -293,36 +337,39 @@ export function mountLandingPage(root: HTMLElement): void {
       <p class="sx-price-pill" data-i18n="landing.price.eyebrow">${te('landing.price.eyebrow')}</p>
       <h2 id="sx-land-price-title" data-i18n="landing.price.title">${te('landing.price.title')}</h2>
       <div class="sx-price-cycle" role="group" aria-label="${te('landing.nav.pricing')}">
-        <button type="button" class="is-on" data-cycle="monthly" data-i18n="landing.price.monthly">${te('landing.price.monthly')}</button>
-        <button type="button" data-cycle="yearly" data-i18n="landing.price.yearly">${te('landing.price.yearly')}</button>
-        <span class="sx-price-save" data-i18n="landing.price.save">${te('landing.price.save')}</span>
+        <button type="button" class="is-on" data-cycle="monthly" aria-pressed="true" data-i18n="landing.price.monthly">${te('landing.price.monthly')}</button>
+        <button type="button" data-cycle="quarterly" aria-pressed="false" data-i18n="landing.price.quarterly">${te('landing.price.quarterly')}</button>
+        <button type="button" data-cycle="yearly" aria-pressed="false" data-i18n="landing.price.yearly">${te('landing.price.yearly')}</button>
       </div>
       <ul class="sx-price-grid">
-        <li class="sx-price-card">
+        <li class="sx-price-card sx-price-card--free">
           <h3 data-i18n="landing.price.beginner">${te('landing.price.beginner')}</h3>
-          <p class="sx-price-card__amount"><span data-i18n="landing.price.free">${te('landing.price.free')}</span></p>
-          <p class="sx-price-card__bill" data-i18n="landing.price.freeFor">${te('landing.price.freeFor')}</p>
-          <a class="sx-price-card__btn" href="${loginPath}" data-i18n="landing.price.startFree">${te('landing.price.startFree')}</a>
+          <p class="sx-price-card__amount"><span data-i18n="landing.price.free">${te('landing.price.free')}</span> <small data-i18n="landing.price.forever">${te('landing.price.forever')}</small></p>
+          <p class="sx-price-card__bill" data-i18n="landing.price.basicBlurb">${te('landing.price.basicBlurb')}</p>
           ${featureList('free')}
+          <a class="sx-price-card__btn" href="${loginPath}" data-land-login data-i18n="landing.price.startFree">${te('landing.price.startFree')}</a>
         </li>
-        <li class="sx-price-card">
-          <h3 data-i18n="landing.price.intermediate">${te('landing.price.intermediate')}</h3>
-          <p class="sx-price-card__amount">$<span data-price="intermediate">${PRICING.monthly.intermediate.label}</span> <small data-price-unit="intermediate">USD /mo</small></p>
-          <p class="sx-price-card__bill" data-price-bill="intermediate" data-i18n="landing.price.billedMonthly">${te('landing.price.billedMonthly')}</p>
-          <p class="sx-price-card__extra" data-price-extra="intermediate" hidden></p>
-          <a class="sx-price-card__btn" href="${loginPath}" data-i18n="landing.price.trial">${te('landing.price.trial')}</a>
-          <p class="sx-price-card__tax" data-i18n="landing.price.tax">${te('landing.price.tax')}</p>
+        <li class="sx-price-card sx-price-card--ultra">
+          <div class="sx-price-card__head">
+            <h3 data-i18n="landing.price.intermediate">${te('landing.price.intermediate')}</h3>
+            <span class="sx-price-card__save" data-price-save="intermediate">${PRICING.monthly.intermediate.save}</span>
+          </div>
+          <p class="sx-price-card__amount"><span data-price="intermediate">${PRICING.monthly.intermediate.label}</span> <small data-price-unit="intermediate">$${PRICING.monthly.intermediate.period}</small></p>
+          <p class="sx-price-card__was"><s data-price-was="intermediate">${PRICING.monthly.intermediate.original}</s> <span data-price-billed="intermediate">${PRICING.monthly.intermediate.billed}</span></p>
+          <p class="sx-price-card__bill" data-i18n="landing.price.ultraBlurb">${te('landing.price.ultraBlurb')}</p>
           ${featureList('intermediate')}
+          <a class="sx-price-card__btn sx-price-card__btn--solid" href="${loginPath}" data-land-login data-i18n="landing.price.upgradeUltra">${te('landing.price.upgradeUltra')}</a>
         </li>
         <li class="sx-price-card sx-price-card--pro">
-          <span class="sx-price-card__deal"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.4 14.2 6.1 8 14.6 1.8 6.1 8 1.4Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M1.8 6.1h12.4" fill="none" stroke="currentColor" stroke-width="1.1"/></svg><span data-i18n="landing.price.best">${te('landing.price.best')}</span></span>
-          <h3 data-i18n="landing.price.pro">${te('landing.price.pro')}</h3>
-          <p class="sx-price-card__amount">$<span data-price="pro">${PRICING.monthly.pro.label}</span> <small data-price-unit="pro">USD /mo</small></p>
-          <p class="sx-price-card__bill" data-price-bill="pro" data-i18n="landing.price.billedMonthly">${te('landing.price.billedMonthly')}</p>
-          <p class="sx-price-card__extra" data-price-extra="pro" hidden></p>
-          <a class="sx-price-card__btn sx-price-card__btn--pro" href="${loginPath}" data-i18n="landing.price.trial">${te('landing.price.trial')}</a>
-          <p class="sx-price-card__tax" data-i18n="landing.price.tax">${te('landing.price.tax')}</p>
+          <div class="sx-price-card__head">
+            <h3 data-i18n="landing.price.pro">${te('landing.price.pro')}</h3>
+            <span class="sx-price-card__save" data-price-save="pro">${PRICING.monthly.pro.save}</span>
+          </div>
+          <p class="sx-price-card__amount"><span data-price="pro">${PRICING.monthly.pro.label}</span> <small data-price-unit="pro">$${PRICING.monthly.pro.period}</small></p>
+          <p class="sx-price-card__was"><s data-price-was="pro">${PRICING.monthly.pro.original}</s> <span data-price-billed="pro">${PRICING.monthly.pro.billed}</span></p>
+          <p class="sx-price-card__bill" data-i18n="landing.price.premiumBlurb">${te('landing.price.premiumBlurb')}</p>
           ${featureList('pro')}
+          <a class="sx-price-card__btn sx-price-card__btn--solid" href="${loginPath}" data-land-login data-i18n="landing.price.upgradePremium">${te('landing.price.upgradePremium')}</a>
         </li>
       </ul>
       <div class="sx-price-compare">
@@ -331,17 +378,17 @@ export function mountLandingPage(root: HTMLElement): void {
           <div>
             <p data-i18n="landing.price.beginner">${te('landing.price.beginner')}</p>
             <strong data-i18n="landing.price.free">${te('landing.price.free')}</strong>
-            <a href="${loginPath}" data-i18n="landing.price.startFree">${te('landing.price.startFree')}</a>
+            <a href="${loginPath}" data-land-login data-i18n="landing.price.startFree">${te('landing.price.startFree')}</a>
           </div>
           <div>
             <p data-i18n="landing.price.intermediate">${te('landing.price.intermediate')}</p>
             <strong>$<span data-compare-price="intermediate">${PRICING.monthly.intermediate.label}</span></strong>
-            <a href="${loginPath}" data-i18n="landing.price.trial">${te('landing.price.trial')}</a>
+            <a href="${loginPath}" data-land-login data-i18n="landing.price.trial">${te('landing.price.trial')}</a>
           </div>
           <div>
             <p data-i18n="landing.price.pro">${te('landing.price.pro')}</p>
             <strong>$<span data-compare-price="pro">${PRICING.monthly.pro.label}</span></strong>
-            <a href="${loginPath}" data-i18n="landing.price.trial">${te('landing.price.trial')}</a>
+            <a href="${loginPath}" data-land-login data-i18n="landing.price.trial">${te('landing.price.trial')}</a>
           </div>
         </div>
         ${compareTables()}
@@ -369,6 +416,14 @@ function wireLandingNav(root: HTMLElement): void {
     land.classList.toggle('is-pricing', on)
     if (on) window.scrollTo(0, 0)
   }
+  const closeLocale = () => {
+    const wrap = root.querySelector<HTMLElement>('[data-land-locale]')
+    if (!wrap) return
+    wrap.classList.remove('is-open')
+    wrap.querySelector('button')?.setAttribute('aria-expanded', 'false')
+    const panel = wrap.querySelector<HTMLElement>('.sx-land-locale__panel')
+    if (panel) panel.hidden = true
+  }
   const closeDrops = () => {
     root.querySelectorAll<HTMLElement>('[data-land-drop]').forEach((drop) => {
       drop.classList.remove('is-open')
@@ -376,18 +431,81 @@ function wireLandingNav(root: HTMLElement): void {
       const panel = drop.querySelector<HTMLElement>('.sx-land-drop__panel')
       if (panel) panel.hidden = true
     })
+    closeLocale()
+  }
+  const localeWrap = root.querySelector<HTMLElement>('[data-land-locale]')
+  const openLocale = () => {
+    if (!localeWrap) return
+    root.querySelectorAll<HTMLElement>('[data-land-drop]').forEach((drop) => {
+      drop.classList.remove('is-open')
+      drop.querySelector('button')?.setAttribute('aria-expanded', 'false')
+      const panel = drop.querySelector<HTMLElement>('.sx-land-drop__panel')
+      if (panel) panel.hidden = true
+    })
+    localeWrap.classList.add('is-open')
+    localeWrap.querySelector('button')?.setAttribute('aria-expanded', 'true')
+    const panel = localeWrap.querySelector<HTMLElement>('.sx-land-locale__panel')
+    if (panel) panel.hidden = false
+  }
+  localeWrap?.addEventListener('mouseenter', openLocale)
+  localeWrap?.addEventListener('mouseleave', closeLocale)
+  localeWrap?.querySelector('.sx-land-locale__trigger')?.addEventListener('click', (event) => {
+    event.stopPropagation()
+    openLocale()
+  })
+  localeWrap?.querySelectorAll<HTMLButtonElement>('[data-land-locale-option]').forEach((option) => {
+    option.addEventListener('click', (event) => {
+      event.stopPropagation()
+      const code = option.getAttribute('data-land-locale-option')
+      if (!code || !isDashLocaleCode(code)) return
+      const next = code
+      setLocale(next)
+      const tag = dashCodeToLocaleTag(next)
+      const newPath = resolveAppPath('landing', tag)
+      if (newPath !== window.location.pathname) history.pushState({}, '', newPath)
+      const login = resolveAppPath('login', tag)
+      root.querySelectorAll<HTMLAnchorElement>('[data-land-login]').forEach((link) => {
+        link.href = login
+      })
+      const flag = localeWrap.querySelector('[data-land-locale-flag]')
+      const label = localeWrap.querySelector('[data-land-locale-code]')
+      if (flag) flag.innerHTML = landFlagHtml(LAND_LOCALE_FLAG[next])
+      if (label) label.textContent = next.toUpperCase()
+      localeWrap.querySelectorAll<HTMLButtonElement>('[data-land-locale-option]').forEach((item) => {
+        const on = item === option
+        item.classList.toggle('is-on', on)
+        item.setAttribute('aria-selected', on ? 'true' : 'false')
+      })
+      closeLocale()
+    })
+  })
+  const openDrop = (drop: HTMLElement) => {
+    root.querySelectorAll<HTMLElement>('[data-land-drop]').forEach((other) => {
+      if (other === drop) return
+      other.classList.remove('is-open')
+      other.querySelector('button')?.setAttribute('aria-expanded', 'false')
+      const otherPanel = other.querySelector<HTMLElement>('.sx-land-drop__panel')
+      if (otherPanel) otherPanel.hidden = true
+    })
+    closeLocale()
+    const button = drop.querySelector('button')
+    const panel = drop.querySelector<HTMLElement>('.sx-land-drop__panel')
+    drop.classList.add('is-open')
+    button?.setAttribute('aria-expanded', 'true')
+    if (panel) panel.hidden = false
   }
   root.querySelectorAll<HTMLElement>('[data-land-drop]').forEach((drop) => {
     const button = drop.querySelector('button')
-    const panel = drop.querySelector<HTMLElement>('.sx-land-drop__panel')
+    drop.addEventListener('mouseenter', () => openDrop(drop))
+    drop.addEventListener('mouseleave', () => {
+      drop.classList.remove('is-open')
+      button?.setAttribute('aria-expanded', 'false')
+      const panel = drop.querySelector<HTMLElement>('.sx-land-drop__panel')
+      if (panel) panel.hidden = true
+    })
     button?.addEventListener('click', (event) => {
       event.stopPropagation()
-      const open = !drop.classList.contains('is-open')
-      closeDrops()
-      if (!open || !panel || !button) return
-      drop.classList.add('is-open')
-      button.setAttribute('aria-expanded', 'true')
-      panel.hidden = false
+      openDrop(drop)
     })
   })
   root.addEventListener('click', (event) => {
@@ -413,24 +531,26 @@ function wireLandingNav(root: HTMLElement): void {
   })
   root.querySelectorAll<HTMLButtonElement>('[data-cycle]').forEach((button) => {
     button.addEventListener('click', () => {
-      const cycle = button.dataset.cycle === 'yearly' ? 'yearly' : 'monthly'
-      root.querySelectorAll('[data-cycle]').forEach((item) => item.classList.toggle('is-on', item === button))
+      const cycle = button.dataset.cycle === 'yearly' ? 'yearly' : button.dataset.cycle === 'quarterly' ? 'quarterly' : 'monthly'
+      root.querySelectorAll<HTMLButtonElement>('[data-cycle]').forEach((item) => {
+        const on = item === button
+        item.classList.toggle('is-on', on)
+        item.setAttribute('aria-pressed', on ? 'true' : 'false')
+      })
       for (const tier of ['intermediate', 'pro'] as const) {
         const price = PRICING[cycle][tier]
-        const shown = cycle === 'yearly' ? String(Math.round(price.amount / 12)) : price.label
         const amount = root.querySelector(`[data-price="${tier}"]`)
         const unit = root.querySelector(`[data-price-unit="${tier}"]`)
-        const bill = root.querySelector(`[data-price-bill="${tier}"]`)
-        const extra = root.querySelector(`[data-price-extra="${tier}"]`)
+        const save = root.querySelector(`[data-price-save="${tier}"]`)
+        const was = root.querySelector(`[data-price-was="${tier}"]`)
+        const billed = root.querySelector(`[data-price-billed="${tier}"]`)
         const compare = root.querySelector(`[data-compare-price="${tier}"]`)
-        if (amount) amount.textContent = shown
-        if (unit) unit.textContent = 'USD /mo'
-        if (bill instanceof HTMLElement) bill.hidden = cycle === 'yearly'
-        if (extra instanceof HTMLElement) {
-          extra.hidden = cycle !== 'yearly'
-          extra.innerHTML = `$${price.amount} / yearly <span>${price.save}</span>`
-        }
-        if (compare) compare.textContent = shown
+        if (amount) amount.textContent = price.label
+        if (unit) unit.textContent = `$${price.period}`
+        if (save) save.textContent = price.save
+        if (was) was.textContent = price.original
+        if (billed) billed.textContent = price.billed
+        if (compare) compare.textContent = price.label
       }
     })
   })
@@ -438,7 +558,43 @@ function wireLandingNav(root: HTMLElement): void {
 
 const ICON_ARROW = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`
 const ICON_PLAY = `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 001.5.86l10.5-6.5a1 1 0 000-1.72L9.5 4.64A1 1 0 008 5.5z"/></svg>`
-const ICON_USER = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>`
+const ICON_USER = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>`
+
+/** Flag art for each dashboard locale. The visible code is the locale code itself. */
+const LAND_LOCALE_FLAG: Record<DashLocaleCode, string> = {
+  en: 'gb',
+  es: 'es',
+  de: 'de',
+  fr: 'fr',
+  tr: 'tr',
+  uk: 'ua',
+  pt: 'pt',
+  ru: 'ru',
+  ja: 'jp',
+  ko: 'kr',
+}
+
+function landFlagHtml(iso: string): string {
+  return `<img class="sx-land-locale__flagimg" src="https://flagcdn.com/${iso}.svg" alt="" width="18" height="14" decoding="async" />`
+}
+
+function landLocaleHtml(): string {
+  const current = getLocale()
+  const options = DASH_LOCALES.map((locale) => {
+    const selected = locale.code === current
+    return `<button type="button" class="sx-land-locale__option${selected ? ' is-on' : ''}" role="option" data-land-locale-option="${locale.code}" aria-selected="${selected ? 'true' : 'false'}"><span aria-hidden="true">${landFlagHtml(LAND_LOCALE_FLAG[locale.code])}</span><span class="sx-land-locale__name">${locale.code.toUpperCase()}</span></button>`
+  }).join('')
+  return `
+        <div class="sx-land-locale" data-land-locale>
+          <button type="button" class="sx-land-locale__trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Language">
+            <span class="sx-land-locale__flag" data-land-locale-flag aria-hidden="true">${landFlagHtml(LAND_LOCALE_FLAG[current])}</span>
+            <span class="sx-land-locale__code" data-land-locale-code>${current.toUpperCase()}</span>
+          </button>
+          <div class="sx-land-locale__panel" role="listbox" aria-label="Language" hidden>
+            ${options}
+          </div>
+        </div>`
+}
 const ICON_TARGET = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>`
 const ICON_STEP = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5v14l9-7-9-7z"/><path d="M18 5v14"/></svg>`
 const ICON_CHART = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>`
@@ -651,26 +807,26 @@ function whyVisualHidden(): string {
 }
 
 function whyVisualLog(): string {
-  const rows: Array<[string, string, string, boolean]> = [
-    ['XAUUSD', 'Long', '+2.0R', true],
-    ['EURUSD', 'Short', '−1.0R', false],
-    ['NAS100', 'Long', '+1.4R', true],
+  const rows: Array<[string, MessageKey, string, boolean]> = [
+    ['XAUUSD', 'landing.side.long', '+2.0R', true],
+    ['EURUSD', 'landing.side.short', '−1.0R', false],
+    ['NAS100', 'landing.side.long', '+1.4R', true],
   ]
   return `<ul class="sx-why-log">${rows
     .map(
       ([s, side, r, up]) =>
-        `<li><span class="sx-why-log__side${up ? ' is-up' : ' is-down'}">${side}</span><b>${s}</b><span class="${up ? 'is-up' : 'is-down'}">${r}</span></li>`,
+        `<li><span class="sx-why-log__side${up ? ' is-up' : ' is-down'}" data-i18n="${side}">${te(side)}</span><b>${s}</b><span class="${up ? 'is-up' : 'is-down'}">${r}</span></li>`,
     )
     .join('')}</ul>`
 }
 
 function whyVisualInsight(): string {
-  const rows: Array<[string, number]> = [
-    ['Late entry', 72],
-    ['Stop too tight', 48],
-    ['Against trend', 30],
+  const rows: Array<[MessageKey, number]> = [
+    ['landing.insight.late', 72],
+    ['landing.insight.stop', 48],
+    ['landing.insight.trend', 30],
   ]
   return `<ul class="sx-why-bars">${rows
-    .map(([label, w]) => `<li><span>${label}</span><i style="--w:${w}%"></i></li>`)
+    .map(([label, w]) => `<li><span data-i18n="${label}">${te(label)}</span><i style="--w:${w}%"></i></li>`)
     .join('')}</ul>`
 }

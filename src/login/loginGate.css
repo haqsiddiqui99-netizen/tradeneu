@@ -17,12 +17,12 @@
 }
 
 .sx-login {
-  --ln-text: #14161c;
-  --ln-muted: #5c6578;
-  --ln-faint: #8b93a7;
-  --ln-line: rgba(20, 22, 28, 0.12);
-  --ln-field: #f4f6fb;
-  --ln-accent: #3b6cff;
+  --ln-text: #111214;
+  --ln-muted: #5c6370;
+  --ln-faint: #8b919a;
+  --ln-line: rgba(17, 18, 20, 0.1);
+  --ln-field: #ffffff;
+  --ln-accent: #111214;
   --ln-grad: linear-gradient(135deg, #3b6cff 0%, #6d5cff 55%, #a35cff 100%);
   --ln-up: #22d39a;
   --ln-down: #ff5d73;
@@ -313,14 +313,15 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   box-sizing: border-box;
   width: 100%;
   margin: 0;
-  padding: 28px 32px;
-  border-radius: 22px;
-  background: #ffffff;
-  box-shadow: 0 0 0 1px rgba(20, 22, 28, 0.06), 0 24px 60px rgba(47, 84, 180, 0.16);
+  padding: 32px 32px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 18px;
+  background: #f3f3f1;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
 }
 
 .sx-login__panel--signup {
@@ -347,9 +348,16 @@
 
 .sx-login__heading {
   margin: 0;
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: clamp(1.85rem, 3vw, 2.2rem);
+  font-weight: 650;
+  letter-spacing: -0.05em;
+  line-height: 1.02;
+  background-image: linear-gradient(180deg, #16181d 12%, #5c6578 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
 }
 
 .sx-login__signup {
@@ -359,7 +367,7 @@
 }
 
 .sx-login__signup .sx-login__link {
-  color: #2f6bff;
+  color: #7c3aed;
 }
 
 .sx-login__google {
@@ -368,20 +376,21 @@
   justify-content: center;
   gap: 10px;
   width: 100%;
-  height: 44px;
-  border: none;
+  height: 2.7rem;
+  border: 1px solid var(--ln-line);
   border-radius: 12px;
   background: #ffffff;
-  box-shadow: inset 0 0 0 1px rgba(20, 22, 28, 0.12);
+  box-shadow: none;
   color: var(--ln-text);
-  font: 600 14px inherit;
+  font: 600 0.9rem/1 Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  letter-spacing: -0.02em;
   cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .sx-login__google:hover {
-  background: #f7f9fd;
-  box-shadow: inset 0 0 0 1px rgba(47, 107, 255, 0.35);
+  background: rgba(17, 18, 20, 0.04);
+  border-color: rgba(17, 18, 20, 0.16);
 }
 
 .sx-login__google-ico {
@@ -512,15 +521,16 @@
 }
 
 .sx-login__toast-btn {
-  height: 38px;
-  padding: 0 20px;
+  height: 2.4rem;
+  padding: 0 1.1rem;
   border: none;
-  border-radius: 999px;
-  background: var(--ln-grad);
-  color: #fff;
-  font: 600 13.5px inherit;
+  border-radius: 10px;
+  background: #111214;
+  color: #f4f5f7;
+  font: 600 0.85rem/1 Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  letter-spacing: -0.02em;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(91, 100, 255, 0.4);
+  box-shadow: none;
 }
 
 .sx-login--toast-open .sx-login__stage {
@@ -543,14 +553,16 @@
 .sx-login__label {
   display: block;
   margin: 0 0 7px;
-  color: #3a4254;
-  font-size: 12.5px;
-  font-weight: 550;
+  color: var(--ln-muted);
+  font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
 }
 
 .sx-login__forgot {
-  font-size: 12px !important;
-  color: #2f6bff !important;
+  font-size: 0.78rem !important;
+  color: #7c3aed !important;
 }
 
 .sx-login__phone-row {
@@ -566,7 +578,7 @@
 .sx-login__dial-trigger,
 .sx-login__input-wrap,
 .sx-login__input-wrap--phone {
-  height: 44px;
+  height: 2.55rem;
   border: 1px solid var(--ln-line);
   border-radius: 12px;
   background: var(--ln-field);
@@ -587,13 +599,13 @@
 .sx-login__dial-trigger:focus-visible,
 .sx-login__dial-picker--open .sx-login__dial-trigger,
 .sx-login__input-wrap:focus-within {
-  border-color: rgba(91, 128, 255, 0.85);
-  box-shadow: 0 0 0 4px rgba(59, 108, 255, 0.18);
+  border-color: rgba(17, 18, 20, 0.45);
+  box-shadow: 0 0 0 3px rgba(17, 18, 20, 0.08);
   outline: none;
 }
 
 .sx-login__input-wrap:focus-within .sx-login__input-prefix {
-  color: #8fb0ff;
+  color: var(--ln-text);
 }
 
 .sx-login__dial-chev {
@@ -634,7 +646,7 @@
 .sx-login__dial-option:hover,
 .sx-login__dial-option--active,
 .sx-login__dial-option[aria-selected='true'] {
-  background: rgba(59, 108, 255, 0.16);
+  background: rgba(17, 18, 20, 0.05);
 }
 
 .sx-login__input-wrap,
@@ -666,7 +678,8 @@
   border: none;
   background: transparent;
   color: var(--ln-text);
-  font: 400 14px/1 inherit;
+  font: 400 0.9rem/1 Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  letter-spacing: -0.02em;
   outline: none;
 }
 
@@ -682,7 +695,7 @@
 
 .sx-login__input:-webkit-autofill {
   -webkit-text-fill-color: var(--ln-text);
-  -webkit-box-shadow: 0 0 0 40px #f4f6fb inset;
+  -webkit-box-shadow: 0 0 0 40px #ffffff inset;
   caret-color: var(--ln-text);
 }
 
@@ -723,19 +736,19 @@
 
 .sx-login__submit {
   width: 100%;
-  height: 46px;
+  height: 2.7rem;
   border: none;
-  border-radius: 999px;
-  background: #2f6bff;
-  color: #fff;
-  font: 600 14.5px inherit;
-  letter-spacing: -0.01em;
+  border-radius: 12px;
+  background: #111214;
+  color: #f4f5f7;
+  font: 600 0.92rem/1 Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  letter-spacing: -0.02em;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .sx-login__submit:hover {
-  background: #3d78ff;
+  background: #2a2d33;
 }
 
 .sx-login__submit:disabled {
@@ -756,20 +769,21 @@
 .sx-login__skip {
   display: inline-flex;
   align-items: center;
-  height: 32px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 999px;
-  background: #f4f6fb;
-  box-shadow: inset 0 0 0 1px rgba(20, 22, 28, 0.1);
-  color: #3a4254;
-  font: 550 13px inherit;
+  height: 2.15rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--ln-line);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: none;
+  color: var(--ln-text);
+  font: 600 0.82rem/1 Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  letter-spacing: -0.02em;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .sx-login__skip:hover {
-  background: #e8edf6;
+  background: rgba(17, 18, 20, 0.04);
   color: var(--ln-text);
 }
 

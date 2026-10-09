@@ -19,7 +19,6 @@ import {
   isBillingCycle,
   PLAN_BLURBS,
   PLAN_HIGHLIGHTS,
-  PLAN_LIMITS,
   PLAN_NAMES,
   PRICING,
   type AccountTier,
@@ -342,37 +341,9 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
   const displayName = readDisplayName()
   const email = authUser?.email ?? '—'
   const isGuest = !authUser || authUser.provider === 'guest' || authUser.email === GUEST_AUTH_EMAIL
-  const sessionLimit = opts.freeSessionLimit ?? 10
-  const sessionsUsed = stats?.total ?? 0
-  const sessionPct =
-    tier === 'pro' ? 100 : Math.min(100, Math.round((sessionsUsed / Math.max(1, sessionLimit)) * 100))
-  const planLabel = PLAN_NAMES[tier]
-  const planLimits = PLAN_LIMITS[tier]
-  const planPriceLine =
-    tier === 'free' ? 'Free forever' : `${formatAmount(PRICING.monthly[tier].amount)} / month`
   const initials = initialsFrom(displayName)
   const avatarUrl = readUserAvatar()
   const memberSinceLabel = stats?.memberSinceMs ? formatMemberSince(stats.memberSinceMs) : '—'
-
-  const freeFeatures = [
-    { ok: true, text: `${sessionLimit} backtesting sessions` },
-    { ok: true, text: '1 indicator · 1 week data retention' },
-    { ok: false, text: 'Unlimited sessions & multi-chart' },
-    { ok: false, text: 'Seconds data & custom timeframes' },
-  ]
-  const midFeatures = [
-    { ok: true, text: '10 backtesting sessions' },
-    { ok: true, text: '3 indicators · 6 months retention' },
-    { ok: true, text: '2 charts' },
-    { ok: false, text: 'Unlimited sessions & futures data' },
-  ]
-  const proFeatures = [
-    { ok: true, text: 'Unlimited backtesting sessions' },
-    { ok: true, text: 'Unlimited indicators & charts' },
-    { ok: true, text: 'Seconds data · futures / CME' },
-    { ok: true, text: 'Advanced analytics & journal tools' },
-  ]
-  const features = tier === 'pro' ? proFeatures : tier === 'intermediate' ? midFeatures : freeFeatures
 
   const strategies = listAllStrategies()
   const defaultStrategyId = readDefaultStrategyId()
@@ -583,49 +554,6 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
 
       <section class="sx-acct__panel" role="tabpanel" id="sx-acct-panel-subscription" aria-labelledby="sx-acct-tab-subscription" data-sx-acct-panel="subscription" hidden tabindex="0">
         <div class="sx-acct__grid">
-          <div class="sx-acct-card">
-            <div class="sx-acct-card__head">
-              <h2 class="sx-acct-card__title">Current plan</h2>
-            </div>
-            <div class="sx-acct-plan-now">
-              <span class="sx-acct-plan-now__name">${escapeHtml(planLabel)}</span>
-              <span class="sx-acct-pill sx-acct-pill--plan">${escapeHtml(planPriceLine)}</span>
-            </div>
-            <ul class="sx-acct-checklist">
-              ${features
-                .map(
-                  (f) =>
-                    `<li class="${f.ok ? '' : 'is-muted'}"><i class="fa-solid ${f.ok ? 'fa-check' : 'fa-minus'}" aria-hidden="true"></i>${escapeHtml(f.text)}</li>`,
-                )
-                .join('')}
-            </ul>
-            <dl class="sx-acct-stats sx-acct-stats--tight" data-sx-acct-plan-stats>
-              <div><dt>Billing cycle</dt><dd data-sx-acct-plan-cycle>${tier === 'free' ? '—' : '…'}</dd></div>
-              <div><dt>Renews on</dt><dd data-sx-acct-plan-renews>${tier === 'free' ? '—' : '…'}</dd></div>
-              <div><dt>Status</dt><dd data-sx-acct-plan-status>${tier === 'free' ? 'No subscription' : '…'}</dd></div>
-              <div><dt>Member since</dt><dd>${escapeHtml(memberSinceLabel)}</dd></div>
-            </dl>
-          </div>
-
-          <div class="sx-acct-card">
-            <div class="sx-acct-card__head">
-              <h2 class="sx-acct-card__title">Entitlement</h2>
-            </div>
-            <div class="sx-acct-usage">
-              <div class="sx-acct-usage__top">
-                <span>Session capacity</span>
-                <strong>${tier === 'pro' ? `${sessionsUsed} sessions` : `${sessionsUsed} / ${sessionLimit}`}</strong>
-              </div>
-              <div class="sx-acct-usage__bar" role="progressbar" aria-valuemin="0" aria-valuemax="${tier === 'pro' ? Math.max(sessionsUsed, 1) : sessionLimit}" aria-valuenow="${sessionsUsed}"><span style="width:${sessionPct}%"></span></div>
-            </div>
-            <dl class="sx-acct-stats sx-acct-stats--tight" style="margin-top:16px">
-              <div><dt>Indicators</dt><dd>${escapeHtml(planLimits.indicators)}</dd></div>
-              <div><dt>Charts</dt><dd>${escapeHtml(planLimits.charts)}</dd></div>
-              <div><dt>Data retention</dt><dd>${escapeHtml(planLimits.retention)}</dd></div>
-              <div><dt>Trades / session</dt><dd>${escapeHtml(planLimits.trades)}</dd></div>
-            </dl>
-          </div>
-
           <div class="sx-acct-card sx-acct-card--span" data-sx-acct-plans>
             <div class="sx-acct-card__head sx-acct-card__head--row">
               <div>

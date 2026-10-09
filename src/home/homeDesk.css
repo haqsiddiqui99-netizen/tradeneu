@@ -3,7 +3,7 @@
    The theme toggle still swaps the two palettes below. */
 
 #sx-app-root.sx-desk {
-  --desk-bg: #f3f4f6;
+  --desk-bg: #f3f3f1;
   --desk-panel: #ffffff;
   --desk-line: rgba(17, 18, 20, 0.08);
   --desk-line-strong: rgba(17, 18, 20, 0.16);
@@ -16,40 +16,28 @@
   --desk-btn-ink: #f4f5f7;
   --desk-hover: rgba(17, 18, 20, 0.05);
   --desk-font: Inter, 'Segoe UI', sans-serif;
-  background:
-    radial-gradient(980px 520px at 50% -12%, rgba(110, 155, 255, 0.22), transparent 62%),
-    radial-gradient(760px 480px at 96% 0%, rgba(192, 123, 255, 0.16), transparent 58%),
-    radial-gradient(640px 420px at 4% 16%, rgba(95, 216, 242, 0.12), transparent 55%),
-    radial-gradient(820px 480px at 72% 100%, rgba(143, 123, 255, 0.12), transparent 62%),
-    radial-gradient(700px 420px at 8% 78%, rgba(110, 155, 255, 0.1), transparent 60%),
-    var(--desk-bg) !important;
+  background: var(--desk-bg) !important;
   color: var(--desk-text);
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] {
-  --desk-bg: #100818;
-  background: var(--desk-bg) !important;
-  --desk-panel: #1a1028;
-  --desk-line: rgba(196, 140, 255, 0.16);
-  --desk-line-strong: rgba(196, 140, 255, 0.34);
+  --desk-bg: #121416;
+  background: #121416 !important;
+  --desk-panel: #1c1f24;
+  --desk-line: rgba(255, 255, 255, 0.08);
+  --desk-line-strong: rgba(255, 255, 255, 0.16);
   --desk-text: #f6f2fb;
   --desk-muted: #c4b5d4;
   --desk-faint: #8d7a9e;
   --desk-up: #d8b4fe;
   --desk-down: #f0abfc;
-  --desk-btn: #a855f7;
+  --desk-btn: #34383f;
   --desk-btn-ink: #ffffff;
-  --desk-hover: rgba(168, 85, 247, 0.14);
+  --desk-hover: rgba(255, 255, 255, 0.06);
 }
 
 #sx-app-root.sx-desk .sx-dash {
-  background:
-    radial-gradient(980px 520px at 50% -12%, rgba(110, 155, 255, 0.22), transparent 62%),
-    radial-gradient(760px 480px at 96% 0%, rgba(192, 123, 255, 0.16), transparent 58%),
-    radial-gradient(640px 420px at 4% 16%, rgba(95, 216, 242, 0.12), transparent 55%),
-    radial-gradient(820px 480px at 72% 100%, rgba(143, 123, 255, 0.12), transparent 62%),
-    radial-gradient(700px 420px at 8% 78%, rgba(110, 155, 255, 0.1), transparent 60%),
-    var(--desk-bg) !important;
+  background: var(--desk-bg) !important;
   color: var(--desk-text) !important;
   font-family: var(--desk-font) !important;
 }
@@ -61,17 +49,11 @@
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash {
-  background:
-    radial-gradient(920px 520px at 0% -8%, rgba(168, 85, 247, 0.32), transparent 58%),
-    radial-gradient(720px 480px at 100% 0%, rgba(124, 58, 237, 0.22), transparent 54%),
-    radial-gradient(640px 420px at 78% 110%, rgba(192, 38, 211, 0.14), transparent 50%),
-    #0c0614 !important;
+  background: #121416 !important;
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash__orb {
-  display: block;
-  opacity: 0.55;
-  animation: none;
+  display: none;
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash__orb--a {
@@ -89,12 +71,7 @@
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash::before,
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash::after {
-  content: '';
-  position: absolute;
-  z-index: 0;
-  border: 1px solid rgba(216, 180, 254, 0.22);
-  border-radius: 50%;
-  pointer-events: none;
+  content: none;
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash::before {
@@ -114,9 +91,7 @@
 /* ── Shell ──────────────────────────────────────────────────────────────── */
 
 #sx-app-root.sx-desk .sx-dash-side {
-  background:
-    radial-gradient(420px 280px at 0% 0%, rgba(143, 123, 255, 0.14), transparent 70%),
-    var(--desk-bg);
+  background: var(--desk-bg);
   border-right: 1px solid var(--desk-line);
   box-shadow: none;
   font-family: var(--desk-font);
@@ -165,6 +140,20 @@
   display: none;
 }
 
+#sx-app-root.sx-desk .sx-dash-side__link > span {
+  padding-bottom: 0.06em;
+  font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+  background-image: linear-gradient(180deg, #16181d 12%, #5c6578 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
 #sx-app-root.sx-desk .sx-dash-bar {
   border-bottom: 1px solid var(--desk-line);
 }
@@ -196,7 +185,7 @@
 #sx-app-root.sx-desk .sx-dash-hero,
 #sx-app-root.sx-desk .sx-dash-hero.is-first-run {
   display: block;
-  margin: 0 0 1.35rem;
+  margin: 0.4rem 0 2rem;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -269,10 +258,10 @@
   margin: 0;
   color: transparent;
   font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
-  font-size: clamp(2.15rem, 3.4vw, 3.35rem);
+  font-size: clamp(42px, 6.4vw, 80px);
   font-weight: 650;
   letter-spacing: -0.05em;
-  line-height: 0.94;
+  line-height: 1.02;
   text-align: center;
 }
 
@@ -306,13 +295,14 @@
   #sx-app-root.sx-desk .sx-dash-hero__accent,
   #sx-app-root.sx-desk .sx-dash-performance .sx-dash-pulse__kpi-meta,
   #sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__total,
-  #sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__total strong,
-  #sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__total span {
+  #sx-app-root.sx-desk .sx-dash-partners__title {
     animation: none;
   }
 }
 
-#sx-app-root.sx-desk .sx-dash-hero__accent[hidden] {
+#sx-app-root.sx-desk .sx-dash-hero__accent[hidden],
+#sx-app-root.sx-desk .sx-dash-hero__sub[hidden],
+#sx-app-root.sx-desk .sx-dash-hero__note[hidden] {
   display: none;
 }
 
@@ -360,26 +350,26 @@
   margin: 0;
   padding: 1.05rem 1.1rem;
   border: 1px solid rgba(17, 18, 20, 0.08);
-  border-radius: 16px;
+  border-radius: 18px;
   background: #fff;
   color: #111214;
-  box-shadow: 0 10px 30px rgba(17, 18, 20, 0.04);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 18px 44px rgba(17, 18, 20, 0.08);
   font-family: var(--desk-font);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 #sx-app-root.sx-desk .sx-dash-path--lead {
-  border-color: rgba(124, 58, 237, 0.28);
-  background:
-    radial-gradient(420px 160px at 0% 0%, rgba(168, 85, 247, 0.16), transparent 72%),
-    #fff;
+  border-color: var(--desk-line);
+  background: var(--desk-panel);
 }
 
 #sx-app-root.sx-desk .sx-dash-path:hover {
-  border-color: rgba(124, 58, 237, 0.45);
-  background: #faf8ff;
+  border-color: var(--desk-line-strong);
+  background: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 18px 44px rgba(88, 28, 135, 0.1);
 }
 
 #sx-app-root.sx-desk .sx-dash-path__mark {
@@ -545,7 +535,24 @@
 /* ── Performance ────────────────────────────────────────────────────────── */
 
 #sx-app-root.sx-desk .sx-dash-performance__head {
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+}
+
+#sx-app-root.sx-desk .sx-dash-performance__head .sx-dash-partners__head {
+  width: 100%;
+  flex: none;
+  margin-bottom: 0;
+}
+
+#sx-app-root.sx-desk .sx-dash-performance__head .sx-dash-pulse__range {
+  align-self: flex-end;
+  margin-left: 0;
+}
+
+#sx-app-root.sx-desk .sx-dash-recent-sessions-block .sx-dash-partners__head {
   margin-bottom: 0.85rem;
 }
 
@@ -562,6 +569,20 @@
   margin-top: 0.25rem;
   color: var(--desk-muted);
   font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-dash-performance__head .sx-dash-perf-sample {
+  max-width: none;
+  margin: 0.15rem auto 0;
+  color: var(--desk-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  text-align: center;
+  white-space: nowrap;
+}
+
+#sx-app-root.sx-desk .sx-dash-perf-sample[hidden] {
+  display: none;
 }
 
 #sx-app-root.sx-desk .sx-dash-performance .sx-dash-pulse--pro,
@@ -581,8 +602,9 @@
   overflow: hidden;
   margin: 0;
   border: 1px solid var(--desk-line);
-  border-radius: 16px;
+  border-radius: 18px;
   background: var(--desk-panel);
+  box-shadow: 0 18px 44px rgba(17, 18, 20, 0.08);
 }
 
 @media (min-width: 820px) {
@@ -591,9 +613,13 @@
   }
 }
 
+#sx-app-root.sx-desk .sx-dash-performance .sx-dash-pulse__kpi-info {
+  opacity: 0.45;
+}
+
 #sx-app-root.sx-desk .sx-dash-performance .sx-dash-pulse__kpi-item {
   min-height: 0;
-  padding: 1rem 1.05rem 0.9rem;
+  padding: 1.15rem 1.2rem 1.05rem;
   border: 0;
   border-radius: 0;
   border-right: 1px solid var(--desk-line);
@@ -655,9 +681,7 @@
 }
 
 #sx-app-root.sx-desk .sx-dash-performance .sx-dash-pulse__kpi-meta,
-#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__total,
-#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__total strong,
-#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__total span {
+#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__total {
   padding-bottom: 0.06em;
   font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
   font-weight: 650;
@@ -675,18 +699,48 @@
   font-size: 1.1835rem;
 }
 
-#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__total,
-#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__total strong,
-#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__total span {
+#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__head--range {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__head--range .sx-dash-graph__title {
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+
+#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__head--range .sx-dash-graph__head-right {
+  margin-top: -0.35rem;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__head--range .sx-dash-graph__tab {
+  min-width: 1.75rem;
+  padding: 0.28rem 0.45rem;
+  text-align: center;
+}
+
+#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph__total {
+  margin: 0;
   font-size: 1.11rem;
+  white-space: nowrap;
 }
 
 #sx-app-root.sx-desk .sx-dash-performance .sx-dash-pulse__kpi-value {
-  margin-top: 0.28rem;
+  margin-top: 0.35rem;
   color: var(--desk-text);
-  font-size: 1.7rem;
-  font-weight: 560;
+  font-size: 1.85rem;
+  font-weight: 600;
   letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
 }
 
 #sx-app-root.sx-desk .sx-dash-performance .sx-dash-pulse__kpi-foot {
@@ -695,8 +749,13 @@
   border-top: 0;
 }
 
+#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graphs,
+#sx-app-root.sx-desk .sx-dash-performance .sx-dash-graphs-row {
+  gap: 0.9rem;
+}
+
 #sx-app-root.sx-desk .sx-dash-performance .sx-dash-graphs {
-  margin-top: 0.85rem;
+  margin-top: 1rem;
 }
 
 @media (min-width: 900px) {
@@ -710,14 +769,18 @@
 }
 
 #sx-app-root.sx-desk .sx-dash-performance .sx-dash-graph {
-  height: 18.5rem;
-  padding: 1.05rem 1.1rem 0.8rem;
-  border-radius: 16px;
+  height: 20rem;
+  padding: 1.15rem 1.2rem 0.9rem;
+  border-radius: 18px;
+  box-shadow: 0 18px 44px rgba(17, 18, 20, 0.08);
 }
 
 #sx-app-root.sx-desk .sx-dash-pulse__range {
-  background: transparent;
-  border-color: var(--desk-line);
+  background: #fff;
+  border: 1px solid var(--desk-line);
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(17, 18, 20, 0.05);
+  padding: 0.2rem;
 }
 
 #sx-app-root.sx-desk .sx-dash-pulse__range-btn {
@@ -782,10 +845,16 @@
 }
 
 #sx-app-root.sx-desk .sx-dash-recent-sessions {
-  border-radius: 0.5rem;
+  border-radius: 18px;
   background: var(--desk-panel);
   border-color: var(--desk-line);
-  box-shadow: none;
+  box-shadow: 0 18px 44px rgba(17, 18, 20, 0.08);
+}
+
+#sx-app-root.sx-desk .sx-dash-recent-sessions__banner {
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(110, 155, 255, 0.12), rgba(192, 123, 255, 0.1));
 }
 
 #sx-app-root.sx-desk .sx-dash-session-row {
@@ -795,14 +864,15 @@
 }
 
 #sx-app-root.sx-desk .sx-dash-session-row [data-action='resume-session'] {
-  background: transparent;
-  border: 1px solid var(--desk-line-strong);
-  color: var(--desk-text);
-  box-shadow: none;
+  background: #111214;
+  border: 0;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(17, 18, 20, 0.16);
 }
 
 #sx-app-root.sx-desk .sx-dash-session-row [data-action='resume-session']:hover {
-  background: var(--desk-hover);
+  background: #7c3aed;
+  color: #fff;
 }
 
 #sx-app-root.sx-desk .sx-dash-session-row [data-action='session-summary'] {
@@ -817,8 +887,8 @@
 }
 
 #sx-app-root.sx-desk .sx-dash-recent-sessions__banner {
-  background: var(--desk-hover);
-  border-color: var(--desk-line);
+  background: linear-gradient(90deg, rgba(110, 155, 255, 0.14), rgba(192, 123, 255, 0.1));
+  border-color: transparent;
   box-shadow: none;
 }
 
@@ -827,18 +897,31 @@
   color: var(--desk-muted);
 }
 
-#sx-app-root.sx-desk .sx-dash-partners__title {
-  color: var(--desk-faint);
-  font-family: var(--desk-font);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+#sx-app-root.sx-desk .sx-dash-partners__title,
+#sx-app-root.sx-desk .sx-dash-performance__head .sx-dash-partners__title {
+  padding-bottom: 0.06em;
+  font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: clamp(2.5rem, 2.0vw, 1.8rem);
+  font-weight: 650;
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+  text-transform: none;
+  background-image: linear-gradient(90deg, #6e9bff 0%, #8f7bff 45%, #c07bff 70%, #5fd8f2 100%);
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: sx-dash-hero-shimmer 8s ease-in-out infinite alternate;
 }
 
-#sx-app-root.sx-desk .sx-dash-partners__rule,
+#sx-app-root.sx-desk .sx-dash-partners__rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(143, 123, 255, 0.55));
+}
+
 #sx-app-root.sx-desk .sx-dash-partners__rule--end {
-  background: var(--desk-line);
+  background: linear-gradient(90deg, rgba(143, 123, 255, 0.55), transparent);
 }
 
 #sx-app-root.sx-desk .sx-dash-partners__note {
@@ -873,40 +956,129 @@
   --sxt-brand-soft: var(--desk-hover);
   --sxt-gain: var(--desk-up);
   --sxt-loss: var(--desk-down);
-  --sxt-radius: 8px;
+  --sxt-radius: 18px;
   font-family: var(--desk-font);
   color: var(--desk-text);
 }
 
 #sx-app-root.sx-desk .sxt-toolbar {
-  background: var(--desk-bg);
+  margin: 0 0 0.9rem;
+  padding: 0.45rem;
+  gap: 0.45rem;
+  background: var(--desk-panel);
+  border: 1px solid var(--desk-line);
+  border-radius: 18px;
+  box-shadow: 0 18px 44px rgba(17, 18, 20, 0.06);
 }
 
-#sx-app-root.sx-desk .sxt-kpi-strip,
+#sx-app-root.sx-desk .sxt-kpi-strip {
+  margin: 0 0 0.9rem;
+  gap: 0.9rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sxt-kpi-stack,
+#sx-app-root.sx-desk .sxt-spark-cell,
 #sx-app-root.sx-desk .sxt-table-card,
-#sx-app-root.sx-desk .sxt-headerclone__scroll,
+#sx-app-root.sx-desk .sxt-headerclone__scroll {
+  background: var(--desk-panel);
+  border: 1px solid var(--desk-line);
+  border-radius: 18px;
+  box-shadow: 0 18px 44px rgba(17, 18, 20, 0.08);
+}
+
+#sx-app-root.sx-desk .sxt-kpi-stack {
+  border-right: 1px solid var(--desk-line);
+  overflow: hidden;
+}
+
 #sx-app-root.sx-desk .sxt-search-box,
 #sx-app-root.sx-desk .sxt-icon-btn,
 #sx-app-root.sx-desk .sxt-session-dd__btn,
 #sx-app-root.sx-desk .sxt-session-dd__menu,
 #sx-app-root.sx-desk .sxt-filterby__pill,
 #sx-app-root.sx-desk .sxt-colpicker__panel {
-  border-radius: 8px;
+  border-radius: 12px;
   box-shadow: none;
 }
 
+#sx-app-root.sx-desk .sxt-headerclone {
+  top: 4.75rem;
+  background: transparent;
+}
+
 #sx-app-root.sx-desk .sxt-headerclone__scroll {
+  border-bottom: none;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
+  box-shadow: none;
 }
 
 #sx-app-root.sx-desk .sxt-table-card {
+  border-top: none;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
 
+#sx-app-root.sx-desk .sxt-kpi-label {
+  color: var(--desk-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+#sx-app-root.sx-desk .sxt-kpi-value {
+  color: var(--desk-text);
+  font-size: 1.7rem;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+}
+
+#sx-app-root.sx-desk .sxt-kpi-value.sxt-gain {
+  color: var(--desk-up);
+}
+
+#sx-app-root.sx-desk .sxt-kpi-value.sxt-loss {
+  color: var(--desk-down);
+}
+
+#sx-app-root.sx-desk .sxt-kpi--stacked {
+  padding: 1.05rem 1.2rem 0.95rem;
+}
+
 #sx-app-root.sx-desk .sxt-spark-cell {
+  min-height: 11.5rem;
+  padding: 0.7rem 0.85rem 0.55rem;
   background: var(--desk-panel);
+}
+
+#sx-app-root.sx-desk .sxt-search-box {
+  background: var(--desk-bg);
+  border-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sxt-filterby__label {
+  color: var(--desk-faint);
+  font-weight: 600;
+}
+
+#sx-app-root.sx-desk .sxt-empty {
+  padding: 2.6rem 1.25rem;
+  color: var(--desk-muted);
+  font-size: 0.92rem;
+  letter-spacing: -0.02em;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxt-kpi-stack,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxt-spark-cell,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxt-table-card,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxt-toolbar {
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
 }
 
 #sx-app-root.sx-desk .sxt-session-dd__btn,
@@ -1648,20 +1820,43 @@
 #sx-app-root.sx-desk .sx-billing__head h1,
 #sx-app-root.sx-desk .sx-billing-invoices h2,
 #sx-app-root.sx-desk .sx-billing-card__head h2,
-#sx-app-root.sx-desk .sx-billing-dialog__panel h3,
-#sx-app-root.sx-desk .sx-billing-summary h3 {
-  color: var(--desk-text);
-  font-family: var(--desk-font);
-  font-weight: 600;
-  letter-spacing: -0.03em;
+#sx-app-root.sx-desk .sx-billing-pay__head h2,
+#sx-app-root.sx-desk .sx-billing-stats__label {
+  padding-bottom: 0.06em;
+  font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: clamp(1.2375rem, 2.025vw, 1.8rem);
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+  background-image: linear-gradient(180deg, #16181d 12%, #5c6578 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
 }
 
 #sx-app-root.sx-desk .sx-billing__head h1 {
-  font-size: 1.35rem;
+  font-size: clamp(2.15rem, 3.4vw, 3.35rem);
+  font-weight: 650;
+  letter-spacing: -0.05em;
+  line-height: 0.94;
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__pane-head h3,
+#sx-app-root.sx-desk .sx-billing-dialog__panel h3 {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-weight: 650;
+  letter-spacing: -0.04em;
 }
 
 #sx-app-root.sx-desk .sx-billing__head p,
 #sx-app-root.sx-desk .sx-billing-card__head p,
+#sx-app-root.sx-desk .sx-billing-pay__head p,
+#sx-app-root.sx-desk .sx-billing-pay__pane-head p,
+#sx-app-root.sx-desk .sx-billing-pay__note,
+#sx-app-root.sx-desk .sx-billing-pay__plan span,
+#sx-app-root.sx-desk .sx-billing-pay__plan em,
 #sx-app-root.sx-desk .sx-billing-card__date,
 #sx-app-root.sx-desk .sx-billing__loading,
 #sx-app-root.sx-desk .sx-billing-summary__eyebrow,
@@ -1679,11 +1874,12 @@
 
 #sx-app-root.sx-desk .sx-billing-summary,
 #sx-app-root.sx-desk .sx-billing-invoices,
-#sx-app-root.sx-desk .sx-billing-card {
+#sx-app-root.sx-desk .sx-billing-card,
+#sx-app-root.sx-desk .sx-billing-stats {
   border: 1px solid var(--desk-line);
-  border-radius: 8px;
+  border-radius: 18px;
   background: var(--desk-panel);
-  box-shadow: none;
+  box-shadow: 0 18px 44px rgba(17, 18, 20, 0.08);
 }
 
 #sx-app-root.sx-desk .sx-billing-plan {
@@ -1871,6 +2067,176 @@
   box-shadow: none;
 }
 
+#sx-app-root.sx-desk .sx-billing-pay__plan {
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  background: var(--desk-hover);
+}
+
+#sx-app-root.sx-desk .sx-billing-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+@media (min-width: 820px) {
+  #sx-app-root.sx-desk .sx-billing-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+#sx-app-root.sx-desk .sx-billing-stats__item {
+  min-width: 0;
+  padding: 1.15rem 1.2rem 1.05rem;
+  border-right: 1px solid var(--desk-line);
+  border-bottom: 1px solid var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-billing-stats__item:nth-child(2n) {
+  border-right: 0;
+}
+
+@media (min-width: 820px) {
+  #sx-app-root.sx-desk .sx-billing-stats__item {
+    border-bottom: 0;
+  }
+
+  #sx-app-root.sx-desk .sx-billing-stats__item:nth-child(2n) {
+    border-right: 1px solid var(--desk-line);
+  }
+
+  #sx-app-root.sx-desk .sx-billing-stats__item:last-child {
+    border-right: 0;
+  }
+}
+
+#sx-app-root.sx-desk .sx-billing-stats__item strong {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-size: 1.85rem;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+#sx-app-root.sx-desk .sx-billing-stats__item em {
+  display: block;
+  margin-top: 0.28rem;
+  overflow: hidden;
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+  font-size: 0.85rem;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#sx-app-root.sx-desk .sx-billing__head {
+  margin-bottom: 1.15rem;
+}
+
+#sx-app-root.sx-desk .sx-billing__head p {
+  margin-top: 0.4rem;
+  font-size: 0.95rem;
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__form,
+#sx-app-root.sx-desk .sx-billing-pay__cardform {
+  margin-top: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--desk-line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--desk-hover) 70%, var(--desk-panel));
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__mode {
+  border: 1px solid var(--desk-line);
+  border-radius: 14px;
+  background: var(--desk-hover);
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__mode:hover {
+  border-color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__mode.is-active {
+  border-color: var(--desk-btn);
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__mode-icon {
+  border-radius: 8px;
+  background: var(--desk-panel);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__mode.is-active .sx-billing-pay__mode-icon {
+  background: color-mix(in srgb, var(--desk-btn-ink) 14%, transparent);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__dot {
+  box-shadow: 0 0 0 2px var(--desk-hover);
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__mode.is-active .sx-billing-pay__dot {
+  box-shadow: 0 0 0 2px var(--desk-btn);
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__pane,
+#sx-app-root.sx-desk .sx-billing-pay__form {
+  border-top-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__form label,
+#sx-app-root.sx-desk .sx-billing-pay__switch {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-size: 0.82rem;
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__form input,
+#sx-app-root.sx-desk .sx-billing-pay__form select {
+  border: 1px solid var(--desk-line);
+  border-radius: 8px;
+  background: var(--desk-bg);
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__form input:focus,
+#sx-app-root.sx-desk .sx-billing-pay__form select:focus {
+  border-color: var(--desk-text);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__switch input {
+  width: 1.05rem;
+  height: 1.05rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__status {
+  background: var(--desk-hover);
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-billing-pay__status.is-on {
+  background: color-mix(in srgb, var(--desk-up) 16%, transparent);
+  color: var(--desk-up);
+}
+
 /* Dark billing rules in billingPage.css load later and tie these selectors.
    The extra theme attribute lets the desk tokens win. */
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing,
@@ -1885,14 +2251,23 @@
   color: var(--desk-muted);
 }
 
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing__head h1,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-invoices h2,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-card__head h2,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__head h2,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-stats__label {
+  background-image: linear-gradient(180deg, #ffffff 30%, #c7cee6 100%);
+}
+
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-summary,
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-invoices,
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-card,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-stats,
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-dialog__panel {
   border-color: var(--desk-line);
   background: var(--desk-panel);
   color: var(--desk-text);
-  box-shadow: none;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-address,
@@ -1932,17 +2307,119 @@
   color: var(--desk-text);
 }
 
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__head p,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__pane-head p,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__note,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__plan span,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__plan em,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__form label {
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__switch {
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__plan {
+  background: var(--desk-hover);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__mode {
+  border-color: var(--desk-line);
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__mode.is-active {
+  border-color: var(--desk-btn);
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__mode-icon {
+  background: var(--desk-panel);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__mode.is-active .sx-billing-pay__mode-icon {
+  background: color-mix(in srgb, var(--desk-btn-ink) 14%, transparent);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__pane,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__form {
+  border-top-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__form input,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__form select {
+  border-color: var(--desk-line);
+  background: var(--desk-bg);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__switch input {
+  width: 1.05rem;
+  height: 1.05rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__status {
+  background: var(--desk-hover);
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-billing-pay__status.is-on {
+  background: color-mix(in srgb, var(--desk-up) 16%, transparent);
+  color: var(--desk-up);
+}
+
 /* Dark desk: violet field, purple charts, lit plates. */
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side {
-  background: rgba(12, 6, 20, 0.88);
-  border-right-color: rgba(192, 132, 252, 0.16);
+  background: transparent;
+  border-right-color: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-shell,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-shell__main,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-shell__scroll {
+  background: transparent;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__account {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__ico {
+  color: #c4b5d4;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link--active .sx-dash-side__ico,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link:hover .sx-dash-side__ico {
+  color: #f6f2fb;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__section {
+  color: #8d7a9e;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f6f2fb;
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link--active,
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link--active:hover {
-  background: rgba(168, 85, 247, 0.2);
+  background: #34383f;
   color: #f6f2fb;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link > span {
+  background-image: linear-gradient(180deg, #ffffff 30%, #c7cee6 100%);
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-bar {
@@ -1967,22 +2444,20 @@
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-path {
-  border-color: rgba(196, 140, 255, 0.18);
-  background: #1a1028;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #1c1f24;
   color: #f6f2fb;
   box-shadow: none;
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-path--lead {
-  border-color: rgba(192, 132, 252, 0.45);
-  background:
-    radial-gradient(420px 160px at 0% 0%, rgba(168, 85, 247, 0.28), transparent 70%),
-    #1a1028;
+  border-color: rgba(255, 255, 255, 0.16);
+  background: #1c1f24;
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-path:hover {
-  border-color: rgba(232, 121, 249, 0.55);
-  background: rgba(168, 85, 247, 0.16);
+  border-color: rgba(255, 255, 255, 0.22);
+  background: #24282e;
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-path__mark,
@@ -2006,14 +2481,14 @@
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-performance .sx-dash-pulse__kpi,
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-performance .sx-dash-graph {
-  background: rgba(18, 8, 30, 0.72);
-  border-color: rgba(192, 132, 252, 0.2);
+  background: #1c1f24;
+  border-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-pulse__range-btn--active,
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-pulse__range-btn[aria-pressed='true'] {
-  background: #a855f7;
+  background: #34383f;
   color: #fff;
 }
 
@@ -2022,22 +2497,22 @@
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-browse__chip,
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-perf-empty,
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-recent-sessions {
-  background: rgba(14, 8, 24, 0.72);
-  border-color: rgba(192, 132, 252, 0.22);
+  background: #1c1f24;
+  border-color: rgba(255, 255, 255, 0.08);
   border-radius: 18px;
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-quick-card:hover,
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-browse__chip:hover {
-  border-color: rgba(232, 121, 249, 0.55);
-  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.25);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: none;
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-creator__submit {
   border-radius: 999px;
-  background: linear-gradient(180deg, #c084fc 0%, #9333ea 100%);
+  background: #34383f;
   color: #fff;
-  box-shadow: 0 10px 24px rgba(147, 51, 234, 0.35);
+  box-shadow: none;
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-quick-card__go,
@@ -2046,13 +2521,733 @@
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-step__num {
-  background: rgba(168, 85, 247, 0.22);
-  border-color: rgba(192, 132, 252, 0.4);
+  background: #34383f;
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-creator__pill.is-on,
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-creator__row.is-on {
-  background: rgba(168, 85, 247, 0.28);
-  border-color: rgba(216, 180, 254, 0.45);
+  background: #34383f;
+  border-color: rgba(255, 255, 255, 0.16);
   color: #f6f2fb;
+}
+
+/* Sidebar and header — flat, with one clear selected state. */
+#sx-app-root.sx-desk .sx-dash-side {
+  background: transparent;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__account {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.35rem 0.15rem 0.95rem;
+  border: 0;
+  border-bottom: 1px solid var(--desk-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__avatar {
+  width: 3.6rem;
+  height: 3.6rem;
+  font-size: 1.35rem;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__username {
+  text-align: center;
+  font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  background-image: none;
+  color: var(--desk-text);
+  -webkit-text-fill-color: currentColor;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__plan {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.35rem;
+  border-radius: 999px;
+  letter-spacing: 0.06em;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__nav,
+#sx-app-root.sx-desk .sx-dash-side__foot {
+  gap: 0.72rem;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__nav {
+  margin-top: 0.95rem;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__link {
+  border-radius: 10px;
+  padding: 0.48rem 0.65rem;
+  gap: 0.7rem;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__link > span {
+  background-image: none;
+  color: var(--desk-muted);
+  -webkit-text-fill-color: currentColor;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__ico {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0;
+  background: transparent;
+  color: var(--desk-faint);
+  font-size: 0.82rem;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__link:hover {
+  background: var(--desk-hover);
+}
+
+#sx-app-root.sx-desk .sx-dash-side__link:hover > span,
+#sx-app-root.sx-desk .sx-dash-side__link:hover .sx-dash-side__ico {
+  color: var(--desk-text);
+  background: transparent;
+  -webkit-text-fill-color: currentColor;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__link--active,
+#sx-app-root.sx-desk .sx-dash-side__link--active:hover {
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__link--active > span,
+#sx-app-root.sx-desk .sx-dash-side__link--active:hover > span,
+#sx-app-root.sx-desk .sx-dash-side__link--active .sx-dash-side__ico,
+#sx-app-root.sx-desk .sx-dash-side__link--active:hover .sx-dash-side__ico {
+  background: transparent;
+  background-image: none;
+  color: var(--desk-btn-ink);
+  -webkit-text-fill-color: currentColor;
+}
+
+#sx-app-root.sx-desk .sx-dash-side__section::after {
+  content: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-bar {
+  padding-top: 0.4rem;
+  padding-bottom: 0.35rem;
+  background: transparent;
+  backdrop-filter: none;
+  border-bottom: 0;
+}
+
+#sx-app-root.sx-desk .sx-dash-bar__tools {
+  gap: 0.15rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sx-dash-bar__icon,
+#sx-app-root.sx-desk .sx-dash-bar__locale,
+#sx-app-root.sx-desk .sx-dash-bar__upgrade {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-dash-bar__icon:hover,
+#sx-app-root.sx-desk .sx-dash-bar__locale:hover,
+#sx-app-root.sx-desk .sx-dash-bar__upgrade:hover {
+  background: var(--desk-hover);
+  border-color: transparent;
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-dash-bar__brand .sx-brand__mark {
+  filter: none;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__account {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__username {
+  background-image: none;
+  color: #f6f2fb;
+  -webkit-text-fill-color: currentColor;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__ico {
+  background: transparent;
+  color: #8d7a9e;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link:hover > span,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link:hover .sx-dash-side__ico {
+  color: #f6f2fb;
+  background: transparent;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link--active,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link--active:hover {
+  background: var(--desk-btn);
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link--active > span,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link--active:hover > span,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link--active .sx-dash-side__ico,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side__link--active:hover .sx-dash-side__ico {
+  background: transparent;
+  background-image: none;
+  color: #fff;
+  -webkit-text-fill-color: currentColor;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-bar,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-bar__tools {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* Analytics — same desk type, cards, and buttons as the dashboard. */
+#sx-app-root.sx-desk .sxa-analytics {
+  --sxa-ink-950: var(--desk-text);
+  --sxa-ink-800: var(--desk-text);
+  --sxa-ink-500: var(--desk-muted);
+  --sxa-ink-300: var(--desk-faint);
+  --sxa-line: var(--desk-line);
+  --sxa-line-soft: var(--desk-hover);
+  --sxa-surface: var(--desk-panel);
+  --sxa-brand: #7c3aed;
+  --sxa-brand-soft: rgba(124, 58, 237, 0.1);
+  --sxa-gain: var(--desk-up);
+  --sxa-gain-soft: color-mix(in srgb, var(--desk-up) 14%, transparent);
+  --sxa-loss: var(--desk-down);
+  --sxa-loss-soft: color-mix(in srgb, var(--desk-down) 14%, transparent);
+  --sxa-radius: 18px;
+  font-family: var(--desk-font);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sxa-tab-nav {
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+#sx-app-root.sx-desk .sxa-tab-nav__btn {
+  min-height: 3.15rem;
+  border: 1px solid var(--desk-line);
+  border-radius: 14px;
+  background: var(--desk-panel);
+  box-shadow: 0 10px 28px rgba(17, 18, 20, 0.04);
+  color: var(--desk-text);
+  font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  -webkit-text-fill-color: currentColor;
+}
+
+#sx-app-root.sx-desk .sxa-tab-nav__btn i,
+#sx-app-root.sx-desk .sxa-tab-nav__btn span {
+  color: inherit;
+  background-image: none;
+  -webkit-text-fill-color: currentColor;
+}
+
+#sx-app-root.sx-desk .sxa-tab-nav__btn i {
+  font-size: 0.95rem;
+}
+
+#sx-app-root.sx-desk .sxa-tab-nav__btn:hover {
+  border-color: var(--desk-line-strong);
+  background: var(--desk-hover);
+  color: var(--desk-text);
+  -webkit-text-fill-color: currentColor;
+}
+
+#sx-app-root.sx-desk .sxa-tab-nav__btn--active,
+#sx-app-root.sx-desk .sxa-tab-nav__btn--active:hover,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxa-tab-nav__btn--active,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxa-tab-nav__btn--active:hover {
+  border-color: var(--desk-btn);
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+  -webkit-text-fill-color: currentColor;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sxa-filter-bar,
+#sx-app-root.sx-desk .sxa-card,
+#sx-app-root.sx-desk .sxa-kpi-strip,
+#sx-app-root.sx-desk .sxa-wl-card,
+#sx-app-root.sx-desk .sxa-accent-card {
+  border: 1px solid var(--desk-line);
+  border-radius: 18px;
+  background: var(--desk-panel);
+  box-shadow: 0 18px 44px rgba(17, 18, 20, 0.08);
+}
+
+#sx-app-root.sx-desk .sxa-wl-card--win {
+  background: color-mix(in srgb, var(--desk-up) 8%, var(--desk-panel));
+}
+
+#sx-app-root.sx-desk .sxa-wl-card--loss {
+  background: color-mix(in srgb, var(--desk-down) 8%, var(--desk-panel));
+}
+
+#sx-app-root.sx-desk .sxa-accent-card {
+  border-left: 3px solid var(--desk-down);
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sxa-kpi {
+  padding: 1.15rem 1.1rem 1.05rem;
+  border-right-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sxa-kpi-label,
+#sx-app-root.sx-desk .sxa-card-head h3,
+#sx-app-root.sx-desk .sxa-a-label,
+#sx-app-root.sx-desk .sxa-rr-label {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+
+#sx-app-root.sx-desk .sxa-kpi-value,
+#sx-app-root.sx-desk .sxa-rr-value,
+#sx-app-root.sx-desk .sxa-a-value {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-size: 1.85rem;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+}
+
+#sx-app-root.sx-desk .sxa-kpi-value.sxa-gain,
+#sx-app-root.sx-desk .sxa-gain {
+  color: var(--desk-up);
+}
+
+#sx-app-root.sx-desk .sxa-kpi-value.sxa-loss,
+#sx-app-root.sx-desk .sxa-loss {
+  color: var(--desk-down);
+}
+
+#sx-app-root.sx-desk .sxa-section-title,
+#sx-app-root.sx-desk .sxa-section-title--sim-header {
+  margin: 1.35rem 0 0.8rem;
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-size: clamp(1.2375rem, 2.025vw, 1.8rem);
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+}
+
+#sx-app-root.sx-desk .sxa-section-title .sxa-tab-row,
+#sx-app-root.sx-desk .sxa-section-title .sxa-tab-row__btn,
+#sx-app-root.sx-desk .sxa-section-title .sxa-metric-dd,
+#sx-app-root.sx-desk .sxa-section-title .sxa-metric-dd__btn,
+#sx-app-root.sx-desk .sxa-section-title .sxa-breakeven-box,
+#sx-app-root.sx-desk .sxa-section-title .sxa-breakeven-box__label,
+#sx-app-root.sx-desk .sxa-section-title .sxa-how-link,
+#sx-app-root.sx-desk .sxa-section-title .sxa-chart-type-toggle,
+#sx-app-root.sx-desk .sxa-section-title .sxa-run-btn {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+#sx-app-root.sx-desk .sxa-chip,
+#sx-app-root.sx-desk .sxa-tab-row,
+#sx-app-root.sx-desk .sxa-chart-type-toggle,
+#sx-app-root.sx-desk .sxa-breakeven-box,
+#sx-app-root.sx-desk .sxa-breakeven-box__input,
+#sx-app-root.sx-desk .sxa-metric-dd__btn {
+  border-color: var(--desk-line);
+  background: var(--desk-panel);
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sxa-chip {
+  border-radius: 999px;
+  padding: 0.42rem 0.85rem;
+}
+
+#sx-app-root.sx-desk .sxa-chip:hover,
+#sx-app-root.sx-desk .sxa-tab-row__btn:hover,
+#sx-app-root.sx-desk .sxa-metric-dd__btn:hover {
+  background: var(--desk-hover);
+  border-color: var(--desk-line-strong);
+}
+
+#sx-app-root.sx-desk .sxa-tab-row {
+  border-radius: 999px;
+  padding: 0.15rem;
+  overflow: hidden;
+}
+
+#sx-app-root.sx-desk .sxa-tab-row__btn {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sxa-tab-row__btn--active {
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+  font-weight: 600;
+}
+
+#sx-app-root.sx-desk .sxa-apply-btn,
+#sx-app-root.sx-desk .sxa-export-btn,
+#sx-app-root.sx-desk .sxa-run-btn,
+#sx-app-root.sx-desk .sxa-breakeven-box__submit,
+#sx-app-root.sx-desk .sxa-analytics [data-sxa-mc-reset],
+#sx-app-root.sx-desk .sxa-analytics [data-sxa-mc-run],
+#sx-app-root.sx-desk .sxa-analytics [data-sxa-export-csv],
+#sx-app-root.sx-desk .sxa-analytics [data-sxa-rr-add-new],
+#sx-app-root.sx-desk .sxa-analytics [data-sxa-sl-add-new],
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxa-export-btn {
+  border: 1px solid var(--desk-btn);
+  border-radius: 10px;
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+  font-family: var(--desk-font);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+#sx-app-root.sx-desk .sxa-apply-btn:hover,
+#sx-app-root.sx-desk .sxa-export-btn:hover,
+#sx-app-root.sx-desk .sxa-run-btn:hover,
+#sx-app-root.sx-desk .sxa-breakeven-box__submit:hover {
+  filter: brightness(1.08);
+}
+
+#sx-app-root.sx-desk .sxa-how-link {
+  color: #7c3aed;
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sxa-how-link {
+  color: #d8b4fe;
+}
+
+#sx-app-root.sx-desk .sxa-grid-2,
+#sx-app-root.sx-desk .sxa-grid-3,
+#sx-app-root.sx-desk .sxa-grid-4 {
+  gap: 0.9rem;
+}
+
+#sx-app-root.sx-desk .sxa-mini-popover,
+#sx-app-root.sx-desk .sxa-metric-dd__menu,
+#sx-app-root.sx-desk .sxa-how-popover {
+  border: 1px solid var(--desk-line);
+  border-radius: 14px;
+  background: var(--desk-panel);
+  color: var(--desk-text);
+  box-shadow: 0 16px 40px rgba(17, 18, 20, 0.08);
+}
+
+#sx-app-root.sx-desk .sxa-month-grid,
+#sx-app-root.sx-desk .sxa-rr-results-table {
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-dash-analytics-deepdive .sx-dash-pulse__kpi-info {
+  opacity: 0.45;
+}
+
+/* Profile settings — same type, cards, and buttons as the dashboard. */
+#sx-app-root.sx-desk .sx-acct {
+  --panel: var(--desk-panel);
+  --raise: color-mix(in srgb, var(--desk-text) 3.5%, var(--desk-panel));
+  --raise2: var(--desk-hover);
+  --line: var(--desk-line);
+  --line2: var(--desk-line-strong);
+  --tx: var(--desk-text);
+  --dim: var(--desk-muted);
+  --dimmer: var(--desk-faint);
+  --accent: var(--desk-btn);
+  --accent-tx: var(--desk-btn-ink);
+  --accent-hover: var(--desk-btn);
+  --meter: var(--desk-btn);
+  --link: var(--desk-text);
+  --ok: var(--desk-up);
+  --danger: var(--desk-down);
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-acct__head {
+  padding: 0.1rem 0 1.05rem;
+}
+
+#sx-app-root.sx-desk .sx-acct__title,
+#sx-app-root.sx-desk .sx-acct__title span {
+  font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: clamp(2.15rem, 3.4vw, 3.35rem);
+  font-weight: 650;
+  letter-spacing: -0.05em;
+  line-height: 0.94;
+  background-image: linear-gradient(180deg, #16181d 12%, #5c6578 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+#sx-app-root.sx-desk .sx-acct__tabs {
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  margin-bottom: 0.15rem;
+  padding: 0;
+  overflow-x: auto;
+  border-bottom: 0;
+}
+
+#sx-app-root.sx-desk .sx-acct__tab {
+  height: 2.45rem;
+  padding: 0 0.72rem;
+  border: 1px solid var(--desk-line);
+  border-radius: 12px;
+  background: var(--desk-panel);
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+  font-size: 0.84rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  -webkit-text-fill-color: currentColor;
+}
+
+#sx-app-root.sx-desk .sx-acct__tab i {
+  color: inherit;
+  opacity: 1;
+  font-size: 0.82rem;
+}
+
+#sx-app-root.sx-desk .sx-acct__tab:hover {
+  border-color: var(--desk-line-strong);
+  background: var(--desk-hover);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-acct__tab[aria-selected='true'],
+#sx-app-root.sx-desk .sx-acct__tab[aria-selected='true']:hover,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct__tab[aria-selected='true'],
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct__tab[aria-selected='true']:hover {
+  border-color: var(--desk-btn);
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+  font-weight: 600;
+  -webkit-text-fill-color: currentColor;
+}
+
+#sx-app-root.sx-desk .sx-acct__body {
+  padding: 1.15rem 0 2rem;
+}
+
+#sx-app-root.sx-desk .sx-acct__grid,
+#sx-app-root.sx-desk .sx-acct__col,
+#sx-app-root.sx-desk .sx-acct-plans {
+  gap: 0.95rem;
+}
+
+#sx-app-root.sx-desk .sx-acct-card,
+#sx-app-root.sx-desk .sx-acct-plan,
+#sx-app-root.sx-desk .sx-acct-row,
+#sx-app-root.sx-desk .sx-acct-toggle,
+#sx-app-root.sx-desk .sx-acct-empty,
+#sx-app-root.sx-desk .sx-acct-manage-panel,
+#sx-app-root.sx-desk .sx-acct-manage__menu,
+#sx-app-root.sx-desk .sx-acct-locale__menu {
+  border-color: var(--desk-line);
+  border-radius: 18px;
+  box-shadow: 0 18px 44px rgba(17, 18, 20, 0.08);
+}
+
+#sx-app-root.sx-desk .sx-acct-card {
+  padding: 1.3rem 1.35rem 1.2rem;
+}
+
+#sx-app-root.sx-desk .sx-acct-card__title {
+  font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: clamp(1.2375rem, 2.025vw, 1.8rem);
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+  background-image: linear-gradient(180deg, #16181d 12%, #5c6578 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+#sx-app-root.sx-desk .sx-acct-card__lead,
+#sx-app-root.sx-desk .sx-acct-label,
+#sx-app-root.sx-desk .sx-acct-hint,
+#sx-app-root.sx-desk .sx-acct-stats dt,
+#sx-app-root.sx-desk .sx-acct-row__meta {
+  color: var(--desk-muted);
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-acct-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+#sx-app-root.sx-desk .sx-acct-input,
+#sx-app-root.sx-desk .sx-acct-select,
+#sx-app-root.sx-desk .sx-acct-icon-btn,
+#sx-app-root.sx-desk .sx-acct-manage-panel__field input,
+#sx-app-root.sx-desk .sx-acct-locale__trigger {
+  height: 2.55rem;
+  border-radius: 12px;
+  border-color: var(--desk-line);
+  background: var(--desk-panel);
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-size: 0.9rem;
+}
+
+#sx-app-root.sx-desk .sx-acct-icon-btn {
+  width: 2.55rem;
+}
+
+#sx-app-root.sx-desk .sx-acct-input:disabled,
+#sx-app-root.sx-desk .sx-acct-input[readonly] {
+  background: color-mix(in srgb, var(--desk-text) 3%, var(--desk-panel));
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk .sx-acct-avatar {
+  width: 4.4rem;
+  height: 4.4rem;
+  border-radius: 999px;
+  border-color: var(--desk-line);
+}
+
+#sx-app-root.sx-desk .sx-acct-avatar-edit {
+  border-color: var(--desk-line);
+  background: var(--desk-panel);
+  color: var(--desk-text);
+}
+
+#sx-app-root.sx-desk .sx-acct-linkbtn {
+  color: #7c3aed;
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-acct-btn {
+  height: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0 1.05rem;
+  border-radius: 10px;
+  border-color: var(--desk-line-strong);
+  background: var(--desk-panel);
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+#sx-app-root.sx-desk .sx-acct-btn:hover {
+  background: var(--desk-hover);
+}
+
+#sx-app-root.sx-desk .sx-acct-btn--primary,
+#sx-app-root.sx-desk .sx-acct-btn--primary:hover {
+  border-color: var(--desk-btn);
+  background: var(--desk-btn);
+  color: var(--desk-btn-ink);
+}
+
+#sx-app-root.sx-desk .sx-acct-savebar {
+  margin-top: 0.35rem;
+}
+
+#sx-app-root.sx-desk .sx-acct-cycle {
+  border-radius: 999px;
+  padding: 0.18rem;
+  background: var(--desk-panel);
+}
+
+#sx-app-root.sx-desk .sx-acct-cycle__btn {
+  height: 1.85rem;
+  border-radius: 999px;
+  font-family: var(--desk-font);
+}
+
+#sx-app-root.sx-desk .sx-acct-plan__name,
+#sx-app-root.sx-desk .sx-acct-plan-now__name,
+#sx-app-root.sx-desk .sx-acct-stats dd,
+#sx-app-root.sx-desk .sx-acct-row__title,
+#sx-app-root.sx-desk .sx-acct-table {
+  font-family: var(--desk-font);
+  letter-spacing: -0.03em;
+}
+
+#sx-app-root.sx-desk .sx-acct-row__ico {
+  border-radius: 12px;
+  background: var(--desk-hover);
+  color: var(--desk-muted);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct__title,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct__title span,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct-card__title {
+  background-image: linear-gradient(180deg, #ffffff 30%, #c7cee6 100%);
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct-linkbtn {
+  color: #d8b4fe;
+}
+
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct-card,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct-plan,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct-row,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct-toggle,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct-empty,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct-manage-panel,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct-manage__menu,
+#sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct-locale__menu {
+  box-shadow: none;
 }

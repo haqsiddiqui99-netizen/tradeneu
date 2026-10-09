@@ -1,5 +1,4 @@
 import './billingPage.css'
-import { tradeneuBrandHtml } from '../brand/tradeneuMark'
 import type { AuthUser } from '../auth/authSession'
 import {
   fetchMyBilling,
@@ -19,12 +18,27 @@ type BillingAddress = {
   taxId: string
 }
 
+type CardKind = 'credit' | 'debit'
+
 type SavedCard = {
   id: string
   brand: 'visa' | 'mastercard' | 'amex' | 'other'
   last4: string
   expiry: string
   nickname: string
+  kind?: CardKind
+}
+
+type PayMode = 'credit' | 'debit' | 'netbanking' | 'upi' | 'autopay'
+type AutopayFrom = 'credit' | 'debit' | 'upi' | 'netbanking'
+
+type PayPrefs = {
+  mode: PayMode
+  upiId: string
+  bank: string
+  accountHint: string
+  autopay: boolean
+  autopayFrom: AutopayFrom
 }
 
 export type MountBillingPageOptions = {
@@ -35,6 +49,22 @@ export type MountBillingPageOptions = {
 
 const ADDRESS_KEY = 'suplexity-billing-address-v1'
 const CARDS_KEY = 'suplexity-billing-cards-v1'
+const PAY_KEY = 'suplexity-billing-pay-v1'
+
+const PAY_MODES: PayMode[] = ['credit', 'debit', 'netbanking', 'upi', 'autopay']
+const AUTOPAY_FROMS: AutopayFrom[] = ['credit', 'debit', 'upi', 'netbanking']
+
+const BANKS: Array<[string, string]> = [
+  ['sbi', 'State Bank of India'],
+  ['hdfc', 'HDFC Bank'],
+  ['icici', 'ICICI Bank'],
+  ['axis', 'Axis Bank'],
+  ['kotak', 'Kotak Mahindra Bank'],
+  ['yes', 'Yes Bank'],
+  ['pnb', 'Punjab National Bank'],
+  ['bob', 'Bank of Baroda'],
+  ['other', 'Other bank'],
+]
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -91,25 +121,6 @@ function writeAddress(email: string, address: BillingAddress | null): void {
   }
 }
 
-/**
- * Stable, deterministic 16-digit "member number" derived from the account
- * email — used purely as the decorative number on the plan card visual.
- * Not a real card/account number.
- */
-function memberNumber(email: string): string {
-  function hash(seed: number, str: string): number {
-    let h = seed >>> 0
-    for (let i = 0; i < str.length; i++) {
-      h = Math.imul(h ^ str.charCodeAt(i), 2654435761) >>> 0
-    }
-    return h >>> 0
-  }
-  const a = String(hash(17, email) % 100000000).padStart(8, '0')
-  const b = String(hash(2166136261, `${email}::sx`) % 100000000).padStart(8, '0')
-  const digits = (a + b).slice(0, 16)
-  return (digits.match(/.{1,4}/g) ?? []).join(' ')
-}
-
 function readCards(email: string): SavedCard[] {
   try {
     const all = JSON.parse(localStorage.getItem(CARDS_KEY) ?? '{}') as Record<string, SavedCard[]>
@@ -131,6 +142,55 @@ function writeCards(email: string, cards: SavedCard[]): void {
 
 function newCardId(): string {
   return `card_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+}
+
+function defaultPay(): PayPrefs {
+  return { mode: 'credit', upiId: '', bank: '', accountHint: '', autopay: false, autopayFrom: 'credit' }
+}
+
+function readPay(email: string): PayPrefs {
+  try {
+    const all = JSON.parse(localStorage.getItem(PAY_KEY) ?? '{}') as Record<string, Partial<PayPrefs>>
+    const raw = all[email.toLowerCase()]
+    const base = defaultPay()
+    if (!raw || typeof raw !== 'object') return base
+    const mode = PAY_MODES.includes(raw.mode as PayMode) ? (raw.mode as PayMode) : base.mode
+    const autopayFrom = AUTOPAY_FROMS.includes(raw.autopayFrom as AutopayFrom)
+      ? (raw.autopayFrom as AutopayFrom)
+      : base.autopayFrom
+    return {
+      mode,
+      upiId: String(raw.upiId ?? '').trim().slice(0, 80),
+      bank: String(raw.bank ?? '').slice(0, 40),
+      accountHint: String(raw.accountHint ?? '').trim().slice(0, 40),
+      autopay: Boolean(raw.autopay),
+      autopayFrom,
+    }
+  } catch {
+    return defaultPay()
+  }
+}
+
+function writePay(email: string, prefs: PayPrefs): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(PAY_KEY) ?? '{}') as Record<string, PayPrefs>
+    all[email.toLowerCase()] = prefs
+    localStorage.setItem(PAY_KEY, JSON.stringify(all))
+  } catch {
+    /* Storage is optional. */
+  }
+}
+
+function cardsOf(cards: SavedCard[], kind: CardKind): SavedCard[] {
+  return cards.filter((card) => (card.kind ?? 'credit') === kind)
+}
+
+function modeReady(mode: PayMode, prefs: PayPrefs, cards: SavedCard[]): boolean {
+  if (mode === 'credit') return cardsOf(cards, 'credit').length > 0
+  if (mode === 'debit') return cardsOf(cards, 'debit').length > 0
+  if (mode === 'netbanking') return Boolean(prefs.bank)
+  if (mode === 'upi') return Boolean(prefs.upiId)
+  return prefs.autopay
 }
 
 function cardBrandIcon(brand: SavedCard['brand']): string {
@@ -155,45 +215,35 @@ function cardRows(cards: SavedCard[]): string {
           <strong>${'\u2022\u2022\u2022\u2022 '.repeat(3)}${escapeHtml(c.last4)}</strong>
           <span>${escapeHtml(c.nickname || 'Card')}${c.expiry ? ` \u00b7 Exp ${escapeHtml(c.expiry)}` : ''}</span>
         </div>
-        <button type="button" class="sx-billing-savedcard__edit" data-billing-action="edit-card" data-card-id="${escapeHtml(c.id)}" aria-label="Edit card">
-          <i class="fa-solid fa-pen" aria-hidden="true"></i>
+        <button type="button" class="sx-billing-savedcard__edit" data-billing-action="delete-card" data-card-id="${escapeHtml(c.id)}" aria-label="Remove card">
+          <i class="fa-solid fa-trash" aria-hidden="true"></i>
         </button>
       </article>`,
     )
     .join('')
 }
 
-function cardDialogHtml(card: SavedCard | null): string {
-  return `<div class="sx-billing-dialog" data-billing-card-dialog role="dialog" aria-modal="true" aria-labelledby="sx-billing-card-dialog-title">
-    <button type="button" class="sx-billing-dialog__backdrop" data-billing-action="close-card" aria-label="Close"></button>
-    <form class="sx-billing-dialog__panel" data-billing-card-form>
-      <header>
-        <div>
-          <h3 id="sx-billing-card-dialog-title">${card ? 'Edit card' : 'Add new card'}</h3>
-          <p>For your own records \u2014 stored on this device, never sent anywhere.</p>
-        </div>
-        <button type="button" class="sx-billing-dialog__x" data-billing-action="close-card" aria-label="Close">&times;</button>
-      </header>
-      <label>Card brand
-        <select name="brand">
-          <option value="visa" ${card?.brand === 'visa' ? 'selected' : ''}>Visa</option>
-          <option value="mastercard" ${card?.brand === 'mastercard' ? 'selected' : ''}>Mastercard</option>
-          <option value="amex" ${card?.brand === 'amex' ? 'selected' : ''}>Amex</option>
-          <option value="other" ${!card || card.brand === 'other' ? 'selected' : ''}>Other</option>
-        </select>
-      </label>
-      <label>Last 4 digits<input name="last4" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="7852" value="${escapeHtml(card?.last4 ?? '')}" /></label>
-      <label>Expiry (MM/YY)<input name="expiry" maxlength="5" placeholder="11/22" value="${escapeHtml(card?.expiry ?? '')}" /></label>
-      <label>Nickname<input name="nickname" maxlength="40" placeholder="e.g. Personal card" value="${escapeHtml(card?.nickname ?? '')}" /></label>
-      <footer>
-        ${card ? '<button type="button" class="sx-billing__text-btn sx-billing__text-btn--danger" data-billing-action="delete-card" data-card-id="' + escapeHtml(card.id) + '">Remove card</button>' : '<span></span>'}
-        <div style="display:flex;gap:0.6rem;">
-          <button type="button" class="sx-billing__btn sx-billing__btn--ghost" data-billing-action="close-card">Cancel</button>
-          <button type="submit" class="sx-billing__btn sx-billing__btn--dark">Save card</button>
-        </div>
-      </footer>
-    </form>
-  </div>`
+function brandFromNumber(digits: string): SavedCard['brand'] {
+  if (/^4/.test(digits)) return 'visa'
+  if (/^3[47]/.test(digits)) return 'amex'
+  if (/^(5[1-5]|2[2-7])/.test(digits)) return 'mastercard'
+  return 'other'
+}
+
+function luhnOk(digits: string): boolean {
+  if (!/^\d{13,19}$/.test(digits)) return false
+  let sum = 0
+  let alt = false
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let n = digits.charCodeAt(i) - 48
+    if (alt) {
+      n *= 2
+      if (n > 9) n -= 9
+    }
+    sum += n
+    alt = !alt
+  }
+  return sum % 10 === 0
 }
 
 function methodLabel(method: string | undefined): string {
@@ -202,10 +252,202 @@ function methodLabel(method: string | undefined): string {
   return 'Card'
 }
 
-function methodIcon(method: string | undefined): string {
-  if (method === 'paypal') return 'fa-brands fa-paypal'
-  if (method === 'upi') return 'fa-solid fa-mobile-screen-button'
-  return 'fa-regular fa-credit-card'
+function payModeIcon(mode: PayMode): string {
+  if (mode === 'debit') return '<i class="fa-solid fa-credit-card" aria-hidden="true"></i>'
+  if (mode === 'netbanking') return '<i class="fa-solid fa-building-columns" aria-hidden="true"></i>'
+  if (mode === 'upi') return '<span class="sx-billing-pay__upi">UPI</span>'
+  if (mode === 'autopay') return '<i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>'
+  return '<i class="fa-regular fa-credit-card" aria-hidden="true"></i>'
+}
+
+function payModeKey(mode: PayMode): 'billing.mode.credit' | 'billing.mode.debit' | 'billing.mode.netbanking' | 'billing.mode.upi' | 'billing.mode.autopay' {
+  if (mode === 'debit') return 'billing.mode.debit'
+  if (mode === 'netbanking') return 'billing.mode.netbanking'
+  if (mode === 'upi') return 'billing.mode.upi'
+  if (mode === 'autopay') return 'billing.mode.autopay'
+  return 'billing.mode.credit'
+}
+
+function payStatusHtml(on: boolean): string {
+  const key = on ? 'billing.pay.saved' : 'billing.pay.notSet'
+  return `<span class="sx-billing-pay__status${on ? ' is-on' : ''}" data-i18n="${key}">${te(key)}</span>`
+}
+
+function cardPaneHtml(kind: CardKind, cards: SavedCard[]): string {
+  const list = cardsOf(cards, kind)
+  const titleKey = kind === 'debit' ? 'billing.mode.debit' : 'billing.mode.credit'
+  return `<form class="sx-billing-pay__form sx-billing-pay__cardform" data-billing-inline-card-form>
+    <input type="hidden" name="kind" value="${kind}" />
+    <div class="sx-billing-pay__pane-head">
+      <div>
+        <h3 data-i18n="${titleKey}">${te(titleKey)}</h3>
+        ${payStatusHtml(list.length > 0)}
+      </div>
+    </div>
+    <div class="sx-billing-pay__cardgrid">
+      <label class="sx-billing-pay__cardgrid-number"><span data-i18n="billing.pay.cardNumber">${te('billing.pay.cardNumber')}</span>
+        <input name="number" required inputmode="numeric" autocomplete="cc-number" maxlength="23" placeholder="1234 5678 9012 3456" />
+      </label>
+      <label><span data-i18n="billing.pay.expiry">${te('billing.pay.expiry')}</span>
+        <input name="expiry" required inputmode="numeric" autocomplete="cc-exp" maxlength="5" placeholder="MM/YY" pattern="(0[1-9]|1[0-2])/\\d{2}" />
+      </label>
+      <label><span data-i18n="billing.pay.cvv">${te('billing.pay.cvv')}</span>
+        <input name="cvv" required inputmode="numeric" autocomplete="cc-csc" maxlength="4" placeholder="123" pattern="\\d{3,4}" />
+      </label>
+      <label class="sx-billing-pay__cardgrid-name"><span data-i18n="billing.pay.nameOnCard">${te('billing.pay.nameOnCard')}</span>
+        <input name="holder" required autocomplete="cc-name" maxlength="40" minlength="2" placeholder="Name on card" />
+      </label>
+    </div>
+    <label class="sx-billing-pay__switch">
+      <input type="checkbox" name="saveCard" required checked />
+      <span data-i18n="billing.pay.saveThisCard">${te('billing.pay.saveThisCard')}</span>
+    </label>
+    <p class="sx-billing-pay__note" data-i18n="billing.pay.cardSaveHint">${te('billing.pay.cardSaveHint')}</p>
+    <button type="submit" class="sx-billing__btn sx-billing__btn--dark" data-i18n="billing.pay.saveCard">${te('billing.pay.saveCard')}</button>
+  </form>
+  <div class="sx-billing-cards">${cardRows(list)}</div>`
+}
+
+function bankPaneHtml(prefs: PayPrefs): string {
+  const options = [
+    `<option value="">${te('billing.pay.chooseBank')}</option>`,
+    ...BANKS.map(
+      ([id, name]) =>
+        `<option value="${id}"${prefs.bank === id ? ' selected' : ''}>${escapeHtml(name)}</option>`,
+    ),
+  ].join('')
+  return `<form class="sx-billing-pay__form" data-billing-bank-form>
+    <div class="sx-billing-pay__pane-head">
+      <div>
+        <h3 data-i18n="billing.mode.netbanking">${te('billing.mode.netbanking')}</h3>
+        ${payStatusHtml(Boolean(prefs.bank))}
+      </div>
+    </div>
+    <label><span data-i18n="billing.pay.bank">${te('billing.pay.bank')}</span>
+      <select name="bank" required>${options}</select>
+    </label>
+    <label><span data-i18n="billing.pay.accountRef">${te('billing.pay.accountRef')}</span>
+      <input name="accountHint" maxlength="40" placeholder="${te('billing.pay.accountHint')}" value="${escapeHtml(prefs.accountHint)}" />
+    </label>
+    <p class="sx-billing-pay__note" data-i18n="billing.pay.localOnly">${te('billing.pay.localOnly')}</p>
+    <button type="submit" class="sx-billing__btn sx-billing__btn--dark" data-i18n="billing.pay.saveBank">${te('billing.pay.saveBank')}</button>
+  </form>`
+}
+
+function upiPaneHtml(prefs: PayPrefs): string {
+  return `<form class="sx-billing-pay__form" data-billing-upi-form>
+    <div class="sx-billing-pay__pane-head">
+      <div>
+        <h3 data-i18n="billing.mode.upi">${te('billing.mode.upi')}</h3>
+        <p data-i18n="billing.pay.upiHint">${te('billing.pay.upiHint')}</p>
+        ${payStatusHtml(Boolean(prefs.upiId))}
+      </div>
+    </div>
+    <label><span data-i18n="billing.pay.upiId">${te('billing.pay.upiId')}</span>
+      <input name="upiId" required maxlength="80" inputmode="email" autocomplete="off" placeholder="name@upi" pattern="^[^@\\s]+@[^@\\s]+$" value="${escapeHtml(prefs.upiId)}" />
+    </label>
+    <p class="sx-billing-pay__note" data-i18n="billing.pay.localOnly">${te('billing.pay.localOnly')}</p>
+    <button type="submit" class="sx-billing__btn sx-billing__btn--dark" data-i18n="billing.pay.saveUpi">${te('billing.pay.saveUpi')}</button>
+  </form>`
+}
+
+function autopayPaneHtml(prefs: PayPrefs): string {
+  const options = AUTOPAY_FROMS.map((from) => {
+    const key = payModeKey(from)
+    return `<option value="${from}"${prefs.autopayFrom === from ? ' selected' : ''}>${te(key)}</option>`
+  }).join('')
+  return `<form class="sx-billing-pay__form" data-billing-autopay-form>
+    <div class="sx-billing-pay__pane-head">
+      <div>
+        <h3 data-i18n="billing.mode.autopay">${te('billing.mode.autopay')}</h3>
+        <p data-i18n="billing.pay.autopayLead">${te('billing.pay.autopayLead')}</p>
+        ${payStatusHtml(prefs.autopay)}
+      </div>
+    </div>
+    <label class="sx-billing-pay__switch">
+      <input type="checkbox" name="autopay" ${prefs.autopay ? 'checked' : ''} />
+      <span data-i18n="billing.pay.autopayToggle">${te('billing.pay.autopayToggle')}</span>
+    </label>
+    <label><span data-i18n="billing.pay.chargeFrom">${te('billing.pay.chargeFrom')}</span>
+      <select name="autopayFrom">${options}</select>
+    </label>
+    <p class="sx-billing-pay__note" data-i18n="billing.pay.localOnly">${te('billing.pay.localOnly')}</p>
+    <button type="submit" class="sx-billing__btn sx-billing__btn--dark" data-i18n="billing.pay.saveAutopay">${te('billing.pay.saveAutopay')}</button>
+  </form>`
+}
+
+function payDetailHtml(prefs: PayPrefs, cards: SavedCard[]): string {
+  if (prefs.mode === 'debit') return cardPaneHtml('debit', cards)
+  if (prefs.mode === 'netbanking') return bankPaneHtml(prefs)
+  if (prefs.mode === 'upi') return upiPaneHtml(prefs)
+  if (prefs.mode === 'autopay') return autopayPaneHtml(prefs)
+  return cardPaneHtml('credit', cards)
+}
+
+function methodSummary(prefs: PayPrefs, cards: SavedCard[]): string {
+  if (prefs.mode === 'credit' || prefs.mode === 'debit') {
+    const last = cardsOf(cards, prefs.mode).at(-1)
+    return last ? `\u2022\u2022\u2022\u2022 ${escapeHtml(last.last4)}` : te('billing.pay.notSet')
+  }
+  if (prefs.mode === 'upi') return prefs.upiId ? escapeHtml(prefs.upiId) : te('billing.pay.notSet')
+  if (prefs.mode === 'netbanking') {
+    const bank = BANKS.find(([id]) => id === prefs.bank)?.[1]
+    return bank ? escapeHtml(bank) : te('billing.pay.notSet')
+  }
+  return prefs.autopay ? te(payModeKey(prefs.autopayFrom)) : te('billing.pay.notSet')
+}
+
+function payModesHtml(prefs: PayPrefs, cards: SavedCard[]): string {
+  const modes = PAY_MODES.map((mode) => {
+    const key = payModeKey(mode)
+    const active = prefs.mode === mode
+    const ready = modeReady(mode, prefs, cards)
+    return `<button type="button" class="sx-billing-pay__mode${active ? ' is-active' : ''}" role="tab" aria-selected="${active ? 'true' : 'false'}" data-billing-action="pay-mode" data-pay-mode="${mode}">
+      <span class="sx-billing-pay__mode-icon">${payModeIcon(mode)}</span>
+      <span data-i18n="${key}">${te(key)}</span>
+      ${ready ? '<i class="sx-billing-pay__dot" title="Saved"></i>' : ''}
+    </button>`
+  }).join('')
+  return `<section class="sx-billing-card sx-billing-pay" aria-labelledby="sx-billing-pay-title">
+    <header class="sx-billing-pay__head">
+      <div>
+        <h2 id="sx-billing-pay-title" data-i18n="billing.pay.title">${te('billing.pay.title')}</h2>
+        <p data-i18n="billing.pay.sub">${te('billing.pay.sub')}</p>
+      </div>
+    </header>
+    <div class="sx-billing-pay__modes" role="tablist" aria-label="${te('billing.pay.title')}">${modes}</div>
+    ${payDetailHtml(prefs, cards)}
+  </section>`
+}
+
+function statsHtml(prefs: PayPrefs, cards: SavedCard[], tier: AccountTier, sub: BillingSubscription | null, invoiceCount: number): string {
+  const cycle = sub?.cycle ? sub.cycle[0].toUpperCase() + sub.cycle.slice(1) : ''
+  const planMeta = sub?.mrr ? `${money(sub.mrr)}${cycle ? ` \u00b7 ${escapeHtml(cycle)}` : ''}` : tier === 'free' ? te('billing.freeForever') : te('billing.noActiveBilling')
+  const renews = sub?.currentPeriodEnd ? date(sub.currentPeriodEnd) : '\u2014'
+  const renewMeta = sub?.status ? escapeHtml(sub.status[0].toUpperCase() + sub.status.slice(1)) : tier === 'free' ? te('billing.freeForever') : te('billing.noActiveBilling')
+  const invoiceMeta = invoiceCount ? `${invoiceCount} on file` : te('billing.stats.noneYet')
+  return `<section class="sx-billing-stats" aria-label="Billing summary">
+    <article class="sx-billing-stats__item">
+      <span class="sx-billing-stats__label" data-i18n="billing.stats.plan">${te('billing.stats.plan')}</span>
+      <strong>${escapeHtml(planName(tier))}</strong>
+      <em>${planMeta}</em>
+    </article>
+    <article class="sx-billing-stats__item">
+      <span class="sx-billing-stats__label" data-i18n="billing.stats.renews">${te('billing.stats.renews')}</span>
+      <strong>${renews}</strong>
+      <em>${renewMeta}</em>
+    </article>
+    <article class="sx-billing-stats__item">
+      <span class="sx-billing-stats__label" data-i18n="billing.stats.method">${te('billing.stats.method')}</span>
+      <strong>${te(payModeKey(prefs.mode))}</strong>
+      <em>${methodSummary(prefs, cards)}</em>
+    </article>
+    <article class="sx-billing-stats__item">
+      <span class="sx-billing-stats__label" data-i18n="billing.stats.invoices">${te('billing.stats.invoices')}</span>
+      <strong>${invoiceCount}</strong>
+      <em>${invoiceMeta}</em>
+    </article>
+  </section>`
 }
 
 function addressHtml(address: BillingAddress | null, fallbackEmail: string): string {
@@ -330,6 +572,7 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
   const email = auth?.email?.trim() || 'guest@tradeneu.local'
   let address = readAddress(email)
   let cards = readCards(email)
+  let pay = readPay(email)
 
   root.innerHTML = `<section class="sx-billing" aria-labelledby="sx-billing-title">
     <header class="sx-billing__head">
@@ -352,65 +595,20 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
     if (!content) return
     const tier = opts.readTier()
     const sub: BillingSubscription | null = billing.subscription
-    const latest = billing.transactions[0]
-    const cycle = sub?.cycle ? sub.cycle[0].toUpperCase() + sub.cycle.slice(1) : 'No billing cycle'
-    content.innerHTML = `<div class="sx-billing__top-grid">
-      <article class="sx-billing-plan">
-        <div class="sx-billing-plan__top">
-          <div class="sx-billing-plan__brand">
-            ${tradeneuBrandHtml()}
-          </div>
-          <span class="sx-billing-plan__tier">${escapeHtml(planName(tier))}</span>
-        </div>
-        <i class="fa-solid fa-wifi sx-billing-plan__wifi" aria-hidden="true"></i>
-        <div class="sx-billing-plan__number">${memberNumber(email)}</div>
-        <div class="sx-billing-plan__footer">
-          <div>
-            <span>Card Holder</span>
-            <strong>${escapeHtml(auth?.name || 'Member')}</strong>
-          </div>
-          <div>
-            <span>Renews</span>
-            <strong>${sub?.currentPeriodEnd ? date(sub.currentPeriodEnd) : tier === 'free' ? 'Free' : '\u2014'}</strong>
-          </div>
-        </div>
-        <i class="fa-brands fa-cc-mastercard sx-billing-plan__scheme" aria-hidden="true" title="Dummy card design"></i>
-      </article>
-
-      <article class="sx-billing-summary">
-        <span class="sx-billing-summary__icon"><i class="fa-solid fa-building-columns" aria-hidden="true"></i></span>
-        <span class="sx-billing-summary__eyebrow" data-i18n="billing.planCost">${te('billing.planCost')}</span>
-        <h3>${sub?.mrr ? money(sub.mrr) : escapeHtml(planName(tier))}</h3>
-        <p>${sub?.mrr ? translate('billing.billedCycle', { cycle: cycle.toLowerCase() }) : tier === 'free' ? te('billing.freeForever') : te('billing.noActiveBilling')}</p>
-      </article>
-
-      <article class="sx-billing-summary">
-        <span class="sx-billing-summary__icon"><i class="${methodIcon(latest?.method)}" aria-hidden="true"></i></span>
-        <span class="sx-billing-summary__eyebrow" data-i18n="billing.paymentMethod">${te('billing.paymentMethod')}</span>
-        <h3>${latest ? escapeHtml(methodLabel(latest.method)) : te('billing.notAdded')}</h3>
-        <p>${latest ? `${money(latest.total)} \u00b7 ${date(latest.ts)}` : te('billing.paymentMethodHint')}</p>
-      </article>
+    content.innerHTML = `${statsHtml(pay, cards, tier, sub, billing.transactions.length)}
+    <div class="sx-billing__top-grid">
+      ${payModesHtml(pay, cards)}
 
       <aside class="sx-billing-invoices">
         <header><h2 data-i18n="billing.invoices">${te('billing.invoices')}</h2><button type="button" data-billing-action="view-all" data-i18n="billing.viewAll">${te('billing.viewAll')}</button></header>
         <div>${invoiceRows(billing.transactions)}</div>
       </aside>
-
-      <section class="sx-billing-card sx-billing-card--payment">
-        <header class="sx-billing-card__head">
-          <div><h2 data-i18n="billing.paymentMethodCard">${te('billing.paymentMethodCard')}</h2><p data-i18n="billing.paymentMethodCardSub">${te('billing.paymentMethodCardSub')}</p></div>
-          <button type="button" class="sx-billing__btn sx-billing__btn--dark" data-billing-action="add-card">
-            <i class="fa-solid fa-plus" aria-hidden="true"></i> <span data-i18n="billing.addNewCard">${te('billing.addNewCard')}</span>
-          </button>
-        </header>
-        <div class="sx-billing-cards" data-billing-cards>${cardRows(cards)}</div>
-      </section>
     </div>
 
     <div class="sx-billing__lower-grid">
       <section class="sx-billing-card">
         <header class="sx-billing-card__head">
-          <div><h2>Billing Information</h2><p>Details used on your printable invoices.</p></div>
+          <div><h2 data-i18n="billing.info.title">${te('billing.info.title')}</h2><p data-i18n="billing.info.sub">${te('billing.info.sub')}</p></div>
           <button type="button" class="sx-billing__text-btn" data-billing-action="edit-address"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add</button>
         </header>
         <div data-billing-address>${addressHtml(address, email)}</div>
@@ -418,8 +616,8 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
 
       <section class="sx-billing-card" data-billing-transactions>
         <header class="sx-billing-card__head">
-          <div><h2>Your Transaction's</h2><p>${billing.transactions.length} completed payment${billing.transactions.length === 1 ? '' : 's'}</p></div>
-          <span class="sx-billing-card__date"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${billing.transactions.length ? `${date(billing.transactions.at(-1)?.ts)} – ${date(billing.transactions[0]?.ts)}` : 'No activity'}</span>
+          <div><h2 data-i18n="billing.tx.title">${te('billing.tx.title')}</h2><p>${billing.transactions.length} completed payment${billing.transactions.length === 1 ? '' : 's'}</p></div>
+          <span class="sx-billing-card__date"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${billing.transactions.length ? `${date(billing.transactions.at(-1)?.ts)} – ${date(billing.transactions[0]?.ts)}` : te('billing.tx.none')}</span>
         </header>
         <div class="sx-billing-transactions">${transactionRows(billing.transactions)}</div>
       </section>
@@ -452,18 +650,14 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
     if (action === 'view-all') {
       root.querySelector<HTMLElement>('[data-billing-transactions]')?.scrollIntoView({ behavior: 'smooth' })
     }
-    if (action === 'add-card') {
-      root.insertAdjacentHTML('beforeend', cardDialogHtml(null))
-      root.querySelector<HTMLInputElement>('[data-billing-card-form] input')?.focus()
-    }
-    if (action === 'edit-card') {
-      const cardEl = cards.find((c) => c.id === actionEl?.dataset.cardId)
-      if (cardEl) {
-        root.insertAdjacentHTML('beforeend', cardDialogHtml(cardEl))
-        root.querySelector<HTMLInputElement>('[data-billing-card-form] input')?.focus()
+    if (action === 'pay-mode') {
+      const next = actionEl?.dataset.payMode
+      if (next === 'credit' || next === 'debit' || next === 'netbanking' || next === 'upi' || next === 'autopay') {
+        pay = { ...pay, mode: next }
+        writePay(email, pay)
+        render()
       }
     }
-    if (action === 'close-card') root.querySelector('[data-billing-card-dialog]')?.remove()
     if (action === 'delete-card') {
       const id = actionEl?.dataset.cardId
       if (!id) return
@@ -494,27 +688,104 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
       return
     }
 
-    const cardForm = (event.target as HTMLElement).closest<HTMLFormElement>('[data-billing-card-form]')
+    const cardForm = (event.target as HTMLElement).closest<HTMLFormElement>('[data-billing-inline-card-form]')
     if (cardForm) {
       event.preventDefault()
       const data = new FormData(cardForm)
-      const last4 = String(data.get('last4') ?? '').replace(/\D/g, '').slice(-4).padStart(4, '0')
-      const editingId = root.querySelector<HTMLElement>('[data-billing-action="delete-card"]')?.dataset.cardId
-      const card: SavedCard = {
-        id: editingId ?? newCardId(),
-        brand: (String(data.get('brand') ?? 'other') as SavedCard['brand']) || 'other',
-        last4,
-        expiry: String(data.get('expiry') ?? '').trim(),
-        nickname: String(data.get('nickname') ?? '').trim(),
+      if (data.get('saveCard') !== 'on') return
+      const digits = String(data.get('number') ?? '').replace(/\D/g, '')
+      const expiry = String(data.get('expiry') ?? '').trim()
+      const cvv = String(data.get('cvv') ?? '').replace(/\D/g, '')
+      const holder = String(data.get('holder') ?? '').trim().slice(0, 40)
+      const numberInput = cardForm.querySelector<HTMLInputElement>('input[name="number"]')
+      if (!luhnOk(digits)) {
+        numberInput?.setCustomValidity('Enter a valid card number')
+        numberInput?.reportValidity()
+        return
       }
-      cards = editingId ? cards.map((c) => (c.id === editingId ? card : c)) : [...cards, card]
+      numberInput?.setCustomValidity('')
+      if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(expiry) || !/^\d{3,4}$/.test(cvv) || holder.length < 2) return
+      const kind: CardKind = String(data.get('kind')) === 'debit' ? 'debit' : 'credit'
+      const card: SavedCard = {
+        id: newCardId(),
+        brand: brandFromNumber(digits),
+        last4: digits.slice(-4),
+        expiry,
+        nickname: holder,
+        kind,
+      }
+      cards = [...cards, card]
       writeCards(email, cards)
-      root.querySelector('[data-billing-card-dialog]')?.remove()
+      pay = { ...pay, mode: kind }
+      writePay(email, pay)
+      render()
+      return
+    }
+
+    const bankForm = (event.target as HTMLElement).closest<HTMLFormElement>('[data-billing-bank-form]')
+    if (bankForm) {
+      event.preventDefault()
+      const data = new FormData(bankForm)
+      const bank = String(data.get('bank') ?? '')
+      if (!BANKS.some(([id]) => id === bank)) return
+      pay = {
+        ...pay,
+        mode: 'netbanking',
+        bank,
+        accountHint: String(data.get('accountHint') ?? '').trim().slice(0, 40),
+      }
+      writePay(email, pay)
+      render()
+      return
+    }
+
+    const upiForm = (event.target as HTMLElement).closest<HTMLFormElement>('[data-billing-upi-form]')
+    if (upiForm) {
+      event.preventDefault()
+      const upiId = String(new FormData(upiForm).get('upiId') ?? '').trim().slice(0, 80)
+      if (!/^[^@\s]+@[^@\s]+$/.test(upiId)) return
+      pay = { ...pay, mode: 'upi', upiId }
+      writePay(email, pay)
+      render()
+      return
+    }
+
+    const autopayForm = (event.target as HTMLElement).closest<HTMLFormElement>('[data-billing-autopay-form]')
+    if (autopayForm) {
+      event.preventDefault()
+      const data = new FormData(autopayForm)
+      const from = String(data.get('autopayFrom') ?? 'credit')
+      pay = {
+        ...pay,
+        mode: 'autopay',
+        autopay: data.get('autopay') === 'on',
+        autopayFrom: AUTOPAY_FROMS.includes(from as AutopayFrom) ? (from as AutopayFrom) : 'credit',
+      }
+      writePay(email, pay)
       render()
     }
   }
 
+  const onInput = (event: Event) => {
+    const target = event.target as HTMLInputElement
+    if (!(target instanceof HTMLInputElement) || !target.closest('[data-billing-inline-card-form]')) return
+    if (target.name === 'number') {
+      target.setCustomValidity('')
+      const digits = target.value.replace(/\D/g, '').slice(0, 19)
+      const grouped = digits.replace(/(\d{4})(?=\d)/g, '$1 ')
+      if (target.value !== grouped) target.value = grouped
+    } else if (target.name === 'expiry') {
+      const digits = target.value.replace(/\D/g, '').slice(0, 4)
+      const next = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
+      if (target.value !== next) target.value = next
+    } else if (target.name === 'cvv') {
+      const next = target.value.replace(/\D/g, '').slice(0, 4)
+      if (target.value !== next) target.value = next
+    }
+  }
+
   root.addEventListener('click', onClick)
+  root.addEventListener('input', onInput)
   root.addEventListener('submit', onSubmit as EventListener)
 
   void fetchMyBilling().then((data) => {
@@ -531,6 +802,7 @@ export function mountBillingPage(root: HTMLElement, opts: MountBillingPageOption
     active = false
     unsubLocale()
     root.removeEventListener('click', onClick)
+    root.removeEventListener('input', onInput)
     root.removeEventListener('submit', onSubmit as EventListener)
     root.replaceChildren()
   }
