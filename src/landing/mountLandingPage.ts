@@ -127,7 +127,7 @@ function navDrop(
     )
     .join('')
   return `
-    <div class="sx-land-drop${pricing ? ' sx-land-drop--end' : ''}" data-land-drop="${id}">
+    <div class="sx-land-drop" data-land-drop="${id}">
       <button type="button" class="sx-land-drop__btn" aria-expanded="false" aria-haspopup="true">
         <span data-i18n="${labelKey}">${te(labelKey)}</span>
         ${CHEVRON}
@@ -241,7 +241,6 @@ export function mountLandingPage(root: HTMLElement): void {
       <div class="sx-land__nav-actions">
         ${landLocaleHtml()}
         <a class="sx-land__signin" href="${loginPath}" data-land-login>
-          <span class="sx-land__signin-ico">${ICON_USER}</span>
           <span data-i18n="landing.nav.signIn">${te('landing.nav.signIn')}</span>
         </a>
       </div>
@@ -558,7 +557,6 @@ function wireLandingNav(root: HTMLElement): void {
 
 const ICON_ARROW = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`
 const ICON_PLAY = `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 001.5.86l10.5-6.5a1 1 0 000-1.72L9.5 4.64A1 1 0 008 5.5z"/></svg>`
-const ICON_USER = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>`
 
 /** Flag art for each dashboard locale. The visible code is the locale code itself. */
 const LAND_LOCALE_FLAG: Record<DashLocaleCode, string> = {
