@@ -1562,13 +1562,6 @@ function buildDashTopbarHtml(): string {
               <span class="sx-dash-tip" data-i18n="topbar.upgrade">${te('topbar.upgrade')}</span>
             </span>
 
-        <span class="sx-dash-tip-wrap inline-flex">
-              <button type="button" data-action="ai-chat" class="sx-dash-bar__icon" aria-label="${te('topbar.aiAssistantAria')}" data-i18n-aria-label="topbar.aiAssistantAria">
-                <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
-          </button>
-              <span class="sx-dash-tip" data-i18n="topbar.aiAssistant">${te('topbar.aiAssistant')}</span>
-        </span>
-
             <span class="sx-dash-tip-wrap relative inline-flex">
               <div class="sx-dash-locale-dd relative" data-sx-locale-dropdown>
             <button
@@ -2032,23 +2025,37 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     </div>
   </div>
 
+  <button type="button" class="sx-ai-fab" data-action="ai-chat" aria-label="${te('topbar.aiAssistantAria')}" data-i18n-aria-label="topbar.aiAssistantAria">
+    <span class="sx-ai-fab__aura" aria-hidden="true"></span>
+    <span class="sx-ai-fab__disc">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path fill="currentColor" d="M16 3.1c.35 4.7 1.55 7.35 4.15 9.35 2.35 1.8 5.35 2.4 8.55 2.55-3.2.2-6.2.85-8.55 2.7-2.6 2-3.8 4.65-4.15 9.2-.35-4.55-1.55-7.2-4.15-9.2-2.35-1.85-5.35-2.5-8.55-2.7 3.2-.15 6.2-.75 8.55-2.55 2.6-2 3.8-4.65 4.15-9.35z"/>
+        <path fill="currentColor" d="M25.1 4.2c.16 1.55.58 2.4 1.45 3.05.82.62 1.85.82 2.85.88-1 .08-2.02.32-2.85.95-.87.66-1.29 1.5-1.45 3.05-.16-1.55-.58-2.39-1.45-3.05-.83-.63-1.85-.87-2.85-.95 1-.06 2.03-.26 2.85-.88.87-.65 1.29-1.5 1.45-3.05z"/>
+      </svg>
+    </span>
+    <span class="sx-ai-fab__label" data-i18n="topbar.aiAssistant">${te('topbar.aiAssistant')}</span>
+  </button>
   <div id="sx-dash-ai-chat-backdrop" class="sx-dash-ai-chat-backdrop fixed inset-0 z-[85] bg-black/50 opacity-0 backdrop-blur-[2px] transition-opacity duration-200 pointer-events-none" aria-hidden="true"></div>
   <aside id="sx-dash-ai-chat-drawer" class="sx-dash-ai-chat-drawer fixed bottom-0 right-0 top-0 z-[90] flex w-full max-w-[26rem] translate-x-full flex-col transition-transform duration-200 ease-out pointer-events-none" aria-hidden="true" aria-labelledby="sx-dash-ai-chat-title">
     <header class="sx-ai-chat__head">
       <div class="sx-ai-chat__brand">
-        <span class="sx-ai-chat__mark" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+        <span class="sx-ai-chat__mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path fill="currentColor" d="M16 3.1c.35 4.7 1.55 7.35 4.15 9.35 2.35 1.8 5.35 2.4 8.55 2.55-3.2.2-6.2.85-8.55 2.7-2.6 2-3.8 4.65-4.15 9.2-.35-4.55-1.55-7.2-4.15-9.2-2.35-1.85-5.35-2.5-8.55-2.7 3.2-.15 6.2-.75 8.55-2.55 2.6-2 3.8-4.65 4.15-9.35z"/><path fill="currentColor" d="M25.1 4.2c.16 1.55.58 2.4 1.45 3.05.82.62 1.85.82 2.85.88-1 .08-2.02.32-2.85.95-.87.66-1.29 1.5-1.45 3.05-.16-1.55-.58-2.39-1.45-3.05-.83-.63-1.85-.87-2.85-.95 1-.06 2.03-.26 2.85-.88.87-.65 1.29-1.5 1.45-3.05z"/></svg>
+        </span>
         <div>
           <h2 id="sx-dash-ai-chat-title">AI assistant</h2>
-          <p>Your desk, in plain language.</p>
+          <p>Sessions, replays, and rules.</p>
         </div>
       </div>
-      <button type="button" data-action="ai-chat-close" class="sx-ai-chat__close">Close</button>
+      <button type="button" data-action="ai-chat-close" class="sx-ai-chat__close" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M7 7l10 10M17 7L7 17"/></svg>
+      </button>
     </header>
     <div class="sx-ai-chat__body" data-sx-ai-chat-body>
     </div>
-    <div class="sx-ai-chat__composer border-t">
+    <div class="sx-ai-chat__composer">
       <label class="sr-only" for="sx-dash-ai-chat-input">Message to AI</label>
-      <textarea id="sx-dash-ai-chat-input" rows="2" disabled placeholder="Message AI (coming soon)…"></textarea>
+      <textarea id="sx-dash-ai-chat-input" rows="1" disabled placeholder="Message AI (coming soon)…"></textarea>
     </div>
   </aside>
 

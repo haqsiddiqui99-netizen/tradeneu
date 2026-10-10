@@ -3251,3 +3251,114 @@
 #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-acct-locale__menu {
   box-shadow: none;
 }
+
+/* Floating AI orb. Sits over the desk, under the chat drawer and the chart. */
+#sx-app-root.sx-desk .sx-ai-fab {
+  position: fixed;
+  right: 1.4rem;
+  bottom: 1.5rem;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  animation: sx-ai-fab-float 4.8s ease-in-out infinite;
+}
+
+#sx-app-root.sx-desk .sx-ai-fab__aura {
+  position: absolute;
+  inset: -10px;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(124, 108, 240, 0.72) 0%, rgba(143, 123, 255, 0.28) 46%, transparent 72%);
+  filter: blur(2px);
+  animation: sx-ai-fab-aura 4.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+#sx-app-root.sx-desk .sx-ai-fab__disc {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(165deg, #8b7cf6 0%, #5b4ad4 100%);
+  box-shadow: 0 14px 30px rgba(91, 74, 212, 0.32);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#sx-app-root.sx-desk .sx-ai-fab__disc svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: block;
+}
+
+#sx-app-root.sx-desk .sx-ai-fab__label {
+  position: absolute;
+  right: calc(100% + 0.65rem);
+  top: 50%;
+  transform: translateY(-50%) translateX(4px);
+  padding: 0.38rem 0.7rem;
+  border-radius: 999px;
+  background: var(--desk-panel);
+  color: var(--desk-text);
+  font-family: var(--desk-font);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(17, 18, 20, 0.12);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+#sx-app-root.sx-desk .sx-ai-fab:hover .sx-ai-fab__disc,
+#sx-app-root.sx-desk .sx-ai-fab:focus-visible .sx-ai-fab__disc {
+  transform: scale(1.06);
+  box-shadow: 0 16px 34px rgba(91, 74, 212, 0.42);
+}
+
+#sx-app-root.sx-desk .sx-ai-fab:hover .sx-ai-fab__label,
+#sx-app-root.sx-desk .sx-ai-fab:focus-visible .sx-ai-fab__label {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+#sx-app-root.sx-desk .sx-ai-fab:focus-visible {
+  outline: none;
+}
+
+#sx-app-root.sx-desk .sx-ai-fab:focus-visible .sx-ai-fab__disc {
+  box-shadow: 0 0 0 3px rgba(109, 92, 232, 0.35), 0 16px 34px rgba(91, 74, 212, 0.42);
+}
+
+#sx-app-root.sx-desk.sx-dash-ai-chat--open .sx-ai-fab {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  animation: none;
+}
+
+@keyframes sx-ai-fab-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes sx-ai-fab-aura {
+  0%, 100% { opacity: 0.62; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #sx-app-root.sx-desk .sx-ai-fab,
+  #sx-app-root.sx-desk .sx-ai-fab__aura {
+    animation: none;
+  }
+}

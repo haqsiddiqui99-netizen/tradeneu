@@ -1,6 +1,4 @@
 import type { StoredSession } from '../data/sessionStore'
-import { fetchMlHealth } from '../ml/mlApi'
-import { fetchMarketDataHealth } from '../data/marketDataHealth'
 
 export type AiChatPanelOptions = {
   drawer: HTMLElement
@@ -88,16 +86,11 @@ function renderMessages(host: HTMLElement, messages: ChatMessage[]) {
 
 export function mountAiChatPanel(opts: AiChatPanelOptions): () => void {
   const body = opts.drawer.querySelector('[data-sx-ai-chat-body]') as HTMLElement | null
-  const chatFooter = opts.drawer.querySelector('.border-t') as HTMLElement | null
+  const chatFooter = opts.drawer.querySelector('.sx-ai-chat__composer') as HTMLElement | null
   const input = opts.drawer.querySelector('#sx-dash-ai-chat-input') as HTMLTextAreaElement | null
   if (!body || !chatFooter || !input) return () => {}
 
   body.replaceChildren()
-
-  const statusEl = document.createElement('p')
-  statusEl.className = 'sx-ai-chat__status'
-  statusEl.dataset.sxAiStatus = ''
-  statusEl.textContent = 'Checking services...'
 
   const messagesEl = document.createElement('div')
   messagesEl.className = 'sx-ai-chat__messages'
@@ -105,44 +98,60 @@ export function mountAiChatPanel(opts: AiChatPanelOptions): () => void {
   messagesEl.setAttribute('role', 'log')
   messagesEl.setAttribute('aria-live', 'polite')
 
-  body.appendChild(statusEl)
+  const promptsEl = document.createElement('div')
+  promptsEl.className = 'sx-ai-chat__prompts'
+
   body.appendChild(messagesEl)
+  body.appendChild(promptsEl)
 
   const sendBtn = document.createElement('button')
   sendBtn.type = 'button'
   sendBtn.className = 'sx-ai-chat__send'
   sendBtn.dataset.sxAiSend = ''
-  sendBtn.textContent = 'Send'
+  sendBtn.setAttribute('aria-label', 'Send')
+  sendBtn.innerHTML =
+    '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 4.2l6.2 6.2-1.4 1.4-3.8-3.8V19.5h-2V8l-3.8 3.8-1.4-1.4L12 4.2z"/></svg>'
   chatFooter.appendChild(sendBtn)
 
   input.disabled = false
-  input.placeholder = 'Ask about sessions, backtests, prop rules...'
+  input.placeholder = 'Ask the desk…'
+  input.rows = 1
   input.removeAttribute('disabled')
 
   const messages: ChatMessage[] = [
     {
       role: 'assistant',
-      text: 'I summarize your local session data and explain Tradeneu features. I do not give live trading advice.',
+      text: 'What should we look at? I can read the sessions on this desk.',
     },
   ]
   renderMessages(messagesEl, messages)
-
-  void Promise.all([fetchMarketDataHealth(), fetchMlHealth()]).then(([health, ml]) => {
-    const parts: string[] = []
-    if (health.apiReachable && health.twelveDataKeyConfigured) parts.push('Market API · live key OK')
-    else if (health.apiReachable) parts.push('Market API · demo (no Twelve Data key)')
-    else parts.push('Market API · offline')
-    parts.push(ml ? `ML · ${ml.model}` : 'ML · offline')
-    statusEl.textContent = parts.join(' · ')
-  })
 
   const send = () => {
     const text = input.value.trim()
     if (!text) return
     input.value = ''
+    promptsEl.hidden = true
     messages.push({ role: 'user', text })
     messages.push({ role: 'assistant', text: buildReply(text, opts.getSessions()) })
     renderMessages(messagesEl, messages)
+  }
+
+  const prompts: Array<[string, string]> = [
+    ['My sessions', 'Summarize my sessions'],
+    ['Last backtest', 'What was my last backtest?'],
+    ['Prop rules', 'How do prop rules work?'],
+    ['Paper trades', 'Show my paper trades'],
+  ]
+  for (const [label, query] of prompts) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'sx-ai-chat__prompt'
+    btn.textContent = label
+    btn.addEventListener('click', () => {
+      input.value = query
+      send()
+    })
+    promptsEl.appendChild(btn)
   }
 
   const onSendClick = () => send()
@@ -160,6 +169,7 @@ export function mountAiChatPanel(opts: AiChatPanelOptions): () => void {
     sendBtn.removeEventListener('click', onSendClick)
     input.removeEventListener('keydown', onKey)
     sendBtn.remove()
+    promptsEl.remove()
     input.disabled = true
     input.placeholder = 'Message AI (coming soon)...'
   }
