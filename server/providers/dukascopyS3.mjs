@@ -16,7 +16,7 @@ import fs from 'fs'
 import path from 'path'
 import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import { lzma } from '@napi-rs/lzma'
-import { getMarketDb, normalizeMarketSymbol } from './marketLocalDb.mjs'
+import { getMarketDb, marketDbPath, normalizeMarketSymbol } from './marketLocalDb.mjs'
 
 const HOUR_MS = 3_600_000
 
@@ -189,15 +189,107 @@ function resolvePointValue(sym, rawBid, daySec) {
 }
 
 /**
- * Ticks for one UTC day from the archive.
- * @returns {Promise<{ ok: true; ticks: object[]; files: number } | { ok: false; error: string; fatal?: boolean }>}
+ * Local tick file store on the data volume, same layout as the bucket under the app symbol:
+ * SYMBOL/YYYY/MM/DD_ticks.bi5 (or DD/HHh_ticks.bi5). Files are kept exactly as downloaded,
+ * so a day costs one S3 request ever. Disable with MARKET_TICK_ARCHIVE=0.
+ */
+export function tickArchiveEnabled() {
+  const v = process.env.MARKET_TICK_ARCHIVE?.trim().toLowerCase()
+  return v !== '0' && v !== 'false' && v !== 'no'
+}
+
+export function tickArchiveDir() {
+  return process.env.MARKET_TICK_ARCHIVE_DIR?.trim() || path.join(path.dirname(marketDbPath()), 'ticks')
+}
+
+/** Relative day path inside the tick archive (no extension). */
+export function archiveDayPath(symbol, daySec) {
+  return `${normalizeMarketSymbol(symbol)}/${datePath(daySec * 1000)}`
+}
+
+function archiveFile(rel) {
+  return path.join(tickArchiveDir(), ...rel.split('/'))
+}
+
+async function writeArchiveFile(rel, buffer) {
+  const file = archiveFile(rel)
+  await fs.promises.mkdir(path.dirname(file), { recursive: true })
+  const tmp = `${file}.tmp-${process.pid}`
+  await fs.promises.writeFile(tmp, buffer)
+  await fs.promises.rename(tmp, file)
+}
+
+/**
+ * Raw files for one day from the tick archive.
+ * @returns {Promise<{ daily: Buffer } | { hourly: { hour: number; buffer: Buffer }[] } | null>} null = not archived
+ */
+async function readArchivedDay(sym, daySec) {
+  if (!tickArchiveEnabled()) return null
+  const rel = archiveDayPath(sym, daySec)
+  try {
+    return { daily: await fs.promises.readFile(archiveFile(`${rel}_ticks.bi5`)) }
+  } catch (e) {
+    if (e?.code !== 'ENOENT') throw e
+  }
+  const names = await fs.promises.readdir(archiveFile(rel)).catch(() => null)
+  const hours = (names ?? []).map((n) => /^(\d{2})h_ticks\.bi5$/.exec(n)).filter(Boolean)
+  if (!hours.length) return null
+  const hourly = []
+  for (const m of hours) {
+    hourly.push({ hour: Number(m[1]), buffer: await fs.promises.readFile(archiveFile(`${rel}/${m[0]}`)) })
+  }
+  return { hourly }
+}
+
+/** True when the day is already in the tick archive (no read). */
+export function isDayArchived(symbol, daySec) {
+  const rel = archiveDayPath(symbol, daySec)
+  if (fs.existsSync(archiveFile(`${rel}_ticks.bi5`))) return true
+  try {
+    return fs.readdirSync(archiveFile(rel)).some((n) => n.endsWith('h_ticks.bi5'))
+  } catch {
+    return false
+  }
+}
+
+function decodeDay(sym, daySec, files) {
+  const dayMs = daySec * 1000
+  if ('daily' in files) {
+    if (!files.daily.length) return []
+    return decodeBi5(files.daily, dayMs, resolvePointValue(sym, firstRawBid(files.daily), daySec))
+  }
+  const ticks = []
+  for (const { hour, buffer } of files.hourly) {
+    if (!buffer.length) continue
+    const point = resolvePointValue(sym, firstRawBid(buffer), daySec)
+    ticks.push(...decodeBi5(buffer, dayMs + hour * HOUR_MS, point))
+  }
+  return ticks.sort((a, b) => a.timeMs - b.timeMs)
+}
+
+/**
+ * Ticks for one UTC day from the local tick archive only (no download).
+ * @returns {Promise<object[] | null>} null when the day is not archived
+ */
+export async function readArchivedDayTicks(symbol, daySec) {
+  const sym = normalizeMarketSymbol(symbol)
+  const files = await readArchivedDay(sym, daySec)
+  return files ? decodeDay(sym, daySec, files) : null
+}
+
+/**
+ * Ticks for one UTC day: tick archive first, then S3 (saved to the archive on success).
+ * `files` counts S3 downloads, `bytes` the compressed size written to the archive.
+ * @returns {Promise<{ ok: true; ticks: object[]; files: number; bytes: number; cached: boolean } | { ok: false; error: string; fatal?: boolean }>}
  */
 export async function fetchS3DayTicks(symbol, daySec) {
   const sym = normalizeMarketSymbol(symbol)
-  const dayMs = daySec * 1000
-  const folder = s3Folder(sym)
-  const prefix = `${folder}/${datePath(dayMs)}`
+  const prefix = `${s3Folder(sym)}/${datePath(daySec * 1000)}`
+  const rel = archiveDayPath(sym, daySec)
   try {
+    const archived = await readArchivedDay(sym, daySec)
+    if (archived) return { ok: true, ticks: decodeDay(sym, daySec, archived), files: 0, bytes: 0, cached: true }
+
     let buffer = null
     try {
       buffer = await getObject(`${prefix}_ticks.bi5`)
@@ -205,24 +297,24 @@ export async function fetchS3DayTicks(symbol, daySec) {
       if (!isMissing(e)) throw e
     }
     if (buffer) {
-      if (!buffer.length) return { ok: true, ticks: [], files: 1 }
-      const point = resolvePointValue(sym, firstRawBid(buffer), daySec)
-      return { ok: true, ticks: decodeBi5(buffer, dayMs, point), files: 1 }
+      if (tickArchiveEnabled()) await writeArchiveFile(`${rel}_ticks.bi5`, buffer)
+      return { ok: true, ticks: decodeDay(sym, daySec, { daily: buffer }), files: 1, bytes: buffer.length, cached: false }
     }
 
-    // Legacy hourly layout for older periods.
-    const hourly = (await listKeys(prefix))
+    // Legacy hourly layout for older periods. Archived only once every hour downloaded.
+    const keys = (await listKeys(prefix))
       .map((k) => ({ key: k, m: /\/(\d{2})h_ticks\.bi5$/.exec(k) }))
       .filter((x) => x.m)
-    const ticks = []
-    for (const { key, m } of hourly) {
-      const buf = await getObject(key)
-      if (!buf.length) continue
-      const point = resolvePointValue(sym, firstRawBid(buf), daySec)
-      ticks.push(...decodeBi5(buf, dayMs + Number(m[1]) * HOUR_MS, point))
+    const hourly = []
+    for (const { key, m } of keys) hourly.push({ hour: Number(m[1]), name: m[0].slice(1), buffer: await getObject(key) })
+    let bytes = 0
+    if (tickArchiveEnabled()) {
+      for (const h of hourly) {
+        await writeArchiveFile(`${rel}/${h.name}`, h.buffer)
+        bytes += h.buffer.length
+      }
     }
-    ticks.sort((a, b) => a.timeMs - b.timeMs)
-    return { ok: true, ticks, files: hourly.length }
+    return { ok: true, ticks: decodeDay(sym, daySec, { hourly }), files: hourly.length, bytes, cached: false }
   } catch (e) {
     const error = errorText(e)
     return { ok: false, error, fatal: S3_FATAL_ERROR.test(error) }

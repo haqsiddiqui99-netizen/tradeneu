@@ -13,7 +13,17 @@
 import { getMarketDb, insertBars, insertTicks, normalizeMarketSymbol, recordSyncManifest } from './marketLocalDb.mjs'
 import { defaultSyncProfile, fetchBarsChunk, syncSecondBarsRange, syncTicksRange } from './marketLocalSync.mjs'
 import { LOCAL_SECOND_STEPS } from './localSecondBars.mjs'
-import { S3_FATAL_ERROR, dukascopyS3Enabled, fetchS3DayTicks, s3HasInstrument, ticksToBidBars } from './dukascopyS3.mjs'
+import fs from 'fs'
+import {
+  S3_FATAL_ERROR,
+  dukascopyS3Enabled,
+  fetchS3DayTicks,
+  isDayArchived,
+  s3HasInstrument,
+  tickArchiveDir,
+  tickArchiveEnabled,
+  ticksToBidBars,
+} from './dukascopyS3.mjs'
 
 const DAY_SEC = 86_400
 const HOUR_SEC = 3600
@@ -424,12 +434,74 @@ export async function fillLocalGaps(opts) {
     }
   }
 
+  if (opts.ticks && useS3 && tickArchiveEnabled() && !state.aborted) {
+    result.tickArchive = await backfillTickArchive(sym, { scanEnd, nowSec, settleSec, attempt, state, onProgress, dryRun: opts.dryRun })
+  }
+
   result.aborted = state.aborted
   result.lastError = state.lastError
+  const ta = result.tickArchive
   onProgress(
-    `${sym} gaps done (${result.source}): m1 +${result.m1.bars} (${result.m1.repairedDays}/${result.m1.gapDays} days), h1 +${result.h1.bars}, d1 +${result.d1.bars}, ticks +${result.ticks.ticks}${state.aborted ? ` — stopped early: ${state.lastError}` : ''}`,
+    `${sym} gaps done (${result.source}): m1 +${result.m1.bars} (${result.m1.repairedDays}/${result.m1.gapDays} days), h1 +${result.h1.bars}, d1 +${result.d1.bars}, ticks +${result.ticks.ticks}${ta ? `, tick files +${ta.savedDays} (${ta.remainingDays} days left)` : ''}${state.aborted ? ` — stopped early: ${state.lastError}` : ''}`,
   )
   return result
+}
+
+/**
+ * Download whole days into the on-volume tick archive, newest first, back MARKET_TICK_ARCHIVE_YEARS.
+ * Days with no archive file are recorded as `gapcheck:tickfile` once settled so they are asked for once.
+ */
+async function backfillTickArchive(sym, { scanEnd, nowSec, settleSec, attempt, state, onProgress, dryRun }) {
+  const years = envInt('MARKET_TICK_ARCHIVE_YEARS', 10, 0)
+  const perRun = envInt('MARKET_TICK_ARCHIVE_MAX_DAYS_PER_RUN', 240, 1)
+  const minFreeBytes = envInt('MARKET_TICK_ARCHIVE_MIN_FREE_GB', 2, 0) * 1024 ** 3
+  const out = { missingDays: 0, savedDays: 0, emptyDays: 0, bytes: 0, remainingDays: 0, stoppedForDisk: false }
+  if (!years) return out
+  const startDay = floorDay(nowSec - Math.round(years * 365.25) * DAY_SEC)
+  const checked = verifiedDays(sym, 'tickfile')
+  const todo = []
+  for (let day = floorDay(scanEnd) - DAY_SEC; day >= startDay; day -= DAY_SEC) {
+    if (!checked.has(day) && !isDayArchived(sym, day)) todo.push(day)
+  }
+  out.missingDays = todo.length
+  out.remainingDays = todo.length
+  if (!todo.length) return out
+  onProgress(`${sym} tick archive: ${todo.length} day(s) to download since ${iso(startDay)}${dryRun ? '' : ` (up to ${perRun} this run)`}`)
+  if (dryRun) return out
+
+  for (const day of todo.slice(0, perRun)) {
+    if (state.aborted) break
+    if (minFreeBytes && (await freeBytes(tickArchiveDir())) < minFreeBytes) {
+      out.stoppedForDisk = true
+      onProgress(`  tick archive paused: less than ${minFreeBytes / 1024 ** 3} GB free on the volume`)
+      break
+    }
+    const res = await attempt(`tick file ${iso(day)}`, () => fetchS3DayTicks(sym, day), { anyFailureTransient: true })
+    if (res.transient || !res.ok) continue
+    out.remainingDays -= 1
+    if (res.files) {
+      out.savedDays += 1
+      out.bytes += res.bytes
+    } else if (!res.cached) {
+      out.emptyDays += 1
+      if (nowSec - (day + DAY_SEC) > settleSec) markVerified(sym, 'tickfile', day, 0)
+    }
+  }
+  if (out.savedDays || out.emptyDays) {
+    onProgress(`  tick archive: +${out.savedDays} day(s), ${(out.bytes / 1024 ** 2).toFixed(1)} MB, ${out.emptyDays} without trading`)
+  }
+  return out
+}
+
+/** Free space on the volume holding `dir` (Infinity when it cannot be measured). */
+async function freeBytes(dir) {
+  try {
+    await fs.promises.mkdir(dir, { recursive: true })
+    const s = await fs.promises.statfs(dir)
+    return Number(s.bavail) * Number(s.bsize)
+  } catch {
+    return Number.POSITIVE_INFINITY
+  }
 }
 
 /**

@@ -31,6 +31,7 @@ import { getCachedMarketBars, invalidateMarketBarsCache, marketBarsCacheKey } fr
 import { initMarketBarsDiskCache } from './providers/marketBarsDiskCache.mjs'
 import { getCachedMarketTicks, marketTicksCacheKey } from './providers/marketTicksCache.mjs'
 import { resolveMarketTicks } from './providers/marketLocalResolve.mjs'
+import { tickArchiveStats } from './providers/tickArchive.mjs'
 import {
   getLocalBarTimeBounds,
   getLocalStoreStats,
@@ -487,6 +488,7 @@ app.get('/api/market/storage', (req, res) => {
             maxIso: new Date(m1Bounds.maxSec * 1000).toISOString(),
           }
         : null,
+      tickArchive: marketLocalEnabled() ? tickArchiveStats(symbol) : null,
       warmup: getMarketWarmupStatus(),
       hints: ready
         ? []

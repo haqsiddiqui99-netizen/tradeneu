@@ -11,6 +11,8 @@ import {
   readLocalBars,
   readLocalTicks,
 } from './marketLocalDb.mjs'
+import { defaultSyncProfile } from './marketLocalSync.mjs'
+import { readArchiveTicks } from './tickArchive.mjs'
 
 /**
  * @param {object} p
@@ -23,8 +25,19 @@ import {
  */
 export async function resolveMarketTicks(p) {
   if (marketLocalEnabled()) {
+    const fromSec = p.cursor != null && Number.isFinite(Number(p.cursor)) ? Number(p.cursor) / 1000 : p.startSec
+    const archiveFirst = fromSec < Date.now() / 1000 - defaultSyncProfile().ticksDays * 86_400
+    const fromArchive = () => readArchiveTicks(p.symbol, p.startSec, p.endSec, p.limit, p.cursor)
+    if (archiveFirst) {
+      const archived = await fromArchive()
+      if (archived.ok) return archived
+    }
     const local = readLocalTicks(p.symbol, p.startSec, p.endSec, p.limit, p.cursor)
     if (local.ok) return local
+    if (!archiveFirst) {
+      const archived = await fromArchive()
+      if (archived.ok) return archived
+    }
     if (!marketLocalFallbackDukascopy()) {
       return {
         ok: false,

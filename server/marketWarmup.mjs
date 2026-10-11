@@ -175,6 +175,8 @@ async function runWarmupOnce(symbols, { barsOnly, missingOnly }, scheduledAt) {
         const gaps = await fillLocalGaps({ symbol, onProgress: log, ticks: !barsOnly })
         if (gaps.aborted) clean = false
         if (gaps.remainingDays > 0 || gaps.aborted) more = true
+        const ta = gaps.tickArchive
+        if (ta && ta.remainingDays > 0 && ta.savedDays + ta.emptyDays > 0 && !ta.stoppedForDisk) more = true
         lastWarmupRun.results[symbol] = { ...lastWarmupRun.results[symbol], gaps }
       } catch (e) {
         clean = false
