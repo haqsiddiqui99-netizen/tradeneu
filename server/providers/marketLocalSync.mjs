@@ -51,6 +51,17 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
 }
 
+/** Pause after a failed chunk, multiplied by the current failure streak (Dukascopy 202 = throttled). */
+function syncFailPauseMs() {
+  return Math.max(0, Number.parseInt(process.env.MARKET_SYNC_FAIL_PAUSE_MS || '5000', 10) || 0)
+}
+
+/** Abort a timeframe after this many failed chunks in a row (0 = never). */
+function syncMaxConsecutiveFails() {
+  const n = Number.parseInt(process.env.MARKET_SYNC_MAX_CONSECUTIVE_FAILS || '4', 10)
+  return Number.isFinite(n) && n >= 0 ? n : 4
+}
+
 /**
  * @param {number} startSec
  * @param {number} endSec
@@ -141,7 +152,7 @@ async function fetchTicksChunk(sym, startSec, endSec) {
   }
 }
 
-async function fetchBarsChunk(sym, timeframe, interval, startSec, endSec) {
+export async function fetchBarsChunk(sym, timeframe, interval, startSec, endSec) {
   try {
     if (cliEnabled()) {
       const cli = await fetchDukascopyViaCli({
@@ -395,6 +406,8 @@ export async function syncBarsRange(symbol, timeframe, startSec, endSec, onProgr
   let totalInserted = 0
   let failedChunks = 0
   let skippedChunks = 0
+  let consecutiveFails = 0
+  const maxConsecutiveFails = syncMaxConsecutiveFails()
   const chunks = chunkDays(startSec, endSec, daysPerChunk, true)
 
   for (const chunk of chunks) {
@@ -414,9 +427,19 @@ export async function syncBarsRange(symbol, timeframe, startSec, endSec, onProgr
     const out = await fetchBarsChunk(sym, timeframe, interval, chunk.startSec, chunk.endSec)
     if (!out.ok || !out.bars?.length) {
       failedChunks += 1
-      onProgress(`  chunk failed (${out.error || 'no bars'}) — continuing`)
+      consecutiveFails += 1
+      const reason = out.error || 'no bars'
+      if (maxConsecutiveFails > 0 && consecutiveFails >= maxConsecutiveFails) {
+        throw new Error(
+          `${timeframe}: stopped after ${consecutiveFails} failed chunks in a row (${reason}); ${totalInserted} bars stored`,
+        )
+      }
+      const pauseMs = Math.min(60_000, syncFailPauseMs() * consecutiveFails)
+      onProgress(`  chunk failed (${reason}) — waiting ${Math.round(pauseMs / 1000)}s, continuing`)
+      await sleep(pauseMs)
       continue
     }
+    consecutiveFails = 0
     const n = insertBars(sym, timeframe, out.bars)
     totalInserted += n
     onProgress(`  +${n} ${timeframe} bars (total ${totalInserted})`)

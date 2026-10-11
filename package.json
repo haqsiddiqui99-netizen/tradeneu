@@ -32,6 +32,8 @@
     "market:sync:seconds": "node scripts/syncMarketLocal.mjs --second-bars-only",
     "market:sync:seconds:missing": "node scripts/syncMarketLocal.mjs --second-bars-only --missing-only",
     "market:sync:bars:missing": "node scripts/syncMarketLocal.mjs --bars-only --missing-only",
+    "market:gaps": "node scripts/syncMarketLocal.mjs --gaps",
+    "market:gaps:check": "node scripts/syncMarketLocal.mjs --gaps --dry-run",
     "ml:venv": "node scripts/mlRunner.mjs venv",
     "ml:install": "node scripts/mlRunner.mjs install",
     "ml:api": "node scripts/mlRunner.mjs api",

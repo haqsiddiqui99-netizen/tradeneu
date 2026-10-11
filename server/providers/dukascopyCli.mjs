@@ -67,7 +67,14 @@ function runDukascopyCli(args, timeoutMs = 600_000) {
       clearTimeout(timer)
       if (code === 0) resolve({ stdout, stderr })
       else {
-        const detail = (stderr || stdout).trim().split('\n').slice(-4).join(' ')
+        const detail = (stderr || stdout)
+          .trim()
+          .split('\n')
+          .slice(-4)
+          .join(' ')
+          .replace(/-{3,}/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
         reject(new Error(detail || `dukascopy CLI exited code ${code}`))
       }
     })

@@ -20,6 +20,7 @@ import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { closeMarketDb, marketDbPath } from '../server/providers/marketLocalDb.mjs'
 import { syncSymbolLocal } from '../server/providers/marketLocalSync.mjs'
+import { fillLocalGaps } from '../server/providers/marketGapFill.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -70,6 +71,9 @@ function parseArgs(argv) {
     barsOnly: false,
     secondBarsOnly: false,
     missingOnly: false,
+    /** Per-day gap repair (m1/h1/d1, plus ticks unless --bars-only). */
+    gaps: false,
+    dryRun: false,
     secondSteps: /** @type {number[] | null} */ (null),
   }
   for (let i = 2; i < argv.length; i++) {
@@ -79,6 +83,8 @@ function parseArgs(argv) {
     else if (a === '--bars-only') out.barsOnly = true
     else if (a === '--second-bars-only') out.secondBarsOnly = true
     else if (a === '--missing-only') out.missingOnly = true
+    else if (a === '--gaps') out.gaps = true
+    else if (a === '--dry-run') out.dryRun = true
     else if (a === '--second-step') {
       const v = Number.parseInt(String(argv[++i] || ''), 10)
       if (Number.isFinite(v)) {
@@ -93,7 +99,7 @@ function parseArgs(argv) {
       }
     } else if (a === '--help' || a === '-h') {
       console.log(
-        `Usage: npm run market:sync [-- --symbol XAUUSD] [--ticks-only] [--bars-only] [--second-bars-only] [--second-step=10] [--missing-only]`,
+        `Usage: npm run market:sync [-- --symbol XAUUSD] [--ticks-only] [--bars-only] [--second-bars-only] [--second-step=10] [--missing-only] [--gaps [--dry-run]]`,
       )
       process.exit(0)
     }
@@ -125,6 +131,16 @@ async function main() {
   try {
     for (const symbol of symbols) {
       console.log(`[market-sync] ——— ${symbol} ———`)
+      if (args.gaps) {
+        try {
+          const r = await fillLocalGaps({ symbol, ticks: !args.barsOnly, dryRun: args.dryRun })
+          if (r.aborted) failed += 1
+        } catch (err) {
+          failed += 1
+          console.error(`[market-sync] Gap fill failed ${symbol}:`, err instanceof Error ? err.message : err)
+        }
+        continue
+      }
       try {
         await syncSymbolLocal({
           symbol,
