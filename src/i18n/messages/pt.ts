@@ -376,9 +376,6 @@ export const pt: MessageDict = {
   'sessionsSort.nameDesc': 'Nome Z → A',
   'sessionsSort.pnlDesc': 'Melhor P&L de backtest',
   'sessionsSort.pnlAsc': 'Pior P&L de backtest',
-  'sessions.bannerLead': 'As sessões do plano Iniciante ficam ocultas após 1 semana.',
-  'sessions.bannerSub':
-    'Use a coroa na barra superior para fazer upgrade para Pro e liberar sessões antigas.',
   'sessions.replayJournal': 'Diário de replay',
   'sessions.paperJournal': 'Diário de paper trading',
   'sessions.lastBacktest': 'Último backtest',

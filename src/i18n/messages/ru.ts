@@ -378,9 +378,6 @@ export const ru: MessageDict = {
   'sessionsSort.nameDesc': 'Название Я → А',
   'sessionsSort.pnlDesc': 'Лучший P&L бэктеста',
   'sessionsSort.pnlAsc': 'Худший P&L бэктеста',
-  'sessions.bannerLead': 'Сессии на плане Beginner скрываются через 1 неделю.',
-  'sessions.bannerSub':
-    'Нажмите корону в верхней панели, чтобы перейти на Pro и открыть прошлые сессии.',
   'sessions.replayJournal': 'Журнал реплея',
   'sessions.paperJournal': 'Журнал бумажной торговли',
   'sessions.lastBacktest': 'Последний бэктест',

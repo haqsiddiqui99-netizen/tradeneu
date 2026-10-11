@@ -378,9 +378,6 @@ export const uk: MessageDict = {
   'sessionsSort.nameDesc': 'Назва Я → А',
   'sessionsSort.pnlDesc': 'Найкращий P&L бектесту',
   'sessionsSort.pnlAsc': 'Найгірший P&L бектесту',
-  'sessions.bannerLead': 'Сесії на плані Beginner ховаються через 1 тиждень.',
-  'sessions.bannerSub':
-    'Скористайтеся короною у верхній панелі, щоб перейти на Pro і відкрити минулі сесії.',
   'sessions.replayJournal': 'Журнал реплею',
   'sessions.paperJournal': 'Журнал папер-трейдингу',
   'sessions.lastBacktest': 'Останній бектест',

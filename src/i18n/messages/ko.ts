@@ -356,8 +356,6 @@ export const ko: MessageDict = {
   'sessionsSort.nameDesc': '이름 Z → A',
   'sessionsSort.pnlDesc': '백테스트 손익 높은 순',
   'sessionsSort.pnlAsc': '백테스트 손익 낮은 순',
-  'sessions.bannerLead': '비기너 플랜의 세션은 1주 후 숨겨집니다.',
-  'sessions.bannerSub': '상단 바의 왕관을 눌러 Pro로 업그레이드하면 과거 세션을 볼 수 있습니다.',
   'sessions.replayJournal': '리플레이 일지',
   'sessions.paperJournal': '모의 거래 일지',
   'sessions.lastBacktest': '최근 백테스트',

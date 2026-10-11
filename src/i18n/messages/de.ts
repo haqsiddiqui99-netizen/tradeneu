@@ -374,9 +374,6 @@ export const de: MessageDict = {
   'sessionsSort.nameDesc': 'Name Z → A',
   'sessionsSort.pnlDesc': 'Bestes Backtest-P&L',
   'sessionsSort.pnlAsc': 'Schlechtestes Backtest-P&L',
-  'sessions.bannerLead': 'Sitzungen im Beginner-Plan werden nach 1 Woche ausgeblendet.',
-  'sessions.bannerSub':
-    'Nutze die Krone in der oberen Leiste, um auf Pro zu wechseln und frühere Sitzungen freizuschalten.',
   'sessions.replayJournal': 'Replay-Journal',
   'sessions.paperJournal': 'Paper-Journal',
   'sessions.lastBacktest': 'Letzter Backtest',

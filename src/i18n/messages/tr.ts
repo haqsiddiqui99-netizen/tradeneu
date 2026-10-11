@@ -370,9 +370,6 @@ export const tr: MessageDict = {
   'sessionsSort.nameDesc': 'Ad Z → A',
   'sessionsSort.pnlDesc': 'En iyi backtest K/Z',
   'sessionsSort.pnlAsc': 'En kötü backtest K/Z',
-  'sessions.bannerLead': 'Başlangıç planındaki oturumlar 1 hafta sonra gizlenir.',
-  'sessions.bannerSub':
-    'Geçmiş oturumların kilidini açmak için üst çubuktaki tacı kullanarak Pro’ya yükselt.',
   'sessions.replayJournal': 'Replay günlüğü',
   'sessions.paperJournal': 'Kâğıt işlem günlüğü',
   'sessions.lastBacktest': 'Son backtest',

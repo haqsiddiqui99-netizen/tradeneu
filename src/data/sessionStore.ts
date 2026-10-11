@@ -270,6 +270,12 @@ export function deleteSession(id: string): boolean {
   writeRawSessions(sessions.filter((s) => s.id !== id))
   writeRawDeleted([{ ...victim, deletedAt: Date.now() }, ...readRawDeleted().filter((s) => s.id !== id)])
   if (getLastSessionId() === id) setLastSessionId(null)
+  // Opening a session rewrites the legacy draft; left in place, an emptied list would migrate it back.
+  try {
+    localStorage.removeItem(LS_LEGACY_DRAFT)
+  } catch {
+    /* noop */
+  }
   return true
 }
 

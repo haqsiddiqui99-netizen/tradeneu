@@ -374,9 +374,6 @@ export const fr: MessageDict = {
   'sessionsSort.nameDesc': 'Nom Z → A',
   'sessionsSort.pnlDesc': 'Meilleur P&L de backtest',
   'sessionsSort.pnlAsc': 'Pire P&L de backtest',
-  'sessions.bannerLead': 'Les sessions du forfait Débutant sont masquées après 1 semaine.',
-  'sessions.bannerSub':
-    'Utilisez la couronne dans la barre supérieure pour passer à Pro et débloquer les sessions passées.',
   'sessions.replayJournal': 'Journal de replay',
   'sessions.paperJournal': 'Journal papier',
   'sessions.lastBacktest': 'Dernier backtest',

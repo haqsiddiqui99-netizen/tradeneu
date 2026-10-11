@@ -125,7 +125,7 @@ export const en = {
     'Sample preview. These charts fill in with your own sessions once you start replaying.',
 
   // ——— Public landing page (pre-login, always dark) ———
-  'landing.nav.product': 'Product',
+  'landing.nav.product': 'Feature',
   'landing.nav.markets': 'Markets',
   'landing.nav.pricing': 'Pricing',
   'landing.price.eyebrow': 'Pricing',
@@ -226,6 +226,17 @@ export const en = {
   'landing.drop.whyDesc': 'A plain-language read of what pushed a trade into the red.',
   'landing.drop.deskTitle': 'Practice desk',
   'landing.drop.deskDesc': 'The same sequence as a live chart, opened on history.',
+  'landing.feature.pill': 'Features',
+  'landing.feature.title': 'What you actually get.',
+  'landing.feature.sub': 'Four pieces of the same desk. Open one from the menu, or read them here.',
+  'landing.feature.replayBody':
+    'The chart moves only when you ask. Play, step, or jump, and every candle to the right of the cursor stays hidden, so the entry is made before the outcome exists.',
+  'landing.feature.journalBody':
+    'Buy and sell during the replay and the ticket writes itself. Entries, exits, stops and the result stay on the session, ready to read when the window closes.',
+  'landing.feature.whyBody':
+    'A losing trade is not left as a red number. Tradeneu spells out, in plain language, what pushed it there — a late entry, a stop that was too tight, a read against the trend.',
+  'landing.feature.deskBody':
+    'The practice desk is that live sequence opened on history. Pick the market, the balance and the dates. The bars ahead stay hidden until you step forward.',
   'landing.drop.metalsTitle': 'Metals',
   'landing.drop.metalsDesc': 'XAUUSD gold, replayed from Dukascopy history.',
   'landing.drop.fxTitle': 'FX',
@@ -423,8 +434,6 @@ export const en = {
   'sessionsSort.nameDesc': 'Name Z → A',
   'sessionsSort.pnlDesc': 'Best backtest P&L',
   'sessionsSort.pnlAsc': 'Worst backtest P&L',
-  'sessions.bannerLead': 'Sessions on the Beginner plan are hidden after 1 week.',
-  'sessions.bannerSub': 'Use the crown in the top bar to upgrade to Pro and unlock past sessions.',
   'sessions.replayJournal': 'Replay journal',
   'sessions.paperJournal': 'Paper journal',
   'sessions.lastBacktest': 'Last backtest',

@@ -1459,18 +1459,7 @@ function buildRecentSessionsSectionHtml(): string {
                 </div>
               </div>
 
-              <ul id="sx-dash-session-list" class="mb-5 list-none space-y-3 p-0" aria-live="polite"></ul>
-
-              <div
-                class="sx-dash-recent-sessions__banner flex flex-col gap-3 rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-violet-50 to-sky-50 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5"
-                data-sx-sessions-banner
-                role="status"
-              >
-                <p class="text-sm leading-snug text-slate-600">
-                  <span data-i18n="sessions.bannerLead">${te('sessions.bannerLead')}</span>
-                  <span class="text-slate-500" data-i18n="sessions.bannerSub">${te('sessions.bannerSub')}</span>
-                </p>
-              </div>
+              <ul id="sx-dash-session-list" class="list-none space-y-3 p-0" aria-live="polite"></ul>
             </section>
             </div>`
 }
@@ -4610,9 +4599,6 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       el.classList.toggle('sx-dash-account-static__note--pro', tier !== 'free')
     })
     root.querySelectorAll('.sx-dash-pro-upgrade-btn').forEach((el) => {
-      el.classList.toggle('hidden', tier === 'pro')
-    })
-    root.querySelectorAll('[data-sx-sessions-banner]').forEach((el) => {
       el.classList.toggle('hidden', tier === 'pro')
     })
   }

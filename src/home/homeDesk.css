@@ -851,12 +851,6 @@
   box-shadow: 0 18px 44px rgba(17, 18, 20, 0.08);
 }
 
-#sx-app-root.sx-desk .sx-dash-recent-sessions__banner {
-  border: 0;
-  border-radius: 14px;
-  background: linear-gradient(90deg, rgba(110, 155, 255, 0.12), rgba(192, 123, 255, 0.1));
-}
-
 #sx-app-root.sx-desk .sx-dash-session-row {
   border-radius: 0.5rem;
   background: var(--desk-panel);
@@ -884,17 +878,6 @@
 #sx-app-root.sx-desk .sx-dash-session-row [data-action='session-summary']:hover {
   background: var(--desk-hover);
   color: var(--desk-text);
-}
-
-#sx-app-root.sx-desk .sx-dash-recent-sessions__banner {
-  background: linear-gradient(90deg, rgba(110, 155, 255, 0.14), rgba(192, 123, 255, 0.1));
-  border-color: transparent;
-  box-shadow: none;
-}
-
-#sx-app-root.sx-desk .sx-dash-recent-sessions__banner p,
-#sx-app-root.sx-desk .sx-dash-recent-sessions__banner span {
-  color: var(--desk-muted);
 }
 
 #sx-app-root.sx-desk .sx-dash-partners__title,

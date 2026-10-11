@@ -365,8 +365,6 @@ export const ja: MessageDict = {
   'sessionsSort.nameDesc': '名前 Z → A',
   'sessionsSort.pnlDesc': 'バックテスト損益が高い順',
   'sessionsSort.pnlAsc': 'バックテスト損益が低い順',
-  'sessions.bannerLead': 'ビギナープランのセッションは1週間後に非表示になります。',
-  'sessions.bannerSub': '上部バーの王冠からProにアップグレードすると、過去のセッションを表示できます。',
   'sessions.replayJournal': 'リプレイ記録',
   'sessions.paperJournal': 'ペーパー取引記録',
   'sessions.lastBacktest': '最新のバックテスト',
