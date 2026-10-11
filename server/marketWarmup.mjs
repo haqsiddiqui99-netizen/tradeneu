@@ -7,6 +7,7 @@ import fs from 'fs'
 import { marketLocalEnabled } from './providers/marketLocalDb.mjs'
 import { syncSymbolLocal } from './providers/marketLocalSync.mjs'
 import { fillLocalGaps } from './providers/marketGapFill.mjs'
+import { dukascopyS3Enabled } from './providers/dukascopyS3.mjs'
 
 /** Ticks + second bars are synced unless MARKET_WARMUP_BARS_ONLY=1. */
 function warmupBarsOnly() {
@@ -65,6 +66,7 @@ export function getMarketWarmupStatus() {
     enabled: isMarketWarmupEnabled(),
     barsOnly: warmupBarsOnly(),
     gapFill: warmupGapFillEnabled(),
+    archive: dukascopyS3Enabled() ? 's3' : 'datafeed',
     missingOnly: process.env.MARKET_WARMUP_MISSING_ONLY?.trim().toLowerCase() !== '0',
     delayMs: Math.max(
       2000,
@@ -163,32 +165,9 @@ async function runWarmupOnce(symbols, { barsOnly, missingOnly }, scheduledAt) {
   lastWarmupRun = { scheduledAt, startedAt: new Date().toISOString(), symbols, results: {} }
   try {
     for (const symbol of symbols) {
-      try {
-        log(`sync start ${symbol}…`)
-        const result = await syncSymbolLocal({
-          symbol,
-          onProgress: log,
-          ticks: !barsOnly,
-          bars: true,
-          secondBars: !barsOnly,
-          missingOnly,
-        })
-        const errors = result.errors ?? []
-        if (errors.length) clean = false
-        log(
-          `sync done ${symbol}: ticks=${result.ticks ?? 0} bars=${JSON.stringify(result.bars ?? {})} errors=${errors.length}`,
-        )
-        lastWarmupRun.results[symbol] = {
-          ticks: result.ticks ?? 0,
-          bars: result.bars ?? {},
-          errors: errors.length,
-          errorMessages: errors.map((m) => String(m).slice(0, 300)),
-        }
-      } catch (e) {
-        clean = false
-        const msg = e instanceof Error ? e.message : String(e)
-        console.warn(`[market-warmup] ${symbol} failed:`, msg)
-        lastWarmupRun.results[symbol] = { error: msg.slice(0, 300) }
+      // The datafeed is behind a WAF challenge; with the S3 archive the gap pass does all the work.
+      if (!dukascopyS3Enabled()) {
+        clean = (await runFeedSync(symbol, { barsOnly, missingOnly })) && clean
       }
 
       if (!warmupGapFillEnabled()) continue
@@ -209,4 +188,38 @@ async function runWarmupOnce(symbols, { barsOnly, missingOnly }, scheduledAt) {
     warmupRunning = false
   }
   return { clean, more }
+}
+
+/**
+ * Chunked datafeed sync (used when the S3 archive is not configured).
+ * @returns {Promise<boolean>} true when it finished without errors
+ */
+async function runFeedSync(symbol, { barsOnly, missingOnly }) {
+  try {
+    log(`sync start ${symbol}…`)
+    const result = await syncSymbolLocal({
+      symbol,
+      onProgress: log,
+      ticks: !barsOnly,
+      bars: true,
+      secondBars: !barsOnly,
+      missingOnly,
+    })
+    const errors = result.errors ?? []
+    log(
+      `sync done ${symbol}: ticks=${result.ticks ?? 0} bars=${JSON.stringify(result.bars ?? {})} errors=${errors.length}`,
+    )
+    lastWarmupRun.results[symbol] = {
+      ticks: result.ticks ?? 0,
+      bars: result.bars ?? {},
+      errors: errors.length,
+      errorMessages: errors.map((m) => String(m).slice(0, 300)),
+    }
+    return errors.length === 0
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn(`[market-warmup] ${symbol} failed:`, msg)
+    lastWarmupRun.results[symbol] = { error: msg.slice(0, 300) }
+    return false
+  }
 }

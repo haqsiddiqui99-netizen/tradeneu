@@ -10,9 +10,10 @@
  * sync_manifest as `gapcheck:<kind>` so they are not downloaded again every run.
  */
 
-import { getMarketDb, insertBars, normalizeMarketSymbol, recordSyncManifest } from './marketLocalDb.mjs'
+import { getMarketDb, insertBars, insertTicks, normalizeMarketSymbol, recordSyncManifest } from './marketLocalDb.mjs'
 import { defaultSyncProfile, fetchBarsChunk, syncSecondBarsRange, syncTicksRange } from './marketLocalSync.mjs'
 import { LOCAL_SECOND_STEPS } from './localSecondBars.mjs'
+import { S3_FATAL_ERROR, dukascopyS3Enabled, fetchS3DayTicks, s3HasInstrument, ticksToBidBars } from './dukascopyS3.mjs'
 
 const DAY_SEC = 86_400
 const HOUR_SEC = 3600
@@ -133,9 +134,10 @@ function createThrottle(onProgress) {
    * @template {{ ok?: boolean; error?: string }} T
    * @param {string} label
    * @param {() => Promise<T>} fn
+   * @param {{ anyFailureTransient?: boolean }} [mode] S3: every non-fatal failure is retryable
    * @returns {Promise<T & { transient?: boolean }>}
    */
-  async function attempt(label, fn) {
+  async function attempt(label, fn, mode = {}) {
     let out
     try {
       out = await fn()
@@ -147,7 +149,13 @@ function createThrottle(onProgress) {
       return out
     }
     const reason = out.error || 'no data'
-    if (!TRANSIENT_ERROR.test(reason)) return out
+    if (out.fatal) {
+      state.aborted = true
+      state.lastError = `${label}: ${reason}`
+      onProgress(`  ${label} failed (${reason}) — check AWS credentials / bucket access, stopping`)
+      return { ...out, transient: true }
+    }
+    if (!mode.anyFailureTransient && !TRANSIENT_ERROR.test(reason)) return out
     state.streak += 1
     state.failures += 1
     state.lastError = `${label}: ${reason}`
@@ -233,6 +241,7 @@ export async function fillLocalGaps(opts) {
     d1: { gapDays: 0, bars: 0 },
     ticks: { gapDays: 0, ticks: 0 },
     remainingDays: 0,
+    source: 'datafeed',
     aborted: false,
     lastError: '',
   }
@@ -252,7 +261,48 @@ export async function fillLocalGaps(opts) {
   if (opts.dryRun && m1Gaps.length) {
     onProgress(`  newest gap days: ${m1Gaps.slice(0, 15).map(iso).join(', ')}${m1Gaps.length > 15 ? ', …' : ''}`)
   }
-  for (const range of opts.dryRun ? [] : groupDays(m1Todo, 7)) {
+
+  const useS3 = await resolveS3(sym, state, onProgress)
+  result.source = useS3 ? 's3' : 'datafeed'
+  const tickStart = floorDay(nowSec - profile.ticksDays * DAY_SEC)
+  const settleSec = envInt('DUKASCOPY_S3_SETTLE_DAYS', 7, 0) * DAY_SEC
+
+  /** One archive day → m1/h1/d1 (+ ticks and second bars inside the tick window). */
+  async function importS3Day(day) {
+    const label = `s3 ${iso(day)}`
+    const out = await attempt(label, () => fetchS3DayTicks(sym, day), { anyFailureTransient: true })
+    if (out.transient || !out.ok) return false
+    const complete = day + DAY_SEC <= scanEnd
+    const ticks = out.ticks.filter((t) => t.timeMs >= day * 1000 && t.timeMs < (day + DAY_SEC) * 1000)
+    if (!ticks.length) {
+      // A missing file means no trading, but only trust that once the archive has had time to catch up.
+      if (complete && nowSec - (day + DAY_SEC) > settleSec) markVerified(sym, 'm1', day, 0)
+      onProgress(`  ${label}: no ticks${complete && nowSec - (day + DAY_SEC) > settleSec ? ' (marked checked)' : ''}`)
+      return true
+    }
+    const m1 = insertBars(sym, 'm1', ticksToBidBars(ticks, 60))
+    result.m1.bars += m1
+    result.h1.bars += insertBars(sym, 'h1', ticksToBidBars(ticks, 3600))
+    result.d1.bars += insertBars(sym, 'd1', ticksToBidBars(ticks, DAY_SEC))
+    let tickNote = ''
+    if (opts.ticks && day >= tickStart) {
+      const n = insertTicks(sym, ticks)
+      result.ticks.ticks += n
+      await rebuildSecondBars(sym, day, Math.min(day + DAY_SEC, scanEnd), onProgress)
+      tickNote = `, ${n} ticks`
+      if (complete) markVerified(sym, 'ticks', day, n)
+    }
+    if (complete) markVerified(sym, 'm1', day, barDailyCoverage(sym, 'm1', day, day + DAY_SEC).get(day)?.n ?? 0)
+    onProgress(`  ${label}: +${m1} m1${tickNote}`)
+    return true
+  }
+
+  for (const day of opts.dryRun || !useS3 ? [] : m1Todo) {
+    if (state.aborted) break
+    if (await importS3Day(day)) result.m1.repairedDays += 1
+  }
+
+  for (const range of opts.dryRun || useS3 ? [] : groupDays(m1Todo, 7)) {
     if (state.aborted) break
     const label = `m1 ${iso(range.startSec)}→${iso(range.endSec)}`
     onProgress(`${label}…`)
@@ -286,7 +336,13 @@ export async function fillLocalGaps(opts) {
       .sort((a, b) => b - a)
     result.h1.gapDays = days.length
     if (days.length) onProgress(`${sym} h1: ${days.length} day(s) with missing hours`)
-    for (const range of groupDays(days, 31, false).slice(0, opts.dryRun ? 0 : 12)) {
+    if (useS3 && !opts.dryRun) {
+      result.h1.bars += rebuildFromM1(sym, 'h1', days)
+      for (const day of days) {
+        if (day + DAY_SEC <= scanEnd) markVerified(sym, 'h1', day, barDailyCoverage(sym, 'h1', day, day + DAY_SEC).get(day)?.n ?? 0)
+      }
+    }
+    for (const range of groupDays(days, 31, false).slice(0, opts.dryRun || useS3 ? 0 : 12)) {
       if (state.aborted) break
       const label = `h1 ${iso(range.startSec)}→${iso(range.endSec)}`
       const out = await attempt(label, () =>
@@ -314,7 +370,13 @@ export async function fillLocalGaps(opts) {
       .sort((a, b) => b - a)
     result.d1.gapDays = days.length
     if (days.length) onProgress(`${sym} d1: ${days.length} day(s) without a daily bar`)
-    for (const range of groupDays(days, 366, false).slice(0, opts.dryRun ? 0 : 6)) {
+    if (useS3 && !opts.dryRun) {
+      result.d1.bars += rebuildFromM1(sym, 'd1', days)
+      for (const day of days) {
+        if (day + DAY_SEC <= scanEnd) markVerified(sym, 'd1', day, barDailyCoverage(sym, 'd1', day, day + DAY_SEC).get(day)?.n ?? 0)
+      }
+    }
+    for (const range of groupDays(days, 366, false).slice(0, opts.dryRun || useS3 ? 0 : 6)) {
       if (state.aborted) break
       const label = `d1 ${iso(range.startSec)}→${iso(range.endSec)}`
       const out = await attempt(label, () =>
@@ -331,7 +393,6 @@ export async function fillLocalGaps(opts) {
 
   // Ticks + second bars — inside the tick retention window, any hour present in m1 but not in ticks.
   if (opts.ticks && !state.aborted) {
-    const tickStart = floorDay(nowSec - profile.ticksDays * DAY_SEC)
     const m1Cov = barDailyCoverage(sym, 'm1', tickStart, scanEnd)
     const tickCov = tickDailyCoverage(sym, tickStart, scanEnd)
     const verified = verifiedDays(sym, 'ticks')
@@ -346,6 +407,10 @@ export async function fillLocalGaps(opts) {
     if (days.length) onProgress(`${sym} ticks: ${days.length} day(s) with missing hours`)
     for (const day of days.slice(0, opts.dryRun ? 0 : maxDays)) {
       if (state.aborted) break
+      if (useS3) {
+        await importS3Day(day)
+        continue
+      }
       const dayEnd = Math.min(day + DAY_SEC, scanEnd)
       const label = `ticks ${iso(day)}`
       const out = await attempt(label, async () => {
@@ -354,13 +419,7 @@ export async function fillLocalGaps(opts) {
       })
       if (out.transient) continue
       if (out.ok) result.ticks.ticks += out.n ?? 0
-      for (const step of LOCAL_SECOND_STEPS) {
-        try {
-          await syncSecondBarsRange(sym, step, day, dayEnd, onProgress, { missingOnly: false })
-        } catch (e) {
-          onProgress(`  s${step} rebuild failed: ${e instanceof Error ? e.message : e}`)
-        }
-      }
+      await rebuildSecondBars(sym, day, dayEnd, onProgress)
       if (day + DAY_SEC <= scanEnd) markVerified(sym, 'ticks', day, tickDailyCoverage(sym, day, day + DAY_SEC).get(day)?.n ?? 0)
     }
   }
@@ -368,7 +427,67 @@ export async function fillLocalGaps(opts) {
   result.aborted = state.aborted
   result.lastError = state.lastError
   onProgress(
-    `${sym} gaps done: m1 +${result.m1.bars} (${result.m1.repairedDays}/${result.m1.gapDays} days), h1 +${result.h1.bars}, d1 +${result.d1.bars}, ticks +${result.ticks.ticks}${state.aborted ? ' — stopped early, Dukascopy throttling' : ''}`,
+    `${sym} gaps done (${result.source}): m1 +${result.m1.bars} (${result.m1.repairedDays}/${result.m1.gapDays} days), h1 +${result.h1.bars}, d1 +${result.d1.bars}, ticks +${result.ticks.ticks}${state.aborted ? ` — stopped early: ${state.lastError}` : ''}`,
   )
   return result
+}
+
+/**
+ * Use the S3 archive when credentials are set and it carries the symbol.
+ * A missing folder falls back to the datafeed instead of marking every day as checked-empty.
+ */
+async function resolveS3(sym, state, onProgress) {
+  if (!dukascopyS3Enabled()) return false
+  try {
+    if (await s3HasInstrument(sym)) return true
+    onProgress(`${sym}: not in the Dukascopy S3 archive (set DUKASCOPY_S3_SYMBOL_${sym}=<folder> if it uses another name)`)
+    return false
+  } catch (e) {
+    const msg = `${e?.name || 'Error'}: ${e?.message || e}`
+    onProgress(`${sym}: S3 archive listing failed (${msg})`)
+    if (S3_FATAL_ERROR.test(msg)) {
+      state.aborted = true
+      state.lastError = `s3 list: ${msg}`
+    }
+    return false
+  }
+}
+
+async function rebuildSecondBars(sym, startSec, endSec, onProgress) {
+  for (const step of LOCAL_SECOND_STEPS) {
+    try {
+      await syncSecondBarsRange(sym, step, startSec, endSec, () => {}, { missingOnly: false })
+    } catch (e) {
+      onProgress(`  s${step} rebuild failed: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+}
+
+/** Aggregate stored m1 bars into h1 / d1 for the given UTC days (no download). */
+function rebuildFromM1(sym, tf, days) {
+  const period = tf === 'h1' ? HOUR_SEC : DAY_SEC
+  const read = getMarketDb().prepare(
+    `SELECT time_sec, open, high, low, close, volume FROM bars
+     WHERE symbol = ? AND timeframe = 'm1' AND time_sec >= ? AND time_sec < ? ORDER BY time_sec`,
+  )
+  let n = 0
+  for (const day of days) {
+    const rows = read.all(sym, day, day + DAY_SEC)
+    /** @type {{ time: number; open: number; high: number; low: number; close: number; volume: number }[]} */
+    const bars = []
+    for (const r of rows) {
+      const time = Math.floor(r.time_sec / period) * period
+      const cur = bars[bars.length - 1]
+      if (!cur || cur.time !== time) {
+        bars.push({ time, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume ?? 0 })
+      } else {
+        if (r.high > cur.high) cur.high = r.high
+        if (r.low < cur.low) cur.low = r.low
+        cur.close = r.close
+        cur.volume += r.volume ?? 0
+      }
+    }
+    n += insertBars(sym, tf, bars)
+  }
+  return n
 }

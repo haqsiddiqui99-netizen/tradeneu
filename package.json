@@ -34,6 +34,7 @@
     "market:sync:bars:missing": "node scripts/syncMarketLocal.mjs --bars-only --missing-only",
     "market:gaps": "node scripts/syncMarketLocal.mjs --gaps",
     "market:gaps:check": "node scripts/syncMarketLocal.mjs --gaps --dry-run",
+    "market:s3:list": "node scripts/syncMarketLocal.mjs --s3-list",
     "ml:venv": "node scripts/mlRunner.mjs venv",
     "ml:install": "node scripts/mlRunner.mjs install",
     "ml:api": "node scripts/mlRunner.mjs api",
@@ -48,7 +49,9 @@
     "vite": "^8.0.10"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1149.0",
     "@fortawesome/fontawesome-free": "^6.6.0",
+    "@napi-rs/lzma": "^1.4.5",
     "chart.js": "^4.4.0",
     "dukascopy-node": "^1.46.4",
     "express": "^5.1.0",

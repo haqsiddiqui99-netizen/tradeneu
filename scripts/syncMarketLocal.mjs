@@ -21,6 +21,7 @@ import fs from 'fs'
 import { closeMarketDb, marketDbPath } from '../server/providers/marketLocalDb.mjs'
 import { syncSymbolLocal } from '../server/providers/marketLocalSync.mjs'
 import { fillLocalGaps } from '../server/providers/marketGapFill.mjs'
+import { dukascopyS3Enabled, listS3Instruments } from '../server/providers/dukascopyS3.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -74,6 +75,8 @@ function parseArgs(argv) {
     /** Per-day gap repair (m1/h1/d1, plus ticks unless --bars-only). */
     gaps: false,
     dryRun: false,
+    /** Print the instrument folders in the Dukascopy S3 archive and exit. */
+    s3List: false,
     secondSteps: /** @type {number[] | null} */ (null),
   }
   for (let i = 2; i < argv.length; i++) {
@@ -85,6 +88,7 @@ function parseArgs(argv) {
     else if (a === '--missing-only') out.missingOnly = true
     else if (a === '--gaps') out.gaps = true
     else if (a === '--dry-run') out.dryRun = true
+    else if (a === '--s3-list') out.s3List = true
     else if (a === '--second-step') {
       const v = Number.parseInt(String(argv[++i] || ''), 10)
       if (Number.isFinite(v)) {
@@ -99,7 +103,7 @@ function parseArgs(argv) {
       }
     } else if (a === '--help' || a === '-h') {
       console.log(
-        `Usage: npm run market:sync [-- --symbol XAUUSD] [--ticks-only] [--bars-only] [--second-bars-only] [--second-step=10] [--missing-only] [--gaps [--dry-run]]`,
+        `Usage: npm run market:sync [-- --symbol XAUUSD] [--ticks-only] [--bars-only] [--second-bars-only] [--second-step=10] [--missing-only] [--gaps [--dry-run]] [--s3-list]`,
       )
       process.exit(0)
     }
@@ -110,6 +114,21 @@ function parseArgs(argv) {
 async function main() {
   loadEnvLocal()
   const args = parseArgs(process.argv)
+  if (args.s3List) {
+    if (!dukascopyS3Enabled()) {
+      console.error('[market-sync] S3 archive not configured — set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY')
+      process.exitCode = 1
+      return
+    }
+    try {
+      const names = await listS3Instruments()
+      console.log(`[market-sync] ${names.length} instruments in the Dukascopy S3 archive:\n${names.join(' ')}`)
+    } catch (err) {
+      console.error('[market-sync] S3 listing failed:', err instanceof Error ? `${err.name}: ${err.message}` : err)
+      process.exitCode = 1
+    }
+    return
+  }
   const symbols = args.symbol ? [args.symbol] : parseSymbolsFromEnv()
   if (!symbols.length) {
     console.error('[market-sync] No symbols to sync (set MARKET_SYNC_SYMBOLS or --symbol)')
