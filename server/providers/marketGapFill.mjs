@@ -10,7 +10,14 @@
  * sync_manifest as `gapcheck:<kind>` so they are not downloaded again every run.
  */
 
-import { getMarketDb, insertBars, insertTicks, normalizeMarketSymbol, recordSyncManifest } from './marketLocalDb.mjs'
+import {
+  getMarketDb,
+  insertBars,
+  insertTicks,
+  normalizeMarketSymbol,
+  pruneLocalRetention,
+  recordSyncManifest,
+} from './marketLocalDb.mjs'
 import { defaultSyncProfile, fetchBarsChunk, syncSecondBarsRange, syncTicksRange } from './marketLocalSync.mjs'
 import { LOCAL_SECOND_STEPS } from './localSecondBars.mjs'
 import fs from 'fs'
@@ -274,7 +281,8 @@ export async function fillLocalGaps(opts) {
 
   const useS3 = await resolveS3(sym, state, onProgress)
   result.source = useS3 ? 's3' : 'datafeed'
-  const tickStart = floorDay(nowSec - profile.ticksDays * DAY_SEC)
+  /** First whole UTC day inside the tick retention, so pruning never leaves a half day to refetch. */
+  const tickStart = floorDay(nowSec - profile.ticksDays * DAY_SEC) + DAY_SEC
   const settleSec = envInt('DUKASCOPY_S3_SETTLE_DAYS', 7, 0) * DAY_SEC
 
   /** One archive day → m1/h1/d1 (+ ticks and second bars inside the tick window). */
@@ -438,11 +446,15 @@ export async function fillLocalGaps(opts) {
     result.tickArchive = await backfillTickArchive(sym, { scanEnd, nowSec, settleSec, attempt, state, onProgress, dryRun: opts.dryRun })
   }
 
+  // Ticks and second bars only live in SQLite for MARKET_TICK_RETENTION_DAYS; older ones are in the tick archive.
+  if (!opts.dryRun) result.pruned = pruneLocalRetention(sym)
+
   result.aborted = state.aborted
   result.lastError = state.lastError
   const ta = result.tickArchive
+  const pr = result.pruned
   onProgress(
-    `${sym} gaps done (${result.source}): m1 +${result.m1.bars} (${result.m1.repairedDays}/${result.m1.gapDays} days), h1 +${result.h1.bars}, d1 +${result.d1.bars}, ticks +${result.ticks.ticks}${ta ? `, tick files +${ta.savedDays} (${ta.remainingDays} days left)` : ''}${state.aborted ? ` — stopped early: ${state.lastError}` : ''}`,
+    `${sym} gaps done (${result.source}): m1 +${result.m1.bars} (${result.m1.repairedDays}/${result.m1.gapDays} days), h1 +${result.h1.bars}, d1 +${result.d1.bars}, ticks +${result.ticks.ticks}${ta ? `, tick files +${ta.savedDays} (${ta.remainingDays} days left)` : ''}${pr ? `, pruned ticks ${pr.tickDeleted} / bars ${pr.barDeleted}` : ''}${state.aborted ? ` — stopped early: ${state.lastError}` : ''}`,
   )
   return result
 }
