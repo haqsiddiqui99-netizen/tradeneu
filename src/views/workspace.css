@@ -2153,7 +2153,7 @@ button.rw-legend-status-btn:focus-visible {
   height: 48px;
   padding: 0 14px 0 4px;
   border: 1px solid rgba(19, 23, 34, 0.1);
-  border-radius: 0;
+  border-radius: 12px;
   background: #ffffff;
   /* Sits higher off the chart than the non-TV floating bar above, which keeps the lighter
      original values. Same three-layer shape — a hairline ring, one wide ambient blur and a
@@ -6230,6 +6230,53 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   /* Reads as a continuation of the chart, not a separate tray — the trade bar on top of
      this contributes no surface of its own, so this is the only footer fill. */
   background: var(--rw-chart);
+  position: relative;
+}
+
+/* Resize handle on the footer's top edge; only offered while the trade panel is open. */
+.rw-trade-dock__handle {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  width: 64px;
+  height: 12px;
+  padding: 1px 0 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.rw-trade-dock__handle-bar {
+  width: 36px;
+  height: 3px;
+  border-radius: 999px;
+  background: #9aa0ab;
+  transition: background 0.12s ease;
+}
+
+.rw-trade-dock__handle:hover .rw-trade-dock__handle-bar,
+.rw-trade-dock__handle:active .rw-trade-dock__handle-bar {
+  background: #5c6370;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-dock__handle-bar {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-dock__handle:hover .rw-trade-dock__handle-bar,
+.rw-root[data-chart-theme='dark'] .rw-trade-dock__handle:active .rw-trade-dock__handle-bar {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.rw-foot__trade-dock-row--collapsed .rw-trade-dock__handle {
+  display: none;
 }
 
 .rw-foot__trade-dock-row--collapsed .rw-order-book {
@@ -9815,13 +9862,13 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 /* Mirrors the take-partials amount field: box, track and stepper arrows. */
 .rw-qty--fxr {
-  flex: 0 0 144px;
-  width: 144px;
-  min-width: 144px;
+  flex: 0 0 72px;
+  width: 72px;
+  min-width: 72px;
   height: 30px;
   gap: 0;
   overflow: hidden;
-  padding: 0 0 0 12px;
+  padding: 0 0 0 8px;
   border-radius: 10px;
   background: #fff;
   border: 1px solid #8a90a0;
@@ -9842,7 +9889,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   flex: 1 1 auto;
   width: auto;
   min-width: 0;
-  padding: 0 10px 0 0;
+  padding: 0 8px 0 0;
   text-align: left;
   font: 300 12px var(--rw-font);
   letter-spacing: 0.02em;
@@ -9863,7 +9910,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   /* Base rules center the tracks and items, which shrinks each button to its icon. */
   place-items: stretch;
   place-content: stretch;
-  width: 28px;
+  width: 18px;
   padding: 0;
   border: none;
   border-left: 1px solid #e6e9f1;
@@ -9903,8 +9950,8 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 }
 
 .rw-qty--fxr .rw-qty__btn .sx-ico {
-  width: 12px;
-  height: 10px;
+  width: 9px;
+  height: 7px;
 }
 
 .rw-root[data-chart-theme='dark'] .rw-qty--fxr {
@@ -10026,7 +10073,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   border: 1px solid rgba(19, 23, 34, 0.1);
   height: 48px;
   padding: 0 14px 0 4px;
-  border-radius: 0;
+  border-radius: 12px;
   box-shadow:
     0 0 0 1px rgba(19, 23, 34, 0.04),
     0 8px 28px rgba(19, 23, 34, 0.11),
@@ -10129,7 +10176,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-foot__trade-dock-row,
 .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-foot__trade-dock-row {
-  padding: 12px 16px 14px;
+  padding: 5px 6px 5px 12px;
   background: var(--tf-bg);
 }
 
@@ -10141,7 +10188,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-bar,
 .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-bar {
   gap: 10px;
-  padding: 2px 0 4px;
+  padding: 0;
 }
 
 .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-ticket,
@@ -10151,15 +10198,15 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-btn,
 .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-btn {
-  height: 36px;
-  min-width: 88px;
-  padding: 0 18px;
-  border-radius: 12px;
+  height: 32px;
+  min-width: 84px;
+  padding: 0 16px;
+  border-radius: 10px;
   font-family: Inter, 'Segoe UI', sans-serif;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  box-shadow: 0 8px 18px rgba(17, 18, 20, 0.08);
+  box-shadow: 0 2px 6px rgba(17, 18, 20, 0.08);
 }
 
 .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-btn--buy,
@@ -10180,9 +10227,9 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-scalper-mode-btn,
 .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats__trigger,
 .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats__trigger {
-  height: 36px;
+  height: 32px;
   border: 1px solid var(--tf-outline);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--tf-panel);
   color: var(--tf-text);
   box-shadow: none;
@@ -10191,7 +10238,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-scalper-mode-btn,
 .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-scalper-mode-btn {
-  width: 36px;
+  width: 32px;
   color: var(--tf-muted);
 }
 
@@ -10350,7 +10397,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats__popover,
 .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats__popover {
   border: 1px solid var(--tf-line);
-  border-radius: 16px;
+  border-radius: 10px;
   background: var(--tf-panel);
   color: var(--tf-text);
   box-shadow: var(--tf-shadow);
@@ -10616,5 +10663,70 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-order-book__viz-radio input[type='radio']:checked {
   border-color: var(--tf-text);
   background-image: radial-gradient(circle at center, var(--tf-text) 0 3.6px, transparent 4px);
+}
+
+/* Bar replay pinned into the trade footer: same controls, sized to the footer row. */
+/* Centred on the whole footer rather than the gap between the ticket and the balance, which
+   are different widths. */
+.rw-trade-bar__replay-slot {
+  position: absolute;
+  /* The dock row pads 12px left and 6px right, so the bar's own centre sits 3px short. */
+  left: calc(50% + 3px);
+  top: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  transform: translate(-50%, -50%);
+}
+
+[data-rw-trade-bar]:has(> .rw-trade-bar__replay-slot) {
+  position: relative;
+}
+
+.rw-trade-bar__replay-slot:empty {
+  display: none;
+}
+
+.rw-trade-bar__replay-slot > .rw-chart-replay-dock.rw-replay-dock--footer {
+  position: relative;
+  inset: auto;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  height: auto;
+  transform: none;
+  pointer-events: auto;
+  overflow: visible;
+  --rw-tv-chip-h: 28px;
+}
+
+.rw-root[data-chart-theme] .rw-trade-bar__replay-slot .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar {
+  height: 34px;
+  padding: 0 6px 0 4px;
+  gap: 4px;
+  border: 1px solid rgba(19, 23, 34, 0.1);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.rw-root[data-chart-theme='dark'] .rw-trade-bar__replay-slot .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #1c1f24;
+}
+
+.rw-trade-bar__replay-slot .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__drag {
+  display: none;
+}
+
+.rw-trade-bar__replay-slot .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico .sx-ico,
+.rw-trade-bar__replay-slot .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__tico svg,
+.rw-trade-bar__replay-slot .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__play-ico {
+  width: 18px;
+  height: 18px;
+}
+
+.rw-replay-dock__pin.rw-replay-dock__pin--on {
+  color: #2962ff;
 }
 

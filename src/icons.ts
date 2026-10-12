@@ -245,6 +245,10 @@ export const icons = {
   replayClearFilter: svgReplayTv(
     '<circle cx="9" cy="9" r="1.15" stroke="currentColor" stroke-width="1.15" fill="none" vector-effect="non-scaling-stroke"/><path d="M12.15 6.4a5.25 5.25 0 1 0-1.9 7.55" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M10.2 13.65 9.05 15.3l1.65-.95" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
   ),
+  /** Bar Replay dock — pin the dock into the trade footer. */
+  replayTvPin: svgReplayTv(
+    '<path d="M6.25 1.75h5.5a.75.75 0 0 1 .75.75v.5a.75.75 0 0 1-.75.75H11v3.35l2.95 2.95a1 1 0 0 1 .3.7v.5a.75.75 0 0 1-.75.75h-9a.75.75 0 0 1-.75-.75v-.5a1 1 0 0 1 .3-.7L7 7.1V3.75h-.75a.75.75 0 0 1-.75-.75v-.5a.75.75 0 0 1 .75-.75Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="M9 11.75v4.75" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',
+  ),
   /** Bar Replay dock — thin close (TV clarity). */
   replayTvClose: svgReplayTv(
     '<path d="M5.25 5.25l7.5 7.5M12.75 5.25l-7.5 7.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" vector-effect="non-scaling-stroke"/>',

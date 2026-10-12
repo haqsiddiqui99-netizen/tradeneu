@@ -372,12 +372,6 @@ function formatMoney(n: number) {
   return `${sign}$${v}`
 }
 
-/** Always-signed variant, for deltas where the direction matters more than the magnitude. */
-function formatMoneySigned(n: number) {
-  const v = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return `${n < 0 ? '-' : '+'}$${v}`
-}
-
 /**
  * Privacy mask for a formatted money string: digits become bullets while the currency symbol,
  * separators and decimal point stay, so `$100,462.60` reads as `$•••,•••.••`. Keeping the
@@ -871,15 +865,7 @@ export function mountChartWorkspace(
                 <span data-rw-replay-dock-tf>1m</span>
                 <span class="rw-replay-dock__interval-chev" aria-hidden="true">${icons.chevronDown}</span>
               </button>
-              <button
-                type="button"
-                class="rw-replay-dock__sync"
-                data-rw-replay-sync-tf
-                role="switch"
-                aria-checked="false"
-                title="Sync timeframe (Alt + 6)"
-                aria-label="Sync timeframe"
-              ><span class="rw-replay-dock__sync-knob" aria-hidden="true"></span></button>
+              <button type="button" class="rw-replay-dock__tico rw-replay-dock__pin" data-rw-replay-pin aria-pressed="false" title="Pin to footer" aria-label="Pin replay controls to footer">${icons.replayTvPin}</button>
               <button type="button" class="rw-replay-dock__tico rw-replay-dock__close" data-rw-replay-dock-close title="Close replay" aria-label="Close replay">${icons.replayTvClose}</button>
             </div>
           </div>
@@ -905,6 +891,7 @@ export function mountChartWorkspace(
         </div>`
         }
         <div class="rw-foot__trade-dock-row rw-foot__trade-dock-row--collapsed" data-rw-trade-dock-row>
+          <button type="button" class="rw-trade-dock__handle" data-rw-trade-dock-grip title="Drag up or down to resize the trade panel" aria-label="Drag up or down to resize the trade panel"><span class="rw-trade-dock__handle-bar" aria-hidden="true"></span></button>
           <div class="rw-foot__trade-dock" data-rw-trade-dock>
             <div class="rw-trade-bar" data-rw-trade-bar role="group" aria-label="Place order">
               <div class="rw-trade-ticket" data-rw-trade-ticket role="group" aria-label="Order ticket">
@@ -926,14 +913,6 @@ export function mountChartWorkspace(
                     autocomplete="off"
                     aria-label="Quantity"
                   />
-                  <div class="rw-qty__stepper">
-                    <button type="button" class="rw-qty__btn rw-qty__btn--up" data-rw-qty-up aria-label="Increase quantity">
-                      ${icons.chevronUp}
-                    </button>
-                    <button type="button" class="rw-qty__btn rw-qty__btn--down" data-rw-qty-down aria-label="Decrease quantity">
-                      ${icons.chevronDown}
-                    </button>
-                  </div>
                 </div>
                 <div class="rw-order-type" data-rw-order-type-ui>
                   <select class="rw-order-type__native" data-rw-order-type aria-label="Order type" tabindex="-1">
@@ -985,11 +964,8 @@ export function mountChartWorkspace(
                   aria-haspopup="dialog"
                 ><span class="rw-scalper-mode-btn__ico" aria-hidden="true"></span></button>
               </div>
-              <div class="rw-view-toggle" data-rw-trade-dock-controls role="group" aria-label="Trade panel controls">
-                <button type="button" class="rw-view-toggle__btn rw-view-toggle__btn--grip" data-rw-trade-dock-grip title="Drag up or down to resize the trade panel" aria-label="Drag up or down to resize the trade panel">${icons.replayDragGrip}</button>
-                <button type="button" class="rw-view-toggle__btn rw-view-toggle__btn--active" data-rw-trade-dock-toggle aria-expanded="false" title="Open trade panel" aria-label="Open trade panel">${icons.chevronUp}</button>
-              </div>
               <span class="rw-trade-bar__spacer" aria-hidden="true"></span>
+              <div class="rw-trade-bar__replay-slot" data-rw-replay-footer-slot></div>
               <div class="rw-trade-stats" data-rw-trade-stats>
                 <button
                   type="button"
@@ -998,7 +974,7 @@ export function mountChartWorkspace(
                   aria-haspopup="true"
                   aria-expanded="false"
                   title="Account balance and P&amp;L"
-                ><span class="rw-trade-stats__trigger-ico" aria-hidden="true">${icons.wallet}</span><span class="rw-trade-stats__val rw-bal">—</span><span class="rw-trade-stats__trigger-sep" aria-hidden="true"></span><span class="rw-trade-stats__val rw-up-signed" data-rw-mask="$&bull;.&bull;&bull;">+$0.00</span></button>
+                ><span class="rw-trade-stats__trigger-ico" aria-hidden="true">${icons.wallet}</span><span class="rw-trade-stats__val rw-bal">—</span></button>
                 <div class="rw-trade-stats__popover" data-rw-trade-stats-popover hidden>
                   <div class="rw-trade-stats__popover-row">
                     <span class="rw-trade-stats__lbl rw-trade-stats__lbl--head">Equity</span>
@@ -1015,8 +991,7 @@ export function mountChartWorkspace(
                 </div>
               </div>
               <div class="rw-trade-bar__actions">
-                <button type="button" class="rw-trade-stats__toggle" data-rw-stats-toggle aria-label="Hide account values" aria-pressed="false">${icons.eye}</button>
-                <button type="button" class="rw-trade-dock__fullscreen" data-rw-trade-fullscreen title="Fullscreen mode" aria-label="Fullscreen mode">${icons.expand}</button>
+                <button type="button" class="rw-view-toggle__btn rw-view-toggle__btn--active" data-rw-trade-dock-toggle aria-expanded="false" title="Open trade panel" aria-label="Open trade panel">${icons.chevronUp}</button>
               </div>
             </div>
           </div>
@@ -1482,15 +1457,23 @@ export function mountChartWorkspace(
   /** Opens the on-chart bar picker — the dock's only starting-point control. */
   const btnPickBarChart = host.querySelector('[data-rw-replay-pick-bar]') as HTMLButtonElement | null
   const replayIntervalBtn = host.querySelector('[data-rw-replay-interval-toggle]') as HTMLButtonElement | null
-  const replaySyncTfBtn = host.querySelector('[data-rw-replay-sync-tf]') as HTMLButtonElement | null
+  // Lives in the replay interval menu's header, which is portaled to <body>.
+  const replaySyncTfRow = document.createElement('div')
+  replaySyncTfRow.className = 'rw-intmenu__sync'
+  replaySyncTfRow.innerHTML = `<span class="rw-intmenu__sync-label">Sync with chart</span><button
+      type="button"
+      class="rw-replay-dock__sync"
+      data-rw-replay-sync-tf
+      role="switch"
+      aria-checked="false"
+      title="Sync timeframe (Alt + 6)"
+      aria-label="Sync with chart"
+    ><span class="rw-replay-dock__sync-knob" aria-hidden="true"></span></button>`
+  const replaySyncTfBtn = replaySyncTfRow.querySelector('[data-rw-replay-sync-tf]') as HTMLButtonElement | null
   const qtyInput = host.querySelector('[data-rw-order-qty]') as HTMLInputElement | null
-  const qtyUp = host.querySelector('[data-rw-qty-up]') as HTMLButtonElement | null
-  const qtyDown = host.querySelector('[data-rw-qty-down]') as HTMLButtonElement | null
   const orderTypeSelect = host.querySelector('[data-rw-order-type]') as HTMLSelectElement | null
   const ticketBuy = host.querySelector('.rw-ticket-buy') as HTMLButtonElement
   const ticketSell = host.querySelector('.rw-ticket-sell') as HTMLButtonElement
-  const tradeStatsEl = host.querySelector('[data-rw-trade-stats]') as HTMLElement | null
-  const btnStatsToggle = host.querySelector('[data-rw-stats-toggle]') as HTMLButtonElement | null
   const btnTradeStatsTrigger = host.querySelector('[data-rw-trade-stats-trigger]') as HTMLButtonElement | null
   const tradeStatsPopoverEl = host.querySelector('[data-rw-trade-stats-popover]') as HTMLElement | null
   const btnScalperMode = host.querySelector('[data-rw-scalper-mode]') as HTMLButtonElement | null
@@ -1734,6 +1717,14 @@ export function mountChartWorkspace(
   }
 
   const btnReplayDockDrag = host.querySelector('[data-rw-replay-drag]') as HTMLButtonElement | null
+  const btnReplayDockPin = host.querySelector('[data-rw-replay-pin]') as HTMLButtonElement | null
+  const replayFooterSlot = host.querySelector('[data-rw-replay-footer-slot]') as HTMLElement | null
+  const REPLAY_DOCK_PINNED_KEY = 'rw.replayDock.pinned'
+  let replayDockPinned = false
+  /** Where the floating dock lives on the chart, so unpinning can put it back. */
+  const replayDockHome = replayDock
+    ? { parent: replayDock.parentElement, next: replayDock.nextSibling }
+    : null
 
   const REPLAY_DOCK_POS_KEY = 'rw.replayDock.pos'
 
@@ -1781,7 +1772,7 @@ export function mountChartWorkspace(
   }
 
   function applyReplayDockPos(pos: ReplayDockPos) {
-    if (!replayDock) return
+    if (!replayDock || replayDockPinned) return
     const clamped = clampReplayDockPos(pos.left, pos.top)
     replayDock.classList.add('rw-replay-dock--user-pos')
     replayDock.style.left = `${clamped.left}px`
@@ -1793,7 +1784,7 @@ export function mountChartWorkspace(
 
   /** Default: bottom-center in the chart pane (CSS). Clears user/inline coords. */
   function positionReplayDockBottomCenter() {
-    if (!replayDock) return
+    if (!replayDock || replayDockPinned) return
     const saved = readSavedReplayDockPos()
     if (saved) {
       applyReplayDockPos(saved)
@@ -1929,6 +1920,62 @@ export function mountChartWorkspace(
   }
   window.addEventListener('resize', onWindowResizeDock)
   cleanupFns.push(() => window.removeEventListener('resize', onWindowResizeDock))
+
+  function syncReplayDockPinButton() {
+    if (!btnReplayDockPin) return
+    btnReplayDockPin.setAttribute('aria-pressed', replayDockPinned ? 'true' : 'false')
+    btnReplayDockPin.classList.toggle('rw-replay-dock__pin--on', replayDockPinned)
+    const label = replayDockPinned ? 'Unpin from footer' : 'Pin to footer'
+    btnReplayDockPin.title = label
+    btnReplayDockPin.setAttribute(
+      'aria-label',
+      replayDockPinned ? 'Unpin replay controls from footer' : 'Pin replay controls to footer',
+    )
+  }
+
+  function setReplayDockPinned(pinned: boolean) {
+    if (!replayDock || !replayFooterSlot || !replayDockHome?.parent) return
+    if (pinned === replayDockPinned) return
+    replayDockPinned = pinned
+    if (pinned) {
+      replayDock.style.removeProperty('left')
+      replayDock.style.removeProperty('top')
+      replayDock.style.removeProperty('right')
+      replayDock.style.removeProperty('bottom')
+      replayDock.style.removeProperty('transform')
+      replayDock.classList.remove('rw-replay-dock--user-pos')
+      replayDock.classList.add('rw-replay-dock--footer')
+      replayFooterSlot.appendChild(replayDock)
+    } else {
+      replayDock.classList.remove('rw-replay-dock--footer')
+      const next = replayDockHome.next
+      if (next && next.parentNode === replayDockHome.parent) replayDockHome.parent.insertBefore(replayDock, next)
+      else replayDockHome.parent.appendChild(replayDock)
+      positionReplayDockBottomCenter()
+    }
+    try {
+      localStorage.setItem(REPLAY_DOCK_PINNED_KEY, pinned ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+    syncReplayDockPinButton()
+    syncReplaySpeedMenuPlacement()
+    resizeChartAfterLayout()
+  }
+
+  const onReplayDockPinClick = (e: MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setReplayDockPinned(!replayDockPinned)
+  }
+  btnReplayDockPin?.addEventListener('click', onReplayDockPinClick)
+  cleanupFns.push(() => btnReplayDockPin?.removeEventListener('click', onReplayDockPinClick))
+  try {
+    if (localStorage.getItem(REPLAY_DOCK_PINNED_KEY) === '1') setReplayDockPinned(true)
+  } catch {
+    /* ignore */
+  }
+  syncReplayDockPinButton()
 
   function syncReplaySpeedMenuPlacement() {
     if (!replaySpeedMenu || replaySpeedMenu.hidden) return
@@ -2235,32 +2282,9 @@ export function mountChartWorkspace(
     if (!raw) return
     qtyInput.value = String(clampOrderQty(Number(raw)))
   }
-  const onQtyStepUp = () => {
-    if (!qtyInput) return
-    const n = readOrderQtyRaw()
-    // Empty / 0 / invalid → start at 1 (not 1+1 → 2).
-    if (n === null || n < 0.01) {
-      qtyInput.value = '1'
-      return
-    }
-    qtyInput.value = String(clampOrderQty(n + 0.01))
-  }
-  const onQtyStepDown = () => {
-    if (!qtyInput) return
-    const n = readOrderQtyRaw()
-    if (n === null || n <= 0.01) {
-      qtyInput.value = '0.01'
-      return
-    }
-    qtyInput.value = String(clampOrderQty(n - 0.01))
-  }
   const onQtyChange = () => syncOrderQtyField()
-  qtyUp?.addEventListener('click', onQtyStepUp)
-  qtyDown?.addEventListener('click', onQtyStepDown)
   qtyInput?.addEventListener('change', onQtyChange)
   qtyInput?.addEventListener('blur', onQtyChange)
-  cleanupFns.push(() => qtyUp?.removeEventListener('click', onQtyStepUp))
-  cleanupFns.push(() => qtyDown?.removeEventListener('click', onQtyStepDown))
   cleanupFns.push(() => qtyInput?.removeEventListener('change', onQtyChange))
   cleanupFns.push(() => qtyInput?.removeEventListener('blur', onQtyChange))
 
@@ -2290,16 +2314,6 @@ export function mountChartWorkspace(
     btnScalperMode?.removeEventListener('click', onScalperModeClick)
     scalperModeDialog.dispose()
   })
-
-  const onStatsToggle = () => {
-    if (!tradeStatsEl || !btnStatsToggle) return
-    const hidden = tradeStatsEl.classList.toggle('rw-trade-stats--hidden')
-    btnStatsToggle.setAttribute('aria-pressed', hidden ? 'true' : 'false')
-    btnStatsToggle.setAttribute('aria-label', hidden ? 'Show account values' : 'Hide account values')
-    btnStatsToggle.innerHTML = hidden ? icons.eyeOff : icons.eye
-  }
-  btnStatsToggle?.addEventListener('click', onStatsToggle)
-  cleanupFns.push(() => btnStatsToggle?.removeEventListener('click', onStatsToggle))
 
   let tradeStatsHoverCloseTimer: number | null = null
   const clearTradeStatsHoverCloseTimer = () => {
@@ -2390,12 +2404,6 @@ export function mountChartWorkspace(
       btnTopFullscreen.innerHTML = fs ? icons.tvToolbarCompress : icons.expand
       btnTopFullscreen.title = fs ? 'Exit fullscreen' : 'Fullscreen mode'
       btnTopFullscreen.setAttribute('aria-label', fs ? 'Exit fullscreen' : 'Fullscreen mode')
-    }
-    const btnTradeFullscreen = host.querySelector('[data-rw-trade-fullscreen]') as HTMLButtonElement | null
-    if (btnTradeFullscreen) {
-      btnTradeFullscreen.innerHTML = fs ? icons.tvToolbarCompress : icons.expand
-      btnTradeFullscreen.title = fs ? 'Exit fullscreen' : 'Fullscreen mode'
-      btnTradeFullscreen.setAttribute('aria-label', fs ? 'Exit fullscreen' : 'Fullscreen mode')
     }
     rwRoot.classList.toggle('rw-root--fullscreen', fs)
   }
@@ -2703,13 +2711,8 @@ export function mountChartWorkspace(
 
   const tradeDockRow = host.querySelector('[data-rw-trade-dock-row]') as HTMLElement | null
 
-  const btnTradeFullscreen = host.querySelector('[data-rw-trade-fullscreen]') as HTMLButtonElement | null
-  const onTradeFullscreen = () => toggleChartFullscreen()
-  btnTradeFullscreen?.addEventListener('click', onTradeFullscreen)
-  cleanupFns.push(() => btnTradeFullscreen?.removeEventListener('click', onTradeFullscreen))
-
   // Trade panel (positions/orders beneath the chart) controls: the chevron opens and
-  // closes it, the grip beside it drags its height up or down.
+  // closes it, the handle on the footer's top edge drags its height up or down.
   const tradeDockToggleBtn = host.querySelector('[data-rw-trade-dock-toggle]') as HTMLButtonElement | null
   const tradeDockGrip = host.querySelector('[data-rw-trade-dock-grip]') as HTMLButtonElement | null
   const tradeDockPanel = host.querySelector('[data-rw-order-book]') as HTMLElement | null
@@ -4698,7 +4701,6 @@ export function mountChartWorkspace(
       paintMoney('.rw-bal', formatMoney(sum.equity), null)
       paintMoney('.rw-rp', formatMoney(sum.realizedPnL), sum.realizedPnL)
       paintMoney('.rw-up', formatMoney(sum.unrealizedPnL), sum.unrealizedPnL)
-      paintMoney('.rw-up-signed', formatMoneySigned(sum.unrealizedPnL), sum.unrealizedPnL)
       renderManualPositionPanel(mark)
       renderJournalPanel(mark)
       orderBook?.sync({
@@ -6559,28 +6561,28 @@ export function mountChartWorkspace(
     }
 
     let replayAutoSelectInterval = readReplayAutoSelectInterval()
+    /** Set once the replay interval menu exists further down. */
+    let refreshReplayIntervalMenu: (() => void) | null = null
 
     function syncReplayIntervalBtnTitle() {
       if (!replayIntervalBtn) return
       replayIntervalBtn.title = replayAutoSelectInterval
-        ? 'Replay step follows the chart header — turn off Sync timeframe to set it here'
+        ? 'Replay step follows the chart (Sync with chart is on)'
         : 'Replay step interval'
     }
 
     /**
-     * With sync on the chart header owns the replay step, so the dock's interval button is
-     * taken out of service rather than left looking editable and silently overridden.
+     * With sync on the chart header owns the replay step, so the menu's step rows are locked
+     * rather than left looking editable and silently overridden. The dock button stays live
+     * because the switch that turns sync off sits inside its menu.
      */
     function syncReplayTimeframeUi() {
       if (replaySyncTfBtn) {
         replaySyncTfBtn.setAttribute('aria-checked', replayAutoSelectInterval ? 'true' : 'false')
         replaySyncTfBtn.classList.toggle('rw-replay-dock__sync--on', replayAutoSelectInterval)
       }
-      if (replayIntervalBtn) {
-        replayIntervalBtn.disabled = replayAutoSelectInterval
-        replayIntervalBtn.classList.toggle('rw-replay-dock__interval--locked', replayAutoSelectInterval)
-      }
       syncReplayIntervalBtnTitle()
+      refreshReplayIntervalMenu?.()
     }
 
     function setReplayAutoSelectInterval(on: boolean) {
@@ -7232,6 +7234,9 @@ export function mountChartWorkspace(
           getItems: () => replayDockIntervalsForChart(chartTimeframe) ?? REPLAY_DOCK_INTERVALS,
           variant: 'replay',
           showCustomInterval: false,
+          header: replaySyncTfRow,
+          isLocked: () => replayAutoSelectInterval,
+          lockedTitle: 'Turn off Sync with chart to pick a replay step',
           onSelect: (p) => {
             void applyReplayIntervalPick(p)
           },
@@ -7260,6 +7265,7 @@ export function mountChartWorkspace(
           },
         })
       : null
+    refreshReplayIntervalMenu = () => replayIntervalMenu?.refreshState()
     syncReplayTimeframeUi()
 
     const toggleReplayTimeframeSync = () => setReplayAutoSelectInterval(!replayAutoSelectInterval)
@@ -7269,8 +7275,8 @@ export function mountChartWorkspace(
       e.preventDefault()
       toggleReplayTimeframeSync()
     }
-    replaySyncTfBtn?.addEventListener('click', onReplaySyncTfClick)
-    cleanupFns.push(() => replaySyncTfBtn?.removeEventListener('click', onReplaySyncTfClick))
+    replaySyncTfRow.addEventListener('click', onReplaySyncTfClick)
+    cleanupFns.push(() => replaySyncTfRow.removeEventListener('click', onReplaySyncTfClick))
 
     /** Alt+6, the shortcut printed on the switch's tooltip. */
     const onReplaySyncTfKey = (e: KeyboardEvent) => {

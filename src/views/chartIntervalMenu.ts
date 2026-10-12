@@ -25,6 +25,8 @@ export type ChartIntervalMenuApi = {
   isOpen: () => boolean
   /** Sync favorite star buttons when prefs change outside the menu. */
   refreshPreferences: () => void
+  /** Re-evaluate which rows are pickable (e.g. after `isLocked` flips while open). */
+  refreshState: () => void
   dispose: () => void
 }
 
@@ -90,15 +92,16 @@ function positionPanel(anchor: HTMLElement, panel: HTMLElement, variant: 'defaul
   const avail = openBelow ? spaceBelow : spaceAbove
   // Hard-cap to available space so the menu never overlaps the replay bar / toolbar.
   let maxPanelH = avail > 0 ? avail : minScrollH
+  const headerH = panel.querySelector<HTMLElement>('.rw-intmenu__header')?.offsetHeight ?? 0
   if (variant === 'replay' && scroll) {
     // Set here rather than in CSS because the inline height below would override a stylesheet
     // ceiling; a cramped window still wins, since it may not even have room for seven.
     const rowsCap = visibleRowsHeight(scroll, REPLAY_VISIBLE_ROWS)
-    if (rowsCap > 0) maxPanelH = Math.min(maxPanelH, rowsCap)
+    if (rowsCap > 0) maxPanelH = Math.min(maxPanelH, rowsCap + headerH)
   }
   panel.style.maxHeight = `${maxPanelH}px`
   if (scroll) {
-    scroll.style.maxHeight = `${Math.max(48, maxPanelH)}px`
+    scroll.style.maxHeight = `${Math.max(48, maxPanelH - headerH)}px`
     scroll.scrollTop = 0
   }
 
@@ -154,12 +157,24 @@ export function createChartIntervalMenu(opts: {
   showCustomInterval?: boolean
   /** Extra documents/elements that should dismiss the menu (e.g. TV iframe / chart). */
   getDismissTargets?: () => Array<Document | EventTarget | null | undefined>
+  /** Pinned above the list and outside its scroll area. */
+  header?: HTMLElement
+  /** While true every row is shown but none can be picked. */
+  isLocked?: () => boolean
+  lockedTitle?: string
 }): ChartIntervalMenuApi {
   const root = document.createElement('div')
   root.className = 'rw-intmenu'
   if (opts.variant === 'replay') root.classList.add('rw-intmenu--replay')
   root.setAttribute('role', 'listbox')
   root.setAttribute('aria-label', opts.variant === 'replay' ? 'Update interval' : 'Chart interval')
+
+  if (opts.header) {
+    const header = document.createElement('div')
+    header.className = 'rw-intmenu__header'
+    header.appendChild(opts.header)
+    root.appendChild(header)
+  }
 
   const scroll = document.createElement('div')
   scroll.className = 'rw-intmenu__scroll'
@@ -383,6 +398,8 @@ export function createChartIntervalMenu(opts: {
 
   function syncDisabledAndActive() {
     const sel = opts.getSelectedPill().trim()
+    const locked = opts.isLocked?.() === true
+    root.classList.toggle('rw-intmenu--locked', locked)
     scroll.querySelectorAll<HTMLButtonElement>('.rw-intmenu__btn').forEach((btn) => {
       const pill = btn.dataset.pill ?? ''
       btn.classList.toggle('rw-intmenu__btn--active', pill === sel)
@@ -394,8 +411,10 @@ export function createChartIntervalMenu(opts: {
         tickCount: btn.dataset.ticks ? Number(btn.dataset.ticks) : undefined,
       }
       const enabled = isPickEnabled(pick, opts)
-      btn.disabled = !enabled
-      btn.title = enabled
+      btn.disabled = locked || !enabled
+      btn.title = locked
+        ? (opts.lockedTitle ?? '')
+        : enabled
         ? ''
         : pick.kind === 'tick'
           ? 'Tick intervals need Dukascopy ticks (session dates) or enough 1-minute history'
@@ -526,6 +545,9 @@ export function createChartIntervalMenu(opts: {
     isOpen: () => menuOpen,
     refreshPreferences() {
       if (menuOpen) syncAllFavButtons()
+    },
+    refreshState() {
+      if (menuOpen) syncDisabledAndActive()
     },
     dispose() {
       close()

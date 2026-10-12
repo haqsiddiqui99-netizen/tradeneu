@@ -248,6 +248,69 @@
     0 8px 28px rgba(19, 23, 34, 0.14);
 }
 
+.rw-intmenu--replay .rw-intmenu__header {
+  flex: 0 0 auto;
+  border-bottom: 1px solid rgba(19, 23, 34, 0.08);
+}
+
+.rw-intmenu--replay[data-chart-theme='dark'] .rw-intmenu__header {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.rw-intmenu__sync {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 10px 9px 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.rw-intmenu__sync-label {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* The switch was sized for the dock bar; the menu row reads better with a smaller track. */
+.rw-intmenu__sync .rw-replay-dock__sync {
+  width: 34px;
+  height: 20px;
+  margin: 0;
+}
+
+.rw-intmenu__sync .rw-replay-dock__sync-knob {
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+}
+
+/* 34 track − 3 inset × 2 − 14 knob = 14px of travel. */
+.rw-intmenu__sync .rw-replay-dock__sync--on .rw-replay-dock__sync-knob {
+  transform: translateX(14px);
+}
+
+/* Portaled to <body>, so the dock's `.rw-root[data-chart-theme]` dark rules cannot reach it. */
+.rw-intmenu--replay[data-chart-theme='dark'] .rw-replay-dock__sync {
+  background: #434651;
+}
+
+.rw-intmenu--replay[data-chart-theme='dark'] .rw-replay-dock__sync:hover {
+  background: #4f535f;
+}
+
+.rw-intmenu--replay[data-chart-theme='dark'] .rw-replay-dock__sync--on,
+.rw-intmenu--replay[data-chart-theme='dark'] .rw-replay-dock__sync--on:hover {
+  background: #22ab94;
+}
+
+.rw-intmenu--replay.rw-intmenu--locked .rw-intmenu__btn:not(.rw-intmenu__btn--active) {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .rw-intmenu--replay .rw-intmenu__scroll {
   flex: 1 1 auto;
   min-height: 0;

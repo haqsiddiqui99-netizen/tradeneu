@@ -987,15 +987,15 @@
 
 .rw-trade-stats__popover {
   position: absolute;
-  left: 0;
+  right: 0;
   bottom: calc(100% + 6px);
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  min-width: 232px;
-  padding: 14px 18px;
-  border-radius: 12px;
+  gap: 7px;
+  min-width: 176px;
+  padding: 9px 12px;
+  border-radius: 10px;
   /* TradingView's dialog typography, as with the menus. The figures below keep their bold —
      that contrast against the labels is what makes the rows readable — but the family and the
      label size come from the same place as everything else that opens over the chart. */
@@ -1005,7 +1005,7 @@
   box-shadow: 0 10px 28px rgba(19, 23, 34, 0.16), 0 2px 8px rgba(19, 23, 34, 0.08);
   opacity: 0;
   transform: translateY(4px) scale(0.98);
-  transform-origin: bottom left;
+  transform-origin: bottom right;
   transition: opacity 0.12s ease, transform 0.12s ease;
   pointer-events: none;
 }
@@ -1020,11 +1020,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 16px;
 }
 
 .rw-trade-stats__popover .rw-trade-stats__lbl {
-  font-size: var(--rw-tv-popup-font-size);
+  font-size: 12px;
   font-weight: var(--rw-tv-popup-font-weight);
   color: #787b86;
   letter-spacing: 0;
@@ -1037,7 +1037,7 @@
 }
 
 .rw-trade-stats__popover .rw-trade-stats__val {
-  font-size: var(--rw-tv-popup-font-size);
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0;
 }
