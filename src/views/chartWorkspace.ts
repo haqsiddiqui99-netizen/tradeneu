@@ -1607,6 +1607,8 @@ export function mountChartWorkspace(
     { label: 'Loading chart', progress: 74 },
     { label: 'Almost ready…', progress: 94 },
   ] as const
+  /** Keep in sync with the `.rw-chart-loading--boot` opacity transition in workspace.css. */
+  const BOOT_FADE_MS = 180
 
   function setBootLoadStep(index: number) {
     const step = BOOT_LOAD_STEPS[Math.min(Math.max(index, 0), BOOT_LOAD_STEPS.length - 1)]
@@ -1630,7 +1632,7 @@ export function mountChartWorkspace(
     chartLoadingDepth = 1
     chartLoadingEl.hidden = false
     chartLoadingEl.classList.add('rw-chart-loading--boot')
-    chartLoadingEl.classList.remove('rw-chart-loading--overlay')
+    chartLoadingEl.classList.remove('rw-chart-loading--overlay', 'rw-chart-loading--leaving')
     chartLoadingEl.setAttribute('aria-busy', 'true')
     rwRoot.classList.add('rw-root--booting')
     if (chartLoadingSpinner) chartLoadingSpinner.hidden = true
@@ -1664,10 +1666,14 @@ export function mountChartWorkspace(
       if (chartLoadingBar) chartLoadingBar.style.width = '100%'
       chartLoadingBarWrap?.setAttribute('aria-valuenow', '100')
       await new Promise<void>((resolve) => window.setTimeout(resolve, 120))
+      if (!force && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        chartLoadingEl!.classList.add('rw-chart-loading--leaving')
+        await new Promise<void>((resolve) => window.setTimeout(resolve, BOOT_FADE_MS))
+      }
       bootLoadingActive = false
       chartLoadingDepth = 0
       chartLoadingEl!.hidden = true
-      chartLoadingEl!.classList.remove('rw-chart-loading--boot')
+      chartLoadingEl!.classList.remove('rw-chart-loading--boot', 'rw-chart-loading--leaving')
       chartLoadingEl!.setAttribute('aria-busy', 'false')
       rwRoot.classList.remove('rw-root--booting')
       bootLoadingFinished = true

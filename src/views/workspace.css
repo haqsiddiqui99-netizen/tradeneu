@@ -4913,6 +4913,12 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   position: fixed;
   inset: 0;
   z-index: 9999;
+  transition: opacity 180ms ease-out;
+}
+
+.rw-chart-loading--leaving {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .rw-chart-loading--boot .rw-chart-loading__veil {
