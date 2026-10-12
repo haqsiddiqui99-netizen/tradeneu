@@ -1,7 +1,7 @@
 import type { UTCTimestamp } from 'lightweight-charts'
 import type { Bar } from '../types'
 import type { IntervalPick } from '../views/chartIntervalCatalog'
-import { aggregateOHLCV } from './aggregateBars'
+import { aggregateOHLCV, barBucketEndSec, barBucketStartSec } from './aggregateBars'
 
 const r3 = (x: number) => +x.toFixed(3)
 const SUB_BAR_SEC = 60
@@ -103,7 +103,7 @@ function completeChartBarCount(chartBars: Bar[], chartStepSec: number, cursorEnd
   let hi = chartBars.length
   while (lo < hi) {
     const mid = (lo + hi) >> 1
-    if (Number(chartBars[mid]!.time) + chartStepSec <= cursorEndSec) lo = mid + 1
+    if (barBucketEndSec(Number(chartBars[mid]!.time), chartStepSec) <= cursorEndSec) lo = mid + 1
     else hi = mid
   }
   return lo
@@ -132,8 +132,9 @@ function formingChartBarFrom1m(
   chartStepSec: number,
   cursorEndSec: number,
 ): Bar | null {
-  if (cursorEndSec <= 0 || cursorEndSec % chartStepSec === 0) return null
-  const bucketStart = Math.floor((cursorEndSec - 1) / chartStepSec) * chartStepSec
+  if (cursorEndSec <= 0) return null
+  const bucketStart = barBucketStartSec(cursorEndSec - 1, chartStepSec)
+  if (barBucketEndSec(bucketStart, chartStepSec) === cursorEndSec) return null
   const startIdx = lowerBoundBarIndex(source1m, bucketStart)
 
   let open: number | null = null
@@ -171,9 +172,9 @@ function formingChartBarFromFineSource(
   chartStepSec: number,
   cursorEndSec: number,
 ): Bar | null {
-  if (cursorEndSec <= 0 || cursorEndSec % chartStepSec === 0) return null
-  if (!fineBars.length) return null
-  const bucketStart = Math.floor((cursorEndSec - 1) / chartStepSec) * chartStepSec
+  if (cursorEndSec <= 0 || !fineBars.length) return null
+  const bucketStart = barBucketStartSec(cursorEndSec - 1, chartStepSec)
+  if (barBucketEndSec(bucketStart, chartStepSec) === cursorEndSec) return null
   const startIdx = lowerBoundBarIndex(fineBars, bucketStart)
 
   let open: number | null = null

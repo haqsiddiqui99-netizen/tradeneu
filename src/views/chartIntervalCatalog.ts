@@ -25,15 +25,6 @@ export const TICK_INTERVALS: IntervalPick[] = [
   { pill: '1000t', kind: 'tick', tickCount: 1000, label: '1000 ticks' },
 ]
 
-export const SECOND_INTERVALS: IntervalPick[] = [
-  { pill: '1s', kind: 'time', stepSec: 1, label: '1 second' },
-  { pill: '5s', kind: 'time', stepSec: 5, label: '5 seconds' },
-  { pill: '10s', kind: 'time', stepSec: 10, label: '10 seconds' },
-  { pill: '15s', kind: 'time', stepSec: 15, label: '15 seconds' },
-  { pill: '20s', kind: 'time', stepSec: 20, label: '20 seconds' },
-  { pill: '30s', kind: 'time', stepSec: 30, label: '30 seconds' },
-]
-
 export const MINUTE_INTERVALS: IntervalPick[] = [
   { pill: '1m', kind: 'time', stepSec: 60, label: '1 minute' },
   { pill: '2m', kind: 'time', stepSec: 120, label: '2 minutes' },
@@ -64,15 +55,13 @@ export const DAY_INTERVALS: IntervalPick[] = [
 
 export const CHART_INTERVAL_SECTIONS: IntervalSection[] = [
   { id: 'ticks', title: 'TICKS', items: TICK_INTERVALS },
-  { id: 'seconds', title: 'SECONDS', items: SECOND_INTERVALS },
   { id: 'minutes', title: 'MINUTES', items: MINUTE_INTERVALS },
   { id: 'hours', title: 'HOURS', items: HOUR_INTERVALS },
   { id: 'days', title: 'DAYS', items: DAY_INTERVALS },
 ]
 
-/** Flat list for replay dock compact menu (seconds + common minutes). Fallback when dynamic dock is off. */
+/** Flat list for replay dock compact menu (common minutes). Fallback when dynamic dock is off. */
 export const REPLAY_DOCK_INTERVALS: IntervalPick[] = [
-  ...SECOND_INTERVALS,
   { pill: '1m', kind: 'time', stepSec: 60, label: '1 minute' },
   { pill: '3m', kind: 'time', stepSec: 180, label: '3 minutes' },
   { pill: '5m', kind: 'time', stepSec: 300, label: '5 minutes' },
@@ -86,22 +75,19 @@ export const USE_DYNAMIC_REPLAY_DOCK = true
 /** @deprecated Use {@link USE_DYNAMIC_REPLAY_DOCK}. */
 export const USE_DYNAMIC_REPLAY_DOCK_1M_3M = USE_DYNAMIC_REPLAY_DOCK
 
-/** Seconds shared by minute-band charts that expose sub-minute replay steps. */
-const REPLAY_DOCK_SECONDS = ['1s', '5s', '10s', '15s', '30s'] as const
-
 /**
  * Chart interval (TV header) → replay dock pills.
  * Keys use catalog pills (`1D` / `1W` / `1M`); aliases like `1d` / `1month` are normalized.
  */
 const REPLAY_DOCK_BY_CHART: Record<string, readonly string[]> = {
-  '1m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m'],
-  '2m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m'],
-  '3m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '15m'],
-  '5m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '15m'],
-  '10m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '20m'],
-  '15m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '15m', '30m'],
-  '30m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h'],
-  '45m': [...REPLAY_DOCK_SECONDS, '1m', '2m', '3m', '5m', '10m', '15m', '30m', '45m'],
+  '1m': ['1m', '2m', '3m', '5m', '10m'],
+  '2m': ['1m', '2m', '3m', '5m', '10m'],
+  '3m': ['1m', '2m', '3m', '5m', '10m', '15m'],
+  '5m': ['1m', '2m', '3m', '5m', '10m', '15m'],
+  '10m': ['1m', '2m', '3m', '5m', '10m', '20m'],
+  '15m': ['1m', '2m', '3m', '5m', '10m', '15m', '30m'],
+  '30m': ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h'],
+  '45m': ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '45m'],
   '1h': ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h'],
   '2h': ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '2h'],
   '4h': ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '2h', '4h'],
@@ -186,18 +172,8 @@ function findIntervalPickByPill(pill: string): IntervalPick | null {
 /** Map a TradingView resolution string to our interval pick (for TV header interval changes). */
 export function tvResolutionToIntervalPill(resolution: string): IntervalPick | null {
   const r = resolution.trim()
-  const secMatch = /^(\d+)S$/i.exec(r)
-  if (secMatch) {
-    const pill = `${secMatch[1]}s`
-    return (
-      findIntervalPickByPill(pill) ?? {
-        pill,
-        kind: 'time',
-        stepSec: Number.parseInt(secMatch[1]!, 10),
-        label: `${secMatch[1]} second${secMatch[1] === '1' ? '' : 's'}`,
-      }
-    )
-  }
+  // Second intervals are not offered; layouts saved on one open on 1m.
+  if (/^\d+S$/i.test(r)) return findIntervalPickByPill('1m')
   if (r === '1D' || r.toLowerCase() === '1d') return findIntervalPickByPill('1D')
   if (r === '1W' || r.toLowerCase() === '1w') return findIntervalPickByPill('1W')
   if (r === '1M') return findIntervalPickByPill('1M')

@@ -19,12 +19,6 @@ import type {
 } from './tradingViewTypes'
 
 const SUPPORTED_RESOLUTIONS = [
-  '1S',
-  '5S',
-  '10S',
-  '15S',
-  '20S',
-  '30S',
   '1',
   '2',
   '3',
@@ -75,8 +69,7 @@ export function tvResolutionPeriodSec(resolution: string): number {
 export function intervalPillToTvResolution(pill: string): string {
   const p = pill.trim()
   if (/t$/i.test(p)) return '1'
-  const secMatch = /^(\d+)s$/i.exec(p)
-  if (secMatch) return `${secMatch[1]}S`
+  if (/^\d+s$/i.test(p)) return '1'
   if (p === '1m') return '1'
   if (p === '2m') return '2'
   if (p === '3m') return '3'
@@ -106,12 +99,15 @@ function tvResolutionToMarketParams(resolution: string): { interval: string; ran
   if (resolution === '1D') return { interval: '1d', range: '5y' }
   if (resolution === '1W') return { interval: '1w', range: '10y' }
   if (resolution === '1M') return { interval: '1M', range: 'max' }
+  // The server builds every non-stored interval from its 1m / 1h / 1d bars, so ask for the exact one.
   const mins = Number.parseInt(resolution, 10)
-  if (Number.isFinite(mins)) {
+  if (Number.isFinite(mins) && mins > 0) {
     if (mins <= 1) return { interval: '1m', range: '5d' }
-    if (mins <= 5) return { interval: '5m', range: '1mo' }
-    if (mins <= 15) return { interval: '15m', range: '3mo' }
-    return { interval: '1h', range: '1y' }
+    if (mins <= 5) return { interval: `${mins}m`, range: '1mo' }
+    if (mins <= 15) return { interval: `${mins}m`, range: '3mo' }
+    if (mins < 60) return { interval: `${mins}m`, range: '6mo' }
+    if (mins % 60 === 0) return { interval: `${mins / 60}h`, range: '2y' }
+    return { interval: `${mins}m`, range: '6mo' }
   }
   return { interval: '1h', range: '1y' }
 }
@@ -173,8 +169,7 @@ function symbolInfoFor(symbol: string, exchangeOverride?: string): TvLibrarySymb
     minmov: 1,
     pricescale: priceScaleForSymbol(s, asset?.category),
     has_intraday: true,
-    has_seconds: true,
-    seconds_multipliers: ['1', '5', '10', '15', '20', '30'],
+    has_seconds: false,
     has_daily: true,
     has_weekly_and_monthly: true,
     supported_resolutions: [...SUPPORTED_RESOLUTIONS],

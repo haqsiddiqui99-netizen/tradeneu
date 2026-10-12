@@ -2314,7 +2314,6 @@ export async function createTradingViewChart(
       'allow_arbitrary_symbol_search_input',
       'caption_buttons_text_if_possible',
       'hide_right_toolbar',
-      'seconds_resolution',
       // Parent `use_localstorage_for_settings` is off; re-enable stars in Indicators dialog.
       'items_favoriting',
     ],

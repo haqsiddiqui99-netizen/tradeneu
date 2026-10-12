@@ -74,10 +74,11 @@ export function chartIntervalToLocalTimeframe(interval) {
   if (step != null) return secondStepToTimeframe(step)
   const raw = String(interval || '1m').trim()
   const s = raw.toLowerCase()
+  // `1M` is a month; check it before the case-insensitive `1m` minute match.
+  if (raw === '1M' || s === '1mo' || s === '1mth' || s === '1month') return 'mn1'
   if (s === '1m') return 'm1'
   if (s === '1h' || s === '60m') return 'h1'
   if (s === '1d') return 'd1'
-  if (raw === '1M' || s === '1mo' || s === '1mth' || s === '1month') return 'mn1'
   return null
 }
 
@@ -426,14 +427,18 @@ export function getLocalBarTimeBounds(symbol, timeframe) {
   const sym = normalizeMarketSymbol(symbol)
   const tf = String(timeframe || '').trim().toLowerCase()
   if (!BAR_TIMEFRAMES.includes(tf)) return null
-  const row = getMarketDb()
-    .prepare(
-      `SELECT MIN(time_sec) AS min_s, MAX(time_sec) AS max_s FROM bars
-       WHERE symbol = ? AND timeframe = ?`,
-    )
-    .get(sym, tf)
-  const minSec = row?.min_s != null ? Number(row.min_s) : NaN
-  const maxSec = row?.max_s != null ? Number(row.max_s) : NaN
+  // One index seek per end; MIN() + MAX() in a single query scans every row of the symbol/timeframe.
+  const db = getMarketDb()
+  const edge = (dir) =>
+    db
+      .prepare(
+        `SELECT time_sec AS s FROM bars WHERE symbol = ? AND timeframe = ? ORDER BY time_sec ${dir} LIMIT 1`,
+      )
+      .get(sym, tf)
+  const minRow = edge('ASC')
+  const maxRow = edge('DESC')
+  const minSec = minRow?.s != null ? Number(minRow.s) : NaN
+  const maxSec = maxRow?.s != null ? Number(maxRow.s) : NaN
   if (!Number.isFinite(minSec) || !Number.isFinite(maxSec) || maxSec < minSec) return null
   return { minSec, maxSec }
 }

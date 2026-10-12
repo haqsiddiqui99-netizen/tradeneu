@@ -75,7 +75,7 @@ function isValidPick(v: unknown): v is IntervalPick {
     typeof o.pill === 'string' &&
     o.pill.trim().length > 0 &&
     typeof o.label === 'string' &&
-    (o.kind === 'time' || o.kind === 'tick')
+    (o.kind === 'tick' || (o.kind === 'time' && (o.stepSec ?? 60) >= 60))
   )
 }
 

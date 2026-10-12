@@ -31,9 +31,17 @@ function chainMinBars(startSec, endSec) {
 }
 
 function minLocalBarsForInterval(chartInterval) {
-  const s = String(chartInterval || '').trim().toLowerCase()
+  const raw = String(chartInterval || '').trim()
+  const s = raw.toLowerCase()
   if (/^\d+s$/.test(s)) return 2
+  // 10y of 3M / 12M candles is only 40 / 10 bars.
+  if (/^\d+(w|wk|mo|mth|month)$/.test(s) || /^\d+M$/.test(raw)) return 2
   return 16
+}
+
+/** Built from stored m1 / h1 / d1 by `tryResolveLocalBars` (source `local:sqlite:m1>5m`). */
+function isDerivedLocal(local) {
+  return String(local?.source || '').includes('>')
 }
 
 /** Dedupe concurrent on-demand SQLite backfills for the same symbol/range. */
@@ -96,6 +104,7 @@ function resolveChartInterval(symbol, chartInterval) {
 function localRangeSatisfied(symbol, chartInterval, startSec, endSec, local) {
   if (!local?.ok || !local.bars?.length) return false
   if (local.bars.length < minLocalBarsForInterval(chartInterval)) return false
+  if (isDerivedLocal(local)) return true
   if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) return true
   const tf = chartIntervalToLocalTimeframe(chartInterval)
   if (!tf || !marketLocalEnabled()) return true
@@ -242,6 +251,7 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
           chartInterval: cInterval,
           startSec: reqStart,
           endSec: reqEnd,
+          chartRange,
         })
         if (local?.ok && localBarsUsableNow(symbol, cInterval, reqStart, reqEnd, local)) {
           if (
@@ -322,6 +332,7 @@ export async function resolveMarketBars({ symbol, chain, chartRange, chartInterv
             chartInterval: cInterval,
             startSec: Number.isFinite(startSec) ? startSec : undefined,
             endSec: Number.isFinite(endSec) ? endSec : undefined,
+            chartRange,
           })
           if (
             local?.ok &&

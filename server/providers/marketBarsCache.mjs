@@ -55,6 +55,8 @@ export function marketBarsCacheKey({
     Number.isFinite(startSec) ? startSec : '',
     Number.isFinite(endSec) ? endSec : '',
     Number.isFinite(sessionStartSec) ? sessionStartSec : '',
+    // Bump when the bar-building rules change so stale series are not served from disk.
+    'b2',
   ].join('|')
 }
 
