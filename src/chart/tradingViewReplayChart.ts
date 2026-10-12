@@ -67,8 +67,8 @@ const REFRESH_THROTTLE_MS = 150
 const MAX_REALTIME_EMIT_BATCH = 4
 /** Max 1m chart bars revealed in one decoupled replay step (e.g. 10m step on 1m chart). */
 const MAX_DECOUPLED_CHART_BAR_STEP = 16
-/** Frames to wait for TV to apply emitted replay bars before re-pinning the right offset. */
-const PLAYBACK_CATCH_UP_FRAMES = 12
+/** How long after a playback viewport apply to keep watching for TV's late bar batches. */
+const PLAYBACK_CATCH_UP_MS = 1200
 const PLAYBACK_TV_LAG_MAX_BARS = 32
 
 export type TvLockedViewport = {
@@ -484,32 +484,47 @@ export function createTvReplayChartController(opts: {
   }
 
   /**
-   * TV applies emitted bars after we set the offset, several at a time at high replay speeds.
-   * Re-apply once its last bar has moved so the newest candle never sits past the edge.
+   * TV applies emitted bars after we set the offset, in batches that grow with replay speed,
+   * and holds the visible range still while it does — so each late batch lands past the right
+   * edge. TV's own rightOffset shrinks when that happens, and that is readable even when its
+   * internal bar index is not, so re-pin whenever it drops below the anchored target.
    */
   let playbackCatchUpRaf = 0
-  const schedulePlaybackCatchUp = (appliedAtTvIdx: number | null) => {
-    if (playbackCatchUpRaf || appliedAtTvIdx == null) return
-    const check = (framesLeft: number) => {
+  let playbackCatchUpUntil = 0
+  let playbackCatchUpTvIdx: number | null = null
+  const schedulePlaybackCatchUp = () => {
+    playbackCatchUpUntil = performance.now() + PLAYBACK_CATCH_UP_MS
+    playbackCatchUpTvIdx = tvBaseIndex()
+    if (playbackCatchUpRaf) return
+    const check = () => {
       playbackCatchUpRaf = 0
       if (opts.isDisposed() || !playbackOffsetAnchor) return
-      const now = tvBaseIndex()
-      if (now == null) return
-      if (now === appliedAtTvIdx) {
-        if (framesLeft > 0) playbackCatchUpRaf = requestAnimationFrame(() => check(framesLeft - 1))
-        return
-      }
       const ts = timeScale()
       if (!ts) return
-      beginProgrammaticViewportRestore()
+      let current: number | null = null
       try {
-        applyAnchoredPlaybackViewport(ts)
+        const off = ts.rightOffset?.()
+        current = off != null && Number.isFinite(off) ? off : null
       } catch {
-        /* noop */
+        current = null
       }
-      endProgrammaticViewportRestore()
+      const target = playbackRightOffset()
+      const nowIdx = tvBaseIndex()
+      const tvMoved = nowIdx != null && playbackCatchUpTvIdx != null && nowIdx !== playbackCatchUpTvIdx
+      const behind = current != null && target != null && current < target - 0.5
+      if (tvMoved || behind) {
+        beginProgrammaticViewportRestore()
+        try {
+          applyAnchoredPlaybackViewport(ts, false)
+        } catch {
+          /* noop */
+        }
+        endProgrammaticViewportRestore()
+        playbackCatchUpTvIdx = tvBaseIndex()
+      }
+      if (performance.now() < playbackCatchUpUntil) playbackCatchUpRaf = requestAnimationFrame(check)
     }
-    playbackCatchUpRaf = requestAnimationFrame(() => check(PLAYBACK_CATCH_UP_FRAMES))
+    playbackCatchUpRaf = requestAnimationFrame(check)
   }
 
   /**
@@ -519,13 +534,13 @@ export function createTvReplayChartController(opts: {
    * to the bars it actually holds, which snaps the last candle to the right edge (bars pile up
    * against the left wall) and recomputes barSpacing to fill the width (candles grow).
    */
-  const applyAnchoredPlaybackViewport = (ts: TvTimeScaleApi): boolean => {
+  const applyAnchoredPlaybackViewport = (ts: TvTimeScaleApi, watch = true): boolean => {
     const anchored = playbackRightOffset()
     if (anchored == null) return false
     const pinnedSpacing = playbackOffsetAnchor?.barSpacing
     if (pinnedSpacing != null) ts.setBarSpacing(pinnedSpacing)
     ts.setRightOffset(anchored)
-    if (playbackOffsetAnchor?.tvLastIdx != null) schedulePlaybackCatchUp(tvBaseIndex())
+    if (watch) schedulePlaybackCatchUp()
     return true
   }
 
