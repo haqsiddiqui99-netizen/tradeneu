@@ -67,6 +67,9 @@ const REFRESH_THROTTLE_MS = 150
 const MAX_REALTIME_EMIT_BATCH = 4
 /** Max 1m chart bars revealed in one decoupled replay step (e.g. 10m step on 1m chart). */
 const MAX_DECOUPLED_CHART_BAR_STEP = 16
+/** Frames to wait for TV to apply emitted replay bars before re-pinning the right offset. */
+const PLAYBACK_CATCH_UP_FRAMES = 12
+const PLAYBACK_TV_LAG_MAX_BARS = 32
 
 export type TvLockedViewport = {
   from: number
@@ -203,6 +206,8 @@ export function createTvReplayChartController(opts: {
    */
   let playbackOffsetAnchor: {
     lastIdx: number
+    /** TV's own last-bar index at capture; it trails ours while emitted bars are queued. */
+    tvLastIdx: number | null
     rightOffset: number
     barSpacing: number | null
   } | null = null
@@ -408,6 +413,8 @@ export function createTvReplayChartController(opts: {
     }
     pendingFullRefresh = false
     pendingFullRefreshForce = false
+    // resetData rebases TV's bar indices onto the window getBars returns.
+    if (playbackOffsetAnchor) playbackOffsetAnchor.tvLastIdx = null
     try {
       showResetBridge()
       opts.replayFeed.requestSubscriberReset()
@@ -449,6 +456,7 @@ export function createTvReplayChartController(opts: {
       const spacing = ts.barSpacing?.()
       playbackOffsetAnchor = {
         lastIdx: lastSeriesBarIndex(),
+        tvLastIdx: tvBaseIndex(),
         rightOffset: off,
         barSpacing: spacing != null && Number.isFinite(spacing) && spacing > 0.3 ? spacing : null,
       }
@@ -460,9 +468,48 @@ export function createTvReplayChartController(opts: {
   /** Right offset that keeps the locked window stationary as replay reveals bars. */
   const playbackRightOffset = (): number | null => {
     if (!playbackOffsetAnchor) return null
-    const advanced = lastSeriesBarIndex() - playbackOffsetAnchor.lastIdx
+    // rightOffset is counted from the bar TV holds last, so count arrivals the same way. Our
+    // reveal count runs ahead while TV still has emitted bars queued, and offsetting from it
+    // parks those bars past the right edge once they land.
+    const ourAdvanced = lastSeriesBarIndex() - playbackOffsetAnchor.lastIdx
+    const tvNow = playbackOffsetAnchor.tvLastIdx != null ? tvBaseIndex() : null
+    const tvAdvanced = tvNow != null ? tvNow - playbackOffsetAnchor.tvLastIdx! : null
+    // A queue lag is a handful of bars; a larger gap means TV rebased its indices.
+    const advanced =
+      tvAdvanced != null && tvAdvanced >= 0 && Math.abs(tvAdvanced - ourAdvanced) <= PLAYBACK_TV_LAG_MAX_BARS
+        ? tvAdvanced
+        : ourAdvanced
     if (!Number.isFinite(advanced) || advanced < 0) return null
     return Math.max(1, playbackOffsetAnchor.rightOffset - advanced)
+  }
+
+  /**
+   * TV applies emitted bars after we set the offset, several at a time at high replay speeds.
+   * Re-apply once its last bar has moved so the newest candle never sits past the edge.
+   */
+  let playbackCatchUpRaf = 0
+  const schedulePlaybackCatchUp = (appliedAtTvIdx: number | null) => {
+    if (playbackCatchUpRaf || appliedAtTvIdx == null) return
+    const check = (framesLeft: number) => {
+      playbackCatchUpRaf = 0
+      if (opts.isDisposed() || !playbackOffsetAnchor) return
+      const now = tvBaseIndex()
+      if (now == null) return
+      if (now === appliedAtTvIdx) {
+        if (framesLeft > 0) playbackCatchUpRaf = requestAnimationFrame(() => check(framesLeft - 1))
+        return
+      }
+      const ts = timeScale()
+      if (!ts) return
+      beginProgrammaticViewportRestore()
+      try {
+        applyAnchoredPlaybackViewport(ts)
+      } catch {
+        /* noop */
+      }
+      endProgrammaticViewportRestore()
+    }
+    playbackCatchUpRaf = requestAnimationFrame(() => check(PLAYBACK_CATCH_UP_FRAMES))
   }
 
   /**
@@ -478,6 +525,7 @@ export function createTvReplayChartController(opts: {
     const pinnedSpacing = playbackOffsetAnchor?.barSpacing
     if (pinnedSpacing != null) ts.setBarSpacing(pinnedSpacing)
     ts.setRightOffset(anchored)
+    if (playbackOffsetAnchor?.tvLastIdx != null) schedulePlaybackCatchUp(tvBaseIndex())
     return true
   }
 
