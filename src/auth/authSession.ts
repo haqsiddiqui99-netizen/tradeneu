@@ -81,23 +81,6 @@ export function hasLoginSession(): boolean {
   return hasLocalLoginSession()
 }
 
-export function isGuestAuthUser(user: AuthUser | null | undefined): boolean {
-  if (!user) return false
-  return user.provider === 'guest' || user.email === GUEST_AUTH_EMAIL
-}
-
-export function setGuestLoginSession(): void {
-  const user: AuthUser = {
-    email: GUEST_AUTH_EMAIL,
-    name: 'Guest',
-    loggedInAt: Date.now(),
-    provider: 'guest',
-  }
-  assignSessionsToUser(GUEST_AUTH_EMAIL, { reset: false })
-  writeLocalSession(user)
-  writeDisplayName('Guest')
-}
-
 export function isAdminUser(user: AuthUser | null | undefined): boolean {
   return user?.isAdmin === true
 }
@@ -132,8 +115,6 @@ export async function resolveAuthSession(): Promise<boolean> {
     mirrorServerUser(serverUser)
     return true
   }
-  const local = readLocalSession()
-  if (local && isGuestAuthUser(local)) return true
   clearLoginSession()
   return false
 }

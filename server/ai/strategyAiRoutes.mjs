@@ -17,8 +17,6 @@
  */
 
 import { readSessionFromRequest } from '../auth/sessionCookie.mjs'
-import { readGuestFromRequest } from '../guest/guestCookie.mjs'
-
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions'
 
 // Keep in sync with `IndicatorKey` in src/backtest/BacktestTypes.ts.
@@ -85,9 +83,7 @@ function buildSystemPrompt() {
 
 function resolveIdentity(req) {
   const session = readSessionFromRequest(req)
-  if (session?.email) return session.email
-  const guest = readGuestFromRequest(req)
-  if (guest?.guestId) return `guest:${guest.guestId}`
+  if (session?.email && (session.provider || 'local') !== 'guest') return session.email
   return null
 }
 

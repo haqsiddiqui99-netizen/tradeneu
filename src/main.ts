@@ -10,9 +10,8 @@ import {
   parseAppPath,
   resolveAppPath,
 } from './appPaths'
-import { resolveAuthSession, getAuthUser, isAdminUser, isGuestAuthUser } from './auth/authSession'
+import { resolveAuthSession, getAuthUser, isAdminUser } from './auth/authSession'
 import { fetchAdminMe, resolveAuthedHomePath } from './admin/adminApi'
-import { startGuestHeartbeat, pingGuestSession } from './guest/guestSessionApi'
 import { mountDashboardApp } from './home/mountDashboardApp'
 import { mountLandingPage } from './landing/mountLandingPage'
 import { mountLoginGate } from './login/mountLoginGate'
@@ -56,13 +55,6 @@ async function bootstrap(): Promise<void> {
     }
     mountLandingPage(root)
     return
-  }
-
-  if (authed && isGuestAuthUser(getAuthUser())) {
-    const guestPage =
-      parsed.page === 'chart' ? 'chart' : parsed.page === 'dashboard' ? 'dashboard' : 'app'
-    void pingGuestSession(guestPage)
-    startGuestHeartbeat(guestPage)
   }
 
   if (parsed.page === 'login') {
