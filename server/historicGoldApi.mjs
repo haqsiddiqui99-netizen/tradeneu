@@ -19,6 +19,7 @@
  * Port: HISTORIC_API_PORT or 3100 (avoids Windows Hyper-V reserved 2921–3020). Dev: Vite proxies /api → this server.
  */
 
+import compression from 'compression'
 import express from 'express'
 import fs from 'fs'
 import multer from 'multer'
@@ -126,6 +127,9 @@ applyProductionDataDefaults()
 initMarketBarsDiskCache(DATA_DIR)
 
 const app = express()
+
+// Bar JSON and the TradingView bundles shrink ~4-6x; brotli when the browser accepts it, else gzip.
+app.use(compression({ threshold: 1024 }))
 
 /** Lets Vite / dev scripts confirm this port is our historic server, not some other process. */
 app.get('/api/historic/identity', (_req, res) => {
@@ -606,12 +610,28 @@ if (isProdServe) {
   const distDir = path.join(__dirname, '..', 'dist')
   const indexHtml = path.join(distDir, 'index.html')
   if (fs.existsSync(distDir) && fs.existsSync(indexHtml)) {
-    app.use(express.static(distDir, { index: false, maxAge: '1h' }))
+    app.use(
+      express.static(distDir, {
+        index: false,
+        maxAge: '1h',
+        setHeaders(res, filePath) {
+          const rel = path.relative(distDir, filePath).split(path.sep).join('/')
+          // Content-hashed names: a new build ships new file names, so these never change in place.
+          if (rel.startsWith('assets/') || rel.startsWith('charting_library/bundles/')) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+          } else if (rel.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache')
+          }
+        },
+      }),
+    )
     app.get(/^(?!\/api\/).*/, (req, res, next) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return next()
       const p = req.path.toLowerCase()
       if (p.startsWith('/charting_library/')) return next()
       if (/\.(js|css|map|woff2?|ttf|png|svg|ico|json|txt|webmanifest)(\?|$)/.test(p)) return next()
+      // Always revalidate so a deploy's new asset hashes are picked up immediately.
+      res.setHeader('Cache-Control', 'no-cache')
       res.sendFile(indexHtml, (err) => {
         if (err) next(err)
       })
