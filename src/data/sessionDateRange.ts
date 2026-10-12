@@ -152,8 +152,12 @@ export function hasSessionDateRange(startDate?: string, endDate?: string): boole
   return startSec != null || endSec != null
 }
 
-/** Look back far enough to load the candle immediately before session start (weekend gaps on 1m). */
-export const SESSION_FETCH_PRE_ROLL_SEC = 7 * 86_400
+/**
+ * Look back far enough to load the candle immediately before session start (weekend gaps on 1m).
+ * The chart keeps only `SESSION_CHART_LOOKBACK_BARS` of it; 5 days still spans a weekend plus a
+ * market holiday ahead of a Monday start, and anything older is downloaded only to be dropped.
+ */
+export const SESSION_FETCH_PRE_ROLL_SEC = 5 * 86_400
 
 /** 1m bars of chart context before session start (24 hours). */
 export const SESSION_CHART_LOOKBACK_BARS = 24 * 60

@@ -1935,7 +1935,36 @@ export async function tradingViewLibraryAvailable(): Promise<boolean> {
 
 /** Start downloading the TV charting library early (e.g. while session bars load). */
 export function preloadTradingViewScript(): Promise<void> {
-  return loadTradingViewScript()
+  const loaded = loadTradingViewScript()
+  void loaded.then(warmTradingViewBundles, () => {})
+  return loaded
+}
+
+let tvBundlesWarmed = false
+
+/**
+ * The widget only requests its core bundles (~2.5 MB) once it is created, which waits for the
+ * session bars. Fetching them now fills the HTTP cache so the chart iframe loads them from disk.
+ * Names come from the loader script, so a library update needs no change here.
+ */
+function warmTradingViewBundles(): void {
+  if (tvBundlesWarmed) return
+  tvBundlesWarmed = true
+  void (async () => {
+    try {
+      const loader = await (await fetch(chartingLibraryScriptUrl())).text()
+      const files = new Set(loader.match(/bundles\/[\w.-]+\.(?:js|css)/g) ?? [])
+      const base = chartingLibraryBaseUrl()
+      for (const file of files) {
+        // The 600 KB worker is off the first-paint path; the widget fetches it if it needs it.
+        if (file.includes('.worker.')) continue
+        const url = base + file.replace('__LANG__', 'en')
+        void fetch(url, { priority: 'low' } as RequestInit).catch(() => {})
+      }
+    } catch {
+      /* the widget fetches them itself */
+    }
+  })()
 }
 
 function loadTradingViewScript(): Promise<void> {
