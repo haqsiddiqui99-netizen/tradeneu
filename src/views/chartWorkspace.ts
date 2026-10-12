@@ -4765,6 +4765,7 @@ export function mountChartWorkspace(
           resolution: intervalPillToTvResolution(chartTimeframe),
           theme: uiChartTheme === 'dark' ? 'dark' : 'light',
           dataSource: series.dataSource,
+          savedState: activeLayout?.state ?? null,
           sessionStartSec: startSec,
           sessionEndSec: endSec,
           lazyFetchBars: (req) => sessionLazyFetchRef.fn?.(req) ?? Promise.resolve(false),

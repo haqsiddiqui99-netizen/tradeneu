@@ -265,6 +265,11 @@ export type TradingViewChartOpts = {
     resolution: string
     barPeriodSec?: number
   }
+  /**
+   * `save()` payload to boot with, so indicators and drawings are in the first frame. Its
+   * symbol, interval and colours are replaced by this chart's own.
+   */
+  savedState?: object | null
   /** Provider label for resolveSymbol (e.g. dukascopy:xauusd → Dukascopy). Set before widget init. */
   dataSource?: string
   onSymbolChange?: (symbol: string) => void
@@ -2011,6 +2016,36 @@ function loadTradingViewScript(): Promise<void> {
   return scriptLoadPromise
 }
 
+/**
+ * A copy of a `save()` payload that boots on the given symbol and interval. `chartProperties`
+ * is dropped because it carries the background and grid colours of the theme it was saved in.
+ */
+function savedStateForBoot(state: object, symbol: string, resolution: string): object | null {
+  try {
+    const copy = JSON.parse(JSON.stringify(state)) as {
+      charts?: Array<{
+        chartProperties?: unknown
+        panes?: Array<{ sources?: Array<{ type?: string; state?: Record<string, unknown> }> }>
+      }>
+    }
+    if (!Array.isArray(copy.charts) || !copy.charts.length) return null
+    for (const chart of copy.charts) {
+      delete chart.chartProperties
+      for (const pane of chart.panes ?? []) {
+        for (const source of pane.sources ?? []) {
+          if (source.type !== 'MainSeries' || !source.state) continue
+          source.state.symbol = symbol
+          source.state.shortName = symbol
+          source.state.interval = resolution
+        }
+      }
+    }
+    return copy
+  } catch {
+    return null
+  }
+}
+
 export async function createTradingViewChart(
   container: HTMLElement,
   opts: TradingViewChartOpts,
@@ -2318,8 +2353,12 @@ export async function createTradingViewChart(
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
   const chartTimezone = resolveChartTimezone()
+  const bootSavedState = opts.savedState
+    ? savedStateForBoot(opts.savedState, currentSymbol, currentResolution)
+    : null
 
   const widget = new Widget({
+    ...(bootSavedState ? { saved_data: bootSavedState } : {}),
     symbol: currentSymbol,
     interval: currentResolution,
     container: mountId,
