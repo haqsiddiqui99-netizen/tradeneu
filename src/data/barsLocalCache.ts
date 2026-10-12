@@ -10,7 +10,7 @@ const DB_VERSION = 1
 const BARS_STORE = 'ranges'
 const META_STORE = 'meta'
 /** Bump when server bar-building rules change so old copies are ignored. */
-const CACHE_FORMAT = 'b2'
+const CACHE_FORMAT = 'b3'
 const MAX_ENTRIES = 40
 /** S3 archive + hourly gap repair settle a day well within this; newer ranges may still change. */
 const SETTLED_AFTER_SEC = 2 * 86_400
@@ -158,6 +158,8 @@ export function writeCachedBarRange(
   const first = Number(series.bars[0]!.time)
   const last = Number(series.bars[series.bars.length - 1]!.time)
   if (first > startSec + EDGE_SLACK_SEC || last < endSec - EDGE_SLACK_SEC) return
+  // Days stored before the server's volume repair have none; keep fetching until they do.
+  if (!series.bars.some((b) => b.volume > 0)) return
   const key = rangeKey(symbol, startSec, endSec, sessionStartSec)
   void (async () => {
     const db = await openDb()

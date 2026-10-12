@@ -323,6 +323,8 @@ export async function fetchS3DayTicks(symbol, daySec) {
 
 /**
  * Bid OHLC bars from ticks, matching the BID candles already stored from Dukascopy.
+ * Tick volumes are in millions; bars carry units like the datafeed path (`dukascopy.mjs`),
+ * because metals trade fractions of a million and round to zero otherwise.
  * @param {{ timeMs: number; bid: number; bidVol?: number }[]} ticks sorted ascending
  * @param {number} periodSec
  */
@@ -351,7 +353,7 @@ export function ticksToBidBars(ticks, periodSec) {
     high: b.high,
     low: b.low,
     close: b.close,
-    volume: +b.volume.toFixed(4),
+    volume: Math.round(b.volume * 1_000_000),
   }))
 }
 

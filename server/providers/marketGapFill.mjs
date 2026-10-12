@@ -95,6 +95,9 @@ function firstBarSec(sym, tf) {
   return row?.s ?? null
 }
 
+/** Days whose m1 volumes were re-imported (or confirmed zero) after the S3 volume-unit fix. */
+const M1_VOLUME_CHECK = 'm1vol'
+
 /** @returns {Map<number, number>} day start → row count when last verified */
 function verifiedDays(sym, kind) {
   const rows = getMarketDb()
@@ -199,24 +202,34 @@ export function findM1GapDays(sym, startSec, scanEnd) {
   const allowedShort = envInt('MARKET_GAP_MAX_SHORT_HOURS', 1, 0)
   const hourRows = getMarketDb()
     .prepare(
-      `SELECT time_sec / ${HOUR_SEC} AS hr, COUNT(*) AS n FROM bars
+      `SELECT time_sec / ${HOUR_SEC} AS hr, COUNT(*) AS n, SUM(volume > 0) AS nz FROM bars
        WHERE symbol = ? AND timeframe = 'm1' AND time_sec >= ? AND time_sec < ?
        GROUP BY hr`,
     )
     .all(sym, startSec, scanEnd)
   /** @type {Map<number, number[]>} day start → bars per UTC hour */
   const byDay = new Map()
+  /** @type {Map<number, number>} day start → bars with volume */
+  const volumeBarsByDay = new Map()
   for (const r of hourRows) {
     const day = floorDay(r.hr * HOUR_SEC)
     let hours = byDay.get(day)
     if (!hours) byDay.set(day, (hours = new Array(24).fill(0)))
     hours[r.hr - day / HOUR_SEC] = r.n
+    volumeBarsByDay.set(day, (volumeBarsByDay.get(day) ?? 0) + (r.nz ?? 0))
   }
   const verified = verifiedDays(sym, 'm1')
+  const volumeChecked = verifiedDays(sym, M1_VOLUME_CHECK)
   const gaps = []
   for (let day = floorDay(startSec); day < scanEnd; day += DAY_SEC) {
     const hours = byDay.get(day) ?? new Array(24).fill(0)
     const have = hours.reduce((a, b) => a + b, 0)
+    // The S3 importer once stored volumes in millions rounded to 4 places, which is zero for
+    // metals. Such days have every bar but no volume; import them again once.
+    if (have > 0 && !volumeBarsByDay.get(day) && !volumeChecked.has(day)) {
+      gaps.push(day)
+      continue
+    }
     if (stillVerified(verified, day, have)) continue
     const elapsedHours = Math.min(24, Math.floor((scanEnd - day) / HOUR_SEC))
     let floor = floorHours(sym, day)
@@ -294,7 +307,10 @@ export async function fillLocalGaps(opts) {
     const ticks = out.ticks.filter((t) => t.timeMs >= day * 1000 && t.timeMs < (day + DAY_SEC) * 1000)
     if (!ticks.length) {
       // A missing file means no trading, but only trust that once the archive has had time to catch up.
-      if (complete && nowSec - (day + DAY_SEC) > settleSec) markVerified(sym, 'm1', day, 0)
+      if (complete && nowSec - (day + DAY_SEC) > settleSec) {
+        markVerified(sym, 'm1', day, 0)
+        markVerified(sym, M1_VOLUME_CHECK, day, 1)
+      }
       onProgress(`  ${label}: no ticks${complete && nowSec - (day + DAY_SEC) > settleSec ? ' (marked checked)' : ''}`)
       return true
     }
@@ -310,7 +326,10 @@ export async function fillLocalGaps(opts) {
       tickNote = `, ${n} ticks`
       if (complete) markVerified(sym, 'ticks', day, n)
     }
-    if (complete) markVerified(sym, 'm1', day, barDailyCoverage(sym, 'm1', day, day + DAY_SEC).get(day)?.n ?? 0)
+    if (complete) {
+      markVerified(sym, 'm1', day, barDailyCoverage(sym, 'm1', day, day + DAY_SEC).get(day)?.n ?? 0)
+      markVerified(sym, M1_VOLUME_CHECK, day, 1)
+    }
     onProgress(`  ${label}: +${m1} m1${tickNote}`)
     return true
   }
@@ -335,7 +354,9 @@ export async function fillLocalGaps(opts) {
     }
     const cov = barDailyCoverage(sym, 'm1', range.startSec, range.endSec + 1)
     for (const day of range.days) {
-      if (day + DAY_SEC <= scanEnd) markVerified(sym, 'm1', day, cov.get(day)?.n ?? 0)
+      if (day + DAY_SEC > scanEnd) continue
+      markVerified(sym, 'm1', day, cov.get(day)?.n ?? 0)
+      if (out.ok) markVerified(sym, M1_VOLUME_CHECK, day, 1)
     }
     result.m1.repairedDays += range.days.length
   }
