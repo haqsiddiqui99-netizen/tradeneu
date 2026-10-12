@@ -344,6 +344,15 @@ function minBarsForSessionChart(startDate?: string, endDate?: string): number {
   return Math.max(2, Math.min(16, sessionBars + 2))
 }
 
+/**
+ * Range requests started in the last few seconds, so a hover prefetch on the dashboard and the
+ * chart boot that follows the click share one download. Short-lived because a range that
+ * reaches the present keeps growing.
+ */
+const RANGE_MEMO_TTL_MS = 30_000
+const RANGE_MEMO_MAX = 4
+const rangeMemo = new Map<string, { at: number; promise: Promise<MarketBarsSeries | null> }>()
+
 async function fetchMarketBarRange(
   symbol: string,
   startSec: number,
@@ -354,17 +363,67 @@ async function fetchMarketBarRange(
   bootFast = false,
 ): Promise<MarketBarsSeries | null> {
   // `skipLocal` is the retry after stale bars — go back to the server.
-  if (!skipLocal) {
-    const cached = await readCachedBarRange(symbol, startSec, endSec, sessionStartSec)
-    if (cached?.bars.length) return cached
+  if (skipLocal) {
+    return fetchMarketBarRangeFromServer(symbol, startSec, endSec, sessionStartSec, sessionEndSec, true, bootFast)
   }
+
+  const key = [
+    symbol.trim().toUpperCase(),
+    Math.floor(startSec),
+    Math.floor(endSec),
+    sessionStartSec ?? '',
+    sessionEndSec ?? '',
+  ].join('|')
+  const now = Date.now()
+  for (const [k, entry] of rangeMemo) {
+    if (now - entry.at >= RANGE_MEMO_TTL_MS) rangeMemo.delete(k)
+  }
+
+  let entry = rangeMemo.get(key)
+  if (!entry) {
+    const promise = fetchMarketBarRangeCachedOrServer(
+      symbol,
+      startSec,
+      endSec,
+      sessionStartSec,
+      sessionEndSec,
+      bootFast,
+    )
+    entry = { at: now, promise }
+    rangeMemo.set(key, entry)
+    while (rangeMemo.size > RANGE_MEMO_MAX) rangeMemo.delete(rangeMemo.keys().next().value!)
+    promise.then(
+      (result) => {
+        if (!result && rangeMemo.get(key) === entry) rangeMemo.delete(key)
+      },
+      () => {
+        if (rangeMemo.get(key) === entry) rangeMemo.delete(key)
+      },
+    )
+  }
+
+  const result = await entry.promise
+  // Callers own the array they get back.
+  return result ? { ...result, bars: result.bars.slice() } : null
+}
+
+async function fetchMarketBarRangeCachedOrServer(
+  symbol: string,
+  startSec: number,
+  endSec: number,
+  sessionStartSec?: number,
+  sessionEndSec?: number,
+  bootFast = false,
+): Promise<MarketBarsSeries | null> {
+  const cached = await readCachedBarRange(symbol, startSec, endSec, sessionStartSec)
+  if (cached?.bars.length) return cached
   const fetched = await fetchMarketBarRangeFromServer(
     symbol,
     startSec,
     endSec,
     sessionStartSec,
     sessionEndSec,
-    skipLocal,
+    false,
     bootFast,
   )
   if (fetched) writeCachedBarRange(symbol, startSec, endSec, sessionStartSec, fetched)
@@ -504,6 +563,16 @@ export async function prefetchSessionLookbackBars(
 
   const merged = await topUpSessionLookbackBars(symbol, bars, startDate, endDate, startSec)
   return merged.length > bars.length ? merged : null
+}
+
+/**
+ * Start the chart's first bar download for a session before it is opened (dashboard hover).
+ * The chart boot picks up the same request instead of starting its own.
+ */
+export function prefetchSessionBars(symbol: string, startDate?: string, endDate?: string): void {
+  const u = symbol.trim().toUpperCase()
+  if (!isGoldBrowserSymbol(u) && !usesMarketDataSession(u)) return
+  void fetchLiveMarketSeries(u, startDate, endDate, { bootFast: true }).catch(() => {})
 }
 
 async function fetchLiveMarketSeries(

@@ -650,6 +650,9 @@ import type { SessionCreatedPayload } from '../sessionTypes'
 import { mountStockApp } from '../stocks/mountStockApp'
 import { confirmDialog } from '../views/confirmDialog'
 import { mountChartWorkspace } from '../views/chartWorkspace'
+import { preloadTradingViewScript } from '../chart/tradingViewChart'
+import { useTradingViewChart } from '../chart/tradingViewFeature'
+import { prefetchSessionBars } from '../data/resolveSessionBars'
 import { resolveStrategy } from '../strategy/strategyCatalog'
 import { mountStrategyPage } from '../views/mountStrategyPage'
 import { mountAccountPage } from '../views/mountAccountPage'
@@ -5154,6 +5157,39 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     const btn = t?.closest<HTMLElement>('.sx-dash-pulse__kpi-info')
     if (btn) hideKpiInfoTip()
   })
+
+  // Resting on a session row starts its chart download, so most of it is done by the click.
+  // The dwell skips rows the pointer only passes over.
+  const SESSION_PREFETCH_DWELL_MS = 120
+  const SESSION_PREFETCH_REPEAT_MS = 30_000
+  const sessionPrefetchedAt = new Map<string, number>()
+  let sessionPrefetchTimer: ReturnType<typeof setTimeout> | null = null
+  let sessionPrefetchId: string | null = null
+
+  const scheduleSessionPrefetch = (target: Element | null) => {
+    const id = sessionIdFromElement(target)
+    if (id === sessionPrefetchId) return
+    if (sessionPrefetchTimer) clearTimeout(sessionPrefetchTimer)
+    sessionPrefetchTimer = null
+    sessionPrefetchId = id
+    if (!id) return
+    sessionPrefetchTimer = setTimeout(() => {
+      sessionPrefetchTimer = null
+      const last = sessionPrefetchedAt.get(id)
+      if (last != null && Date.now() - last < SESSION_PREFETCH_REPEAT_MS) return
+      const session = getSession(id)
+      if (!session) return
+      sessionPrefetchedAt.set(id, Date.now())
+      if (useTradingViewChart()) void preloadTradingViewScript().catch(() => {})
+      prefetchSessionBars(primarySessionSymbol(session.assets), session.startDate, session.endDate)
+    }, SESSION_PREFETCH_DWELL_MS)
+  }
+
+  root.addEventListener('pointerover', (e) => {
+    if (e.pointerType === 'touch') return
+    scheduleSessionPrefetch(e.target as Element | null)
+  })
+  root.addEventListener('focusin', (e) => scheduleSessionPrefetch(e.target as Element | null))
 
   root.addEventListener('click', (e) => {
     const t = e.target as HTMLElement | null
