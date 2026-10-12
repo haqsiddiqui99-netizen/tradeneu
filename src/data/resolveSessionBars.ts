@@ -1,5 +1,6 @@
 import type { Bar } from '../types'
 import { fetchMarketBarsSeries, BOOT_BARS_FETCH_TIMEOUT_MS, type MarketBarsSeries } from './marketDataClient'
+import { readCachedBarRange, writeCachedBarRange } from './barsLocalCache'
 import {
   generateBtcUsdDemoMinuteBars,
   generateGoldSpotMinuteBars,
@@ -344,6 +345,33 @@ function minBarsForSessionChart(startDate?: string, endDate?: string): number {
 }
 
 async function fetchMarketBarRange(
+  symbol: string,
+  startSec: number,
+  endSec: number,
+  sessionStartSec?: number,
+  sessionEndSec?: number,
+  skipLocal = false,
+  bootFast = false,
+): Promise<MarketBarsSeries | null> {
+  // `skipLocal` is the retry after stale bars — go back to the server.
+  if (!skipLocal) {
+    const cached = await readCachedBarRange(symbol, startSec, endSec, sessionStartSec)
+    if (cached?.bars.length) return cached
+  }
+  const fetched = await fetchMarketBarRangeFromServer(
+    symbol,
+    startSec,
+    endSec,
+    sessionStartSec,
+    sessionEndSec,
+    skipLocal,
+    bootFast,
+  )
+  if (fetched) writeCachedBarRange(symbol, startSec, endSec, sessionStartSec, fetched)
+  return fetched
+}
+
+async function fetchMarketBarRangeFromServer(
   symbol: string,
   startSec: number,
   endSec: number,
