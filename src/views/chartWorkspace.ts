@@ -5945,6 +5945,9 @@ export function mountChartWorkspace(
       if (state.tvChart?.isProgrammaticViewportRestore()) return
 
       if (replay.getState().playing) {
+        // Playback rewrites the right margin itself; adopting that as a user pan locks the
+        // candle's drift in and the next candles walk off the right edge.
+        if (state.tvChart?.isPlaybackViewportHeld()) return
         const snap = state.tvChart?.captureLockedViewport() ?? null
         const locked = state.tvChart?.getReplayLockedViewport() ?? lockedTvViewport
         const period = tvBarPeriodSecForPill(chartTimeframe)
@@ -9554,7 +9557,8 @@ export function mountChartWorkspace(
     function beginReplayPlayback() {
       const startPlayback = () => {
         if (!selectBarChartActive) {
-          // Lock wherever the chart is — playback reveals bars without shifting pan/zoom.
+          // Lock the margin and zoom wherever the chart is. Playback then scrolls one candle
+          // at a time, so the newest candle stays at the same place on screen.
           pinChartViewportForReplay()
           userViewportPinned = false
         } else if (

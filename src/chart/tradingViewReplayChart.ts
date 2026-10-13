@@ -67,9 +67,6 @@ const REFRESH_THROTTLE_MS = 150
 const MAX_REALTIME_EMIT_BATCH = 4
 /** Max 1m chart bars revealed in one decoupled replay step (e.g. 10m step on 1m chart). */
 const MAX_DECOUPLED_CHART_BAR_STEP = 16
-/** How long after a playback viewport apply to keep watching for TV's late bar batches. */
-const PLAYBACK_CATCH_UP_MS = 1200
-const PLAYBACK_TV_LAG_MAX_BARS = 32
 
 export type TvLockedViewport = {
   from: number
@@ -166,6 +163,8 @@ export type TvReplayChartController = {
   flushPendingRefresh: () => void
   /** True while replay code is applying a locked viewport (ignore user pan handlers). */
   isProgrammaticViewportRestore: () => boolean
+  /** True while playback is holding the chart's right margin, so scale events are its own. */
+  isPlaybackViewportHeld: () => boolean
   /** Pause FxReplay bar-shift briefly after the user pans during playback. */
   notifyUserPlaybackPan: (barPeriodSec?: number) => void
   getReplayLockedViewport: () => TvLockedViewport | null
@@ -199,10 +198,10 @@ export function createTvReplayChartController(opts: {
   let frozenViewport: TvLockedViewport | null = null
   let replayLockedViewport: TvLockedViewport | null = null
   /**
-   * Bar-slot anchor for locked playback. Right offset is measured from the last bar in the
-   * series, so holding it constant slides the window left on every new bar. Decrementing it
-   * as bars arrive keeps the window stationary and lets candles fill the empty space instead.
-   * barSpacing is pinned here so candle width only ever changes when the user zooms.
+   * Bar-slot anchor for locked playback. rightOffset is the empty margin to the right of
+   * whatever bar TradingView has drawn last, so writing the same value back after each new
+   * candle scrolls the chart by exactly that candle. barSpacing is pinned so candle width
+   * only changes when the user zooms.
    */
   let playbackOffsetAnchor: {
     lastIdx: number
@@ -445,12 +444,14 @@ export function createTvReplayChartController(opts: {
     const ts = timeScale()
     if (!ts) {
       playbackOffsetAnchor = null
+      stopPlaybackViewportHold()
       return
     }
     try {
       const off = ts.rightOffset?.()
       if (off == null || !Number.isFinite(off)) {
         playbackOffsetAnchor = null
+        stopPlaybackViewportHold()
         return
       }
       const spacing = ts.barSpacing?.()
@@ -460,59 +461,97 @@ export function createTvReplayChartController(opts: {
         rightOffset: off,
         barSpacing: spacing != null && Number.isFinite(spacing) && spacing > 0.3 ? spacing : null,
       }
+      ensurePlaybackViewportHold()
     } catch {
       playbackOffsetAnchor = null
+      stopPlaybackViewportHold()
     }
   }
 
-  /** Right offset that keeps the locked window stationary as replay reveals bars. */
+  /**
+   * The margin captured at play start, held constant.
+   *
+   * Counting down as our own bars are emitted shrinks the margin before TradingView has drawn
+   * those bars. Above ~10x it draws them in batches, and each batch lands further right than
+   * the chart has scrolled, so the newest candle goes past the right edge.
+   */
   const playbackRightOffset = (): number | null => {
     if (!playbackOffsetAnchor) return null
-    // rightOffset is counted from the bar TV holds last, so count arrivals the same way. Our
-    // reveal count runs ahead while TV still has emitted bars queued, and offsetting from it
-    // parks those bars past the right edge once they land.
-    const ourAdvanced = lastSeriesBarIndex() - playbackOffsetAnchor.lastIdx
-    const tvNow = playbackOffsetAnchor.tvLastIdx != null ? tvBaseIndex() : null
-    const tvAdvanced = tvNow != null ? tvNow - playbackOffsetAnchor.tvLastIdx! : null
-    // A queue lag is a handful of bars; a larger gap means TV rebased its indices.
-    const advanced =
-      tvAdvanced != null && tvAdvanced >= 0 && Math.abs(tvAdvanced - ourAdvanced) <= PLAYBACK_TV_LAG_MAX_BARS
-        ? tvAdvanced
-        : ourAdvanced
-    if (!Number.isFinite(advanced) || advanced < 0) return null
-    return Math.max(1, playbackOffsetAnchor.rightOffset - advanced)
+    const margin = playbackOffsetAnchor.rightOffset
+    if (!Number.isFinite(margin)) return null
+    return Math.max(1, margin)
   }
 
   /**
-   * TV applies emitted bars after we set the offset, in batches that grow with replay speed,
-   * and holds the visible range still while it does — so each late batch lands past the right
-   * edge. TV's own rightOffset shrinks when that happens, and that is readable even when its
-   * internal bar index is not, so re-pin whenever it drops below the anchored target.
+   * Re-pin the margin every frame while playback is locked. TradingView applies realtime bars
+   * after we do, and a batch shrinks the margin (or pushes candles past the edge) unless the
+   * captured margin is written back once those bars exist.
    */
-  let playbackCatchUpRaf = 0
-  let playbackCatchUpUntil = 0
-  let playbackCatchUpTvIdx: number | null = null
-  const schedulePlaybackCatchUp = () => {
-    playbackCatchUpUntil = performance.now() + PLAYBACK_CATCH_UP_MS
-    playbackCatchUpTvIdx = tvBaseIndex()
-    if (playbackCatchUpRaf) return
-    const check = () => {
-      playbackCatchUpRaf = 0
-      if (opts.isDisposed() || !playbackOffsetAnchor) return
-      const ts = timeScale()
-      if (!ts) return
-      let current: number | null = null
-      try {
-        const off = ts.rightOffset?.()
-        current = off != null && Number.isFinite(off) ? off : null
-      } catch {
-        current = null
+  let playbackHoldRaf = 0
+  let playbackInteractUntil = 0
+  let playbackInteractBound = false
+  let playbackWheelTimer: ReturnType<typeof setTimeout> | null = null
+  const playbackUserInteracting = () => performance.now() < playbackInteractUntil
+
+  const stopPlaybackViewportHold = () => {
+    if (playbackHoldRaf) cancelAnimationFrame(playbackHoldRaf)
+    playbackHoldRaf = 0
+  }
+
+  /** Take the margin and candle width the user just left the chart at. */
+  const adoptPlaybackViewportFromChart = () => {
+    if (!playbackOffsetAnchor) return
+    const ts = timeScale()
+    if (!ts) return
+    try {
+      const off = ts.rightOffset?.()
+      if (off != null && Number.isFinite(off)) playbackOffsetAnchor.rightOffset = Math.max(1, off)
+      const spacing = ts.barSpacing?.()
+      if (spacing != null && Number.isFinite(spacing) && spacing > 0.3) {
+        playbackOffsetAnchor.barSpacing = spacing
       }
-      const target = playbackRightOffset()
-      const nowIdx = tvBaseIndex()
-      const tvMoved = nowIdx != null && playbackCatchUpTvIdx != null && nowIdx !== playbackCatchUpTvIdx
-      const behind = current != null && target != null && current < target - 0.5
-      if (tvMoved || behind) {
+    } catch {
+      /* noop */
+    }
+  }
+
+  const bindPlaybackInteractWatch = () => {
+    if (playbackInteractBound) return
+    const doc = opts.getIframeDocument?.()
+    if (!doc) return
+    playbackInteractBound = true
+    const pause = () => {
+      playbackInteractUntil = Number.POSITIVE_INFINITY
+    }
+    const resume = () => {
+      adoptPlaybackViewportFromChart()
+      playbackInteractUntil = performance.now() + 80
+    }
+    doc.addEventListener('pointerdown', pause, true)
+    doc.addEventListener('pointerup', resume, true)
+    doc.addEventListener('pointercancel', resume, true)
+    doc.addEventListener(
+      'wheel',
+      () => {
+        playbackInteractUntil = performance.now() + 240
+        if (playbackWheelTimer) window.clearTimeout(playbackWheelTimer)
+        playbackWheelTimer = window.setTimeout(() => {
+          playbackWheelTimer = null
+          adoptPlaybackViewportFromChart()
+          playbackInteractUntil = performance.now() + 80
+        }, 220)
+      },
+      { capture: true, passive: true },
+    )
+  }
+
+  const runPlaybackViewportHold = () => {
+    playbackHoldRaf = 0
+    if (opts.isDisposed() || !playbackOffsetAnchor) return
+    bindPlaybackInteractWatch()
+    if (!playbackUserInteracting()) {
+      const ts = timeScale()
+      if (ts) {
         beginProgrammaticViewportRestore()
         try {
           applyAnchoredPlaybackViewport(ts, false)
@@ -520,11 +559,14 @@ export function createTvReplayChartController(opts: {
           /* noop */
         }
         endProgrammaticViewportRestore()
-        playbackCatchUpTvIdx = tvBaseIndex()
       }
-      if (performance.now() < playbackCatchUpUntil) playbackCatchUpRaf = requestAnimationFrame(check)
     }
-    playbackCatchUpRaf = requestAnimationFrame(check)
+    playbackHoldRaf = requestAnimationFrame(runPlaybackViewportHold)
+  }
+
+  const ensurePlaybackViewportHold = () => {
+    if (playbackHoldRaf || !playbackOffsetAnchor) return
+    playbackHoldRaf = requestAnimationFrame(runPlaybackViewportHold)
   }
 
   /**
@@ -538,9 +580,17 @@ export function createTvReplayChartController(opts: {
     const anchored = playbackRightOffset()
     if (anchored == null) return false
     const pinnedSpacing = playbackOffsetAnchor?.barSpacing
-    if (pinnedSpacing != null) ts.setBarSpacing(pinnedSpacing)
-    ts.setRightOffset(anchored)
-    if (watch) schedulePlaybackCatchUp()
+    try {
+      if (pinnedSpacing != null) {
+        const spacing = ts.barSpacing?.()
+        if (spacing == null || Math.abs(spacing - pinnedSpacing) > 0.05) ts.setBarSpacing(pinnedSpacing)
+      }
+      const off = ts.rightOffset?.()
+      if (off == null || Math.abs(off - anchored) > 0.5) ts.setRightOffset(anchored)
+    } catch {
+      /* TV may reject a scale write mid-layout */
+    }
+    if (watch) ensurePlaybackViewportHold()
     return true
   }
 
@@ -2307,6 +2357,7 @@ export function createTvReplayChartController(opts: {
         capturePlaybackOffsetAnchor()
       } else {
         playbackOffsetAnchor = null
+        stopPlaybackViewportHold()
       }
     },
 
@@ -2336,11 +2387,16 @@ export function createTvReplayChartController(opts: {
     refitViewport(bars, pastCount) {
       replayLockedViewport = null
       playbackOffsetAnchor = null
+      stopPlaybackViewportHold()
       scheduleIntervalSwapRefit(bars, pastCount)
     },
 
     isProgrammaticViewportRestore() {
       return isProgrammaticViewportRestore()
+    },
+
+    isPlaybackViewportHeld() {
+      return playbackOffsetAnchor != null && !playbackUserInteracting()
     },
 
     notifyUserPlaybackPan(barPeriodSec) {
@@ -2422,6 +2478,8 @@ export function createTvReplayChartController(opts: {
     dispose() {
       if (refreshTimer) window.clearTimeout(refreshTimer)
       if (pickPreviewClampTimer) window.clearTimeout(pickPreviewClampTimer)
+      if (playbackWheelTimer) window.clearTimeout(playbackWheelTimer)
+      stopPlaybackViewportHold()
       cancelViewportRestoreTimers()
       cancelIncrementalViewportRaf()
       clearCursorTimer()

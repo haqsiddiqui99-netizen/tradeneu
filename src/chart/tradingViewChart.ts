@@ -236,6 +236,8 @@ export type TradingViewChartHandle = {
   flushPendingRefresh: () => void
   /** True while replay code is applying a locked viewport (ignore user pan handlers). */
   isProgrammaticViewportRestore: () => boolean
+  /** True while playback is holding the chart's right margin, so scale events are its own. */
+  isPlaybackViewportHeld: () => boolean
   notifyUserPlaybackPan: (barPeriodSec?: number) => void
   getReplayLockedViewport: () => TvLockedViewport | null
   subscribeTimeScaleChange: (fn: () => void) => () => void
@@ -3811,6 +3813,10 @@ export async function createTradingViewChart(
 
     isProgrammaticViewportRestore() {
       return replayCtrl?.isProgrammaticViewportRestore() ?? false
+    },
+
+    isPlaybackViewportHeld() {
+      return replayCtrl?.isPlaybackViewportHeld() ?? false
     },
 
     notifyUserPlaybackPan(barPeriodSec) {
