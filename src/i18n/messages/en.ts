@@ -412,6 +412,11 @@ export const en = {
   // ——— Recent sessions ———
   'sessions.recent': 'Recent Sessions',
   'sessions.countOfLimit': '{used} of {limit} sessions',
+  'sessions.limitTitle': 'Session limit reached',
+  'sessions.limitMessage':
+    'Your plan includes {limit} sessions and all of them are in use. Delete a session or upgrade to add more.',
+  'sessions.limitUpgrade': 'See plans',
+  'sessions.limitDismiss': 'Not now',
   'sessions.search': 'Search sessions',
   'sessions.filter': 'Filter sessions',
   'sessions.filterAll': 'All',

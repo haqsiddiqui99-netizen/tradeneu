@@ -3345,3 +3345,18 @@
     animation: none;
   }
 }
+
+/* Below 1024px the rail is a slide-in drawer over the page. The shell must not
+   form its own stacking context, or the scrim (a sibling of the shell) paints
+   over the drawer and swallows its clicks. The drawer also needs an opaque
+   fill, since the desktop rail above is transparent. */
+@media (max-width: 1023.98px) {
+  #sx-app-root.sx-desk .sx-dash-shell {
+    z-index: auto;
+  }
+
+  #sx-app-root.sx-desk .sx-dash-side,
+  #sx-app-root.sx-desk[data-dashboard-theme='dark'] .sx-dash-side {
+    background: var(--desk-bg);
+  }
+}

@@ -79,9 +79,24 @@ export class TvReplayFeedController {
     )
   }
 
-  /** Hint for TV when a getBars window has no rows — prevents infinite polling. */
-  nextTimeForEmptyRequest(periodParams: TvPeriodParams): number | undefined {
-    return tvNextTimeForEmptyRequest(this.state.allBars, periodParams)
+  /**
+   * Hint for TV when a getBars window has no rows — prevents infinite polling. Must point into
+   * the bars getBars can actually serve: hinting at hidden future bars sends TV walking back
+   * from the session end one empty countBack window at a time, and on a narrow chart (small
+   * countBack) that trips the getBars storm guard before it ever reaches the cursor.
+   */
+  nextTimeForEmptyRequest(periodParams: TvPeriodParams, ticker?: string): number | undefined {
+    return tvNextTimeForEmptyRequest(this.servableBars(ticker), periodParams)
+  }
+
+  private servableBars(ticker?: string): TvBar[] {
+    const revealed =
+      this.state.pickSplitIndex != null
+        ? this.state.pickSplitIndex + 1
+        : this.state.revealedCount
+    if (ticker != null && isFutureTicker(ticker)) return this.state.allBars.slice(revealed)
+    if (this.useTvFullSeriesMaskMode()) return this.state.allBars
+    return this.state.allBars.slice(0, revealed)
   }
 
   useTvFullSeriesReplay(): boolean {
@@ -297,18 +312,8 @@ export class TvReplayFeedController {
     if (!this.state.allBars.length) return []
 
     const isFuture = isFutureTicker(ticker)
-    const revealed =
-      this.state.pickSplitIndex != null
-        ? this.state.pickSplitIndex + 1
-        : this.state.revealedCount
-
-    const past = this.state.allBars.slice(0, revealed)
-    const future = this.state.allBars.slice(revealed)
-    const source =
-      isFuture ? future : this.useTvFullSeriesMaskMode() ? this.state.allBars : past
-
     const served = filterTvBarsStrictlyInPeriod(
-      source,
+      this.servableBars(ticker),
       periodParams,
       true,
       this.historicalAnchorIndex,

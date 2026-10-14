@@ -113,7 +113,8 @@ export type MountAccountPageOptions = {
   onAvatarChange?: () => void
   /** Fired when a session is restored from the recycle bin. */
   onSessionsChange?: () => void
-  freeSessionLimit?: number
+  /** Resolves false (after offering an upgrade) when the plan has no free session slot. */
+  ensureSessionSlot?: () => Promise<boolean>
   showAdminLink?: boolean
   adminHref?: string
 }
@@ -1696,9 +1697,11 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
       </div>`
 
     deletedHost.querySelectorAll<HTMLButtonElement>('[data-sx-acct-restore]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-sx-acct-restore')
-        if (id) restoreSession(id)
+        if (!id) return
+        if (opts.ensureSessionSlot && !(await opts.ensureSessionSlot())) return
+        restoreSession(id)
         renderDeleted()
         opts.onSessionsChange?.()
       })

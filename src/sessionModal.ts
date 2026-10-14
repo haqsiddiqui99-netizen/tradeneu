@@ -1237,25 +1237,32 @@ export function createSessionModal(options?: {
     autoEndSwitch.classList.toggle('sx-auto-end-switch--on', on)
   }
 
-  /** Pick random start/end in range; end is always >= start. */
+  /** Pick a random window of 1–30 days inside the coverage range, starting on a weekday. */
   function applyRandomDateRange() {
     const minDt = barCoverage.minDatetimeLocal
     const maxDt = barCoverage.maxDatetimeLocal
     const lo = new Date(minDt)
     const hi = new Date(maxDt)
     if (Number.isNaN(lo.getTime()) || Number.isNaN(hi.getTime())) return
+    const dayMs = 86_400_000
+    const minWindowMs = dayMs
+    const maxWindowMs = 30 * dayMs
     const spanMs = hi.getTime() - lo.getTime()
-    if (spanMs < 60_000) {
+    if (spanMs <= minWindowMs) {
       assignStartValue(minDt, false)
       assignEndValue(maxDt, false)
       syncSubmit()
       return
     }
-    const t = lo.getTime() + Math.random() * spanMs
-    const start = formatDatetimeLocal(new Date(t))
-    assignStartValue(clampDateTimeLocal(start, minDt, maxDt), false)
-    const endT = lo.getTime() + Math.random() * (hi.getTime() - new Date(start).getTime())
-    assignEndValue(clampDateTimeLocal(formatDatetimeLocal(new Date(Math.max(endT, new Date(start).getTime()))), minDt, maxDt), false)
+    const start = new Date(lo.getTime() + Math.random() * (spanMs - minWindowMs))
+    const dow = start.getDay()
+    if (dow === 6) start.setDate(start.getDate() + 2)
+    else if (dow === 0) start.setDate(start.getDate() + 1)
+    const startT = Math.min(start.getTime(), hi.getTime() - minWindowMs)
+    const windowMs = minWindowMs + Math.random() * (maxWindowMs - minWindowMs)
+    const endT = Math.min(startT + windowMs, hi.getTime())
+    assignStartValue(clampDateTimeLocal(formatDatetimeLocal(new Date(startT)), minDt, maxDt), false)
+    assignEndValue(clampDateTimeLocal(formatDatetimeLocal(new Date(endT)), minDt, maxDt), false)
     syncSubmit()
   }
 

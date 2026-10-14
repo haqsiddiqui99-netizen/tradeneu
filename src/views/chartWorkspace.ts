@@ -459,6 +459,9 @@ const TV_1M_DEFAULT_VISIBLE_BARS = 180
 /** Aggregated intervals need enough bars at boot or the chart pins one candle to the left edge. */
 const MIN_BOOT_CHART_BARS = 8
 
+/** Quiet period after the last chart edit before the layout autosaves. */
+const CHART_LAYOUT_AUTOSAVE_MS = 1500
+
 const TICK_LOAD_TIMEOUT_MS = 30_000
 
 /** Seconds intervals: smaller first window — Dukascopy tick fetch is slow on cold cache. */
@@ -4447,6 +4450,28 @@ export function mountChartWorkspace(
       return propTradingAllowed
     }
 
+    let coupledCursorMemory: { endSec: number; tf: string; index: number } | null = null
+
+    function replayCursorEndSecForSnapshot(): number | undefined {
+      const r = state.replay
+      if (!r) return undefined
+      const index = r.getState().index
+      const decoupled = isDecoupledReplay()
+      if (
+        !decoupled &&
+        coupledCursorMemory &&
+        coupledCursorMemory.tf === chartTimeframe &&
+        coupledCursorMemory.index === index
+      ) {
+        return coupledCursorMemory.endSec
+      }
+      const pick = resolveIntervalPick(decoupled ? replayTimeframe : chartTimeframe)
+      if (!pick || pick.kind !== 'time') return undefined
+      const bars = r.getBars()
+      const end = cursorEndSecForStepIndex(bars, effectiveReplayStepSec(bars, pick.stepSec ?? 60), index)
+      return end > 0 ? end : undefined
+    }
+
     function buildReplaySnapshot(): SessionReplaySnapshot {
       let replayBarIndex = state.replay?.getState().index
       if (replayBarIndex != null && isDecoupledReplay()) {
@@ -4456,6 +4481,7 @@ export function mountChartWorkspace(
       return {
         account: replayAccount.getPersisted(),
         replayBarIndex,
+        replayCursorEndSec: replayCursorEndSecForSnapshot(),
         savedAt: Date.now(),
       }
     }
@@ -5865,7 +5891,20 @@ export function mountChartWorkspace(
     sessionLazyFetchRef.fn = lazyFetchSessionBars
     state.sessionBarsWindowed = sessionBarsWindowed
 
-    const savedReplayIndex = restoredReplay?.replayBarIndex
+    const savedCursorEndSec = restoredReplay?.replayCursorEndSec
+    const bootPick = resolveIntervalPick(chartTimeframe)
+    const savedIndexFromTime =
+      savedCursorEndSec != null &&
+      bootPick?.kind === 'time' &&
+      chartBars.length > 0 &&
+      savedCursorEndSec > Number(chartBars[0]!.time)
+        ? stepIndexForCursorEnd(
+            chartBars,
+            effectiveReplayStepSec(chartBars, bootPick.stepSec ?? 60),
+            savedCursorEndSec,
+          )
+        : undefined
+    const savedReplayIndex = savedIndexFromTime ?? restoredReplay?.replayBarIndex
     const historicalSession = isHistoricalSessionBars(chartBars)
     const savedReplayLooksValid =
       savedReplayIndex != null &&
@@ -6785,6 +6824,49 @@ export function mountChartWorkspace(
       const cursorTime = slice.length ? slice[slice.length - 1]!.time : null
       let cursorTimeSec = cursorTime != null ? Number(cursorTime) : null
 
+      const replayPickBeforeChartChange = resolveIntervalPick(replayTimeframe)
+      const prevReplayTransport = replay.getBars()
+      const prevReplayStepSec =
+        replayPickBeforeChartChange != null
+          ? effectiveReplayStepSec(
+              prevReplayTransport,
+              replayPickBeforeChartChange.stepSec ?? 60,
+            )
+          : 60
+      // Coupled replay steps the chart's own bars, so its cursor is measured in the chart step.
+      // Without this, going coupled → decoupled has no cursor to keep and lands on the last bar,
+      // revealing the rest of the session.
+      const wasDecoupled = isDecoupledReplay()
+      const rememberedCursor = coupledCursorMemory
+      coupledCursorMemory = null
+      const preserveCursorEndSec =
+        !wasDecoupled &&
+        rememberedCursor != null &&
+        rememberedCursor.tf === chartTimeframe &&
+        rememberedCursor.index === replay.getState().index
+          ? rememberedCursor.endSec
+          : replayPickBeforeChartChange &&
+              (wasDecoupled || (prevPick?.kind === 'time' && (prevPick.stepSec ?? 60) >= 60))
+            ? cursorEndSecForStepIndex(
+                prevReplayTransport,
+                wasDecoupled
+                  ? prevReplayStepSec
+                  : effectiveReplayStepSec(prevReplayTransport, prevPick?.stepSec ?? 60),
+                replay.getState().index,
+              )
+            : null
+      // A coupled replay can only stand on whole chart candles, so it shows the ones closed by the
+      // cursor; the candle still forming would otherwise show minutes not yet played. Month bars
+      // are excluded because their length varies.
+      const coupledCursorSwap =
+        preserveCursorEndSec != null &&
+        !enteringTickKind &&
+        !enteringSeconds &&
+        !leavingSubMinute &&
+        pick.kind === 'time' &&
+        (pick.stepSec ?? 60) >= 60 &&
+        (pick.stepSec ?? 60) <= 7 * 86400
+
       // Sync prime before any await: TV may already be on 4h/1h and requesting getBars.
       // Without this, a resolution mismatch returns [] until later prime+resetData.
       if (
@@ -6797,11 +6879,16 @@ export function mountChartWorkspace(
         const earlyBars = buildBarsForIntervalPick(pick, cursorTimeSec)
         if (earlyBars.length >= 2) {
           const earlyRes = intervalPillToTvResolution(pick.pill)
+          const earlyPast = coupledCursorSwap
+            ? stepIndexForCursorEnd(earlyBars, pick.stepSec ?? 60, preserveCursorEndSec!)
+            : cursorTimeSec != null
+              ? Math.max(1, earlyBars.filter((b) => Number(b.time) <= cursorTimeSec!).length)
+              : earlyBars.length
           state.tvChart.noteResolution(earlyRes)
           state.tvChart.primeIntervalFeed(
             tvBarsForChart(earlyBars),
             earlyRes,
-            earlyBars.length,
+            earlyPast,
             intervalPickBarPeriodSec(pick),
           )
         }
@@ -6824,23 +6911,6 @@ export function mountChartWorkspace(
         }
       }
       try {
-        const replayPickBeforeChartChange = resolveIntervalPick(replayTimeframe)
-        const prevReplayTransport = replay.getBars()
-        const prevReplayStepSec =
-          replayPickBeforeChartChange != null
-            ? effectiveReplayStepSec(
-                prevReplayTransport,
-                replayPickBeforeChartChange.stepSec ?? 60,
-              )
-            : 60
-        const preserveCursorEndSec =
-          isDecoupledReplay() && replayPickBeforeChartChange
-            ? cursorEndSecForStepIndex(
-                prevReplayTransport,
-                prevReplayStepSec,
-                replay.getState().index,
-              )
-            : null
         tickLoadUsedProgressive = false
         if (enteringTickKind) {
           showOverlay('Building tick chart…')
@@ -6995,11 +7065,13 @@ export function mountChartWorkspace(
         syncOrderPanelPosition()
         syncTradeNavUi()
 
-        const nextIndex = resolveTickReplayIndex(chartBars, cursorTimeSec, {
-          enteringTicks: enteringTickKind,
-          prevIndex: replay.getState().index,
-          prevBarsLen: replay.getBars().length,
-        })
+        const nextIndex = coupledCursorSwap
+          ? stepIndexForCursorEnd(chartBars, pick.stepSec ?? 60, preserveCursorEndSec!)
+          : resolveTickReplayIndex(chartBars, cursorTimeSec, {
+              enteringTicks: enteringTickKind,
+              prevIndex: replay.getState().index,
+              prevBarsLen: replay.getBars().length,
+            })
 
         const tickAtLiveEnd = enteringTickKind && nextIndex >= chartBars.length
         const tvViewSnap =
@@ -7153,6 +7225,16 @@ export function mountChartWorkspace(
         } else {
           if (intervalRefit) nextReplayTickFit = true
           replay.replaceBarsAt(chartBars, nextIndex)
+        }
+
+        // Keep the played-to time when the new candles cannot show it, so switching back to a finer
+        // chart before stepping returns to the same minute instead of the candle's open.
+        if (coupledCursorSwap && !decoupledActive) {
+          const landedIndex = replay.getState().index
+          const landedEnd = cursorEndSecForStepIndex(chartBars, pick.stepSec ?? 60, landedIndex)
+          if (landedEnd < preserveCursorEndSec!) {
+            coupledCursorMemory = { endSec: preserveCursorEndSec!, tf: chartTimeframe, index: landedIndex }
+          }
         }
 
         state.redrawDrawings?.()
@@ -9302,13 +9384,36 @@ export function mountChartWorkspace(
     cleanupFns.push(() => document.removeEventListener('keydown', onChartLayoutKey))
 
     /**
-     * Wired once TradingView is ready: its "user changed the chart" signal drives the
-     * unsaved marker, and the shortcuts need a second binding because key events raised
-     * inside the widget's iframe never reach the parent document.
+     * Wired once TradingView is ready: its "user changed the chart" signal marks the layout
+     * unsaved and autosaves it shortly after, so drawings survive a reload without a manual
+     * Save. The shortcuts need a second binding because key events raised inside the
+     * widget's iframe never reach the parent document.
      */
     function bindChartLayoutSignals() {
-      const stopDirty = state.tvChart?.onChartStateChanged(markChartLayoutDirty)
+      let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+      const flushAutosave = () => {
+        if (autosaveTimer) {
+          clearTimeout(autosaveTimer)
+          autosaveTimer = null
+        }
+        if (chartLayoutDirty) void saveActiveChartLayout()
+      }
+      const stopDirty = state.tvChart?.onChartStateChanged(() => {
+        markChartLayoutDirty()
+        if (autosaveTimer) clearTimeout(autosaveTimer)
+        autosaveTimer = setTimeout(flushAutosave, CHART_LAYOUT_AUTOSAVE_MS)
+      })
       if (stopDirty) cleanupFns.push(stopDirty)
+      const onHidden = () => {
+        if (document.visibilityState === 'hidden') flushAutosave()
+      }
+      window.addEventListener('pagehide', flushAutosave)
+      document.addEventListener('visibilitychange', onHidden)
+      cleanupFns.push(() => {
+        window.removeEventListener('pagehide', flushAutosave)
+        document.removeEventListener('visibilitychange', onHidden)
+        flushAutosave()
+      })
 
       const frameDoc = state.tvChart?.getHeaderButton('layout')?.ownerDocument
       if (frameDoc && frameDoc !== document) {

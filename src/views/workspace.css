@@ -10337,20 +10337,6 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   background: var(--tf-faint);
 }
 
-.rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats__val--up,
-.rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats__val--up,
-.rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats__popover .rw-trade-stats__val--up,
-.rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats__popover .rw-trade-stats__val--up {
-  color: var(--tf-up);
-}
-
-.rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats__val--down,
-.rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats__val--down,
-.rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats__popover .rw-trade-stats__val--down,
-.rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats__popover .rw-trade-stats__val--down {
-  color: var(--tf-down);
-}
-
 .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats--hidden .rw-trade-stats__val::after,
 .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats--hidden .rw-trade-stats__val::after,
 .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats--hidden .rw-trade-stats__val--up::after,
@@ -10412,6 +10398,21 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats__popover .rw-trade-stats__val {
   color: var(--tf-text);
   font-family: Inter, 'Segoe UI', sans-serif;
+}
+
+/* Must stay after the neutral popover value rule above: same specificity, so order decides. */
+.rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats__val--up,
+.rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats__val--up,
+.rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats__popover .rw-trade-stats__val--up,
+.rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats__popover .rw-trade-stats__val--up {
+  color: var(--tf-up);
+}
+
+.rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats__val--down,
+.rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats__val--down,
+.rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-stats__popover .rw-trade-stats__val--down,
+.rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-stats__popover .rw-trade-stats__val--down {
+  color: var(--tf-down);
 }
 
 .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-order-type__opt-hint,
@@ -10670,8 +10671,9 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
    are different widths. */
 .rw-trade-bar__replay-slot {
   position: absolute;
-  /* The dock row pads 12px left and 6px right, so the bar's own centre sits 3px short. */
-  left: calc(50% + 3px);
+  /* The dock row pads 12px left and 6px right, so the trade bar's centre sits 3px right of the
+     footer's. */
+  left: calc(50% - 3px);
   top: 50%;
   z-index: 3;
   display: flex;
@@ -10681,6 +10683,40 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 [data-rw-trade-bar]:has(> .rw-trade-bar__replay-slot) {
   position: relative;
+  container: rw-trade-bar / inline-size;
+}
+
+/* Too narrow to centre on the footer without running into the order ticket: centre the bar in
+   the gap between the ticket and the balance instead. */
+@container rw-trade-bar (max-width: 1160px) {
+  .rw-trade-bar__replay-slot {
+    position: static;
+    left: auto;
+    top: auto;
+    margin: 0 auto;
+    transform: none;
+  }
+
+  .rw-trade-bar__spacer:has(+ .rw-trade-bar__replay-slot:not(:empty)) {
+    display: none;
+  }
+}
+
+/* No room beside the ticket and the balance: lift the bar just above the footer row so it never
+   pushes the trade panel toggle off screen. */
+@container rw-trade-bar (max-width: 920px) {
+  .rw-trade-bar__replay-slot {
+    position: absolute;
+    left: calc(50% - 3px);
+    top: auto;
+    bottom: calc(100% + 8px);
+    margin: 0;
+    transform: translateX(-50%);
+  }
+
+  .rw-trade-bar__spacer:has(+ .rw-trade-bar__replay-slot:not(:empty)) {
+    display: block;
+  }
 }
 
 .rw-trade-bar__replay-slot:empty {
@@ -10728,5 +10764,77 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 
 .rw-replay-dock__pin.rw-replay-dock__pin--on {
   color: #2962ff;
+}
+
+/* Phone widths: the ticket's fixed widths add up to ~470px, which pushed the trade panel
+   toggle off the right edge. Buy and Sell give up width first so the row fits from 360px. */
+@media (max-width: 520px) {
+  .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-bar,
+  .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-bar {
+    gap: 6px;
+  }
+
+  .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-bar__spacer,
+  .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-bar__spacer {
+    display: none;
+  }
+
+  .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-ticket,
+  .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-ticket {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-ticket__sides,
+  .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-ticket__sides {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-trade-btn,
+  .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-trade-btn {
+    flex: 1 1 0;
+    min-width: 44px;
+    padding: 0 8px;
+  }
+
+  .rw-root--fxr .rw-chart-footer-tv .rw-order-type {
+    width: 78px;
+  }
+
+  .rw-root--fxr[data-chart-theme='light'] .rw-chart-footer-tv .rw-order-type__btn,
+  .rw-root--fxr[data-chart-theme='dark'] .rw-chart-footer-tv .rw-order-type__btn {
+    min-width: 78px;
+  }
+}
+
+/* The floating replay card is ~430px wide and centred, so on a phone the drag handle and pin
+   hung off both edges. Tighter spacing and a shorter speed track bring it to ~340px. */
+@media (max-width: 480px) {
+  .rw-root--fxr[data-chart-theme] .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__bar {
+    padding: 0 6px 0 2px;
+    gap: 2px;
+  }
+
+  .rw-root--fxr[data-chart-theme] .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__drag {
+    margin: 0 0 0 2px;
+  }
+
+  .rw-root--fxr[data-chart-theme] .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv .rw-replay-dock__transport {
+    gap: 2px;
+  }
+
+  .rw-root--fxr[data-chart-theme]
+    .rw-chart-canvas
+    > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv
+    .rw-replay-dock__transport
+    > .rw-replay-dock__speed-wrap {
+    flex: 0 0 48px;
+    width: 48px;
+    min-width: 48px;
+    max-width: 48px;
+    margin: 0 4px;
+  }
 }
 

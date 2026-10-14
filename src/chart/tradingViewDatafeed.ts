@@ -370,7 +370,7 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
           console.warn('[TradingView] getBars storm — redirecting with nextTime')
         }
         const nextTime = replayFeed.hasSessionBars()
-          ? replayFeed.nextTimeForEmptyRequest(periodParams)
+          ? replayFeed.nextTimeForEmptyRequest(periodParams, symbolInfo.ticker)
           : undefined
         deliverGetBars(reqKey, [], nextTime, onResult)
         return
@@ -381,7 +381,7 @@ export function createTradeneuTvDatafeed(opts: TradeneuTvDatafeedOpts): Tradeneu
           let nextTime: number | undefined
           if (!bars.length) {
             nextTime = replayFeed.hasSessionBars()
-              ? replayFeed.nextTimeForEmptyRequest(periodParams)
+              ? replayFeed.nextTimeForEmptyRequest(periodParams, symbolInfo.ticker)
               : tvNextTimeForEmptyRequest(bars, periodParams)
           }
           return { bars, nextTime }

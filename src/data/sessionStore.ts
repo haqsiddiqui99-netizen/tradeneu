@@ -30,6 +30,8 @@ export type StoredSession = SessionCreatedPayload & {
 export type SessionReplaySnapshot = {
   account: ReplayAccountPersisted
   replayBarIndex?: number
+  /** Unix seconds the replay has played up to; preferred over the index, which depends on the bars loaded. */
+  replayCursorEndSec?: number
   savedAt: number
 }
 

@@ -906,8 +906,15 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
-/** Free plan session slot cap (display only). */
-const FREE_SESSION_LIMIT = 10
+/**
+ * Session slots per plan, as sold on the pricing page. Sessions live in this browser's
+ * storage, so the cap is enforced here; the server never sees the session list.
+ */
+const SESSION_LIMIT_BY_TIER = { free: 2, intermediate: 10, pro: Number.POSITIVE_INFINITY } as const
+
+function sessionLimitForTier(tier: 'free' | 'intermediate' | 'pro'): number {
+  return SESSION_LIMIT_BY_TIER[tier]
+}
 
 function formatSessionTimestamp(ms: number): string {
   try {
@@ -2380,7 +2387,29 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
     })
   }
 
+  function hasSessionSlot(): boolean {
+    return listSessions().length < sessionLimitForTier(readAccountTier())
+  }
+
+  /** True when the plan has a free session slot; otherwise offers the upgrade instead. */
+  async function ensureSessionSlot(): Promise<boolean> {
+    if (hasSessionSlot()) return true
+    const limit = sessionLimitForTier(readAccountTier())
+    const upgrade = await confirmDialog({
+      title: translate('sessions.limitTitle'),
+      message: translate('sessions.limitMessage', { limit }),
+      confirmLabel: translate('sessions.limitUpgrade'),
+      cancelLabel: translate('sessions.limitDismiss'),
+    })
+    if (upgrade) openUpgradePlansModal()
+    return false
+  }
+
   function openChartWithPayload(payload: SessionCreatedPayload) {
+    if (!hasSessionSlot()) {
+      void ensureSessionSlot()
+      return
+    }
     openChartWithStoredSession(createSession(payload))
   }
 
@@ -2450,7 +2479,7 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       onDisplayNameChange: () => syncSidebarProfile(),
       onAvatarChange: () => syncSidebarProfile(),
       onSessionsChange: () => syncRecentSessionsUi(),
-      freeSessionLimit: FREE_SESSION_LIMIT,
+      ensureSessionSlot,
     })
   }
 
@@ -2670,7 +2699,8 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
     const allSessions = listSessions()
     const tier = readAccountTier()
-    const limit = tier === 'pro' ? Math.max(allSessions.length, FREE_SESSION_LIMIT) : FREE_SESSION_LIMIT
+    const tierLimit = sessionLimitForTier(tier)
+    const limit = Number.isFinite(tierLimit) ? tierLimit : Math.max(allSessions.length, 1)
     const visible = allSessions.length
     root.querySelectorAll<HTMLElement>('[data-sx-sessions-total]').forEach((el) => {
       el.textContent = String(visible)
@@ -4509,6 +4539,10 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         let session =
           listSessions().find((s) => primarySessionSymbol(s.assets) === sym) ?? null
         if (!session) {
+          if (!hasSessionSlot()) {
+            void ensureSessionSlot()
+            return
+          }
           session = createSession({
             name: `${sym} Session`,
             balance: '100000',
@@ -5465,7 +5499,9 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
 
     const newSessionBtn = t.closest<HTMLButtonElement>('[data-action="backtest"]')
     if (newSessionBtn && root.contains(newSessionBtn) && !newSessionBtn.disabled) {
-      sessionModal.open({ sessionType: 'backtest' })
+      void ensureSessionSlot().then((ok) => {
+        if (ok) sessionModal.open({ sessionType: 'backtest' })
+      })
       return
     }
 
@@ -5510,8 +5546,11 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
       } else if (act === 'session-stats') {
         openChartWithStoredSession(session)
       } else if (act === 'session-duplicate') {
-        duplicateSession(id)
-        syncRecentSessionsUi()
+        void ensureSessionSlot().then((ok) => {
+          if (!ok) return
+          duplicateSession(id)
+          syncRecentSessionsUi()
+        })
       } else if (act === 'session-summary') {
         openSessionSummaryDialog({
           session,
@@ -5986,7 +6025,9 @@ export async function mountDashboardApp(root: HTMLElement): Promise<void> {
         openUpgradePlansModal()
         return
       }
-      sessionModal.open({ sessionType: 'prop' })
+      void ensureSessionSlot().then((ok) => {
+        if (ok) sessionModal.open({ sessionType: 'prop' })
+      })
     })
   })
 
