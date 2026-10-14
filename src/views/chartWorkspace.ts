@@ -2156,6 +2156,10 @@ export function mountChartWorkspace(
     host.querySelectorAll<HTMLButtonElement>('[data-rw-replay-dock] [data-rw="fwd"], [data-rw-replay-dock] [data-rw="step"]').forEach((btn) => {
       btn.disabled = idx >= max
     })
+    const replayBarCount = state.replay?.getBars().length
+    host.querySelectorAll<HTMLButtonElement>('[data-rw-replay-dock] [data-rw="play"]').forEach((btn) => {
+      btn.disabled = replayBarCount != null && replayBarCount > 0 && idx >= replayBarCount
+    })
   }
 
   function syncTradeNavUi(_barTimeSec?: number) {
@@ -9554,7 +9558,9 @@ export function mountChartWorkspace(
       flushPersistReplay()
     }
 
-    function beginReplayPlayback() {
+    /** Returns false at the last candle, where Play stays inactive instead of rewinding. */
+    function beginReplayPlayback(): boolean {
+      if (replay.getState().index >= replay.getBars().length) return false
       const startPlayback = () => {
         if (!selectBarChartActive) {
           // Lock the margin and zoom wherever the chart is. Playback then scrolls one candle
@@ -9585,9 +9591,10 @@ export function mountChartWorkspace(
         requestAnimationFrame(() => {
           requestAnimationFrame(startPlayback)
         })
-        return
+        return true
       }
       startPlayback()
+      return true
     }
 
     const playBtnEl = host.querySelector<HTMLButtonElement>('[data-rw="play"]')
@@ -9601,13 +9608,29 @@ export function mountChartWorkspace(
           pauseReplayPlayback()
           syncChartIndicators(replay.getBars(), replay.slice())
           setReplayPlayButtonIcon(playBtnEl, false)
-        } else {
-          beginReplayPlayback()
+        } else if (beginReplayPlayback()) {
+          setReplayPlayButtonIcon(playBtnEl, true)
+        }
+      }
+      // Keyboard activation (Enter on a focused button) arrives as a click with detail 0 and no
+      // pointerdown; pointer clicks are already handled above and must not toggle twice.
+      const onPlayKeyboardClick = (e: MouseEvent) => {
+        if (e.detail !== 0) return
+        const wasPlaying = replay.getState().playing
+        if (wasPlaying) {
+          pauseReplayPlayback()
+          syncChartIndicators(replay.getBars(), replay.slice())
+          setReplayPlayButtonIcon(playBtnEl, false)
+        } else if (beginReplayPlayback()) {
           setReplayPlayButtonIcon(playBtnEl, true)
         }
       }
       playBtnEl.addEventListener('pointerdown', onPlayPointerDown, true)
-      cleanupFns.push(() => playBtnEl.removeEventListener('pointerdown', onPlayPointerDown, true))
+      playBtnEl.addEventListener('click', onPlayKeyboardClick)
+      cleanupFns.push(() => {
+        playBtnEl.removeEventListener('pointerdown', onPlayPointerDown, true)
+        playBtnEl.removeEventListener('click', onPlayKeyboardClick)
+      })
     }
 
     const replayHandlers: Array<{ el: Element; fn: () => void }> = []
