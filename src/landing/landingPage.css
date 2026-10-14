@@ -95,6 +95,7 @@
 .sx-land-how,
 .sx-land-why,
 .sx-land-markets,
+.sx-land-features,
 .sx-land-final,
 .sx-land-price,
 .sx-land__foot {
@@ -476,7 +477,8 @@
 }
 
 .sx-land-how .sx-land-pill,
-.sx-land-markets .sx-land-pill {
+.sx-land-markets .sx-land-pill,
+.sx-land-features .sx-land-pill {
   padding: 8px 18px;
   color: #fff;
   font: 400 30px/1 Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -1085,8 +1087,200 @@
 
 .sx-land-how,
 .sx-land-why,
-.sx-land-markets {
+.sx-land-markets,
+.sx-land-features {
   padding: 110px 0 8px;
+}
+
+.sx-land-features__list {
+  display: grid;
+  gap: 18px;
+}
+
+.sx-land-feat {
+  display: grid;
+  gap: 22px;
+  align-items: center;
+  padding: 28px 26px;
+  border-radius: 22px;
+  background:
+    radial-gradient(80% 120% at 100% 0%, rgba(143, 123, 255, 0.16), transparent 52%),
+    linear-gradient(180deg, rgba(22, 27, 50, 0.78), rgba(10, 13, 26, 0.78));
+  box-shadow: inset 0 0 0 1px var(--line);
+  scroll-margin-top: 76px;
+}
+
+.sx-land-feat:target {
+  box-shadow:
+    inset 0 0 0 1px rgba(143, 123, 255, 0.7),
+    0 0 0 6px rgba(109, 92, 232, 0.16),
+    0 24px 50px rgba(20, 40, 140, 0.28);
+}
+
+.sx-land-feat__n {
+  color: #8f7bff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+
+.sx-land-feat__copy h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 0;
+  color: #fff;
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.sx-land-feat__ico {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(143, 123, 255, 0.16);
+  color: #d9d2ff;
+}
+
+.sx-land-feat__ico svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sx-land-feat__lede {
+  margin: 12px 0 0;
+  color: #fff;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.sx-land-feat__copy p:last-child {
+  margin: 8px 0 0;
+  max-width: 52ch;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.sx-land-feat__stage {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+  min-height: 168px;
+  padding: 22px 18px;
+  border-radius: 18px;
+  background: rgba(4, 6, 14, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.sx-feat-candles {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 92px;
+}
+
+.sx-feat-candles i {
+  width: 14px;
+  height: var(--h);
+  border-radius: 4px;
+  background: #d2544a;
+}
+
+.sx-feat-candles i.is-up {
+  background: #1f9d72;
+}
+
+.sx-feat-candles i.is-future {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.28);
+}
+
+.sx-feat-caption {
+  margin: 0;
+  color: #9aa3b2;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+}
+
+.sx-feat-journal {
+  width: min(100%, 260px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sx-feat-journal li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e7eaef;
+  font-size: 14px;
+}
+
+.sx-feat-journal li:last-child {
+  border-bottom: 0;
+}
+
+.sx-feat-journal .is-up {
+  color: #1f9d72;
+}
+
+.sx-feat-journal .is-down {
+  color: #d2544a;
+}
+
+.sx-feat-why {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  width: min(100%, 280px);
+}
+
+.sx-feat-why p {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f5f7;
+  font-size: 13.5px;
+}
+
+.sx-feat-desk {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: #e7eaef;
+}
+
+.sx-feat-desk span {
+  color: #9aa3b2;
+  font-size: 13px;
+}
+
+.sx-feat-desk strong {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.sx-feat-desk em {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #2f6bff;
+  color: #fff;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 500;
 }
 
 .sx-land-head {
@@ -1895,6 +2089,11 @@
   .sx-land-markets__grid {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  .sx-land-feat {
+    grid-template-columns: 1.15fr 0.85fr;
+    padding: 32px 36px;
+  }
 }
 
 @media (min-width: 1180px) {
@@ -1931,6 +2130,7 @@
   .sx-land-how,
   .sx-land-why,
   .sx-land-markets,
+  .sx-land-features,
   .sx-land-final,
   .sx-land__foot {
     width: min(1180px, calc(100% - 28px));

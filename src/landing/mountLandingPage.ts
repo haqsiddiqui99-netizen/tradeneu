@@ -138,6 +138,71 @@ function navDrop(
     </div>`
 }
 
+function featureBands(): string {
+  const bands: Array<[string, string, string, MessageKey, MessageKey, MessageKey]> = [
+    ['feature-replay', '01', ICON_STEP, 'landing.drop.replayTitle', 'landing.drop.replayDesc', 'landing.feature.replayBody'],
+    ['feature-journal', '02', ICON_CHART, 'landing.drop.journalTitle', 'landing.drop.journalDesc', 'landing.feature.journalBody'],
+    ['feature-why', '03', ICON_TARGET, 'landing.drop.whyTitle', 'landing.drop.whyDesc', 'landing.feature.whyBody'],
+    ['feature-desk', '04', ICON_PLAY, 'landing.drop.deskTitle', 'landing.drop.deskDesc', 'landing.feature.deskBody'],
+  ]
+  const stages = [featureCandles(), featureJournal(), featureWhy(), featureDesk()]
+  return bands
+    .map(
+      ([id, n, icon, title, lede, body], i) => `
+        <article class="sx-land-feat" id="${id}">
+          <div class="sx-land-feat__copy">
+            <span class="sx-land-feat__n">${n}</span>
+            <h3>
+              <span class="sx-land-feat__ico" aria-hidden="true">${icon}</span>
+              <span data-i18n="${title}">${te(title)}</span>
+            </h3>
+            <p class="sx-land-feat__lede" data-i18n="${lede}">${te(lede)}</p>
+            <p data-i18n="${body}">${te(body)}</p>
+          </div>
+          <div class="sx-land-feat__stage" aria-hidden="true">${stages[i]}</div>
+        </article>`,
+    )
+    .join('')
+}
+
+function featureCandles(): string {
+  const bars = [
+    ['46%', ''],
+    ['72%', ' is-up'],
+    ['38%', ''],
+    ['84%', ' is-up'],
+    ['30%', ' is-future'],
+    ['52%', ' is-future'],
+  ]
+  return `<div class="sx-feat-candles">${bars
+    .map(([h, cls]) => `<i class="${cls.trim()}" style="--h:${h}"></i>`)
+    .join('')}</div><p class="sx-feat-caption">Hidden until the next bar</p>`
+}
+
+function featureJournal(): string {
+  return `<ul class="sx-feat-journal">
+    <li><span>Long XAUUSD</span><b class="is-up">+2.0R</b></li>
+    <li><span>Short EURUSD</span><b class="is-down">−1.0R</b></li>
+    <li><span>Long NAS100</span><b class="is-up">+1.4R</b></li>
+  </ul>`
+}
+
+function featureWhy(): string {
+  return `<div class="sx-feat-why">
+    <p>Late entry</p>
+    <p>Stop too tight</p>
+    <p>Against trend</p>
+  </div>`
+}
+
+function featureDesk(): string {
+  return `<div class="sx-feat-desk">
+    <span>XAUUSD · 15m</span>
+    <strong>Replay</strong>
+    <em>Next bar</em>
+  </div>`
+}
+
 /**
  * Public marketing page. Static on purpose: no session store and no charting
  * library. The app window in the hero is a drawn example, labelled as one, so a
@@ -221,10 +286,10 @@ export function mountLandingPage(root: HTMLElement): void {
       </a>
       <nav class="sx-land__links" aria-label="Tradeneu">
         ${navDrop('product', 'landing.nav.product', [
-          ['#product', ICON_STEP, 'landing.drop.replayTitle', 'landing.drop.replayDesc'],
-          ['#product', ICON_CHART, 'landing.drop.journalTitle', 'landing.drop.journalDesc'],
-          ['#product', ICON_TARGET, 'landing.drop.whyTitle', 'landing.drop.whyDesc'],
-          ['#product', ICON_PLAY, 'landing.drop.deskTitle', 'landing.drop.deskDesc'],
+          ['#feature-replay', ICON_STEP, 'landing.drop.replayTitle', 'landing.drop.replayDesc'],
+          ['#feature-journal', ICON_CHART, 'landing.drop.journalTitle', 'landing.drop.journalDesc'],
+          ['#feature-why', ICON_TARGET, 'landing.drop.whyTitle', 'landing.drop.whyDesc'],
+          ['#feature-desk', ICON_PLAY, 'landing.drop.deskTitle', 'landing.drop.deskDesc'],
         ])}
         ${navDrop('markets', 'landing.nav.markets', [
           ['#markets', ICON_CHART, 'landing.drop.metalsTitle', 'landing.drop.metalsDesc'],
@@ -291,6 +356,17 @@ export function mountLandingPage(root: HTMLElement): void {
       <div class="sx-land-ticker__track">
         <ul>${tickerItems}${tickerItems}</ul>
         <ul aria-hidden="true">${tickerItems}${tickerItems}</ul>
+      </div>
+    </section>
+
+    <section class="sx-land-features" id="features" aria-labelledby="sx-land-features-title">
+      <div class="sx-land-head">
+        <span class="sx-land-pill" data-i18n="landing.feature.pill">${te('landing.feature.pill')}</span>
+        <h2 id="sx-land-features-title" data-i18n="landing.feature.title">${te('landing.feature.title')}</h2>
+        <p data-i18n="landing.feature.sub">${te('landing.feature.sub')}</p>
+      </div>
+      <div class="sx-land-features__list">
+        ${featureBands()}
       </div>
     </section>
 
@@ -522,10 +598,17 @@ function wireLandingNav(root: HTMLElement): void {
       showPricing(true)
     })
   })
-  root.querySelectorAll('[data-land-home]').forEach((link) => {
-    link.addEventListener('click', () => {
+  root.querySelectorAll<HTMLAnchorElement>('[data-land-home]').forEach((link) => {
+    link.addEventListener('click', (event) => {
       closeDrops()
       showPricing(false)
+      const href = link.getAttribute('href')
+      if (!href?.startsWith('#')) return
+      const target = root.querySelector(href)
+      if (!(target instanceof HTMLElement)) return
+      event.preventDefault()
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      history.replaceState(null, '', href)
     })
   })
   root.querySelectorAll<HTMLButtonElement>('[data-cycle]').forEach((button) => {
