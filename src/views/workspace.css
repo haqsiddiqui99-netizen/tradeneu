@@ -4921,13 +4921,18 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   pointer-events: none;
 }
 
-.rw-chart-loading--boot .rw-chart-loading__veil {
-  background: #8d8d8d;
+/* Boot splash: always dark, whatever the chart theme is. The extra .rw-root keeps these above
+   the themed overlay rules further down. */
+.rw-root[data-chart-theme] .rw-chart-loading--boot .rw-chart-loading__veil {
+  background:
+    radial-gradient(60% 50% at 50% 42%, rgba(61, 127, 255, 0.13), transparent 70%),
+    radial-gradient(90% 70% at 50% 110%, rgba(143, 123, 255, 0.08), transparent 65%),
+    #0a0c11;
   backdrop-filter: none;
 }
 
-.rw-chart-loading--boot .rw-chart-loading__panel {
-  gap: 18px;
+.rw-root[data-chart-theme] .rw-chart-loading--boot .rw-chart-loading__panel {
+  gap: 26px;
   min-width: 0;
   max-width: none;
   padding: 0;
@@ -4935,18 +4940,82 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+  animation: rw-boot-rise 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* The tick spinner replaces the progress bar on the boot splash. */
+.rw-chart-loading--boot .rw-chart-loading__bar {
+  display: none;
+}
+
+.rw-chart-loading__ticks {
+  display: none;
+}
+
+.rw-chart-loading--boot .rw-chart-loading__ticks {
+  position: relative;
+  display: block;
+  width: 56px;
+  height: 56px;
+}
+
+.rw-chart-loading__ticks i {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 4px;
+  height: 14px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: #f4f6f8;
+  transform-origin: 50% 28px;
+  transform: rotate(calc(var(--i) * 22.5deg));
+  opacity: 0.12;
+  /* Each tick runs the same fade one step later, so the bright tick sweeps round clockwise. */
+  animation: rw-boot-tick 1s linear infinite;
+  animation-delay: calc((var(--i) - 16) * 0.0625s);
+}
+
+@keyframes rw-boot-tick {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.12;
+  }
+}
+
+@keyframes rw-boot-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rw-chart-loading__ticks i {
+    animation-duration: 2.4s;
+    animation-delay: calc((var(--i) - 16) * 0.15s);
+  }
+  .rw-root[data-chart-theme] .rw-chart-loading--boot .rw-chart-loading__panel {
+    animation: none;
+  }
 }
 
 .rw-chart-loading__brand {
   margin: 0;
   color: #f4f6f8;
-  font-size: 1.65rem;
+  font-size: clamp(2.2rem, 7vw, 3rem);
   text-transform: none;
 }
 
 .rw-chart-loading__brand .sx-brand__mark {
-  width: 34px;
-  height: 34px;
+  width: clamp(48px, 9vw, 62px);
+  height: clamp(48px, 9vw, 62px);
 }
 
 .rw-chart-loading__bar {
@@ -4966,10 +5035,11 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   transition: width 0.42s ease;
 }
 
-.rw-chart-loading--boot .rw-chart-loading__text {
+.rw-root[data-chart-theme] .rw-chart-loading--boot .rw-chart-loading__text {
   margin: 0;
-  font: 400 13px/1.35 var(--rw-font);
-  color: rgba(255, 255, 255, 0.88);
+  font: 500 14px/1.35 var(--rw-font);
+  letter-spacing: 0.02em;
+  color: rgba(244, 246, 248, 0.72);
   text-align: center;
 }
 
@@ -6248,7 +6318,7 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
   border: none;
   background: transparent;
   transform: translateX(-50%);
-  cursor: ns-resize;
+  cursor: row-resize;
   touch-action: none;
   outline: none;
 }
@@ -8437,8 +8507,15 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 }
 
 .rw-root--dock-resizing {
-  cursor: ns-resize;
+  cursor: row-resize;
   user-select: none;
+}
+
+/* Buttons, the chart and the panel set their own cursors; during a drag the split-bar
+   cursor has to win everywhere so it never flickers back to a pointer or arrow. */
+.rw-root--dock-resizing,
+.rw-root--dock-resizing * {
+  cursor: row-resize !important;
 }
 
 /* Full-width segmented control (Performance / Drawdown / Simulation style): equal-width

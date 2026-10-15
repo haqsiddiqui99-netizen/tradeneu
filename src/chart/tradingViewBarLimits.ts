@@ -1,10 +1,23 @@
 import type { TvBar, TvPeriodParams } from './tradingViewTypes'
 
-/** Hard cap per getBars response — larger payloads freeze TradingView on the main thread. */
-export const MAX_TV_BARS_PER_REQUEST = 500
+/**
+ * Hard cap per getBars response — larger payloads freeze TradingView on the main thread.
+ * Must stay above one day of 1-minute bars (1440), or the footer 1D range button can never
+ * be filled and TV clamps it to whatever the cap allowed.
+ */
+export const MAX_TV_BARS_PER_REQUEST = 1500
 
-export function tvRequestBarLimit(periodParams: TvPeriodParams): number {
-  return Math.min(Math.max(periodParams.countBack || 0, 120), MAX_TV_BARS_PER_REQUEST)
+/**
+ * How many bars one getBars answer may hold.
+ *
+ * TradingView treats an answer as covering the whole [from, to] window it asked for, and
+ * `countBack` is only a minimum. Trimming the answer to ~countBack bars therefore leaves a hole
+ * between the window's start and the first bar actually sent — TV never asks for it, since it
+ * believes it already has it — and the footer range buttons (5D, 1D, ...) then show a fraction
+ * of the span they name. So serve the whole window whenever it fits under the safety cap.
+ */
+export function tvRequestBarLimit(_periodParams: TvPeriodParams): number {
+  return MAX_TV_BARS_PER_REQUEST
 }
 
 /** True when the requested TV window could contain any of the loaded bars. */
@@ -59,7 +72,7 @@ export function capTvBarsForRequest(
   if (bars.length <= limit) return bars
   if (preferStart) {
     const anchor = Math.min(Math.max(0, anchorIndex), bars.length - 1)
-    const start = Math.max(0, anchor - Math.floor(limit * 0.2))
+    const start = Math.max(0, Math.min(anchor - Math.floor(limit * 0.2), bars.length - limit))
     return bars.slice(start, Math.min(bars.length, start + limit))
   }
   return bars.slice(-limit)
@@ -90,7 +103,11 @@ export function filterTvBarsStrictlyInPeriod(
       const anchorTime = bars[anchorSourceIdx]!.time
       let anchorIdx = filtered.findIndex((b) => b.time === anchorTime)
       if (anchorIdx < 0) anchorIdx = Math.min(filtered.length - 1, anchorSourceIdx)
-      const start = Math.max(0, anchorIdx - Math.floor(limit * 0.2))
+      // Keep a little history behind the anchor and fill the rest ahead of it. When there is
+      // little or nothing ahead (replay never serves future bars, so the anchor is the last
+      // bar), slide the window back so it is still full of real history. Otherwise a range
+      // button such as 1D or 5D gets only ~20% of the cap and TV clamps the range to that.
+      const start = Math.max(0, Math.min(anchorIdx - Math.floor(limit * 0.2), filtered.length - limit))
       filtered = filtered.slice(start, Math.min(filtered.length, start + limit))
     } else {
       filtered = filtered.slice(-limit)

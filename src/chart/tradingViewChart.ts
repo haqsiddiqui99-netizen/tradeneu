@@ -96,6 +96,8 @@ export type TradingViewChartHandle = {
   clearReplayPickPreview: () => void
   clearReplay: () => void
   scrollReplayCursorIntoView: () => void
+  /** Show `spanSec` of history ending at the replay cursor (footer 5d/1d/... buttons). */
+  applyFooterRangeWindow: (spanSec: number) => void
   /** Pan TV chart to a wall-clock session time (unix seconds, local session modal time). */
   scrollToWallTimeSec: (timeSec: number) => void
   setHistoricalAnchorIndex: (barIndex: number) => void
@@ -275,8 +277,16 @@ export type TradingViewChartOpts = {
   /** Provider label for resolveSymbol (e.g. dukascopy:xauusd → Dukascopy). Set before widget init. */
   dataSource?: string
   onSymbolChange?: (symbol: string) => void
-  /** Fired when the user changes interval via the TV header (not programmatic sync). */
-  onResolutionChange?: (resolution: string) => void
+  /**
+   * Fired when the user changes interval via the TV header (not programmatic sync).
+   * `fromRangeButton` is true when the change came from the footer 5y/1y/6m/3m/1m/5d/1d
+   * buttons: those pick a resolution AND a time window together, so the host must not restore
+   * the viewport it had before the click on top of the window TradingView just chose.
+   */
+  onResolutionChange?: (
+    resolution: string,
+    meta?: { fromRangeButton: boolean; rangeSpanSec?: number },
+  ) => void
   /** Set while applyIntervalPick is running (guards datafeed during rebucket). */
   intervalSwapRef?: { inProgress: boolean }
   headerButtons?: TvHeaderButtonDef[]
@@ -402,6 +412,17 @@ function chartingLibraryScriptUrl(): string {
 function tvWidgetCtor(): TvWidgetCtor | undefined {
   const w = window as Window & { TradingView?: { widget?: TvWidgetCtor } }
   return w.TradingView?.widget
+}
+
+/** Period each footer range button names, keyed by its label. */
+const TV_RANGE_BUTTON_SPAN_SEC: Record<string, number> = {
+  '1d': 86_400,
+  '5d': 5 * 86_400,
+  '1m': 30 * 86_400,
+  '3m': 91 * 86_400,
+  '6m': 182 * 86_400,
+  '1y': 365 * 86_400,
+  '5y': 5 * 365 * 86_400,
 }
 
 function tvIframeDocument(mount: HTMLElement): Document | null {
@@ -2731,10 +2752,33 @@ export async function createTradingViewChart(
         resolution?: () => string
         onIntervalChanged?: () => { subscribe: (obj: null, cb: () => void) => void; unsubscribe: (obj: null, cb: () => void) => void }
       }
+      // Footer range buttons live in the TV iframe; remember a click on them just long enough
+      // for the interval change they trigger to be attributed to the button.
+      let lastRangeButtonClickAt = Number.NEGATIVE_INFINITY
+      let lastRangeButtonSpanSec: number | undefined
+      const rangeDoc = tvIframeDocument(mount)
+      const onRangeButtonClick = (ev: Event) => {
+        const target = ev.target as Element | null
+        if (target?.closest?.('[data-name="date-ranges-tabs"]')) {
+          lastRangeButtonClickAt = performance.now()
+          const label = target.closest('button')?.textContent?.trim().toLowerCase() ?? ''
+          lastRangeButtonSpanSec = TV_RANGE_BUTTON_SPAN_SEC[label]
+        }
+      }
+      rangeDoc?.addEventListener('click', onRangeButtonClick, true)
+      headerButtonCleanups.push(() => rangeDoc?.removeEventListener('click', onRangeButtonClick, true))
       const intervalChangedHandler = () => {
         if (suppressIntervalChange) return
         const res = chart.resolution?.()?.trim()
-        if (res) opts.onResolutionChange?.(res)
+        if (res) {
+          const fromRangeButton = performance.now() - lastRangeButtonClickAt < 2000
+          opts.onResolutionChange?.(res, {
+            fromRangeButton,
+            ...(fromRangeButton && lastRangeButtonSpanSec != null
+              ? { rangeSpanSec: lastRangeButtonSpanSec }
+              : {}),
+          })
+        }
       }
       chart.onIntervalChanged?.().subscribe(null, intervalChangedHandler)
       headerButtonCleanups.push(() => {
@@ -3060,6 +3104,10 @@ export async function createTradingViewChart(
 
     scrollReplayCursorIntoView() {
       replayCtrl?.scrollReplayCursorIntoView()
+    },
+
+    applyFooterRangeWindow(spanSec: number) {
+      replayCtrl?.applyFooterRangeWindow(spanSec)
     },
 
     scrollToWallTimeSec(timeSec: number) {

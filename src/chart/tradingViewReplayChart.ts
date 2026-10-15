@@ -114,6 +114,11 @@ export type TvReplayChartController = {
   clearReplayPickPreview: () => void
   clearReplay: () => void
   scrollReplayCursorIntoView: () => void
+  /**
+   * Show the window a footer range button (5d, 1d, ...) names: `spanSec` of history ending at
+   * the replay cursor, plus a small empty margin on the right.
+   */
+  applyFooterRangeWindow: (spanSec: number) => void
   /** Pan the TV chart so `timeSec` (unix seconds) sits at the replay anchor (~62% across). */
   scrollToWallTimeSec: (timeSec: number) => void
   /** Unix seconds at a horizontal anchor in the visible plot (0 = left, 1 = right). */
@@ -808,12 +813,30 @@ export function createTvReplayChartController(opts: {
     return edgeIdx - newLast + frac
   }
 
+  let keptEdgeFor: TvLockedViewport | null = null
+
   const restoreVisibleRangeLocked = async (saved: TvLockedViewport) => {
     const c = chart()
     if (!c) return
     beginProgrammaticViewportRestore()
     try {
       const ts = c.getTimeScale()
+      // A scissors cut arms the playback anchor with the margin of the *uncut* series, and the
+      // anchored path below would write that margin back — sliding every candle right by the
+      // number of bars the cut removed. Work out where the captured edge now sits first, and
+      // re-arm the anchor on that, once per captured viewport (retries then hold it as-is).
+      if (playbackOffsetAnchor && keptEdgeFor !== saved) {
+        const keptOffset = rightOffsetKeepingCapturedEdge(saved)
+        if (keptOffset != null && Number.isFinite(keptOffset)) {
+          keptEdgeFor = saved
+          if (saved.barSpacing != null && Number.isFinite(saved.barSpacing)) {
+            ts.setBarSpacing(saved.barSpacing)
+          }
+          ts.setRightOffset(keptOffset)
+          capturePlaybackOffsetAnchor()
+          return
+        }
+      }
       if (applyAnchoredPlaybackViewport(ts)) return
       if (saved.barSpacing != null && Number.isFinite(saved.barSpacing)) {
         ts.setBarSpacing(saved.barSpacing)
@@ -1202,6 +1225,28 @@ export function createTvReplayChartController(opts: {
       )
     }
     window.setTimeout(() => verifyBootViewport(0), 80)
+  }
+
+  /**
+   * TV applies a footer range button's window itself, but when the button also changes the
+   * interval our swap resets the series mid-flight and that window is lost (or the old one is
+   * restored over it). So it is set again here, once the swap has settled.
+   */
+  const applyFooterRangeWindow = (spanSec: number) => {
+    const c = chart()
+    if (!c || !Number.isFinite(spanSec) || spanSec <= 0 || opts.isDisposed()) return
+    const all = opts.replayFeed.getAllBars()
+    const revealed = Math.min(opts.replayFeed.getRevealedCount(), all.length)
+    if (!all.length || revealed < 1) return
+    const lastSec = Math.floor(all[revealed - 1]!.time / 1000)
+    const margin = Math.max(60, opts.replayFeed.getBarPeriodSec()) * 10
+    beginProgrammaticViewportRestore()
+    try {
+      void c.setVisibleRange({ from: lastSec - spanSec, to: lastSec + margin })
+    } catch {
+      /* TV may reject a range while it is still loading */
+    }
+    endProgrammaticViewportRestore()
   }
 
   const scrollToWallTimeSec = (timeSec: number) => {
@@ -2306,6 +2351,8 @@ export function createTvReplayChartController(opts: {
     },
 
     scrollReplayCursorIntoView,
+
+    applyFooterRangeWindow,
 
     scrollToWallTimeSec,
 

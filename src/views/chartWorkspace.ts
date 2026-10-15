@@ -767,7 +767,8 @@ export function mountChartWorkspace(
             >
               <div class="rw-chart-loading__bar-fill" data-rw-chart-loading-bar style="width: 0%"></div>
             </div>
-            <p class="rw-chart-loading__text" data-rw-chart-loading-text>Connecting to server</p>
+            <div class="rw-chart-loading__ticks" aria-hidden="true">${Array.from({ length: 16 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div>
+            <p class="rw-chart-loading__text" data-rw-chart-loading-text>Setting up the chart</p>
             <div class="rw-chart-loading__spinner" aria-hidden="true" hidden></div>
             <dl class="rw-chart-loading__meta" data-rw-chart-loading-meta hidden></dl>
           </div>
@@ -1587,11 +1588,12 @@ export function mountChartWorkspace(
   let bootLoadingWatchdog: ReturnType<typeof setTimeout> | null = null
   let bootLoadingEndInFlight: Promise<void> | null = null
 
+  // One steady message for the whole boot; progress still advances for the aria value.
   const BOOT_LOAD_STEPS = [
-    { label: 'Connecting to server', progress: 18 },
-    { label: 'Loading indicators', progress: 42 },
-    { label: 'Loading chart', progress: 74 },
-    { label: 'Almost ready…', progress: 94 },
+    { label: 'Setting up the chart', progress: 18 },
+    { label: 'Setting up the chart', progress: 42 },
+    { label: 'Setting up the chart', progress: 74 },
+    { label: 'Setting up the chart', progress: 94 },
   ] as const
   /** Keep in sync with the `.rw-chart-loading--boot` opacity transition in workspace.css. */
   const BOOT_FADE_MS = 180
@@ -4465,7 +4467,7 @@ export function mountChartWorkspace(
       ) {
         return coupledCursorMemory.endSec
       }
-      const pick = resolveIntervalPick(decoupled ? replayTimeframe : chartTimeframe)
+      const pick = resolveIntervalPick(replayTimeframe)
       if (!pick || pick.kind !== 'time') return undefined
       const bars = r.getBars()
       const end = cursorEndSecForStepIndex(bars, effectiveReplayStepSec(bars, pick.stepSec ?? 60), index)
@@ -4760,6 +4762,29 @@ export function mountChartWorkspace(
     let intervalPickBusy = false
     /** TV header changed while applyIntervalPick was busy — apply after current swap. */
     let pendingTvHeaderIntervalPick: IntervalPick | null = null
+    /**
+     * The next applyIntervalPick comes from a footer range button (5d, 1d, ...). That button
+     * chose its own time window, so the swap must not restore the pre-click viewport over it.
+     */
+    let tvRangeButtonSwapNext = false
+    let pendingTvRangeButtonSwap = false
+    let pendingTvRangeSpanSec: number | null = null
+    let footerRangeToken = 0
+    /**
+     * TV's own application of a range button's window is lost when the interval swap resets
+     * the series, so set it again after the swap settles (and once more to outlast a late
+     * reset). A newer click supersedes any window still waiting to be applied.
+     */
+    const applyFooterRangeWindowSoon = (spanSec: number | null) => {
+      const token = ++footerRangeToken
+      if (spanSec == null) return
+      for (const ms of [500, 1600]) {
+        window.setTimeout(() => {
+          if (state.disposed || token !== footerRangeToken) return
+          state.tvChart?.applyFooterRangeWindow(spanSec)
+        }, ms)
+      }
+    }
 
     const setFootRangeActive = (label: string) => {
       host.querySelectorAll('.rw-foot__range').forEach((b) => {
@@ -4856,16 +4881,21 @@ export function mountChartWorkspace(
               applySymbolPick(next)
             }
           },
-          onResolutionChange: (tvRes) => {
+          onResolutionChange: (tvRes, meta) => {
             const pick = tvResolutionToIntervalPill(tvRes)
             if (!pick || pick.pill === chartTimeframe) return
             state.tvChart?.noteResolution(tvRes)
+            const fromRangeButton = meta?.fromRangeButton === true
+            const rangeSpanSec = fromRangeButton ? (meta?.rangeSpanSec ?? null) : null
             if (intervalPickBusy || tvIntervalSwap.inProgress) {
               // TV already switched — queue so we don't leave feed on the old TF (blank/stuck).
               pendingTvHeaderIntervalPick = pick
+              pendingTvRangeButtonSwap = fromRangeButton
+              pendingTvRangeSpanSec = rangeSpanSec
               return
             }
-            void applyIntervalPick(pick)
+            tvRangeButtonSwapNext = fromRangeButton
+            void applyIntervalPick(pick).then(() => applyFooterRangeWindowSoon(rangeSpanSec))
           },
         })
         state.tvChart.setSessionBars(
@@ -6799,11 +6829,17 @@ export function mountChartWorkspace(
       if (intervalPickBusy) return
       intervalPickBusy = true
       tvIntervalSwap.inProgress = true
+      const rangeButtonSwap = tvRangeButtonSwapNext
+      tvRangeButtonSwapNext = false
       const revertPill = chartTimeframe
       const prevTvRes = intervalPillToTvResolution(chartTimeframe)
       const nextTvRes = intervalPillToTvResolution(pick.pill)
       const chartResolutionWillChange = !tvResolutionMatches(prevTvRes, nextTvRes)
-      const tvSwapViewport = state.tvChart?.captureLockedViewport() ?? lockedTvViewport ?? null
+      // A footer range button already picked its own window; capturing the current viewport
+      // here would restore the pre-click window over it once the swap settles.
+      const tvSwapViewport = rangeButtonSwap
+        ? null
+        : (state.tvChart?.captureLockedViewport() ?? lockedTvViewport ?? null)
       if (chartResolutionWillChange) {
         replayViewportLocked = false
         lockedTvViewport = null
@@ -6839,6 +6875,13 @@ export function mountChartWorkspace(
       const wasDecoupled = isDecoupledReplay()
       const rememberedCursor = coupledCursorMemory
       coupledCursorMemory = null
+      // A coarser replay step on a finer chart (e.g. 5m step on a 1m chart) keeps the transport in
+      // replay-step bars, so the cursor must be measured in that step, not the chart's.
+      const transportIsReplayStep =
+        !wasDecoupled &&
+        replayPickBeforeChartChange != null &&
+        prevPick != null &&
+        usesMinuteBarSkipReplay(prevPick, replayPickBeforeChartChange)
       const preserveCursorEndSec =
         !wasDecoupled &&
         rememberedCursor != null &&
@@ -6846,10 +6889,12 @@ export function mountChartWorkspace(
         rememberedCursor.index === replay.getState().index
           ? rememberedCursor.endSec
           : replayPickBeforeChartChange &&
-              (wasDecoupled || (prevPick?.kind === 'time' && (prevPick.stepSec ?? 60) >= 60))
+              (wasDecoupled ||
+                transportIsReplayStep ||
+                (prevPick?.kind === 'time' && (prevPick.stepSec ?? 60) >= 60))
             ? cursorEndSecForStepIndex(
                 prevReplayTransport,
-                wasDecoupled
+                wasDecoupled || transportIsReplayStep
                   ? prevReplayStepSec
                   : effectiveReplayStepSec(prevReplayTransport, prevPick?.stepSec ?? 60),
                 replay.getState().index,
@@ -7252,8 +7297,13 @@ export function mountChartWorkspace(
         tvIntervalSwap.inProgress = false
         const queued = pendingTvHeaderIntervalPick
         pendingTvHeaderIntervalPick = null
+        const queuedFromRangeButton = pendingTvRangeButtonSwap
+        const queuedRangeSpanSec = pendingTvRangeSpanSec
+        pendingTvRangeButtonSwap = false
+        pendingTvRangeSpanSec = null
         if (queued && queued.pill !== chartTimeframe && !state.disposed) {
-          void applyIntervalPick(queued)
+          tvRangeButtonSwapNext = queuedFromRangeButton
+          void applyIntervalPick(queued).then(() => applyFooterRangeWindowSoon(queuedRangeSpanSec))
         }
       }
     }
