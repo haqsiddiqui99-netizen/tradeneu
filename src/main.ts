@@ -12,6 +12,7 @@ import {
 } from './appPaths'
 import { resolveAuthSession, getAuthUser, isAdminUser } from './auth/authSession'
 import { fetchAdminMe, resolveAuthedHomePath } from './admin/adminApi'
+import { syncAccountTierFromServer } from './billing/billingApi'
 import { mountDashboardApp } from './home/mountDashboardApp'
 import { mountLandingPage } from './landing/mountLandingPage'
 import { mountLoginGate } from './login/mountLoginGate'
@@ -77,6 +78,8 @@ async function bootstrap(): Promise<void> {
       window.location.replace(resolveAppPath('admin', parsed.localeTag))
       return
     }
+    // Refresh the cached plan tier from the server before any tier-gated UI renders.
+    await syncAccountTierFromServer()
     await mountDashboardApp(root)
     return
   }

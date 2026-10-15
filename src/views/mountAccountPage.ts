@@ -988,9 +988,10 @@ export function mountAccountPage(root: HTMLElement, opts: MountAccountPageOption
   document.addEventListener('click', onDocumentClickManage)
 
   const checkout = createCheckoutOverlay({
-    onComplete: (order, method) => {
+    // The plan is only granted once the server accepts the checkout.
+    beforeComplete: (order, method) => recordCheckoutComplete(order, method),
+    onComplete: (order) => {
       opts.writeTier?.(order.plan)
-      void recordCheckoutComplete(order, method)
     },
     // The tab renders tier-dependent markup top to bottom, so the host remounts
     // it rather than us patching a dozen nodes in place.

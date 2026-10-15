@@ -96,6 +96,11 @@ export function cycleLabel(cycle: CheckoutCycle): string {
 }
 
 export type MountCheckoutOverlayOptions = {
+  /**
+   * Runs before the success screen. Resolve `null` to proceed, or an error message to keep
+   * the user on the payment form (e.g. the server refused to activate the plan).
+   */
+  beforeComplete?: (order: CheckoutOrder, method: CheckoutPaymentMethod) => Promise<string | null>
   onComplete: (order: CheckoutOrder, method: CheckoutPaymentMethod) => void
   onDismissAfterComplete?: () => void
 }
@@ -323,6 +328,7 @@ export function createCheckoutOverlay(opts: MountCheckoutOverlayOptions): {
   const couponMsg = el.querySelector('[data-sx-checkout-coupon-msg]')!
   const ctaLabel = el.querySelector('[data-sx-checkout-cta-label]')!
   const errEl = el.querySelector('[data-sx-checkout-err]')!
+  const submitBtn = el.querySelector<HTMLButtonElement>('[data-sx-checkout-submit]')!
   const donePlan = el.querySelector('[data-sx-checkout-done-plan]')!
   const phoneInput = el.querySelector<HTMLInputElement>('[data-sx-checkout-phone]')!
 
@@ -452,12 +458,37 @@ export function createCheckoutOverlay(opts: MountCheckoutOverlayOptions): {
     }
   }
 
+  let submitting = false
+
   function finish(paidWith: CheckoutPaymentMethod) {
+    if (submitting) return
     method = paidWith
-    completed = true
-    donePlan.textContent = `${planFullLabel(plan)} is active`
-    showDone()
-    opts.onComplete(buildOrder(), paidWith)
+    const order = buildOrder()
+    const complete = () => {
+      completed = true
+      donePlan.textContent = `${planFullLabel(plan)} is active`
+      showDone()
+      opts.onComplete(order, paidWith)
+    }
+    if (!opts.beforeComplete) {
+      complete()
+      return
+    }
+    submitting = true
+    submitBtn.disabled = true
+    errEl.textContent = ''
+    void opts
+      .beforeComplete(order, paidWith)
+      .catch(() => 'Could not complete checkout. Please try again.')
+      .then((error) => {
+        submitting = false
+        submitBtn.disabled = false
+        if (error) {
+          errEl.textContent = error
+          return
+        }
+        complete()
+      })
   }
 
   function applyCoupon() {

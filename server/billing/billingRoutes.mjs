@@ -9,6 +9,17 @@ import {
   saveBillingAddress,
 } from './billingStore.mjs'
 
+/**
+ * The built-in checkout is a demo: it activates a plan without taking any payment. It must
+ * never be reachable in production until a real gateway (with a verified webhook) replaces
+ * it, so it is only enabled outside production, or when explicitly forced on for staging
+ * with ALLOW_DEMO_CHECKOUT=1.
+ */
+function demoCheckoutEnabled() {
+  if (String(process.env.ALLOW_DEMO_CHECKOUT || '').trim() === '1') return true
+  return process.env.NODE_ENV !== 'production'
+}
+
 export function mountBillingRoutes(app, { dataDir }) {
   function requireEmail(req, res) {
     const session = readSessionFromRequest(req)
@@ -30,6 +41,10 @@ export function mountBillingRoutes(app, { dataDir }) {
     res.setHeader('Cache-Control', 'no-store')
     const email = requireEmail(req, res)
     if (!email) return
+    if (!demoCheckoutEnabled()) {
+      res.status(403).json({ ok: false, error: 'payments_unavailable' })
+      return
+    }
     const body = req.body ?? {}
     const result = recordCheckout(dataDir, email, {
       plan: body.plan,

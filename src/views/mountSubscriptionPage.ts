@@ -313,10 +313,11 @@ export function mountSubscriptionPage(root: HTMLElement, opts: MountSubscription
   }
 
   const checkout = createCheckoutOverlay({
-    onComplete: (order, method) => {
+    // The plan is only granted once the server accepts the checkout.
+    beforeComplete: (order, method) => recordCheckoutComplete(order, method),
+    onComplete: (order) => {
       const nextTier: AccountTier = order.plan
       opts.writeTier?.(nextTier)
-      void recordCheckoutComplete(order, method)
       opts.onCheckoutComplete?.(nextTier)
     },
     onDismissAfterComplete: () => {

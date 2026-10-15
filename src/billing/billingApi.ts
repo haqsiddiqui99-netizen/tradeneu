@@ -85,10 +85,24 @@ export async function fetchMyBilling(): Promise<MyBilling | null> {
   }
 }
 
+/** User-facing message for a failed checkout call, or `null` when the server accepted it. */
+function checkoutErrorMessage(error: string): string {
+  if (error === 'payments_unavailable') {
+    return 'Online payments are not available yet. Please check back soon — you have not been charged.'
+  }
+  if (error === 'not_authenticated') return 'Your session expired. Sign in again to upgrade.'
+  if (error === 'network_error') return 'Network problem — you have not been charged. Please try again.'
+  return 'Could not complete checkout. You have not been charged.'
+}
+
+/**
+ * Asks the server to activate the plan. Resolves `null` on success, otherwise a message to
+ * show on the payment form. The server is the only authority on whether a plan is active.
+ */
 export async function recordCheckoutComplete(
   order: CheckoutOrder,
   method: CheckoutPaymentMethod,
-): Promise<boolean> {
+): Promise<string | null> {
   const result = await postBillingAction('/api/billing/checkout-complete', {
     plan: order.plan,
     cycle: order.cycle,
@@ -100,7 +114,46 @@ export async function recordCheckoutComplete(
     discountPct: order.discountPct,
     method,
   })
-  return result.ok
+  return result.ok ? null : checkoutErrorMessage(result.error)
+}
+
+export type AccountTierValue = 'free' | 'intermediate' | 'pro'
+
+const LS_ACCOUNT_TIER = 'suplexity-account-tier'
+
+/**
+ * Makes the server's subscription the source of truth for the locally cached plan tier
+ * (`suplexity-account-tier`). Without this the tier is just a localStorage flag anyone can
+ * edit, and it would leak between accounts that share a browser. Network failures leave the
+ * cached value alone; an authenticated "no active paid plan" answer resets it to free.
+ */
+export async function syncAccountTierFromServer(): Promise<AccountTierValue | null> {
+  try {
+    const res = await fetch('/api/billing/me', {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    })
+    let tier: AccountTierValue
+    if (res.status === 401) {
+      tier = 'free'
+    } else if (res.ok) {
+      const body = (await res.json()) as { ok?: boolean; subscription?: BillingSubscription | null }
+      if (body.ok !== true) return null
+      const sub = body.subscription
+      tier = sub && sub.status === 'active' && (sub.plan === 'pro' || sub.plan === 'intermediate') ? sub.plan : 'free'
+    } else {
+      return null
+    }
+    try {
+      localStorage.setItem(LS_ACCOUNT_TIER, tier)
+    } catch {
+      /* storage unavailable */
+    }
+    return tier
+  } catch {
+    return null
+  }
 }
 
 /** Switches an active paid subscription's billing cycle, starting a fresh period from now. */
