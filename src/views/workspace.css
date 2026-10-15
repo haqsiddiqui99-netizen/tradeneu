@@ -105,8 +105,15 @@
   grid-template-rows: 0px auto;
 }
 
+/* While the panel is dragged toward full height the chart stage shrinks with the pointer
+   (see `tradeDockMaxHeight`); its content is clipped by the shrinking box so the chart
+   rolls away smoothly instead of overflowing, then snapping shut at the top. */
+.rw-root--trade-squeezed .rw-chart-wrap,
 .rw-root--trade-maximized .rw-chart-wrap {
   overflow: hidden;
+}
+
+.rw-root--trade-maximized .rw-chart-wrap {
   pointer-events: none;
 }
 
@@ -141,18 +148,11 @@
   max-height: none !important;
 }
 
-/* The floating bar-replay pill lives inside the now-collapsed chart stage — switch it to
-   viewport-fixed positioning so it keeps floating on top of the trade page instead of
-   collapsing away with its (now invisible) parent. */
-.rw-root--trade-maximized .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--tv,
-.rw-root--trade-maximized .rw-chart-canvas > .rw-chart-replay-dock.rw-replay-dock--floating.rw-replay-dock--tv {
-  position: fixed !important;
-  top: 14px;
-  bottom: auto;
-  left: 50%;
-  transform: translateX(-50%);
-  pointer-events: auto;
-  z-index: 4000;
+/* The floating bar-replay pill belongs to the chart. With the chart closed behind the full
+   trade page it has nothing to control, so it goes away with it and returns as soon as the
+   panel is dragged back down. */
+.rw-root--trade-maximized .rw-chart-replay-dock {
+  display: none !important;
 }
 
 /* ——— Top toolbar ——— */
@@ -8509,6 +8509,9 @@ body.rw-replay-dock-dragging .rw-chart-canvas > .rw-chart-replay-dock {
 .rw-root--dock-resizing {
   cursor: row-resize;
   user-select: none;
+  /* The pointer drives the rows frame by frame; a grid-rows easing would lag behind it and,
+     when the "maximized" template kicks in, flash an intermediate layout. */
+  transition: none;
 }
 
 /* Buttons, the chart and the panel set their own cursors; during a drag the split-bar

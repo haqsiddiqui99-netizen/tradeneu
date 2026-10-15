@@ -2765,17 +2765,32 @@ export function mountChartWorkspace(
   const TRADE_DOCK_CLOSE_H = 40 // release below this height and it snaps fully closed
   const TRADE_DOCK_DRAG_SLOP = 4 // pointer must move this many px before a drag "counts"
   const TRADE_DOCK_MAX_SLOP = 8 // within this many px of the max, treat it as "maximized"
-  const tradeDockMaxHeight = () => Math.max(TRADE_DOCK_CLOSE_H, rwRoot.clientHeight - 120)
+  const TRADE_DOCK_SQUEEZE_PX = 220 // chart stage shorter than this gets clipped, not overflowed
+  // Height of everything in the footer that is NOT the positions panel (strip, trade bar,
+  // paddings), measured once per drag. The panel can grow by `root height - this`, which is
+  // exactly the point where the chart stage has shrunk to nothing — so the chart rolls away
+  // continuously with the pointer instead of snapping shut near the top.
+  let tradeDockChromeH: number | null = null
+  const tradeDockMaxHeight = () =>
+    Math.max(TRADE_DOCK_CLOSE_H, rwRoot.clientHeight - (tradeDockChromeH ?? 120))
+  const measureTradeDockChrome = () => {
+    const footer = tradeDockRow?.closest<HTMLElement>('.rw-chart-footer-tv')
+    if (!footer || !tradeDockPanel) return
+    const chrome = footer.getBoundingClientRect().height - tradeDockPanel.getBoundingClientRect().height
+    if (Number.isFinite(chrome) && chrome > 0 && chrome < 300) tradeDockChromeH = Math.round(chrome)
+  }
   let tradeDockDragStartY = 0
   let tradeDockDragStartH = 0
   let tradeDockDragPointer: number | null = null
   let tradeDockDragMoved = false
   // Dragged (almost) all the way up: the chart/top-toolbar chrome is hidden completely and
-  // the trade panel takes the full page, while the floating bar-replay pill switches to
-  // viewport-fixed positioning so it keeps floating on top instead of disappearing with
-  // the now-collapsed chart area underneath it.
-  const setTradeDockMaximized = (maximized: boolean) => {
+  // the trade panel takes the full page, and the floating bar-replay pill is hidden with the
+  // chart it controls (it returns when the panel is dragged back down).
+  const setTradeDockMaximized = (maximized: boolean, squeezed = maximized) => {
     rwRoot.classList.toggle('rw-root--trade-maximized', maximized)
+    // While the chart stage is squeezed short its content (TradingView's toolbars) must be
+    // clipped by it rather than spill over the trade panel.
+    rwRoot.classList.toggle('rw-root--trade-squeezed', squeezed)
   }
   const applyTradeDockHeight = (px: number) => {
     if (!tradeDockPanel) return
@@ -2784,7 +2799,7 @@ export function mountChartWorkspace(
     tradeDockPanel.style.height = `${h}px`
     tradeDockPanel.style.minHeight = `${h}px`
     tradeDockPanel.style.maxHeight = `${h}px`
-    setTradeDockMaximized(h >= maxH - TRADE_DOCK_MAX_SLOP)
+    setTradeDockMaximized(h >= maxH - TRADE_DOCK_MAX_SLOP, maxH - h < TRADE_DOCK_SQUEEZE_PX)
     return h
   }
   const onTradeDockGripMove = (ev: PointerEvent) => {
@@ -2798,6 +2813,8 @@ export function mountChartWorkspace(
       tradeDockPanel?.classList.add('rw-order-book--resizing')
       rwRoot.classList.add('rw-root--dock-resizing')
       syncTradeDockToggleUi()
+      // Transitions are off now, so the footer/panel sizes read here are the settled ones.
+      measureTradeDockChrome()
     }
     const h = applyTradeDockHeight(tradeDockDragStartH + rawDelta)
     if (h !== undefined) tradeDockCustomHeight = h
