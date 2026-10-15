@@ -4682,41 +4682,93 @@ export function mountChartWorkspace(
       return Number.isFinite(sec) ? sec : Math.floor(Date.now() / 1000)
     }
 
+    /** Fill pending orders, move break-evens and take SL/TP exits for one bar. */
+    function evaluateAccountOnBar(b: Bar): boolean {
+      const mark = b.close
+      let changed = false
+      const { bid, ask } = bidAskFromBar(b)
+      replayAccount.updateExcursions(b.high, b.low)
+      const pending = replayAccount.processPendingFills(Number(b.time), mark, {
+        high: b.high,
+        low: b.low,
+      })
+      if (pending.filled.length) {
+        pending.filled.forEach(applyCurrentScalperProtection)
+        changed = true
+        showReplayToast(`${pending.filled.length} pending order${pending.filled.length === 1 ? '' : 's'} filled`)
+      }
+      if (pending.cancelled.length) {
+        changed = true
+        showReplayToast('Pending order cancelled: insufficient buying power', 'error')
+      }
+      const breakEvenMoved = replayAccount.processBreakEven(Number(b.time), {
+        high: b.high,
+        low: b.low,
+      })
+      if (breakEvenMoved.length) {
+        changed = true
+        showReplayToast(
+          `Auto Break-even moved ${breakEvenMoved.length} Stop Loss${breakEvenMoved.length === 1 ? '' : 'es'} to entry`,
+        )
+      }
+      const closed = replayAccount.processExits(Number(b.time), mark, bid, ask, {
+        high: b.high,
+        low: b.low,
+      })
+      if (closed.length) changed = true
+      return changed
+    }
+
+    /** Transport series and cursor time the account was last evaluated on. */
+    let evaluatedBars: Bar[] | null = null
+    let evaluatedThroughSec: number | null = null
+
+    /**
+     * A step burst, a Go-to jump or a multi-bar play tick moves the cursor over bars that were
+     * never the cursor bar, so their wicks never reached the account — a stop or target inside
+     * the skipped stretch went unnoticed and the position carried on. Walk those bars in order
+     * first. The series identity guards interval swaps: a new series is a re-view of bars already
+     * seen, not new price action, and must not close trades retroactively.
+     */
+    function evaluateSkippedBars(): boolean {
+      const r = state.replay
+      if (!r || state.tickReplayUnit === 'tick') {
+        evaluatedBars = null
+        evaluatedThroughSec = null
+        return false
+      }
+      const bars = r.getBars()
+      const revealed = Math.min(r.getState().index, bars.length)
+      const cursorBar = revealed > 0 ? bars[revealed - 1] : null
+      if (!cursorBar) return false
+      const cursorSec = Number(cursorBar.time)
+      const through = bars === evaluatedBars ? evaluatedThroughSec : null
+      evaluatedBars = bars
+      evaluatedThroughSec = cursorSec
+      if (through == null || !(cursorSec > through) || !Number.isFinite(cursorSec)) return false
+      if (!replayAccount.getPositions().length && !replayAccount.getPendingOrders().length) return false
+      // First bar strictly after the last one evaluated; the cursor bar itself is the caller's.
+      let lo = 0
+      let hi = revealed - 1
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1
+        if (Number(bars[mid]!.time) > through) hi = mid
+        else lo = mid + 1
+      }
+      let changed = false
+      for (let i = lo; i < revealed - 1; i++) {
+        if (evaluateAccountOnBar(bars[i]!)) changed = true
+      }
+      return changed
+    }
+
     function syncTradingUi(b: Bar | null) {
       const mark = b?.close ?? 0
       const ba = b ? bidAskFromBar(b) : undefined
       let accountChanged = false
       if (b) {
-        const { bid, ask } = bidAskFromBar(b)
-        replayAccount.updateExcursions(b.high, b.low)
-        const pending = replayAccount.processPendingFills(Number(b.time), mark, {
-          high: b.high,
-          low: b.low,
-        })
-        if (pending.filled.length) {
-          pending.filled.forEach(applyCurrentScalperProtection)
-          accountChanged = true
-          showReplayToast(`${pending.filled.length} pending order${pending.filled.length === 1 ? '' : 's'} filled`)
-        }
-        if (pending.cancelled.length) {
-          accountChanged = true
-          showReplayToast('Pending order cancelled: insufficient buying power', 'error')
-        }
-        const breakEvenMoved = replayAccount.processBreakEven(Number(b.time), {
-          high: b.high,
-          low: b.low,
-        })
-        if (breakEvenMoved.length) {
-          accountChanged = true
-          showReplayToast(
-            `Auto Break-even moved ${breakEvenMoved.length} Stop Loss${breakEvenMoved.length === 1 ? '' : 'es'} to entry`,
-          )
-        }
-        const closed = replayAccount.processExits(Number(b.time), mark, bid, ask, {
-          high: b.high,
-          low: b.low,
-        })
-        if (closed.length) accountChanged = true
+        if (evaluateSkippedBars()) accountChanged = true
+        if (evaluateAccountOnBar(b)) accountChanged = true
       }
       const sum = replayAccount.summary(mark, ba)
       // The mask travels with the value as a data attribute so the hidden state can render it
